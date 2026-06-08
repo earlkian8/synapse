@@ -30,16 +30,18 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" href="/staffa-logo-transparent.png" type="image/png">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="apple-touch-icon" href="/staffa-logo-white-background.png">
+        <link rel="manifest" href="/site.webmanifest">
+        <meta name="theme-color" content="#0F2044">
 
         @fonts
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
         <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
+            <title>{{ config('app.name', 'STAFFA') }}</title>
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">
