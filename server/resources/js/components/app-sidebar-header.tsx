@@ -116,10 +116,13 @@ export function AppSidebarHeader({
                                         <Avatar className="size-8 rounded-full ring-1 ring-border">
                                             <AvatarImage
                                                 src={auth.user.avatar}
-                                                alt={auth.user.name}
+                                                alt={auth.user.full_name}
                                             />
                                             <AvatarFallback className="rounded-full bg-[#0F2044] text-[11px] font-semibold text-white">
-                                                {getInitials(auth.user.name)}
+                                                {getInitials(
+                                                    auth.user.first_name,
+                                                    auth.user.last_name,
+                                                )}
                                             </AvatarFallback>
                                         </Avatar>
                                     </Button>

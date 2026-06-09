@@ -1,0 +1,40 @@
+# STAFFA Documentation
+
+Project documentation for the STAFFA HR ERP. This folder is the single source of
+truth for **how and why** the system is built — complementing the inline code and
+commit history rather than repeating them.
+
+## How this folder is organised
+
+| Folder | Purpose | Naming |
+| --- | --- | --- |
+| [`modules/`](./modules) | One document per functional module (User Management, Payroll, Recruitment, …). Describes features, routes, backend + frontend architecture, and how to extend it. | `kebab-case.md`, named after the module (`user-management.md`). |
+| [`database/`](./database) | Schema references for important tables — columns, constraints, and the migrations that shaped them. | `kebab-case.md`, named after the table (`users-table.md`). |
+| [`decisions/`](./decisions) | Architecture Decision Records (ADRs). Each captures **one** significant decision: the context, the choice, and the trade-offs. | `NNNN-short-title.md`, zero-padded sequential (`0001-…`). |
+| [`changelog/`](./changelog) | Per-change notes — what shipped in a meaningful set of work, file-by-file, for reviewers and future readers. | `YYYY-MM-DD-short-title.md`. |
+
+### Conventions
+
+- **Audience:** engineers joining or returning to a module. Assume general
+  Laravel / React / Inertia knowledge; explain only what is project-specific.
+- **Keep it current:** when a module changes meaningfully, update its module doc in
+  the same PR. ADRs are append-only — supersede an old ADR with a new one instead
+  of rewriting history.
+- **Link, don't duplicate:** reference code paths (`server/app/...`) and other docs
+  rather than pasting large code blocks. Short illustrative snippets are fine.
+- **Each ADR is immutable once merged.** If a decision is reversed, add a new ADR
+  that references and supersedes it.
+
+## Index
+
+### Modules
+- [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
+
+### Database
+- [`users` table](./database/users-table.md) — identity, profile, account, and soft-delete columns.
+
+### Decisions
+- [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
+
+### Changelog
+- [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)
