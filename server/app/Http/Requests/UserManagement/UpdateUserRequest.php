@@ -24,8 +24,10 @@ class UpdateUserRequest extends FormRequest
             'suffix' => ['nullable', 'string', 'max:32'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($userId)],
             'phone_number' => ['nullable', 'string', 'max:32'],
-            'employee_id' => ['nullable', 'string', 'max:64', Rule::unique(User::class)->ignore($userId)],
             'is_active' => ['required', 'boolean'],
+            'email_verified' => ['boolean'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_photo' => ['boolean'],
         ];
     }
 
@@ -36,6 +38,8 @@ class UpdateUserRequest extends FormRequest
     {
         $this->merge([
             'is_active' => $this->boolean('is_active'),
+            'email_verified' => $this->boolean('email_verified'),
+            'remove_photo' => $this->boolean('remove_photo'),
         ]);
     }
 }

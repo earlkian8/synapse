@@ -11,6 +11,8 @@ use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,15 +43,24 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        $user = new User(Arr::except($request->validated(), [
+            'password', 'photo', 'email_verified',
+        ]));
 
-        if (blank($data['password'] ?? null)) {
-            unset($data['password']);
-        } else {
-            $data['password_changed_at'] = now();
+        if (filled($request->validated('password'))) {
+            $user->password = $request->validated('password');
+            $user->password_changed_at = now();
         }
 
-        User::create($data);
+        if ($request->boolean('email_verified')) {
+            $user->email_verified_at = now();
+        }
+
+        if ($request->hasFile('photo')) {
+            $user->profile_photo = $request->file('photo')->store('profile-photos', 'public');
+        }
+
+        $user->save();
 
         return $this->respond('User created.');
     }
@@ -59,10 +70,23 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
-        $user->fill($request->validated());
+        $user->fill(Arr::except($request->validated(), [
+            'photo', 'remove_photo', 'email_verified',
+        ]));
 
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
+        // The admin's verification toggle is authoritative — it overrides the
+        // usual "email changed, so re-verify" behaviour.
+        $user->email_verified_at = $request->boolean('email_verified')
+            ? ($user->email_verified_at ?? now())
+            : null;
+
+        if ($request->boolean('remove_photo')) {
+            $this->deletePhoto($user);
+        }
+
+        if ($request->hasFile('photo')) {
+            $this->deletePhoto($user);
+            $user->profile_photo = $request->file('photo')->store('profile-photos', 'public');
         }
 
         $user->save();
@@ -105,9 +129,21 @@ class UserController extends Controller
             return $this->respond('You cannot delete your own account.', 'error');
         }
 
+        $this->deletePhoto($model);
         $model->forceDelete();
 
         return $this->respond('User permanently deleted.');
+    }
+
+    /**
+     * Remove a user's stored profile photo from disk, if any.
+     */
+    private function deletePhoto(User $user): void
+    {
+        if ($user->profile_photo) {
+            Storage::disk('public')->delete($user->profile_photo);
+            $user->profile_photo = null;
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 import { useForm } from '@inertiajs/react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Trash2, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,10 @@ function UserFormBody({
     onDone: () => void;
 }) {
     const isEditing = Boolean(user);
+    const fileInput = useRef<HTMLInputElement>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(
+        user?.profile_photo ?? null,
+    );
 
     const { data, setData, post, patch, processing, errors } = useForm({
         first_name: user?.first_name ?? '',
@@ -81,16 +86,45 @@ function UserFormBody({
         suffix: user?.suffix ?? '',
         email: user?.email ?? '',
         phone_number: user?.phone_number ?? '',
-        employee_id: user?.employee_id ?? '',
         is_active: user?.is_active ?? true,
+        email_verified: user?.email_verified ?? false,
+        photo: null as File | null,
+        remove_photo: false,
         password: '',
         password_confirmation: '',
     });
+
+    const pickPhoto = (file: File | null) => {
+        if (photoPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(photoPreview);
+        }
+
+        if (file) {
+            setData('photo', file);
+            setData('remove_photo', false);
+            setPhotoPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const clearPhoto = () => {
+        if (photoPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(photoPreview);
+        }
+
+        setData('photo', null);
+        setData('remove_photo', true);
+        setPhotoPreview(null);
+
+        if (fileInput.current) {
+            fileInput.current.value = '';
+        }
+    };
 
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
         const options = {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => onDone(),
         };
 
@@ -100,6 +134,10 @@ function UserFormBody({
             post(userRoutes.store, options);
         }
     };
+
+    const previewInitials =
+        `${data.first_name.charAt(0)}${data.last_name.charAt(0)}`.toUpperCase() ||
+        '?';
 
     const autofillPassword = () => {
         const generated = generatePassword();
@@ -113,6 +151,56 @@ function UserFormBody({
     return (
         <form onSubmit={submit} className="flex h-full flex-col">
             <div className="flex-1 space-y-8 px-6 py-6">
+                <div className="flex items-center gap-4">
+                    <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0F2044] text-lg font-semibold text-white ring-1 ring-border">
+                        {photoPreview ? (
+                            <img
+                                src={photoPreview}
+                                alt="Profile preview"
+                                className="size-full object-cover"
+                            />
+                        ) : (
+                            previewInitials
+                        )}
+                    </span>
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fileInput.current?.click()}
+                            >
+                                <Upload className="size-4" />
+                                {photoPreview ? 'Change photo' : 'Upload photo'}
+                            </Button>
+                            {photoPreview && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={clearPhoto}
+                                    className="text-destructive hover:text-destructive"
+                                >
+                                    <Trash2 className="size-4" />
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            JPG, PNG or WEBP. Max 2&nbsp;MB.
+                        </p>
+                        <input
+                            ref={fileInput}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+                        />
+                        <InputError message={errors.photo} />
+                    </div>
+                </div>
+
                 <Section
                     title="Personal information"
                     description="Legal name as it should appear across the system."
@@ -154,8 +242,8 @@ function UserFormBody({
                 </Section>
 
                 <Section
-                    title="Contact & identity"
-                    description="How the organisation reaches and identifies this person."
+                    title="Contact"
+                    description="How the organisation reaches this person."
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
                         <Field label="Email address" htmlFor="email" error={errors.email} required className="sm:col-span-2">
@@ -167,19 +255,11 @@ function UserFormBody({
                                 required
                             />
                         </Field>
-                        <Field label="Phone number" htmlFor="phone_number" error={errors.phone_number} optional>
+                        <Field label="Phone number" htmlFor="phone_number" error={errors.phone_number} optional className="sm:col-span-2">
                             <Input
                                 id="phone_number"
                                 value={data.phone_number}
                                 onChange={(e) => setData('phone_number', e.target.value)}
-                            />
-                        </Field>
-                        <Field label="Employee ID" htmlFor="employee_id" error={errors.employee_id} optional>
-                            <Input
-                                id="employee_id"
-                                value={data.employee_id}
-                                onChange={(e) => setData('employee_id', e.target.value)}
-                                placeholder="EMP-00000"
                             />
                         </Field>
                     </div>
@@ -199,6 +279,22 @@ function UserFormBody({
                         <Switch
                             checked={data.is_active}
                             onCheckedChange={(value) => setData('is_active', value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+                        <div>
+                            <p className="text-sm font-medium">Email verified</p>
+                            <p className="text-xs text-muted-foreground">
+                                Mark the email address as verified, bypassing the
+                                confirmation email.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={data.email_verified}
+                            onCheckedChange={(value) =>
+                                setData('email_verified', value)
+                            }
                         />
                     </div>
 

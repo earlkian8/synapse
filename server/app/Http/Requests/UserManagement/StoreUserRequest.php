@@ -23,8 +23,9 @@ class StoreUserRequest extends FormRequest
             'suffix' => ['nullable', 'string', 'max:32'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
             'phone_number' => ['nullable', 'string', 'max:32'],
-            'employee_id' => ['nullable', 'string', 'max:64', Rule::unique(User::class)],
             'is_active' => ['required', 'boolean'],
+            'email_verified' => ['boolean'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ];
     }
@@ -36,6 +37,7 @@ class StoreUserRequest extends FormRequest
     {
         $this->merge([
             'is_active' => $this->boolean('is_active'),
+            'email_verified' => $this->boolean('email_verified'),
         ]);
     }
 }

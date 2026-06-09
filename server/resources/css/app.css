@@ -141,3 +141,49 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* ── Toast (Sonner) ──────────────────────────────────────────────────────────
+   Professional, restrained colour: a tinted card + a coloured left accent bar
+   and icon per status, rather than a fully saturated background. */
+[data-sonner-toaster] {
+    --toast-success: #10b981; /* emerald */
+    --toast-error: #ef4444; /* red */
+    --toast-warning: #f59e0b; /* amber */
+    --toast-info: #0abfbf; /* brand teal */
+}
+
+[data-sonner-toast] {
+    --toast-accent: var(--border);
+    border-inline-start: 3px solid var(--toast-accent) !important;
+    background: color-mix(in oklab, var(--toast-accent) 8%, var(--popover)) !important;
+}
+
+[data-sonner-toast][data-type='success'] {
+    --toast-accent: var(--toast-success);
+}
+
+[data-sonner-toast][data-type='error'] {
+    --toast-accent: var(--toast-error);
+}
+
+[data-sonner-toast][data-type='warning'] {
+    --toast-accent: var(--toast-warning);
+}
+
+[data-sonner-toast][data-type='info'] {
+    --toast-accent: var(--toast-info);
+}
+
+[data-sonner-toast] [data-icon] {
+    color: var(--toast-accent);
+}
+
+[data-sonner-toast] [data-title] {
+    font-weight: 600;
+}
+
+[data-sonner-toast] [data-close-button] {
+    color: var(--popover-foreground);
+    background: var(--popover);
+    border-color: var(--border);
+}

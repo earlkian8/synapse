@@ -1,12 +1,24 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
+/**
+ * Create an administrator, authenticate as them, and return the model.
+ */
+function loginAsAdmin(): User
+{
+    $admin = User::factory()->create();
+    test()->actingAs($admin);
+
+    return $admin;
+}
+
 beforeEach(function () {
-    $this->admin = User::factory()->create();
-    $this->actingAs($this->admin);
+    loginAsAdmin();
 });
 
 // ── Listing ─────────────────────────────────────────────────────────────────
@@ -109,6 +121,36 @@ test('it rejects a duplicate email on create', function () {
     ])->assertSessionHasErrors('email');
 });
 
+test('it can mark a new user as verified', function () {
+    $this->post(route('system.users.store'), [
+        'first_name' => 'Veri',
+        'last_name' => 'Fied',
+        'email' => 'veri.fied@example.com',
+        'is_active' => true,
+        'email_verified' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect(User::where('email', 'veri.fied@example.com')->first()->email_verified_at)
+        ->not->toBeNull();
+});
+
+test('it stores an uploaded profile photo', function () {
+    Storage::fake('public');
+
+    $this->post(route('system.users.store'), [
+        'first_name' => 'Pic',
+        'last_name' => 'Ture',
+        'email' => 'pic.ture@example.com',
+        'is_active' => true,
+        'photo' => UploadedFile::fake()->image('avatar.jpg'),
+    ])->assertSessionHasNoErrors();
+
+    $user = User::where('email', 'pic.ture@example.com')->first();
+
+    expect($user->profile_photo)->not->toBeNull();
+    Storage::disk('public')->assertExists($user->profile_photo);
+});
+
 // ── Update ──────────────────────────────────────────────────────────────────
 
 test('it updates a user', function () {
@@ -124,16 +166,25 @@ test('it updates a user', function () {
     expect($user->fresh()->first_name)->toBe('Updated');
 });
 
-test('changing the email resets verification', function () {
-    $user = User::factory()->create(['email_verified_at' => now()]);
+test('it verifies and unverifies a user on update', function () {
+    $user = User::factory()->unverified()->create();
 
     $this->patch(route('system.users.update', $user), [
         'first_name' => $user->first_name,
         'last_name' => $user->last_name,
-        'email' => 'changed@example.com',
+        'email' => $user->email,
         'is_active' => true,
+        'email_verified' => true,
     ])->assertSessionHasNoErrors();
+    expect($user->fresh()->email_verified_at)->not->toBeNull();
 
+    $this->patch(route('system.users.update', $user), [
+        'first_name' => $user->first_name,
+        'last_name' => $user->last_name,
+        'email' => $user->email,
+        'is_active' => true,
+        'email_verified' => false,
+    ]);
     expect($user->fresh()->email_verified_at)->toBeNull();
 });
 
@@ -151,9 +202,11 @@ test('it deactivates and reactivates a user', function () {
 });
 
 test('an admin cannot deactivate themselves', function () {
-    $this->patch(route('system.users.status', $this->admin), ['is_active' => false]);
+    $admin = loginAsAdmin();
 
-    expect($this->admin->fresh()->is_active)->toBeTrue();
+    $this->patch(route('system.users.status', $admin), ['is_active' => false]);
+
+    expect($admin->fresh()->is_active)->toBeTrue();
 });
 
 // ── Password reset ──────────────────────────────────────────────────────────
@@ -181,9 +234,11 @@ test('it archives a user', function () {
 });
 
 test('an admin cannot archive themselves', function () {
-    $this->delete(route('system.users.destroy', $this->admin));
+    $admin = loginAsAdmin();
 
-    expect($this->admin->fresh()->trashed())->toBeFalse();
+    $this->delete(route('system.users.destroy', $admin));
+
+    expect($admin->fresh()->trashed())->toBeFalse();
 });
 
 test('it restores an archived user', function () {
@@ -205,9 +260,11 @@ test('it permanently deletes a user', function () {
 });
 
 test('an admin cannot permanently delete themselves', function () {
-    $this->delete(route('system.users.force-delete', $this->admin->id));
+    $admin = loginAsAdmin();
 
-    expect(User::find($this->admin->id))->not->toBeNull();
+    $this->delete(route('system.users.force-delete', $admin->id));
+
+    expect(User::find($admin->id))->not->toBeNull();
 });
 
 // ── Bulk actions ────────────────────────────────────────────────────────────
@@ -224,14 +281,15 @@ test('it bulk archives users', function () {
 });
 
 test('bulk actions exclude the acting admin', function () {
+    $admin = loginAsAdmin();
     $other = User::factory()->create(['is_active' => true]);
 
     $this->post(route('system.users.bulk'), [
         'action' => 'deactivate',
-        'ids' => [$this->admin->id, $other->id],
+        'ids' => [$admin->id, $other->id],
     ])->assertSessionHasNoErrors();
 
-    expect($this->admin->fresh()->is_active)->toBeTrue()
+    expect($admin->fresh()->is_active)->toBeTrue()
         ->and($other->fresh()->is_active)->toBeFalse();
 });
 
