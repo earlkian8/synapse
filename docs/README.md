@@ -39,3 +39,4 @@ commit history rather than repeating them.
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)
 - [2026-06-10 — Custom sidebar scrollbar](./changelog/2026-06-10-sidebar-scrollbar.md)
+- [2026-06-10 — Self-action toasts & header avatar](./changelog/2026-06-10-self-guard-toast-and-header-avatar.md)

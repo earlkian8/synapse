@@ -1,6 +1,7 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { toast } from 'sonner';
 import { BulkActionsBar } from '@/features/users/components/bulk-actions-bar';
 import { ConfirmDialog } from '@/features/users/components/confirm-dialog';
 import { ResetPasswordDialog } from '@/features/users/components/reset-password-dialog';
@@ -17,6 +18,7 @@ import type {
     ManagedUser,
     UsersPageProps,
 } from '@/features/users/types';
+import type { Auth } from '@/types';
 
 type ConfirmConfig = {
     title: string;
@@ -27,7 +29,10 @@ type ConfirmConfig = {
 };
 
 export default function UsersIndex() {
-    const { users, stats, filters } = usePage<UsersPageProps>().props;
+    const { users, stats, filters, auth } = usePage<
+        UsersPageProps & { auth: Auth }
+    >().props;
+    const currentUserId = auth.user.id;
     const { setSearch, setStatus, setPerPage, setPage, toggleSort, reset } =
         useUsersFilters(filters);
 
@@ -101,7 +106,17 @@ export default function UsersIndex() {
         setPasswordOpen(true);
     };
 
+    // Guard the destructive self-actions on the client for instant feedback.
+    // The backend enforces the same rules as defense-in-depth.
+    const isSelf = (user: ManagedUser) => user.id === currentUserId;
+
     const toggleStatus = (user: ManagedUser) => {
+        if (isSelf(user) && user.is_active) {
+            toast.error("You can't deactivate your own account.");
+
+            return;
+        }
+
         router.patch(
             userRoutes.status(user.id),
             { is_active: !user.is_active },
@@ -109,7 +124,13 @@ export default function UsersIndex() {
         );
     };
 
-    const archive = (user: ManagedUser) =>
+    const archive = (user: ManagedUser) => {
+        if (isSelf(user)) {
+            toast.error("You can't archive your own account.");
+
+            return;
+        }
+
         askConfirm({
             title: `Archive ${user.full_name}?`,
             description:
@@ -118,12 +139,19 @@ export default function UsersIndex() {
             destructive: true,
             run: () => router.delete(userRoutes.destroy(user.id), withProcessing),
         });
+    };
 
     const restore = (user: ManagedUser) => {
         router.patch(userRoutes.restore(user.id), {}, { preserveScroll: true });
     };
 
-    const remove = (user: ManagedUser) =>
+    const remove = (user: ManagedUser) => {
+        if (isSelf(user)) {
+            toast.error("You can't delete your own account.");
+
+            return;
+        }
+
         askConfirm({
             title: `Permanently delete ${user.full_name}?`,
             description:
@@ -133,6 +161,7 @@ export default function UsersIndex() {
             run: () =>
                 router.delete(userRoutes.forceDelete(user.id), withProcessing),
         });
+    };
 
     // ── Bulk actions ───────────────────────────────────────────────────────
     const runBulk = (action: BulkAction) => {

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -63,7 +64,23 @@ class User extends Authenticatable implements PasskeyUser
      *
      * @var list<string>
      */
-    protected $appends = ['full_name'];
+    protected $appends = ['full_name', 'avatar'];
+
+    /**
+     * Get the public URL of the user's profile photo, if any.
+     *
+     * Exposed as `avatar` so shared auth props render the photo in the header.
+     *
+     * @return Attribute<string|null, never>
+     */
+    protected function avatar(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo
+                ? Storage::disk('public')->url($this->profile_photo)
+                : null,
+        );
+    }
 
     /**
      * Get the user's full name, combining their name parts and suffix.
