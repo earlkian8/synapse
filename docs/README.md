@@ -11,6 +11,7 @@ commit history rather than repeating them.
 | [`modules/`](./modules) | One document per functional module (User Management, Payroll, Recruitment, …). Describes features, routes, backend + frontend architecture, and how to extend it. | `kebab-case.md`, named after the module (`user-management.md`). |
 | [`database/`](./database) | Schema references for important tables — columns, constraints, and the migrations that shaped them. | `kebab-case.md`, named after the table (`users-table.md`). |
 | [`decisions/`](./decisions) | Architecture Decision Records (ADRs). Each captures **one** significant decision: the context, the choice, and the trade-offs. | `NNNN-short-title.md`, zero-padded sequential (`0001-…`). |
+| [`changelog/`](./changelog) | Per-change notes — what shipped in a meaningful set of work, file-by-file, for reviewers and future readers. | `YYYY-MM-DD-short-title.md`. |
 
 ### Conventions
 
@@ -34,3 +35,6 @@ commit history rather than repeating them.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
+
+### Changelog
+- [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)

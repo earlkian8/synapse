@@ -15,7 +15,7 @@ acting administrator is protected from locking themselves out.
 | --- | --- |
 | **Listing** | Server-side search, status filter, column sorting, pagination (10–100 / page). |
 | **Stats** | Live headline cards: total, active, inactive, unverified, new-this-month, archived. |
-| **Create / Edit** | Slide-over form with sectioned layout, inline validation, optional password (invite-later flow) + secure password generator. |
+| **Create / Edit** | Slide-over form with sectioned layout, inline validation, **profile photo upload** (preview + remove), **email-verified toggle**, optional password (invite-later flow) + secure password generator. |
 | **View** | Read-only profile drawer (contact, security, activity). |
 | **Per-row actions** | View, edit, activate/deactivate, reset password, archive, restore, delete permanently. |
 | **Bulk actions** | Activate, deactivate, archive (active scope); restore, delete (archived scope). |
@@ -177,8 +177,16 @@ Defaults are omitted from the URL to keep links clean.
 The user record is documented in detail in
 [`docs/database/users-table.md`](../database/users-table.md). Key fields surfaced by
 this module: `first_name`, `middle_name`, `last_name`, `suffix`, `email`,
-`phone_number`, `employee_id` (unique), `is_active`, `last_login_at`,
-`password_changed_at`, `deleted_at` (archive).
+`phone_number`, `employee_id` (unique), `is_active`, `email_verified_at`,
+`profile_photo`, `last_login_at`, `password_changed_at`, `deleted_at` (archive).
+
+**Form coverage:** the create/edit form edits name parts, email, phone, active
+state, email-verification, and the profile photo. `employee_id` is **displayed**
+(table + detail drawer) but is not set through this form — it is provisioned by the
+HR/employee module. Profile photos are stored on the `public` disk under
+`profile-photos/` (requires `php artisan storage:link`); `UserResource` returns a
+full URL. The `email_verified` toggle writes `email_verified_at` and is authoritative
+on update (it overrides the usual "email changed ⇒ re-verify" reset).
 
 ---
 
