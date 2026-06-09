@@ -1,15 +1,37 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Award,
     BarChart3,
+    Bot,
     BriefcaseBusiness,
+    Building,
     Building2,
+    CalendarCheck,
+    CalendarClock,
     CalendarDays,
-    FileText,
+    CalendarRange,
+    DatabaseBackup,
+    FileScan,
+    Gauge,
+    GraduationCap,
+    HeartHandshake,
+    LayoutDashboard,
     LayoutGrid,
+    LineChart,
     Mail,
-    Sparkles,
+    Medal,
+    Network,
+    ScrollText,
+    Settings,
+    ShieldCheck,
+    Target,
+    TrendingDown,
+    Trophy,
+    UserCog,
     UserRoundCheck,
+    UserRoundMinus,
     Users,
+    Wallet,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -30,21 +52,57 @@ const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
 ];
 
-const peopleNavItems: NavItem[] = [
-    { title: 'Employees', href: '/employees', icon: Users },
-    { title: 'Departments', href: '/departments', icon: Building2 },
-    { title: 'Attendance', href: '/attendance', icon: CalendarDays },
-    { title: 'Leave Management', href: '/leave', icon: FileText },
-];
-
 const talentNavItems: NavItem[] = [
     { title: 'Recruitment', href: '/recruitment', icon: BriefcaseBusiness },
     { title: 'Onboarding', href: '/onboarding', icon: UserRoundCheck },
 ];
 
+const workforceNavItems: NavItem[] = [
+    { title: 'Employees', href: '/employees', icon: Users },
+    { title: 'Departments', href: '/departments', icon: Building2 },
+    { title: 'Attendance', href: '/attendance', icon: CalendarCheck },
+    { title: 'Leave Management', href: '/leave', icon: CalendarDays },
+    { title: 'Payroll', href: '/payroll', icon: Wallet },
+    { title: 'Benefits Administration', href: '/benefits', icon: HeartHandshake },
+    { title: 'Performance Management', href: '/performance', icon: Gauge },
+    { title: 'Training & Development', href: '/training', icon: GraduationCap },
+    { title: 'Awards & Recognition', href: '/awards', icon: Award },
+    { title: 'Events & Meetings', href: '/events', icon: CalendarClock },
+];
+
+const offboardingNavItems: NavItem[] = [
+    { title: 'Offboarding', href: '/offboarding', icon: UserRoundMinus },
+];
+
 const analyticsNavItems: NavItem[] = [
+    { title: 'Workforce Dashboard', href: '/analytics/workforce', icon: LayoutDashboard },
+    { title: 'Attrition Predictions', href: '/analytics/attrition', icon: TrendingDown },
+    { title: 'Performance Forecast', href: '/analytics/performance-forecast', icon: LineChart },
+    { title: 'Promotion Readiness', href: '/analytics/promotion-readiness', icon: Medal },
     { title: 'Reports', href: '/reports', icon: BarChart3 },
-    { title: 'AI Insights', href: '/insights', icon: Sparkles },
+];
+
+const assistantNavItems: NavItem[] = [
+    { title: 'HR Assistant', href: '/assistant', icon: Bot },
+    { title: 'Document Processor', href: '/assistant/documents', icon: FileScan },
+];
+
+const companySetupNavItems: NavItem[] = [
+    { title: 'Company Profile', href: '/setup/company', icon: Building },
+    { title: 'Departments', href: '/setup/departments', icon: Network },
+    { title: 'Work Schedule & Holidays', href: '/setup/schedule', icon: CalendarClock },
+    { title: 'Leave Types', href: '/setup/leave-types', icon: CalendarRange },
+    { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
+    { title: 'KPI & Evaluation Criteria', href: '/setup/kpi', icon: Target },
+    { title: 'Payroll Configuration', href: '/setup/payroll', icon: Settings },
+    { title: 'Email & Notifications', href: '/setup/notifications', icon: Mail },
+];
+
+const systemNavItems: NavItem[] = [
+    { title: 'User Management', href: '/system/users', icon: UserCog },
+    { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck },
+    { title: 'Activity Logs', href: '/system/logs', icon: ScrollText },
+    { title: 'Data Backup & Export', href: '/system/backup', icon: DatabaseBackup },
 ];
 
 export function AppSidebar() {
@@ -68,26 +126,20 @@ export function AppSidebar() {
             {/* ── Navigation ── */}
             <SidebarContent className="gap-0 py-2">
                 {/* Main */}
-                <NavMain
-                    label="Main"
-                    items={mainNavItems}
-                />
+                <NavMain label="Main" items={mainNavItems} />
 
-                {/* People */}
-                <NavMain
-                    label="People"
-                    items={peopleNavItems}
-                />
+                {/* Talent Acquisition */}
+                <NavMain label="Talent Acquisition" items={talentNavItems} />
 
-                {/* Talent */}
-                <NavMain
-                    label="Talent"
-                    items={talentNavItems}
-                />
+                {/* Workforce */}
+                <NavMain label="Workforce" items={workforceNavItems} />
 
-                {/* Analytics */}
+                {/* Offboarding */}
+                <NavMain label="Offboarding" items={offboardingNavItems} />
+
+                {/* Analytics & AI */}
                 <NavMain
-                    label="Analytics"
+                    label="Analytics & AI"
                     items={analyticsNavItems}
                     badge={
                         <Badge
@@ -98,6 +150,26 @@ export function AppSidebar() {
                         </Badge>
                     }
                 />
+
+                {/* Assistant */}
+                <NavMain
+                    label="Assistant"
+                    items={assistantNavItems}
+                    badge={
+                        <Badge
+                            variant="outline"
+                            className="ml-auto border-[#0ABFBF]/40 bg-[#0ABFBF]/10 text-[#0ABFBF] text-[9px] tracking-wider px-1.5 py-0 h-4 rounded-full font-semibold group-data-[collapsible=icon]:hidden"
+                        >
+                            AI
+                        </Badge>
+                    }
+                />
+
+                {/* Company Setup */}
+                <NavMain label="Company Setup" items={companySetupNavItems} />
+
+                {/* System */}
+                <NavMain label="System" items={systemNavItems} />
             </SidebarContent>
 
             {/* ── Footer ── */}
