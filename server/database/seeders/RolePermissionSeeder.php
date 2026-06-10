@@ -44,6 +44,9 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Manages people and reviews the audit trail.',
                 'is_system' => false,
                 'permissions' => [
+                    'employees.view', 'employees.create', 'employees.update',
+                    'employees.delete', 'employees.restore', 'employees.export',
+                    'employees.manage-documents',
                     'users.view', 'users.create', 'users.update',
                     'users.manage-status', 'users.reset-password', 'users.export',
                     'roles.view',

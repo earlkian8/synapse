@@ -59,8 +59,8 @@ const talentNavItems: NavItem[] = [
     { title: 'Onboarding', href: '/onboarding', icon: UserRoundCheck },
 ];
 
-const workforceNavItems: NavItem[] = [
-    { title: 'Employees', href: '/employees', icon: Users },
+const workforceNavItems: GatedNavItem[] = [
+    { title: 'Employees', href: '/employees', icon: Users, permission: 'employees.view' },
     { title: 'Departments', href: '/departments', icon: Building2 },
     { title: 'Attendance', href: '/attendance', icon: CalendarCheck },
     { title: 'Leave Management', href: '/leave', icon: CalendarDays },
@@ -118,6 +118,10 @@ export function AppSidebar() {
         (item) => !item.permission || can(item.permission),
     );
 
+    const visibleWorkforceNavItems = workforceNavItems.filter(
+        (item) => !item.permission || can(item.permission),
+    );
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             {/* ── Logo / Brand ── */}
@@ -142,7 +146,7 @@ export function AppSidebar() {
                 <NavMain label="Talent Acquisition" items={talentNavItems} />
 
                 {/* Workforce */}
-                <NavMain label="Workforce" items={workforceNavItems} />
+                <NavMain label="Workforce" items={visibleWorkforceNavItems} />
 
                 {/* Offboarding */}
                 <NavMain label="Offboarding" items={offboardingNavItems} />

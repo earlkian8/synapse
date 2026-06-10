@@ -20,6 +20,16 @@ class PermissionRegistry
      * @var array<string, array<string, string>>
      */
     public const GROUPS = [
+        'Employee Management' => [
+            'employees.view' => 'View employees',
+            'employees.create' => 'Create employees',
+            'employees.update' => 'Edit employees',
+            'employees.delete' => 'Archive employees',
+            'employees.restore' => 'Restore archived employees',
+            'employees.force-delete' => 'Permanently delete employees',
+            'employees.export' => 'Export employees',
+            'employees.manage-documents' => 'Manage employee documents & records',
+        ],
         'User Management' => [
             'users.view' => 'View users',
             'users.create' => 'Create users',
