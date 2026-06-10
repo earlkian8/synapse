@@ -28,5 +28,8 @@ class DatabaseSeeder extends Seeder
 
         // Roles, permissions, and the Super Admin grant for dev@staffa.com.
         $this->call(RolePermissionSeeder::class);
+
+        // Organisation foundation (departments, positions, schedules) + employees.
+        $this->call(OrganizationSeeder::class);
     }
 }

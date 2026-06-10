@@ -28,6 +28,7 @@ commit history rather than repeating them.
 ## Index
 
 ### Modules
+- [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
 - [Activity Logs](./modules/activity-logs.md) — read-only audit trail; logging API.
@@ -38,11 +39,13 @@ commit history rather than repeating them.
 - [`users` table](./database/users-table.md) — identity, profile, account, and soft-delete columns.
 - [`roles`, `permissions` & pivots](./database/roles-permissions-tables.md) — RBAC schema.
 - [`notifications`, `push_subscriptions` & prefs](./database/notifications-tables.md) — notification schema.
+- [`employees` & organisation tables](./database/employees-tables.md) — employee hub, 201 file, departments/positions/schedules.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
 - [0002 — Role-based access control & authorization](./decisions/0002-rbac-authorization.md)
 - [0003 — Notification delivery & channels](./decisions/0003-notification-channels.md)
+- [0004 — Employee as a record separate from User](./decisions/0004-employee-user-separation.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)
@@ -52,3 +55,4 @@ commit history rather than repeating them.
 - [2026-06-10 — Roles & Permissions + authorization](./changelog/2026-06-10-roles-and-permissions.md)
 - [2026-06-10 — Roles row selection & bulk delete](./changelog/2026-06-10-roles-bulk-actions.md)
 - [2026-06-10 — Notifications module (in-app, email & web push)](./changelog/2026-06-10-notifications-module.md)
+- [2026-06-10 — Employees module + organisation foundation](./changelog/2026-06-10-employees-module.md)

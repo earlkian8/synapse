@@ -1,10 +1,13 @@
 # STAFFA — Entity Relationship Diagram
 
 > **Status: DRAFT for review.** This is the proposed data model for the whole
-> system, derived from the capstone proposal and the application navigation. Nothing
-> here is built yet beyond `users` and `activity_logs`. Review the **Design
-> decisions** and **Open questions** sections first — a few choices shape everything
-> downstream.
+> system, derived from the capstone proposal and the application navigation. Built
+> so far: `users`, `activity_logs`, the RBAC tables, `notifications`, and the
+> **Employee core** + organisation lookups (`departments`, `positions`,
+> `work_schedules`, `employees` + sub-records — see
+> [Employees](../modules/employees.md) and [ADR 0004](../decisions/0004-employee-user-separation.md)).
+> Review the **Design decisions** and **Open questions** sections first — a few
+> choices shape everything downstream.
 
 ---
 
