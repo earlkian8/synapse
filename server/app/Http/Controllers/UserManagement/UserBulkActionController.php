@@ -5,6 +5,7 @@ namespace App\Http\Controllers\UserManagement;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\BulkUserActionRequest;
 use App\Models\User;
+use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
@@ -36,12 +37,33 @@ class UserBulkActionController extends Controller
             'delete' => User::withTrashed()->whereIn('id', $ids)->forceDelete(),
         };
 
+        ActivityLogger::log(
+            event: $this->eventFor($action),
+            description: 'Bulk '.$this->eventFor($action)." {$affected} ".((int) $affected === 1 ? 'user' : 'users'),
+            properties: ['action' => $action, 'count' => (int) $affected, 'ids' => $ids->all()],
+            logName: 'user_management',
+        );
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => $this->message($action, (int) $affected),
         ]);
 
         return back();
+    }
+
+    /**
+     * Map a bulk action to its canonical activity-log event.
+     */
+    private function eventFor(string $action): string
+    {
+        return match ($action) {
+            'activate' => 'activated',
+            'deactivate' => 'deactivated',
+            'archive' => 'archived',
+            'restore' => 'restored',
+            'delete' => 'deleted',
+        };
     }
 
     /**

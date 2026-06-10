@@ -101,7 +101,7 @@ const companySetupNavItems: NavItem[] = [
 const systemNavItems: NavItem[] = [
     { title: 'User Management', href: '/system/users', icon: UserCog },
     { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck },
-    { title: 'Activity Logs', href: '/system/logs', icon: ScrollText },
+    { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText },
     { title: 'Data Backup & Export', href: '/system/backup', icon: DatabaseBackup },
 ];
 
