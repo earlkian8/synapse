@@ -9,6 +9,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
+use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -62,6 +63,14 @@ class UserController extends Controller
 
         $user->save();
 
+        ActivityLogger::log(
+            event: 'created',
+            description: "Created user {$user->full_name}",
+            subject: $user,
+            logName: 'user_management',
+            subjectLabel: $user->full_name,
+        );
+
         return $this->respond('User created.');
     }
 
@@ -89,7 +98,18 @@ class UserController extends Controller
             $user->profile_photo = $request->file('photo')->store('profile-photos', 'public');
         }
 
+        $changed = array_values(array_diff(array_keys($user->getDirty()), ['updated_at']));
+
         $user->save();
+
+        ActivityLogger::log(
+            event: 'updated',
+            description: "Updated user {$user->full_name}",
+            subject: $user,
+            properties: $changed !== [] ? ['changed' => $changed] : [],
+            logName: 'user_management',
+            subjectLabel: $user->full_name,
+        );
 
         return $this->respond('User updated.');
     }
@@ -105,6 +125,14 @@ class UserController extends Controller
 
         $user->delete();
 
+        ActivityLogger::log(
+            event: 'archived',
+            description: "Archived user {$user->full_name}",
+            subject: $user,
+            logName: 'user_management',
+            subjectLabel: $user->full_name,
+        );
+
         return $this->respond('User archived.');
     }
 
@@ -113,7 +141,16 @@ class UserController extends Controller
      */
     public function restore(int $user): RedirectResponse
     {
-        User::onlyTrashed()->findOrFail($user)->restore();
+        $model = User::onlyTrashed()->findOrFail($user);
+        $model->restore();
+
+        ActivityLogger::log(
+            event: 'restored',
+            description: "Restored user {$model->full_name}",
+            subject: $model,
+            logName: 'user_management',
+            subjectLabel: $model->full_name,
+        );
 
         return $this->respond('User restored.');
     }
@@ -129,8 +166,17 @@ class UserController extends Controller
             return $this->respond('You cannot delete your own account.', 'error');
         }
 
+        $label = $model->full_name;
+
         $this->deletePhoto($model);
         $model->forceDelete();
+
+        ActivityLogger::log(
+            event: 'deleted',
+            description: "Permanently deleted user {$label}",
+            logName: 'user_management',
+            subjectLabel: $label,
+        );
 
         return $this->respond('User permanently deleted.');
     }
