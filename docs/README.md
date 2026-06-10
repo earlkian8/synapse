@@ -32,6 +32,7 @@ commit history rather than repeating them.
 - [Activity Logs](./modules/activity-logs.md) — read-only audit trail; logging API.
 
 ### Database
+- [Entity Relationship Diagram](./database/erd.md) — **draft** full-system data model (all modules).
 - [`users` table](./database/users-table.md) — identity, profile, account, and soft-delete columns.
 
 ### Decisions
