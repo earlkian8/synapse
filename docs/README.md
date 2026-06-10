@@ -29,6 +29,7 @@ commit history rather than repeating them.
 
 ### Modules
 - [Multi-tenancy](./modules/multi-tenancy.md) — organisation isolation, current-tenant resolution, registration provisioning.
+- [Recruitment](./modules/recruitment.md) — ATS: job postings, candidate pool, hiring pipeline, interviews, hire → employee bridge.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -42,6 +43,7 @@ commit history rather than repeating them.
 - [`roles`, `permissions` & pivots](./database/roles-permissions-tables.md) — RBAC schema.
 - [`notifications`, `push_subscriptions` & prefs](./database/notifications-tables.md) — notification schema.
 - [`employees` & organisation tables](./database/employees-tables.md) — employee hub, 201 file, departments/positions/schedules.
+- [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -49,6 +51,7 @@ commit history rather than repeating them.
 - [0003 — Notification delivery & channels](./decisions/0003-notification-channels.md)
 - [0004 — Employee as a record separate from User](./decisions/0004-employee-user-separation.md)
 - [0005 — Multi-tenancy: one organisation per registration](./decisions/0005-multi-tenancy.md)
+- [0006 — Recruitment as an ATS, with a hire → employee bridge](./decisions/0006-recruitment-ats-and-hire-bridge.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -60,3 +63,4 @@ commit history rather than repeating them.
 - [2026-06-10 — Notifications module (in-app, email & web push)](./changelog/2026-06-10-07-notifications-module.md)
 - [2026-06-10 — Employees module + organisation foundation](./changelog/2026-06-10-08-employees-module.md)
 - [2026-06-11 — Multi-tenancy (one organisation per registration)](./changelog/2026-06-11-01-multi-tenancy.md)
+- [2026-06-11 — Recruitment module (applicant tracking + hire bridge)](./changelog/2026-06-11-02-recruitment-module.md)

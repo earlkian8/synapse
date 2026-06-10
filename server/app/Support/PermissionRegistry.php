@@ -30,6 +30,16 @@ class PermissionRegistry
             'employees.export' => 'Export employees',
             'employees.manage-documents' => 'Manage employee documents & records',
         ],
+        'Recruitment' => [
+            'recruitment.view' => 'View recruitment',
+            'recruitment.create' => 'Create postings & applicants',
+            'recruitment.update' => 'Edit postings & applicants',
+            'recruitment.delete' => 'Delete postings & applicants',
+            'recruitment.manage-pipeline' => 'Move applications & reject',
+            'recruitment.schedule-interviews' => 'Schedule & record interviews',
+            'recruitment.hire' => 'Hire applicants (create employees)',
+            'recruitment.export' => 'Export recruitment data',
+        ],
         'User Management' => [
             'users.view' => 'View users',
             'users.create' => 'Create users',

@@ -2,10 +2,15 @@
 
 > **Status: DRAFT for review.** This is the proposed data model for the whole
 > system, derived from the capstone proposal and the application navigation. Built
-> so far: `users`, `activity_logs`, the RBAC tables, `notifications`, and the
+> so far: `users`, `activity_logs`, the RBAC tables, `notifications`, the
 > **Employee core** + organisation lookups (`departments`, `positions`,
 > `work_schedules`, `employees` + sub-records — see
-> [Employees](../modules/employees.md) and [ADR 0004](../decisions/0004-employee-user-separation.md)).
+> [Employees](../modules/employees.md) and [ADR 0004](../decisions/0004-employee-user-separation.md)),
+> the **multi-tenancy** layer (`organizations` + `organization_id` everywhere — see
+> [ADR 0005](../decisions/0005-multi-tenancy.md)), and **Recruitment**
+> (`job_postings`, `applicants`, `job_applications`, `interviews`, with the hire →
+> employee bridge — see [Recruitment](../modules/recruitment.md) and
+> [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md)).
 > Review the **Design decisions** and **Open questions** sections first — a few
 > choices shape everything downstream.
 
@@ -771,5 +776,6 @@ erDiagram
 4. **Approvers/evaluators as `users`** (current convention) vs. as `employees` — OK?
 5. **Benefit contributions**: standalone table (as drawn) vs. derived purely from
    payslip deductions — which do you prefer for reporting?
-6. **Recruitment applicants** are *not* users/employees until hired — confirm a
-   standalone `applicants` table is fine.
+6. ~~**Recruitment applicants** are *not* users/employees until hired~~ — **Resolved:
+   standalone `applicants` table** (a reusable candidate pool); a hire creates an
+   employee via the bridge — see [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md).
