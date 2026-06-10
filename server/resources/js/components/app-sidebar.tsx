@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Award,
     BarChart3,
+    Bell,
     Bot,
     BriefcaseBusiness,
     Building,
@@ -51,6 +52,7 @@ import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
+    { title: 'Notifications', href: '/notifications', icon: Bell },
 ];
 
 const talentNavItems: NavItem[] = [

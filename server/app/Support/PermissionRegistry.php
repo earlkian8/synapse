@@ -43,6 +43,9 @@ class PermissionRegistry
             'activity-logs.delete' => 'Delete & clear activity logs',
             'activity-logs.export' => 'Export activity logs',
         ],
+        'Notifications' => [
+            'notifications.send' => 'Send & broadcast notifications',
+        ],
     ];
 
     /**

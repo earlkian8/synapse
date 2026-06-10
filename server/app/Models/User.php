@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 #[Fillable([
     'first_name',
@@ -30,6 +31,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'profile_photo',
     'employee_id',
     'is_active',
+    'email_notifications',
+    'push_notifications',
     'last_login_at',
     'password_changed_at',
 ])]
@@ -37,7 +40,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, PasskeyAuthenticatable, SoftDeletes, TwoFactorAuthenticatable;
+    use HasFactory, HasPushSubscriptions, Notifiable, PasskeyAuthenticatable, SoftDeletes, TwoFactorAuthenticatable;
 
     /**
      * Memoised set of the user's effective permission names.
@@ -184,6 +187,8 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'email_notifications' => 'boolean',
+            'push_notifications' => 'boolean',
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
         ];

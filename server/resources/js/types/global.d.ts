@@ -1,3 +1,4 @@
+import type { SharedNotifications } from '@/features/notifications/types';
 import type { Auth } from '@/types/auth';
 
 declare module 'react' {
@@ -12,6 +13,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            notifications: SharedNotifications;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };
