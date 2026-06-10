@@ -4,18 +4,32 @@ namespace Database\Seeders;
 
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Organization;
 use App\Models\Position;
 use App\Models\WorkSchedule;
+use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
 
 class OrganizationSeeder extends Seeder
 {
     /**
      * Seed the organisation foundation (departments, positions, schedules) and a
-     * starter set of employees. Idempotent: safe to re-run.
+     * starter set of employees for the current tenant. Idempotent: safe to re-run.
      */
     public function run(): void
     {
+        $tenancy = app(Tenancy::class);
+
+        if (! $tenancy->check()) {
+            $organization = Organization::first();
+
+            if (! $organization) {
+                return;
+            }
+
+            $tenancy->set($organization);
+        }
+
         // 1. Departments.
         $departments = collect([
             ['name' => 'Human Resources', 'code' => 'HR'],

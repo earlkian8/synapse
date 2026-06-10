@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\Organization;
 use App\Models\Position;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,6 +20,7 @@ class PositionFactory extends Factory
         $min = fake()->numberBetween(18000, 45000);
 
         return [
+            'organization_id' => fn () => app(Tenancy::class)->id() ?? Organization::factory(),
             'title' => fake()->jobTitle(),
             'department_id' => null,
             'salary_grade_min' => $min,

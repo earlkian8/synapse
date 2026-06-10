@@ -43,6 +43,9 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $user,
+                'organization' => $user?->organization
+                    ? ['id' => $user->organization->id, 'name' => $user->organization->name]
+                    : null,
                 'roles' => $user ? $user->roles->pluck('name')->all() : [],
                 'permissions' => $user ? $user->permissionNames()->all() : [],
                 'is_super_admin' => $user?->isSuperAdmin() ?? false,

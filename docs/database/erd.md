@@ -33,10 +33,11 @@
 
 ## Design decisions (please confirm)
 
-1. **Single-tenant deployment.** One organization per installation, so there is no
-   `organization_id` scattered across tables; `company_profiles` is effectively a
-   singleton. (If a multi-org SaaS is ever wanted, this is the expensive thing to
-   retrofit — flag now if so.)
+1. ~~**Single-tenant deployment.**~~ **Superseded — STAFFA is now multi-tenant**
+   ([ADR 0005](../decisions/0005-multi-tenancy.md)). Every registration creates an
+   `organizations` row (the tenant, and also the company profile — there is no separate
+   `company_profiles` singleton). Tenant-owned tables carry a non-null `organization_id`
+   and are isolated by a global query scope. One user belongs to one organisation.
 2. **`Employee` is separate from `User`.** `employees.user_id` is a **nullable,
    unique** FK to `users`. An Employee is the HR record (a DTR-only field worker may
    have no login); a User is an auth account (an IT admin may not be an employee).
@@ -760,10 +761,11 @@ erDiagram
 
 ## Open questions for your review
 
-1. **Employee ↔ User** — confirm the **separate** model (recommended) vs. collapsing
-   Employee into User. Everything downstream depends on this.
-2. **Single-tenant** vs. multi-organization — confirm single (recommended for the
-   capstone scope).
+1. ~~**Employee ↔ User**~~ — **Resolved: separate**, linked 1:1 (optional) — see
+   [ADR 0004](../decisions/0004-employee-user-separation.md).
+2. ~~**Single-tenant** vs. multi-organization~~ — **Resolved: multi-tenant**, single
+   database with row-level `organization_id` scoping — see
+   [ADR 0005](../decisions/0005-multi-tenancy.md).
 3. **`employees.employee_no`** is the canonical HR id; the existing
    `users.employee_id` string column becomes redundant — drop it once Employees exist?
 4. **Approvers/evaluators as `users`** (current convention) vs. as `employees` — OK?

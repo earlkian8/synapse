@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\Organization;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionSyncer;
+use App\Support\Tenancy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -71,13 +73,30 @@ function seedPermissions(): void
 }
 
 /**
- * Create a role granting the given permission names.
+ * The organisation bound as the current tenant for this test, creating and binding
+ * one on first use. Keeps every factory-built record (and the acting user) in the
+ * same tenant so scoped queries behave as they would in a real request.
+ */
+function testOrganization(): Organization
+{
+    $tenancy = app(Tenancy::class);
+
+    if (! $tenancy->check()) {
+        $tenancy->set(Organization::factory()->create());
+    }
+
+    return $tenancy->organization();
+}
+
+/**
+ * Create a role (in the current test tenant) granting the given permission names.
  *
  * @param  list<string>  $permissions
  */
 function makeRole(string $name, array $permissions = [], bool $system = false): Role
 {
     seedPermissions();
+    testOrganization();
 
     $role = Role::firstOrCreate(
         ['name' => $name],

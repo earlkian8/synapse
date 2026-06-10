@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Role extends Model
 {
+    use BelongsToOrganization;
+
     /**
      * The machine name of the all-powerful role, which bypasses every gate.
      */
@@ -18,7 +21,7 @@ class Role extends Model
      *
      * @var list<string>
      */
-    protected $fillable = ['name', 'label', 'description', 'is_system'];
+    protected $fillable = ['organization_id', 'name', 'label', 'description', 'is_system'];
 
     /**
      * Get the attributes that should be cast.
