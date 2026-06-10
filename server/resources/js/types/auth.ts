@@ -19,8 +19,14 @@ export type User = {
     [key: string]: unknown;
 };
 
+export type Organization = {
+    id: number;
+    name: string;
+};
+
 export type Auth = {
     user: User;
+    organization: Organization | null;
     roles: string[];
     permissions: string[];
     is_super_admin: boolean;

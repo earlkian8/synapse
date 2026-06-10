@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organization;
 use App\Models\User;
+use App\Support\OrganizationProvisioner;
+use App\Support\Tenancy;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -12,21 +15,32 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Seed the application's database for a single demo organisation (tenant).
+     *
+     * Reuses the "Default Organization" created during the multi-tenancy migration
+     * when present, so re-seeding an existing install stays consistent.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $organization = Organization::first()
+            ?? OrganizationProvisioner::create('STAFFA Demo Co')[0];
 
-        User::factory()->create([
-            'first_name' => 'Test',
-            'middle_name' => null,
-            'last_name' => 'User',
-            'email' => 'dev@staffa.com',
-            'password' => Hash::make('password'),
-        ]);
+        // Bind the tenant so every scoped model below lands in this organisation.
+        app(Tenancy::class)->set($organization);
 
-        // Roles, permissions, and the Super Admin grant for dev@staffa.com.
+        User::firstOrCreate(
+            ['email' => 'dev@staffa.com'],
+            [
+                'first_name' => 'Test',
+                'middle_name' => null,
+                'last_name' => 'User',
+                'password' => Hash::make('password'),
+                'is_active' => true,
+            ],
+        );
+
+        // Permission catalogue, this organisation's built-in roles, and the
+        // Super Admin grant for dev@staffa.com.
         $this->call(RolePermissionSeeder::class);
 
         // Organisation foundation (departments, positions, schedules) + employees.

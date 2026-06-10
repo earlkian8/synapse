@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Department;
+use App\Models\Organization;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -22,6 +24,7 @@ class DepartmentFactory extends Factory
         ]);
 
         return [
+            'organization_id' => fn () => app(Tenancy::class)->id() ?? Organization::factory(),
             'name' => $name,
             'code' => Str::upper(Str::substr(Str::slug($name), 0, 4)).'-'.fake()->unique()->numberBetween(10, 99),
             'parent_id' => null,

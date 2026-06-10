@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Employee;
+use App\Models\Organization;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,6 +20,7 @@ class EmployeeFactory extends Factory
         $hired = fake()->dateTimeBetween('-6 years', '-2 months');
 
         return [
+            'organization_id' => fn () => app(Tenancy::class)->id() ?? Organization::factory(),
             'user_id' => null,
             'employee_no' => fake()->unique()->numerify('EMP-#####'),
             'first_name' => fake()->firstName(),
