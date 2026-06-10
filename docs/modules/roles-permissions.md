@@ -22,7 +22,8 @@ gates User Management and Activity Logs (see §7).
 | **Create / Edit** | Slide-over with a grouped, interactive permission matrix and live count; the machine key is auto-derived from the label and is immutable after creation. |
 | **Detail** | Read-only slide-over showing every permission grouped, granted/denied, plus member & permission counts. |
 | **Per-row actions** | View permissions, edit, delete. |
-| **Guards** | The Super Admin role cannot be edited; built-in **system** roles cannot be deleted. |
+| **Bulk actions** | Row checkboxes with a contextual action bar; **bulk delete** of the selected custom roles (built-in roles are skipped server-side). |
+| **Guards** | The Super Admin role cannot be edited; built-in **system** roles cannot be deleted (single or bulk). |
 | **Export** | CSV download honouring the current filters. |
 
 ---
@@ -63,9 +64,14 @@ permission via the `can:` middleware.
 | --- | --- | --- | --- | --- |
 | GET | `/system/roles` | `index` | `RoleController@index` | `roles.view` |
 | GET | `/system/roles/export` | `export` | `RoleExportController` | `roles.view` |
+| POST | `/system/roles/bulk` | `bulk` | `RoleBulkActionController` | `roles.view` + per-action `Gate::authorize` |
 | POST | `/system/roles` | `store` | `RoleController@store` | `roles.create` |
 | PATCH | `/system/roles/{role}` | `update` | `RoleController@update` | `roles.update` |
 | DELETE | `/system/roles/{role}` | `destroy` | `RoleController@destroy` | `roles.delete` |
+
+The bulk endpoint mirrors User Management: `roles.view` lets the row checkboxes
+load, but each action re-authorises its own permission inside the controller
+(`delete` → `roles.delete`), so the action bar can't be used to escalate.
 
 ---
 
@@ -95,6 +101,7 @@ Models: `App\Models\Role` (`SUPER_ADMIN` const, `permissions()`, `users()`,
 app/
 ├── Http/Controllers/RolePermission/
 │   ├── RoleController.php            # index, store, update, destroy
+│   ├── RoleBulkActionController.php  # invokable: bulk delete (per-action gate)
 │   └── RoleExportController.php      # invokable: streamed CSV
 ├── Http/Requests/RolePermission/
 │   ├── StoreRoleRequest.php          # slug rule, unique, permission whitelist
@@ -128,6 +135,7 @@ resources/js/
     └── components/
         ├── roles-stats.tsx · roles-toolbar.tsx · roles-table.tsx
         ├── role-row-actions.tsx · role-badge.tsx
+        ├── role-bulk-actions-bar.tsx     # selection action bar (bulk delete)
         ├── permission-matrix.tsx         # grouped grid — interactive & read-only
         ├── role-form-sheet.tsx · role-detail-sheet.tsx
         ├── roles-pagination.tsx · confirm-dialog.tsx
@@ -185,8 +193,9 @@ foreach (PermissionRegistry::names() as $permission) {
 
 `tests/Feature/RolePermission/RolePermissionTest.php` — role CRUD, slug derivation,
 duplicate/permission validation, system-role & super-admin guards, CSV export,
-and the authorization matrix (deny without permission, super-admin bypass, role
-assignment through User Management).
+**bulk delete** (custom roles removed, system roles skipped, permission enforced,
+invalid action rejected), and the authorization matrix (deny without permission,
+super-admin bypass, role assignment through User Management).
 
 `tests/Unit/PermissionRegistryTest.php` — catalogue integrity (DB-free, runs
 locally).

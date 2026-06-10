@@ -146,6 +146,72 @@ test('it exports roles as a csv download', function () {
         ->toContain('exportable-role');
 });
 
+// ── Bulk actions ──────────────────────────────────────────────────────────────
+
+test('it bulk deletes custom roles', function () {
+    actingAsSuperAdmin();
+    $a = makeRole('temp-a');
+    $b = makeRole('temp-b');
+
+    $this->post(route('system.roles.bulk'), [
+        'action' => 'delete',
+        'ids' => [$a->id, $b->id],
+    ])->assertSessionHasNoErrors();
+
+    $this->assertDatabaseMissing('roles', ['id' => $a->id]);
+    $this->assertDatabaseMissing('roles', ['id' => $b->id]);
+});
+
+test('bulk delete skips system roles', function () {
+    actingAsSuperAdmin();
+    $system = makeRole('locked', [], system: true);
+    $custom = makeRole('temp');
+
+    $this->post(route('system.roles.bulk'), [
+        'action' => 'delete',
+        'ids' => [$system->id, $custom->id],
+    ])->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('roles', ['id' => $system->id]);
+    $this->assertDatabaseMissing('roles', ['id' => $custom->id]);
+});
+
+test('bulk delete leaves a selection of only system roles untouched', function () {
+    actingAsSuperAdmin();
+    $a = makeRole('locked-a', [], system: true);
+    $b = makeRole('locked-b', [], system: true);
+
+    $this->post(route('system.roles.bulk'), [
+        'action' => 'delete',
+        'ids' => [$a->id, $b->id],
+    ])->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('roles', ['id' => $a->id]);
+    $this->assertDatabaseHas('roles', ['id' => $b->id]);
+});
+
+test('a user without roles.delete cannot bulk delete', function () {
+    actingAsUserWith(['roles.view']);
+    $role = makeRole('temp');
+
+    $this->post(route('system.roles.bulk'), [
+        'action' => 'delete',
+        'ids' => [$role->id],
+    ])->assertForbidden();
+
+    $this->assertDatabaseHas('roles', ['id' => $role->id]);
+});
+
+test('bulk delete rejects an unknown action', function () {
+    actingAsSuperAdmin();
+    $role = makeRole('temp');
+
+    $this->post(route('system.roles.bulk'), [
+        'action' => 'nuke',
+        'ids' => [$role->id],
+    ])->assertSessionHasErrors('action');
+});
+
 // ── Authorization ───────────────────────────────────────────────────────────
 
 test('a user without roles.view cannot see the roles index', function () {

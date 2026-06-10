@@ -1,7 +1,9 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { toast } from 'sonner';
 import { ConfirmDialog } from '@/features/roles/components/confirm-dialog';
+import { RoleBulkActionsBar } from '@/features/roles/components/role-bulk-actions-bar';
 import { RoleDetailSheet } from '@/features/roles/components/role-detail-sheet';
 import { RoleFormSheet } from '@/features/roles/components/role-form-sheet';
 import { RolesPagination } from '@/features/roles/components/roles-pagination';
@@ -10,7 +12,11 @@ import { RolesTable } from '@/features/roles/components/roles-table';
 import { RolesToolbar } from '@/features/roles/components/roles-toolbar';
 import { useRolesFilters } from '@/features/roles/hooks/use-roles-filters';
 import { roleRoutes } from '@/features/roles/routes';
-import type { ManagedRole, RolesPageProps } from '@/features/roles/types';
+import type {
+    BulkRoleAction,
+    ManagedRole,
+    RolesPageProps,
+} from '@/features/roles/types';
 import { usePermissions } from '@/hooks/use-permissions';
 
 type ConfirmConfig = {
@@ -30,6 +36,45 @@ export default function RolesIndex() {
     const canCreate = can('roles.create');
     const canUpdate = can('roles.update');
     const canDelete = can('roles.delete');
+
+    const [selected, setSelected] = useState<number[]>([]);
+
+    // Drop stale selections whenever the underlying result set changes.
+    const signature = useMemo(
+        () =>
+            [
+                filters.search,
+                filters.type,
+                filters.sort,
+                filters.direction,
+                filters.per_page,
+                roles.meta.current_page,
+            ].join('|'),
+        [filters, roles.meta.current_page],
+    );
+    const [selectionScope, setSelectionScope] = useState(signature);
+
+    if (signature !== selectionScope) {
+        setSelectionScope(signature);
+        setSelected([]);
+    }
+
+    const toggleAll = (checked: boolean) =>
+        setSelected(checked ? roles.data.map((r) => r.id) : []);
+
+    const toggleRow = (id: number, checked: boolean) =>
+        setSelected((prev) =>
+            checked ? [...prev, id] : prev.filter((x) => x !== id),
+        );
+
+    // Built-in roles are protected server-side; reflect that in the bulk bar.
+    const deletableCount = useMemo(
+        () =>
+            roles.data.filter(
+                (r) => selected.includes(r.id) && !r.is_system,
+            ).length,
+        [roles.data, selected],
+    );
 
     const [formRole, setFormRole] = useState<ManagedRole | null>(null);
     const [formOpen, setFormOpen] = useState(false);
@@ -80,6 +125,57 @@ export default function RolesIndex() {
                 }),
         });
 
+    const runBulk = (action: BulkRoleAction) => {
+        router.post(
+            roleRoutes.bulk,
+            { action, ids: selected },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => {
+                    setProcessing(false);
+                    setConfirmOpen(false);
+                    setSelected([]);
+                },
+            },
+        );
+    };
+
+    const handleBulk = (action: BulkRoleAction) => {
+        if (action !== 'delete') {
+            return;
+        }
+
+        const protectedCount = selected.length - deletableCount;
+
+        // Everything selected is a built-in role — there's nothing to delete, so
+        // give immediate feedback instead of opening an empty confirm dialog.
+        if (deletableCount === 0) {
+            toast.warning(
+                protectedCount === 1
+                    ? 'That role is built-in and cannot be deleted.'
+                    : 'Those roles are built-in and cannot be deleted.',
+            );
+
+            return;
+        }
+
+        const noun = deletableCount === 1 ? 'role' : 'roles';
+        const skipNote =
+            protectedCount > 0
+                ? ` ${protectedCount} built-in ${
+                      protectedCount === 1 ? 'role' : 'roles'
+                  } in your selection will be skipped.`
+                : '';
+
+        askConfirm({
+            title: `Delete ${deletableCount} ${noun}?`,
+            description: `This cannot be undone. ${deletableCount} custom ${noun} will be permanently removed and any members will lose them.${skipNote}`,
+            confirmLabel: 'Delete roles',
+            run: () => runBulk('delete'),
+        });
+    };
+
     return (
         <>
             <Head title="Roles & Permissions" />
@@ -107,12 +203,25 @@ export default function RolesIndex() {
                         onCreate={openCreate}
                     />
 
+                    {selected.length > 0 && (
+                        <RoleBulkActionsBar
+                            count={selected.length}
+                            deletableCount={deletableCount}
+                            canDelete={canDelete}
+                            onAction={handleBulk}
+                            onClear={() => setSelected([])}
+                        />
+                    )}
+
                     <RolesTable
                         roles={roles.data}
                         filters={filters}
+                        selected={selected}
                         canUpdate={canUpdate}
                         canDelete={canDelete}
                         onToggleSort={toggleSort}
+                        onToggleAll={toggleAll}
+                        onToggleRow={toggleRow}
                         onView={openView}
                         onEdit={openEdit}
                         onDelete={remove}

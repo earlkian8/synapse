@@ -6,6 +6,7 @@ import {
     ShieldCheck,
     Users,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
     TableBody,
@@ -28,24 +29,48 @@ type RowHandlers = {
 type Props = RowHandlers & {
     roles: ManagedRole[];
     filters: RolesFilters;
+    selected: number[];
     canUpdate: boolean;
     canDelete: boolean;
     onToggleSort: (column: string) => void;
+    onToggleAll: (checked: boolean) => void;
+    onToggleRow: (id: number, checked: boolean) => void;
 };
 
 export function RolesTable({
     roles,
     filters,
+    selected,
     canUpdate,
     canDelete,
     onToggleSort,
+    onToggleAll,
+    onToggleRow,
     ...handlers
 }: Props) {
+    const allSelected = roles.length > 0 && selected.length === roles.length;
+    const someSelected = selected.length > 0 && !allSelected;
+
     return (
         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
             <Table>
                 <TableHeader className="bg-muted/40">
                     <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-10 pl-4">
+                            <Checkbox
+                                checked={
+                                    allSelected
+                                        ? true
+                                        : someSelected
+                                          ? 'indeterminate'
+                                          : false
+                                }
+                                onCheckedChange={(value) =>
+                                    onToggleAll(value === true)
+                                }
+                                aria-label="Select all"
+                            />
+                        </TableHead>
                         <SortHeader
                             column="label"
                             filters={filters}
@@ -69,7 +94,7 @@ export function RolesTable({
                 <TableBody>
                     {roles.length === 0 && (
                         <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={6} className="py-16">
+                            <TableCell colSpan={7} className="py-16">
                                 <div className="flex flex-col items-center justify-center gap-2 text-center">
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <ShieldCheck className="size-6 text-muted-foreground" />
@@ -86,17 +111,29 @@ export function RolesTable({
                         </TableRow>
                     )}
 
-                    {roles.map((role) => (
-                        <TableRow key={role.id}>
+                    {roles.map((role) => {
+                        const isSelected = selected.includes(role.id);
+
+                        return (
+                        <TableRow
+                            key={role.id}
+                            data-state={isSelected ? 'selected' : undefined}
+                        >
+                            <TableCell className="pl-4">
+                                <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={(value) =>
+                                        onToggleRow(role.id, value === true)
+                                    }
+                                    aria-label={`Select ${role.label}`}
+                                />
+                            </TableCell>
                             <TableCell>
                                 <button
                                     type="button"
                                     onClick={() => handlers.onView(role)}
                                     className="flex items-start gap-3 text-left"
                                 >
-                                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#0F2044] text-white">
-                                        <ShieldCheck className="size-4" />
-                                    </span>
                                     <span className="min-w-0">
                                         <span className="block truncate font-medium">
                                             {role.label}
@@ -140,7 +177,8 @@ export function RolesTable({
                                 />
                             </TableCell>
                         </TableRow>
-                    ))}
+                        );
+                    })}
                 </TableBody>
             </Table>
         </div>

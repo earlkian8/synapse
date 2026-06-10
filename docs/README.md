@@ -47,3 +47,4 @@ commit history rather than repeating them.
 - [2026-06-10 — Self-action toasts & header avatar](./changelog/2026-06-10-self-guard-toast-and-header-avatar.md)
 - [2026-06-10 — Activity Logs module](./changelog/2026-06-10-activity-logs-module.md)
 - [2026-06-10 — Roles & Permissions + authorization](./changelog/2026-06-10-roles-and-permissions.md)
+- [2026-06-10 — Roles row selection & bulk delete](./changelog/2026-06-10-roles-bulk-actions.md)

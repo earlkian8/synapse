@@ -32,6 +32,8 @@ export type PermissionGroup = {
     permissions: PermissionOption[];
 };
 
+export type BulkRoleAction = 'delete';
+
 export type SortDirection = 'asc' | 'desc';
 
 export type RolesFilters = {

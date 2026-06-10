@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLog\ActivityLogBulkActionController;
 use App\Http\Controllers\ActivityLog\ActivityLogController;
 use App\Http\Controllers\ActivityLog\ActivityLogExportController;
+use App\Http\Controllers\RolePermission\RoleBulkActionController;
 use App\Http\Controllers\RolePermission\RoleController;
 use App\Http\Controllers\RolePermission\RoleExportController;
 use App\Http\Controllers\UserManagement\UserBulkActionController;
@@ -34,6 +35,7 @@ Route::middleware(['auth', 'verified'])
         Route::prefix('roles')->name('roles.')->group(function () {
             Route::get('/', [RoleController::class, 'index'])->middleware('can:roles.view')->name('index');
             Route::get('export', RoleExportController::class)->middleware('can:roles.view')->name('export');
+            Route::post('bulk', RoleBulkActionController::class)->middleware('can:roles.view')->name('bulk');
             Route::post('/', [RoleController::class, 'store'])->middleware('can:roles.create')->name('store');
             Route::patch('{role}', [RoleController::class, 'update'])->middleware('can:roles.update')->name('update');
             Route::delete('{role}', [RoleController::class, 'destroy'])->middleware('can:roles.delete')->name('destroy');
