@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Support;
+
+use Illuminate\Support\Collection;
+
+/**
+ * The canonical catalogue of every permission in the system.
+ *
+ * This class — not the database — is the single source of truth for which
+ * permissions exist. Gates are defined from it at boot, and the `permissions`
+ * table is synced from it (see PermissionRegistrar / the seeder). To add a
+ * permission to a module, add it here and re-sync.
+ */
+class PermissionRegistry
+{
+    /**
+     * Permissions keyed by their UI group, then by permission name => label.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const GROUPS = [
+        'User Management' => [
+            'users.view' => 'View users',
+            'users.create' => 'Create users',
+            'users.update' => 'Edit users',
+            'users.delete' => 'Archive users',
+            'users.restore' => 'Restore archived users',
+            'users.force-delete' => 'Permanently delete users',
+            'users.manage-status' => 'Activate / deactivate users',
+            'users.reset-password' => 'Reset user passwords',
+            'users.export' => 'Export users',
+        ],
+        'Roles & Permissions' => [
+            'roles.view' => 'View roles',
+            'roles.create' => 'Create roles',
+            'roles.update' => 'Edit roles & permissions',
+            'roles.delete' => 'Delete roles',
+            'roles.assign' => 'Assign roles to users',
+        ],
+        'Activity Logs' => [
+            'activity-logs.view' => 'View activity logs',
+            'activity-logs.delete' => 'Delete & clear activity logs',
+            'activity-logs.export' => 'Export activity logs',
+        ],
+    ];
+
+    /**
+     * Every permission group with its name/label pairs, for the frontend.
+     *
+     * @return list<array{group: string, permissions: list<array{name: string, label: string}>}>
+     */
+    public static function groups(): array
+    {
+        return collect(self::GROUPS)
+            ->map(fn (array $permissions, string $group): array => [
+                'group' => $group,
+                'permissions' => collect($permissions)
+                    ->map(fn (string $label, string $name): array => [
+                        'name' => $name,
+                        'label' => $label,
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * A flat list of every permission name.
+     *
+     * @return list<string>
+     */
+    public static function names(): array
+    {
+        return self::all()->keys()->all();
+    }
+
+    /**
+     * Every permission as name => [label, group].
+     *
+     * @return Collection<string, array{label: string, group: string}>
+     */
+    public static function all(): Collection
+    {
+        return collect(self::GROUPS)->flatMap(
+            fn (array $permissions, string $group): array => collect($permissions)
+                ->map(fn (string $label): array => ['label' => $label, 'group' => $group])
+                ->all()
+        );
+    }
+
+    /**
+     * Resolve the human group a permission belongs to.
+     */
+    public static function groupFor(string $permission): ?string
+    {
+        return self::all()->get($permission)['group'] ?? null;
+    }
+}

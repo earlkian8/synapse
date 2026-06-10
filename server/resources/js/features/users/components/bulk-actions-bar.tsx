@@ -1,15 +1,16 @@
 import { Archive, ArchiveRestore, CheckCircle2, PauseCircle, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { BulkAction } from '../types';
+import type { BulkAction, UserPermissions } from '../types';
 
 type Props = {
     count: number;
     scope: string;
+    can: UserPermissions;
     onAction: (action: BulkAction) => void;
     onClear: () => void;
 };
 
-export function BulkActionsBar({ count, scope, onAction, onClear }: Props) {
+export function BulkActionsBar({ count, scope, can, onAction, onClear }: Props) {
     const isArchivedScope = scope === 'archived';
 
     return (
@@ -25,39 +26,49 @@ export function BulkActionsBar({ count, scope, onAction, onClear }: Props) {
 
             {isArchivedScope ? (
                 <>
-                    <Button variant="ghost" size="sm" onClick={() => onAction('restore')}>
-                        <ArchiveRestore className="size-4" />
-                        Restore
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => onAction('delete')}
-                    >
-                        <Trash2 className="size-4" />
-                        Delete
-                    </Button>
+                    {can.restore && (
+                        <Button variant="ghost" size="sm" onClick={() => onAction('restore')}>
+                            <ArchiveRestore className="size-4" />
+                            Restore
+                        </Button>
+                    )}
+                    {can.forceDelete && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => onAction('delete')}
+                        >
+                            <Trash2 className="size-4" />
+                            Delete
+                        </Button>
+                    )}
                 </>
             ) : (
                 <>
-                    <Button variant="ghost" size="sm" onClick={() => onAction('activate')}>
-                        <CheckCircle2 className="size-4" />
-                        Activate
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onAction('deactivate')}>
-                        <PauseCircle className="size-4" />
-                        Deactivate
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => onAction('archive')}
-                    >
-                        <Archive className="size-4" />
-                        Archive
-                    </Button>
+                    {can.manageStatus && (
+                        <>
+                            <Button variant="ghost" size="sm" onClick={() => onAction('activate')}>
+                                <CheckCircle2 className="size-4" />
+                                Activate
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onAction('deactivate')}>
+                                <PauseCircle className="size-4" />
+                                Deactivate
+                            </Button>
+                        </>
+                    )}
+                    {can.delete && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => onAction('archive')}
+                        >
+                            <Archive className="size-4" />
+                            Archive
+                        </Button>
+                    )}
                 </>
             )}
 

@@ -12,11 +12,12 @@ import type { ActivityLogEntry } from '../types';
 
 type Props = {
     log: ActivityLogEntry;
+    canDelete: boolean;
     onView: (log: ActivityLogEntry) => void;
     onDelete: (log: ActivityLogEntry) => void;
 };
 
-export function ActivityRowActions({ log, onView, onDelete }: Props) {
+export function ActivityRowActions({ log, canDelete, onView, onDelete }: Props) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -37,14 +38,18 @@ export function ActivityRowActions({ log, onView, onDelete }: Props) {
                     <Eye className="size-4" />
                     View details
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onSelect={() => onDelete(log)}
-                    variant="destructive"
-                >
-                    <Trash2 className="size-4" />
-                    Delete
-                </DropdownMenuItem>
+                {canDelete && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onSelect={() => onDelete(log)}
+                            variant="destructive"
+                        >
+                            <Trash2 className="size-4" />
+                            Delete
+                        </DropdownMenuItem>
+                    </>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     );

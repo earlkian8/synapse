@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\StoreUserRequest;
 use App\Http\Requests\UserManagement\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Role;
 use App\Models\User;
 use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
@@ -26,9 +27,25 @@ class UserController extends Controller
     {
         [$sort, $direction] = $query->sort($request);
 
+        $canAssignRoles = $request->user()->can('roles.assign');
+
         return Inertia::render('system/users/index', [
             'users' => UserResource::collection($query->paginate($request)),
             'stats' => $statistics->toArray(),
+            'assignableRoles' => $canAssignRoles
+                ? Role::orderByDesc('is_system')->orderBy('label')->get(['id', 'name', 'label'])
+                : [],
+            'can' => [
+                'create' => $request->user()->can('users.create'),
+                'update' => $request->user()->can('users.update'),
+                'delete' => $request->user()->can('users.delete'),
+                'restore' => $request->user()->can('users.restore'),
+                'forceDelete' => $request->user()->can('users.force-delete'),
+                'manageStatus' => $request->user()->can('users.manage-status'),
+                'resetPassword' => $request->user()->can('users.reset-password'),
+                'export' => $request->user()->can('users.export'),
+                'assignRoles' => $canAssignRoles,
+            ],
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'status' => $query->status($request),
@@ -45,7 +62,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $user = new User(Arr::except($request->validated(), [
-            'password', 'photo', 'email_verified',
+            'password', 'photo', 'email_verified', 'roles',
         ]));
 
         if (filled($request->validated('password'))) {
@@ -62,6 +79,8 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        $this->syncRoles($request, $user);
 
         ActivityLogger::log(
             event: 'created',
@@ -80,7 +99,7 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
         $user->fill(Arr::except($request->validated(), [
-            'photo', 'remove_photo', 'email_verified',
+            'photo', 'remove_photo', 'email_verified', 'roles',
         ]));
 
         // The admin's verification toggle is authoritative — it overrides the
@@ -101,6 +120,8 @@ class UserController extends Controller
         $changed = array_values(array_diff(array_keys($user->getDirty()), ['updated_at']));
 
         $user->save();
+
+        $this->syncRoles($request, $user);
 
         ActivityLogger::log(
             event: 'updated',
@@ -179,6 +200,23 @@ class UserController extends Controller
         );
 
         return $this->respond('User permanently deleted.');
+    }
+
+    /**
+     * Sync the user's role assignments, but only if the actor is permitted to.
+     *
+     * The role assignment is silently ignored when the actor lacks the
+     * `roles.assign` permission, so a tampered payload cannot escalate access.
+     */
+    private function syncRoles(Request $request, User $user): void
+    {
+        // The `manage_roles` flag is set by the form whenever the role picker is
+        // shown, so an empty selection can intentionally clear all roles.
+        if (! $request->user()->can('roles.assign') || ! $request->boolean('manage_roles')) {
+            return;
+        }
+
+        $user->roles()->sync($request->validated('roles') ?? []);
     }
 
     /**

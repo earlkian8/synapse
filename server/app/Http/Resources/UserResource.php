@@ -33,6 +33,15 @@ class UserResource extends JsonResource
                 ? Storage::disk('public')->url($this->profile_photo)
                 : null,
             'employee_id' => $this->employee_id,
+            'roles' => $this->whenLoaded(
+                'roles',
+                fn () => $this->roles->map(fn ($role): array => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'label' => $role->label,
+                ])->values()->all(),
+                [],
+            ),
             'is_active' => (bool) $this->is_active,
             'status' => $this->resolveStatus(),
             'email_verified' => $this->email_verified_at !== null,

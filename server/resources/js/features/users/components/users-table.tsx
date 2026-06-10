@@ -9,7 +9,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import type { ManagedUser, UsersFilters } from '../types';
+import type { ManagedUser, UserPermissions, UsersFilters } from '../types';
 import { UserAvatar } from './user-avatar';
 import { UserRowActions } from './user-row-actions';
 import { UserStatusBadge } from './user-status-badge';
@@ -28,6 +28,7 @@ type Props = RowHandlers & {
     users: ManagedUser[];
     filters: UsersFilters;
     selected: number[];
+    can: UserPermissions;
     onToggleSort: (column: string) => void;
     onToggleAll: (checked: boolean) => void;
     onToggleRow: (id: number, checked: boolean) => void;
@@ -37,6 +38,7 @@ export function UsersTable({
     users,
     filters,
     selected,
+    can,
     onToggleSort,
     onToggleAll,
     onToggleRow,
@@ -71,6 +73,7 @@ export function UsersTable({
                         </SortHeader>
                         <TableHead>Phone</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Roles</TableHead>
                         <TableHead>Security</TableHead>
                         <SortHeader column="last_login_at" filters={filters} onSort={onToggleSort}>
                             Last login
@@ -84,7 +87,7 @@ export function UsersTable({
                 <TableBody>
                     {users.length === 0 && (
                         <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={9} className="py-16">
+                            <TableCell colSpan={10} className="py-16">
                                 <div className="flex flex-col items-center justify-center gap-2 text-center">
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <Users2 className="size-6 text-muted-foreground" />
@@ -149,6 +152,29 @@ export function UsersTable({
                                     <UserStatusBadge status={user.status} />
                                 </TableCell>
                                 <TableCell>
+                                    {user.roles.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1">
+                                            {user.roles.slice(0, 2).map((role) => (
+                                                <span
+                                                    key={role.id}
+                                                    className="inline-flex items-center rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2 py-0.5 text-[11px] font-medium text-[#0ABFBF]"
+                                                >
+                                                    {role.label}
+                                                </span>
+                                            ))}
+                                            {user.roles.length > 2 && (
+                                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                                    +{user.roles.length - 2}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">
+                                            No role
+                                        </span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
                                     <div className="flex items-center gap-1.5">
                                         <span
                                             className={cn(
@@ -179,7 +205,7 @@ export function UsersTable({
                                     {user.created_human ?? '—'}
                                 </TableCell>
                                 <TableCell className="pr-4 text-right">
-                                    <UserRowActions user={user} {...handlers} />
+                                    <UserRowActions user={user} can={can} {...handlers} />
                                 </TableCell>
                             </TableRow>
                         );

@@ -14,6 +14,7 @@ import type {
     ActivityLogEntry,
     ActivityLogsPageProps,
 } from '@/features/activity-logs/types';
+import { usePermissions } from '@/hooks/use-permissions';
 
 type ConfirmConfig = {
     title: string;
@@ -24,6 +25,9 @@ type ConfirmConfig = {
 
 export default function ActivityLogsIndex() {
     const { logs, stats, filters } = usePage<ActivityLogsPageProps>().props;
+    const { can } = usePermissions();
+    const canDelete = can('activity-logs.delete');
+    const canExport = can('activity-logs.export');
     const { setSearch, setEvent, setPerPage, setPage, toggleSort, reset } =
         useActivityLogsFilters(filters);
 
@@ -144,13 +148,15 @@ export default function ActivityLogsIndex() {
                 <div className="flex flex-col gap-4">
                     <ActivityToolbar
                         filters={filters}
+                        canDelete={canDelete}
+                        canExport={canExport}
                         onSearch={setSearch}
                         onEvent={setEvent}
                         onReset={reset}
                         onClear={clearLogs}
                     />
 
-                    {selected.length > 0 && (
+                    {canDelete && selected.length > 0 && (
                         <ActivityBulkActionsBar
                             count={selected.length}
                             onDelete={bulkDelete}
@@ -162,6 +168,7 @@ export default function ActivityLogsIndex() {
                         logs={rows}
                         filters={filters}
                         selected={selected}
+                        canDelete={canDelete}
                         onToggleSort={toggleSort}
                         onToggleAll={toggleAll}
                         onToggleRow={toggleRow}

@@ -1,5 +1,5 @@
 import { useForm } from '@inertiajs/react';
-import { RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Check, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
@@ -16,16 +16,25 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { userRoutes } from '../routes';
-import type { ManagedUser } from '../types';
+import type { ManagedUser, UserRole } from '../types';
 
 type Props = {
     user: ManagedUser | null;
+    assignableRoles: UserRole[];
+    canAssignRoles: boolean;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
 
-export function UserFormSheet({ user, open, onOpenChange }: Props) {
+export function UserFormSheet({
+    user,
+    assignableRoles,
+    canAssignRoles,
+    open,
+    onOpenChange,
+}: Props) {
     const isEditing = Boolean(user);
 
     return (
@@ -49,6 +58,8 @@ export function UserFormSheet({ user, open, onOpenChange }: Props) {
                     <UserFormBody
                         key={user?.id ?? 'new'}
                         user={user}
+                        assignableRoles={assignableRoles}
+                        canAssignRoles={canAssignRoles}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -68,9 +79,13 @@ function generatePassword(): string {
 
 function UserFormBody({
     user,
+    assignableRoles,
+    canAssignRoles,
     onDone,
 }: {
     user: ManagedUser | null;
+    assignableRoles: UserRole[];
+    canAssignRoles: boolean;
     onDone: () => void;
 }) {
     const isEditing = Boolean(user);
@@ -78,6 +93,8 @@ function UserFormBody({
     const [photoPreview, setPhotoPreview] = useState<string | null>(
         user?.profile_photo ?? null,
     );
+
+    const showRoles = canAssignRoles && assignableRoles.length > 0;
 
     const { data, setData, post, patch, processing, errors } = useForm({
         first_name: user?.first_name ?? '',
@@ -92,7 +109,18 @@ function UserFormBody({
         remove_photo: false,
         password: '',
         password_confirmation: '',
+        manage_roles: showRoles,
+        roles: user?.roles?.map((role) => role.id) ?? ([] as number[]),
     });
+
+    const toggleRole = (id: number) => {
+        setData(
+            'roles',
+            data.roles.includes(id)
+                ? data.roles.filter((roleId) => roleId !== id)
+                : [...data.roles, id],
+        );
+    };
 
     const pickPhoto = (file: File | null) => {
         if (photoPreview?.startsWith('blob:')) {
@@ -344,6 +372,64 @@ function UserFormBody({
                         </div>
                     )}
                 </Section>
+
+                {showRoles && (
+                    <Section
+                        title="Roles"
+                        description="Roles determine what this user can access. Assign one or more."
+                    >
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {assignableRoles.map((role) => {
+                                const checked = data.roles.includes(role.id);
+
+                                return (
+                                    <button
+                                        type="button"
+                                        key={role.id}
+                                        onClick={() => toggleRole(role.id)}
+                                        aria-pressed={checked}
+                                        className={cn(
+                                            'flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                                            checked
+                                                ? 'border-[#0ABFBF]/50 bg-[#0ABFBF]/5'
+                                                : 'border-border bg-muted/20 hover:bg-muted/40',
+                                        )}
+                                    >
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <ShieldCheck
+                                                className={cn(
+                                                    'size-4 shrink-0',
+                                                    checked
+                                                        ? 'text-[#0ABFBF]'
+                                                        : 'text-muted-foreground',
+                                                )}
+                                            />
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium">
+                                                    {role.label}
+                                                </span>
+                                                <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                                                    {role.name}
+                                                </span>
+                                            </span>
+                                        </span>
+                                        <span
+                                            className={cn(
+                                                'flex size-4 shrink-0 items-center justify-center rounded-full border',
+                                                checked
+                                                    ? 'border-[#0ABFBF] bg-[#0ABFBF] text-white'
+                                                    : 'border-muted-foreground/40',
+                                            )}
+                                        >
+                                            {checked && <Check className="size-3" />}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <InputError message={errors.roles} className="mt-1.5" />
+                    </Section>
+                )}
             </div>
 
             <SheetFooter className="border-t border-border px-6 py-4">
