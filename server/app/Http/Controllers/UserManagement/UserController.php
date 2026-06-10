@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
 use App\Support\ActivityLogger;
+use App\Support\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -82,6 +83,17 @@ class UserController extends Controller
 
         $this->syncRoles($request, $user);
 
+        // Auto-notify the new account holder (in-app + email/push if enabled).
+        Notifier::toUser(
+            $user,
+            'Welcome to STAFFA',
+            'Your account has been created. You can sign in and start exploring your workspace.',
+            url: '/dashboard',
+            level: 'success',
+            category: 'account',
+            actor: $request->user(),
+        );
+
         ActivityLogger::log(
             event: 'created',
             description: "Created user {$user->full_name}",
@@ -121,7 +133,22 @@ class UserController extends Controller
 
         $user->save();
 
-        $this->syncRoles($request, $user);
+        $changes = $this->syncRoles($request, $user);
+
+        // Let the user know when they've been granted new role(s).
+        if (! empty($changes['attached'])) {
+            $roles = Role::whereIn('id', $changes['attached'])->pluck('label')->implode(', ');
+
+            Notifier::toUser(
+                $user,
+                'Your access has changed',
+                "You've been granted the following role(s): {$roles}.",
+                url: '/dashboard',
+                level: 'info',
+                category: 'account',
+                actor: $request->user(),
+            );
+        }
 
         ActivityLogger::log(
             event: 'updated',
@@ -207,16 +234,18 @@ class UserController extends Controller
      *
      * The role assignment is silently ignored when the actor lacks the
      * `roles.assign` permission, so a tampered payload cannot escalate access.
+     *
+     * @return array{attached?: list<int>, detached?: list<int>, updated?: list<int>}
      */
-    private function syncRoles(Request $request, User $user): void
+    private function syncRoles(Request $request, User $user): array
     {
         // The `manage_roles` flag is set by the form whenever the role picker is
         // shown, so an empty selection can intentionally clear all roles.
         if (! $request->user()->can('roles.assign') || ! $request->boolean('manage_roles')) {
-            return;
+            return [];
         }
 
-        $user->roles()->sync($request->validated('roles') ?? []);
+        return $user->roles()->sync($request->validated('roles') ?? []);
     }
 
     /**

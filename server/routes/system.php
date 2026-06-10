@@ -3,6 +3,9 @@
 use App\Http\Controllers\ActivityLog\ActivityLogBulkActionController;
 use App\Http\Controllers\ActivityLog\ActivityLogController;
 use App\Http\Controllers\ActivityLog\ActivityLogExportController;
+use App\Http\Controllers\Notification\NotificationController;
+use App\Http\Controllers\Notification\NotificationPreferenceController;
+use App\Http\Controllers\Notification\PushSubscriptionController;
 use App\Http\Controllers\RolePermission\RoleBulkActionController;
 use App\Http\Controllers\RolePermission\RoleController;
 use App\Http\Controllers\RolePermission\RoleExportController;
@@ -39,6 +42,19 @@ Route::middleware(['auth', 'verified'])
             Route::post('/', [RoleController::class, 'store'])->middleware('can:roles.create')->name('store');
             Route::patch('{role}', [RoleController::class, 'update'])->middleware('can:roles.update')->name('update');
             Route::delete('{role}', [RoleController::class, 'destroy'])->middleware('can:roles.delete')->name('destroy');
+        });
+
+        // Notifications — personal to each user; only broadcasting is gated.
+        Route::prefix('notifications')->name('notifications.')->group(function () {
+            Route::get('/', [NotificationController::class, 'index'])->name('index');
+            Route::post('/', [NotificationController::class, 'store'])->middleware('can:notifications.send')->name('store');
+            Route::post('read-all', [NotificationController::class, 'readAll'])->name('read-all');
+            Route::delete('clear', [NotificationController::class, 'clear'])->name('clear');
+            Route::patch('{notification}/read', [NotificationController::class, 'read'])->name('read');
+            Route::delete('{notification}', [NotificationController::class, 'destroy'])->name('destroy');
+            Route::put('preferences', [NotificationPreferenceController::class, 'update'])->name('preferences');
+            Route::post('subscriptions', [PushSubscriptionController::class, 'store'])->name('subscriptions.store');
+            Route::delete('subscriptions', [PushSubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
         });
 
         // Activity Logs

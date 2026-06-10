@@ -48,6 +48,7 @@ class RolePermissionSeeder extends Seeder
                     'users.manage-status', 'users.reset-password', 'users.export',
                     'roles.view',
                     'activity-logs.view', 'activity-logs.export',
+                    'notifications.send',
                 ],
             ],
             [

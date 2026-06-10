@@ -38,6 +38,7 @@ PermissionRegistry::GROUPS = [
     'User Management'      => ['users.view' => 'View users', ...],
     'Roles & Permissions' => ['roles.view' => 'View roles', ...],
     'Activity Logs'       => ['activity-logs.view' => 'View activity logs', ...],
+    'Notifications'       => ['notifications.send' => 'Send & broadcast notifications'],
 ];
 ```
 
@@ -178,7 +179,7 @@ foreach (PermissionRegistry::names() as $permission) {
 | --- | --- | --- | --- |
 | Super Admin | `super-admin` | yes | Everything (bypasses all gates). |
 | Administrator | `administrator` | yes | Every catalogued permission. |
-| HR Manager | `hr-manager` | no | User view/create/update, status, password reset, export; roles.view; activity-logs view/export. |
+| HR Manager | `hr-manager` | no | User view/create/update, status, password reset, export; roles.view; activity-logs view/export; notifications.send. |
 | Staff | `staff` | no | None (baseline). |
 
 `dev@staffa.com` is granted **Super Admin** by `RolePermissionSeeder`.

@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Award,
     BarChart3,
+    Bell,
     Bot,
     BriefcaseBusiness,
     Building,
@@ -102,6 +103,7 @@ const companySetupNavItems: NavItem[] = [
 type GatedNavItem = NavItem & { permission?: string };
 
 const systemNavItems: GatedNavItem[] = [
+    { title: 'Notifications', href: '/system/notifications', icon: Bell },
     { title: 'User Management', href: '/system/users', icon: UserCog, permission: 'users.view' },
     { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck, permission: 'roles.view' },
     { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText, permission: 'activity-logs.view' },
