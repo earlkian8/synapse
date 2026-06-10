@@ -52,7 +52,6 @@ import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
-    { title: 'Notifications', href: '/notifications', icon: Bell },
 ];
 
 const talentNavItems: NavItem[] = [
@@ -104,6 +103,7 @@ const companySetupNavItems: NavItem[] = [
 type GatedNavItem = NavItem & { permission?: string };
 
 const systemNavItems: GatedNavItem[] = [
+    { title: 'Notifications', href: '/system/notifications', icon: Bell },
     { title: 'User Management', href: '/system/users', icon: UserCog, permission: 'users.view' },
     { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck, permission: 'roles.view' },
     { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText, permission: 'activity-logs.view' },

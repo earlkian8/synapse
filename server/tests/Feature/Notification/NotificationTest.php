@@ -27,16 +27,16 @@ function seedNotification(User $user, array $data = [], bool $read = false): voi
     ]);
 }
 
-// ── The centre ───────────────────────────────────────────────────────────────
+// â”€â”€ The centre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('the notifications page renders', function () {
     $user = actingAsSuperAdmin();
     seedNotification($user);
 
-    $this->get(route('notifications.index'))
+    $this->get(route('system.notifications.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('notifications/index')
+            ->component('system/notifications/index')
             ->has('notifications.data', 1)
             ->has('stats')
             ->has('preferences')
@@ -50,7 +50,7 @@ test('a user only sees their own notifications', function () {
     seedNotification($user, ['title' => 'Mine']);
     seedNotification($other, ['title' => 'Theirs']);
 
-    $this->get(route('notifications.index'))
+    $this->get(route('system.notifications.index'))
         ->assertInertia(fn (Assert $page) => $page->has('notifications.data', 1));
 });
 
@@ -59,18 +59,18 @@ test('the unread filter only returns unread notifications', function () {
     seedNotification($user, ['title' => 'Unread one']);
     seedNotification($user, ['title' => 'Read one'], read: true);
 
-    $this->get(route('notifications.index', ['filter' => 'unread']))
+    $this->get(route('system.notifications.index', ['filter' => 'unread']))
         ->assertInertia(fn (Assert $page) => $page->has('notifications.data', 1));
 });
 
-// ── Read / delete ────────────────────────────────────────────────────────────
+// â”€â”€ Read / delete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('a notification can be marked read', function () {
     $user = actingAsUserWith([]);
     seedNotification($user);
     $id = $user->notifications()->first()->id;
 
-    $this->patch(route('notifications.read', $id));
+    $this->patch(route('system.notifications.read', $id));
 
     expect($user->unreadNotifications()->count())->toBe(0);
 });
@@ -80,7 +80,7 @@ test('all notifications can be marked read', function () {
     seedNotification($user);
     seedNotification($user);
 
-    $this->post(route('notifications.read-all'));
+    $this->post(route('system.notifications.read-all'));
 
     expect($user->unreadNotifications()->count())->toBe(0);
 });
@@ -90,7 +90,7 @@ test('a notification can be deleted', function () {
     seedNotification($user);
     $id = $user->notifications()->first()->id;
 
-    $this->delete(route('notifications.destroy', $id));
+    $this->delete(route('system.notifications.destroy', $id));
 
     expect($user->notifications()->count())->toBe(0);
 });
@@ -100,7 +100,7 @@ test('the list can be cleared', function () {
     seedNotification($user);
     seedNotification($user);
 
-    $this->delete(route('notifications.clear'));
+    $this->delete(route('system.notifications.clear'));
 
     expect($user->notifications()->count())->toBe(0);
 });
@@ -111,17 +111,17 @@ test('a user cannot mark someone elses notification read', function () {
     seedNotification($other);
     $id = $other->notifications()->first()->id;
 
-    $this->patch(route('notifications.read', $id));
+    $this->patch(route('system.notifications.read', $id));
 
     expect($other->unreadNotifications()->count())->toBe(1);
 });
 
-// ── Broadcast / compose ──────────────────────────────────────────────────────
+// â”€â”€ Broadcast / compose â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('a user without notifications.send cannot broadcast', function () {
     actingAsUserWith([]);
 
-    $this->post(route('notifications.store'), [
+    $this->post(route('system.notifications.store'), [
         'audience' => 'all',
         'title' => 'Nope',
         'body' => 'Should be blocked',
@@ -134,7 +134,7 @@ test('a permitted user can broadcast to everyone', function () {
     actingAsUserWith(['notifications.send']);
     User::factory()->count(3)->create();
 
-    $this->post(route('notifications.store'), [
+    $this->post(route('system.notifications.store'), [
         'audience' => 'all',
         'title' => 'Maintenance tonight',
         'body' => 'The system will be down at 10pm.',
@@ -153,7 +153,7 @@ test('broadcasting to a role only notifies its members', function () {
     $member->roles()->attach($role);
     $outsider = User::factory()->create();
 
-    $this->post(route('notifications.store'), [
+    $this->post(route('system.notifications.store'), [
         'audience' => 'role',
         'role_id' => $role->id,
         'title' => 'Team update',
@@ -168,7 +168,7 @@ test('broadcasting to a role only notifies its members', function () {
 test('broadcasting requires a target when audience is a single user', function () {
     actingAsUserWith(['notifications.send']);
 
-    $this->post(route('notifications.store'), [
+    $this->post(route('system.notifications.store'), [
         'audience' => 'user',
         'title' => 'No target',
         'body' => 'Missing user_id.',
@@ -176,7 +176,7 @@ test('broadcasting requires a target when audience is a single user', function (
     ])->assertSessionHasErrors('user_id');
 });
 
-// ── Channels honour preferences ──────────────────────────────────────────────
+// â”€â”€ Channels honour preferences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('the mail channel is skipped when email notifications are off', function () {
     $user = User::factory()->make(['email_notifications' => false, 'push_notifications' => false]);
@@ -202,12 +202,12 @@ test('the web push channel is used only when subscribed and enabled', function (
         ->toBe(['database', WebPushChannel::class]);
 });
 
-// ── Preferences & subscriptions ──────────────────────────────────────────────
+// â”€â”€ Preferences & subscriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('a user can update their notification preferences', function () {
     $user = actingAsUserWith([]);
 
-    $this->put(route('notifications.preferences'), ['email' => false, 'push' => false])
+    $this->put(route('system.notifications.preferences'), ['email' => false, 'push' => false])
         ->assertSessionHasNoErrors();
 
     $user->refresh();
@@ -218,7 +218,7 @@ test('a user can update their notification preferences', function () {
 test('a user can register and remove a push subscription', function () {
     $user = actingAsUserWith([]);
 
-    $this->post(route('notifications.subscriptions.store'), [
+    $this->post(route('system.notifications.subscriptions.store'), [
         'endpoint' => 'https://push.example/xyz',
         'public_key' => 'p256dh-key',
         'auth_token' => 'auth-key',
@@ -226,14 +226,14 @@ test('a user can register and remove a push subscription', function () {
 
     expect($user->pushSubscriptions()->count())->toBe(1);
 
-    $this->delete(route('notifications.subscriptions.destroy'), [
+    $this->delete(route('system.notifications.subscriptions.destroy'), [
         'endpoint' => 'https://push.example/xyz',
     ])->assertSessionHasNoErrors();
 
     expect($user->fresh()->pushSubscriptions()->count())->toBe(0);
 });
 
-// ── Auto-notification on user creation ───────────────────────────────────────
+// â”€â”€ Auto-notification on user creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('creating a user sends them a welcome notification', function () {
     Notification::fake();

@@ -52,8 +52,18 @@ export function useWebPush(vapidPublicKey: string | null): UseWebPush {
     }, []);
 
     const subscribe = useCallback(async () => {
-        if (!isSupported || !vapidPublicKey) {
-            toast.error('Push notifications are not supported on this device.');
+        if (!isSupported) {
+            toast.error(
+                'This browser does not support push notifications, or the page is not on a secure (https/localhost) origin.',
+            );
+
+            return;
+        }
+
+        if (!vapidPublicKey) {
+            toast.error(
+                'Push is not configured: the VAPID public key is missing. Run `php artisan webpush:vapid` and restart the server.',
+            );
 
             return;
         }
@@ -64,13 +74,36 @@ export function useWebPush(vapidPublicKey: string | null): UseWebPush {
             const permissionResult = await Notification.requestPermission();
             setPermission(permissionResult);
 
-            if (permissionResult !== 'granted') {
-                toast.error('Permission to show notifications was denied.');
+            if (permissionResult === 'denied') {
+                toast.error(
+                    'Notifications are blocked. Allow them for this site in your browser settings, then try again.',
+                );
 
                 return;
             }
 
-            const registration = await navigator.serviceWorker.ready;
+            if (permissionResult !== 'granted') {
+                toast.error('Permission to show notifications was dismissed.');
+
+                return;
+            }
+
+            // Ensure the service worker is registered and active before we
+            // subscribe (the install effect may not have finished yet).
+            const registration =
+                (await navigator.serviceWorker.getRegistration('/sw.js')) ??
+                (await navigator.serviceWorker.register('/sw.js'));
+            await navigator.serviceWorker.ready;
+
+            // Drop any stale subscription first. On localhost a subscription
+            // created with a different VAPID key lingers and makes a fresh
+            // subscribe() throw InvalidStateError, so always start clean.
+            const existing = await registration.pushManager.getSubscription();
+
+            if (existing) {
+                await existing.unsubscribe();
+            }
+
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(
@@ -93,8 +126,10 @@ export function useWebPush(vapidPublicKey: string | null): UseWebPush {
                         toast.success('Desktop notifications enabled.'),
                 },
             );
-        } catch {
-            toast.error('Could not enable desktop notifications.');
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : 'Unknown error';
+            toast.error(`Could not enable desktop notifications: ${message}`);
         } finally {
             setBusy(false);
         }

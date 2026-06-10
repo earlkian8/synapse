@@ -1,6 +1,6 @@
 # Module: Notifications
 
-> Status: **Active** · Route prefix: `/notifications` · Sidebar: Main → Notifications
+> Status: **Active** · Route prefix: `/system/notifications` · Sidebar: System → Notifications
 
 The system-wide notification layer. Delivers alerts on three channels — **in-app**
 (the header bell + a personal centre), **email**, and **web push** (desktop
@@ -59,21 +59,21 @@ queue:work`, already part of `composer dev`).
 
 ## 4. Routes
 
-Registered in [`routes/notifications.php`](../../server/routes/notifications.php)
-under `['auth', 'verified']`. Notifications are **personal**, so only composing to
-others is permission-gated.
+Registered in [`routes/system.php`](../../server/routes/system.php) under the
+`system` group (`['auth', 'verified']`), name prefix `system.notifications.*`.
+Notifications are **personal**, so only composing to others is permission-gated.
 
 | Method | URI | Name | Permission |
 | --- | --- | --- | --- |
-| GET | `/notifications` | `index` | — (own) |
-| POST | `/notifications` | `store` (broadcast) | `notifications.send` |
-| POST | `/notifications/read-all` | `read-all` | — (own) |
-| DELETE | `/notifications/clear` | `clear` | — (own) |
-| PATCH | `/notifications/{id}/read` | `read` | — (own) |
-| DELETE | `/notifications/{id}` | `destroy` | — (own) |
-| PUT | `/notifications/preferences` | `preferences` | — (own) |
-| POST | `/notifications/subscriptions` | `subscriptions.store` | — (own) |
-| DELETE | `/notifications/subscriptions` | `subscriptions.destroy` | — (own) |
+| GET | `/system/notifications` | `index` | — (own) |
+| POST | `/system/notifications` | `store` (broadcast) | `notifications.send` |
+| POST | `/system/notifications/read-all` | `read-all` | — (own) |
+| DELETE | `/system/notifications/clear` | `clear` | — (own) |
+| PATCH | `/system/notifications/{id}/read` | `read` | — (own) |
+| DELETE | `/system/notifications/{id}` | `destroy` | — (own) |
+| PUT | `/system/notifications/preferences` | `preferences` | — (own) |
+| POST | `/system/notifications/subscriptions` | `subscriptions.store` | — (own) |
+| DELETE | `/system/notifications/subscriptions` | `subscriptions.destroy` | — (own) |
 
 "own" actions are scoped through `$request->user()->notifications()`, so a user
 can never read or delete another person's notifications.
@@ -121,7 +121,7 @@ and is granted to Super Admin, Administrator, and HR Manager by the seeder.
 
 ```
 resources/js/
-├── pages/notifications/index.tsx            # the centre (filter, list, prefs, compose)
+├── pages/system/notifications/index.tsx     # the centre (filter, list, prefs, compose)
 ├── components/notifications-dropdown.tsx     # header bell (shared data + 30s poll)
 ├── hooks/use-web-push.ts                     # SW registration + subscribe/unsubscribe
 └── features/notifications/

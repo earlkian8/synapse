@@ -82,7 +82,7 @@ export default function NotificationsIndex() {
         <>
             <Head title="Notifications" />
 
-            <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 p-4 md:p-6">
+            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
                 {/* Heading */}
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex flex-col gap-1">
@@ -273,7 +273,7 @@ NotificationsIndex.layout = {
     breadcrumbs: [
         {
             title: 'Notifications',
-            href: '/notifications',
+            href: '/system/notifications',
         },
     ],
 };

@@ -33,7 +33,7 @@ class NotificationController extends Controller
 
         $canSend = $user->can('notifications.send');
 
-        return Inertia::render('notifications/index', [
+        return Inertia::render('system/notifications/index', [
             'notifications' => NotificationResource::collection(
                 $query->paginate(15)->withQueryString()
             ),

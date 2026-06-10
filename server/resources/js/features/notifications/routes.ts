@@ -3,13 +3,13 @@
  * Mirrors the named routes registered in routes/notifications.php.
  */
 export const notificationRoutes = {
-    index: '/notifications',
-    store: '/notifications',
-    readAll: '/notifications/read-all',
-    clear: '/notifications/clear',
-    read: (id: string) => `/notifications/${id}/read`,
-    destroy: (id: string) => `/notifications/${id}`,
-    preferences: '/notifications/preferences',
-    subscribe: '/notifications/subscriptions',
-    unsubscribe: '/notifications/subscriptions',
+    index: '/system/notifications',
+    store: '/system/notifications',
+    readAll: '/system/notifications/read-all',
+    clear: '/system/notifications/clear',
+    read: (id: string) => `/system/notifications/${id}/read`,
+    destroy: (id: string) => `/system/notifications/${id}`,
+    preferences: '/system/notifications/preferences',
+    subscribe: '/system/notifications/subscriptions',
+    unsubscribe: '/system/notifications/subscriptions',
 } as const;

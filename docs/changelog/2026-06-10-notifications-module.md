@@ -5,7 +5,7 @@ with per-user channel preferences and permission-gated broadcasting.
 
 ## Summary
 
-- New **Notifications** module at `/notifications` (centre + header bell).
+- New **Notifications** module at `/system/notifications` (centre + header bell).
 - One façade — `Notifier::toUser / toRole / toAll` — emits a `SystemNotification`
   on **in-app**, **email** (Brevo SMTP), and **web push** (VAPID) channels.
 - **Compose / broadcast** to everyone, a role, or one person (gated by
@@ -25,8 +25,9 @@ with per-user channel preferences and permission-gated broadcasting.
 - `NotificationController` (index, broadcast `store`, read, readAll, destroy,
   clear), `NotificationPreferenceController`, `PushSubscriptionController`;
   `SendNotificationRequest`; `NotificationResource`.
-- `routes/notifications.php` wired into `web.php`; broadcast gated by
-  `can:notifications.send`, all other actions scoped to the owner.
+- Routes live in `routes/system.php` under the `system` group
+  (`system.notifications.*`); broadcast gated by `can:notifications.send`, all
+  other actions scoped to the owner.
 - `PermissionRegistry` gains a **Notifications** group (`notifications.send`),
   seeded to Super Admin / Administrator / HR Manager.
 - `User` uses `HasPushSubscriptions`; new fillable/casts for the preference flags.
@@ -37,15 +38,15 @@ with per-user channel preferences and permission-gated broadcasting.
 
 ## Frontend
 
-- `pages/notifications/index.tsx` — centre: filter (all/unread), mark read,
-  delete, clear, pagination, preferences panel, compose.
+- `pages/system/notifications/index.tsx` — centre: filter (all/unread), mark
+  read, delete, clear, pagination, preferences panel, compose.
 - `components/notifications-dropdown.tsx` — rewritten to use the shared payload,
   mark-read, and a 30s poll (was static mock data).
 - `features/notifications/` — types, routes, constants (level styles), and
   components (item, compose sheet, preferences, confirm dialog).
 - `hooks/use-web-push.ts` + `public/sw.js` — service-worker registration, VAPID
   subscribe/unsubscribe, and OS-level push display + click-to-open.
-- Sidebar gains a **Notifications** item under Main; shared page-props type
+- Sidebar gains a **Notifications** item under System; shared page-props type
   extended with `notifications`.
 
 ## Config
