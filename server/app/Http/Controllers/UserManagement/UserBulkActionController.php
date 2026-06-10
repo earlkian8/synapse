@@ -7,6 +7,7 @@ use App\Http\Requests\UserManagement\BulkUserActionRequest;
 use App\Models\User;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class UserBulkActionController extends Controller
@@ -17,6 +18,9 @@ class UserBulkActionController extends Controller
     public function __invoke(BulkUserActionRequest $request): RedirectResponse
     {
         $action = $request->validated('action');
+
+        // Each bulk action requires the same permission as its single-row form.
+        Gate::authorize($this->permissionFor($action));
 
         // Never let an admin lock or remove themselves in a bulk sweep.
         $ids = collect($request->validated('ids'))
@@ -50,6 +54,19 @@ class UserBulkActionController extends Controller
         ]);
 
         return back();
+    }
+
+    /**
+     * Map a bulk action to the permission it requires.
+     */
+    private function permissionFor(string $action): string
+    {
+        return match ($action) {
+            'activate', 'deactivate' => 'users.manage-status',
+            'archive' => 'users.delete',
+            'restore' => 'users.restore',
+            'delete' => 'users.force-delete',
+        };
     }
 
     /**

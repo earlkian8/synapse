@@ -1,6 +1,11 @@
 <?php
 
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use App\Support\PermissionSyncer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /*
@@ -47,4 +52,71 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/*
+|--------------------------------------------------------------------------
+| RBAC test helpers
+|--------------------------------------------------------------------------
+|
+| Routes are permission-gated, so feature tests must authenticate as a user
+| that actually holds the required permissions. These helpers seed the
+| permission catalogue and build roles/users on demand.
+|
+*/
+
+function seedPermissions(): void
+{
+    PermissionSyncer::sync();
+}
+
+/**
+ * Create a role granting the given permission names.
+ *
+ * @param  list<string>  $permissions
+ */
+function makeRole(string $name, array $permissions = [], bool $system = false): Role
+{
+    seedPermissions();
+
+    $role = Role::firstOrCreate(
+        ['name' => $name],
+        ['label' => ucwords(str_replace('-', ' ', $name)), 'is_system' => $system],
+    );
+
+    $role->permissions()->sync(
+        Permission::whereIn('name', $permissions)->pluck('id')
+    );
+
+    return $role;
+}
+
+/**
+ * Authenticate as a Super Admin (bypasses every gate) and return the user.
+ */
+function actingAsSuperAdmin(): User
+{
+    $role = makeRole(Role::SUPER_ADMIN, [], true);
+    $user = User::factory()->create();
+    $user->roles()->attach($role);
+
+    test()->actingAs($user);
+
+    return $user;
+}
+
+/**
+ * Authenticate as a user holding exactly the given permissions.
+ *
+ * @param  list<string>  $permissions
+ */
+function actingAsUserWith(array $permissions): User
+{
+    $role = makeRole('test-role-'.Str::random(8), $permissions);
+    $user = User::factory()->create();
+    $user->roles()->attach($role);
+
+    test()->actingAs($user);
+
+    return $user;
 }

@@ -16,10 +16,11 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { ManagedUser } from '../types';
+import type { ManagedUser, UserPermissions } from '../types';
 
 type Props = {
     user: ManagedUser;
+    can: UserPermissions;
     onView: (user: ManagedUser) => void;
     onEdit: (user: ManagedUser) => void;
     onToggleStatus: (user: ManagedUser) => void;
@@ -31,6 +32,7 @@ type Props = {
 
 export function UserRowActions({
     user,
+    can,
     onView,
     onEdit,
     onToggleStatus,
@@ -64,43 +66,59 @@ export function UserRowActions({
 
                 {!isArchived && (
                     <>
-                        <DropdownMenuItem onSelect={() => onEdit(user)}>
-                            <Pencil className="size-4" />
-                            Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onToggleStatus(user)}>
-                            <Power className="size-4" />
-                            {user.is_active ? 'Deactivate' : 'Activate'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onResetPassword(user)}>
-                            <KeyRound className="size-4" />
-                            Reset password
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            onSelect={() => onArchive(user)}
-                            variant="destructive"
-                        >
-                            <Trash2 className="size-4" />
-                            Archive
-                        </DropdownMenuItem>
+                        {can.update && (
+                            <DropdownMenuItem onSelect={() => onEdit(user)}>
+                                <Pencil className="size-4" />
+                                Edit
+                            </DropdownMenuItem>
+                        )}
+                        {can.manageStatus && (
+                            <DropdownMenuItem onSelect={() => onToggleStatus(user)}>
+                                <Power className="size-4" />
+                                {user.is_active ? 'Deactivate' : 'Activate'}
+                            </DropdownMenuItem>
+                        )}
+                        {can.resetPassword && (
+                            <DropdownMenuItem onSelect={() => onResetPassword(user)}>
+                                <KeyRound className="size-4" />
+                                Reset password
+                            </DropdownMenuItem>
+                        )}
+                        {can.delete && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onSelect={() => onArchive(user)}
+                                    variant="destructive"
+                                >
+                                    <Trash2 className="size-4" />
+                                    Archive
+                                </DropdownMenuItem>
+                            </>
+                        )}
                     </>
                 )}
 
                 {isArchived && (
                     <>
-                        <DropdownMenuItem onSelect={() => onRestore(user)}>
-                            <ArchiveRestore className="size-4" />
-                            Restore
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            onSelect={() => onDelete(user)}
-                            variant="destructive"
-                        >
-                            <Trash2 className="size-4" />
-                            Delete permanently
-                        </DropdownMenuItem>
+                        {can.restore && (
+                            <DropdownMenuItem onSelect={() => onRestore(user)}>
+                                <ArchiveRestore className="size-4" />
+                                Restore
+                            </DropdownMenuItem>
+                        )}
+                        {can.forceDelete && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onSelect={() => onDelete(user)}
+                                    variant="destructive"
+                                >
+                                    <Trash2 className="size-4" />
+                                    Delete permanently
+                                </DropdownMenuItem>
+                            </>
+                        )}
                     </>
                 )}
             </DropdownMenuContent>

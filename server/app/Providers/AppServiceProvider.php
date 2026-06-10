@@ -3,11 +3,13 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\PermissionRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -27,7 +29,23 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureAuthorization();
         $this->recordLastLogin();
+    }
+
+    /**
+     * Wire the RBAC layer into Laravel's gate.
+     *
+     * Super admins bypass every check; all other abilities resolve to the
+     * permission catalogue, with each permission backed by the user's roles.
+     */
+    protected function configureAuthorization(): void
+    {
+        Gate::before(fn (User $user) => $user->isSuperAdmin() ? true : null);
+
+        foreach (PermissionRegistry::names() as $permission) {
+            Gate::define($permission, fn (User $user): bool => $user->hasPermissionTo($permission));
+        }
     }
 
     /**

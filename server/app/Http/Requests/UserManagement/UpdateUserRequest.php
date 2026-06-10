@@ -28,6 +28,8 @@ class UpdateUserRequest extends FormRequest
             'email_verified' => ['boolean'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'remove_photo' => ['boolean'],
+            'roles' => ['array'],
+            'roles.*' => ['integer', Rule::exists('roles', 'id')],
         ];
     }
 

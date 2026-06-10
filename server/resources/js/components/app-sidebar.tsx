@@ -45,6 +45,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { usePermissions } from '@/hooks/use-permissions';
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
 
@@ -98,15 +99,22 @@ const companySetupNavItems: NavItem[] = [
     { title: 'Email & Notifications', href: '/setup/notifications', icon: Mail },
 ];
 
-const systemNavItems: NavItem[] = [
-    { title: 'User Management', href: '/system/users', icon: UserCog },
-    { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck },
-    { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText },
+type GatedNavItem = NavItem & { permission?: string };
+
+const systemNavItems: GatedNavItem[] = [
+    { title: 'User Management', href: '/system/users', icon: UserCog, permission: 'users.view' },
+    { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck, permission: 'roles.view' },
+    { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText, permission: 'activity-logs.view' },
     { title: 'Data Backup & Export', href: '/system/backup', icon: DatabaseBackup },
 ];
 
 export function AppSidebar() {
     const { auth } = usePage().props;
+    const { can } = usePermissions();
+
+    const visibleSystemNavItems = systemNavItems.filter(
+        (item) => !item.permission || can(item.permission),
+    );
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -169,7 +177,9 @@ export function AppSidebar() {
                 <NavMain label="Company Setup" items={companySetupNavItems} />
 
                 {/* System */}
-                <NavMain label="System" items={systemNavItems} />
+                {visibleSystemNavItems.length > 0 && (
+                    <NavMain label="System" items={visibleSystemNavItems} />
+                )}
             </SidebarContent>
 
             {/* ── Footer ── */}

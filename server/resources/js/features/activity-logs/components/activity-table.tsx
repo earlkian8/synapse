@@ -18,6 +18,7 @@ type Props = {
     logs: ActivityLogEntry[];
     filters: ActivityFilters;
     selected: number[];
+    canDelete: boolean;
     onToggleSort: (column: string) => void;
     onToggleAll: (checked: boolean) => void;
     onToggleRow: (id: number, checked: boolean) => void;
@@ -29,6 +30,7 @@ export function ActivityTable({
     logs,
     filters,
     selected,
+    canDelete,
     onToggleSort,
     onToggleAll,
     onToggleRow,
@@ -37,25 +39,28 @@ export function ActivityTable({
 }: Props) {
     const allSelected = logs.length > 0 && selected.length === logs.length;
     const someSelected = selected.length > 0 && !allSelected;
+    const colSpan = canDelete ? 8 : 7;
 
     return (
         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
             <Table>
                 <TableHeader className="bg-muted/40">
                     <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-10 pl-4">
-                            <Checkbox
-                                checked={
-                                    allSelected
-                                        ? true
-                                        : someSelected
-                                          ? 'indeterminate'
-                                          : false
-                                }
-                                onCheckedChange={(value) => onToggleAll(value === true)}
-                                aria-label="Select all"
-                            />
-                        </TableHead>
+                        {canDelete && (
+                            <TableHead className="w-10 pl-4">
+                                <Checkbox
+                                    checked={
+                                        allSelected
+                                            ? true
+                                            : someSelected
+                                              ? 'indeterminate'
+                                              : false
+                                    }
+                                    onCheckedChange={(value) => onToggleAll(value === true)}
+                                    aria-label="Select all"
+                                />
+                            </TableHead>
+                        )}
                         <TableHead>Actor</TableHead>
                         <SortHeader column="event" filters={filters} onSort={onToggleSort}>
                             Event
@@ -72,7 +77,7 @@ export function ActivityTable({
                 <TableBody>
                     {logs.length === 0 && (
                         <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="py-16">
+                            <TableCell colSpan={colSpan} className="py-16">
                                 <div className="flex flex-col items-center justify-center gap-2 text-center">
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <ScrollText className="size-6 text-muted-foreground" />
@@ -95,15 +100,17 @@ export function ActivityTable({
                                 key={log.id}
                                 data-state={isSelected ? 'selected' : undefined}
                             >
-                                <TableCell className="pl-4">
-                                    <Checkbox
-                                        checked={isSelected}
-                                        onCheckedChange={(value) =>
-                                            onToggleRow(log.id, value === true)
-                                        }
-                                        aria-label={`Select log ${log.id}`}
-                                    />
-                                </TableCell>
+                                {canDelete && (
+                                    <TableCell className="pl-4">
+                                        <Checkbox
+                                            checked={isSelected}
+                                            onCheckedChange={(value) =>
+                                                onToggleRow(log.id, value === true)
+                                            }
+                                            aria-label={`Select log ${log.id}`}
+                                        />
+                                    </TableCell>
+                                )}
                                 <TableCell>
                                     <button
                                         type="button"
@@ -152,6 +159,7 @@ export function ActivityTable({
                                 <TableCell className="pr-4 text-right">
                                     <ActivityRowActions
                                         log={log}
+                                        canDelete={canDelete}
                                         onView={onView}
                                         onDelete={onDelete}
                                     />

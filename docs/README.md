@@ -29,17 +29,21 @@ commit history rather than repeating them.
 
 ### Modules
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
+- [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
 - [Activity Logs](./modules/activity-logs.md) — read-only audit trail; logging API.
 
 ### Database
 - [Entity Relationship Diagram](./database/erd.md) — **draft** full-system data model (all modules).
 - [`users` table](./database/users-table.md) — identity, profile, account, and soft-delete columns.
+- [`roles`, `permissions` & pivots](./database/roles-permissions-tables.md) — RBAC schema.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
+- [0002 — Role-based access control & authorization](./decisions/0002-rbac-authorization.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)
 - [2026-06-10 — Custom sidebar scrollbar](./changelog/2026-06-10-sidebar-scrollbar.md)
 - [2026-06-10 — Self-action toasts & header avatar](./changelog/2026-06-10-self-guard-toast-and-header-avatar.md)
 - [2026-06-10 — Activity Logs module](./changelog/2026-06-10-activity-logs-module.md)
+- [2026-06-10 — Roles & Permissions + authorization](./changelog/2026-06-10-roles-and-permissions.md)

@@ -15,6 +15,8 @@ import type { ActivityFilters } from '../types';
 
 type Props = {
     filters: ActivityFilters;
+    canDelete: boolean;
+    canExport: boolean;
     onSearch: (value: string) => void;
     onEvent: (value: string) => void;
     onReset: () => void;
@@ -23,6 +25,8 @@ type Props = {
 
 export function ActivityToolbar({
     filters,
+    canDelete,
+    canExport,
     onSearch,
     onEvent,
     onReset,
@@ -107,21 +111,25 @@ export function ActivityToolbar({
             </div>
 
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild>
-                    <a href={exportUrl}>
-                        <Download className="size-4" />
-                        Export
-                    </a>
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onClear}
-                    className="text-destructive hover:text-destructive"
-                >
-                    <Trash2 className="size-4" />
-                    Clear logs
-                </Button>
+                {canExport && (
+                    <Button variant="outline" size="sm" asChild>
+                        <a href={exportUrl}>
+                            <Download className="size-4" />
+                            Export
+                        </a>
+                    </Button>
+                )}
+                {canDelete && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onClear}
+                        className="text-destructive hover:text-destructive"
+                    >
+                        <Trash2 className="size-4" />
+                        Clear logs
+                    </Button>
+                )}
             </div>
         </div>
     );

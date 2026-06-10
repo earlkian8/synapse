@@ -1,5 +1,11 @@
 export type UserStatus = 'active' | 'inactive' | 'archived';
 
+export type UserRole = {
+    id: number;
+    name: string;
+    label: string;
+};
+
 export type ManagedUser = {
     id: number;
     first_name: string;
@@ -12,6 +18,7 @@ export type ManagedUser = {
     phone_number: string | null;
     profile_photo: string | null;
     employee_id: string | null;
+    roles: UserRole[];
     is_active: boolean;
     status: UserStatus;
     email_verified: boolean;
@@ -72,9 +79,23 @@ export type Paginated<T> = {
     };
 };
 
+export type UserPermissions = {
+    create: boolean;
+    update: boolean;
+    delete: boolean;
+    restore: boolean;
+    forceDelete: boolean;
+    manageStatus: boolean;
+    resetPassword: boolean;
+    export: boolean;
+    assignRoles: boolean;
+};
+
 export type UsersPageProps = {
     users: Paginated<ManagedUser>;
     stats: UserStats;
+    assignableRoles: UserRole[];
+    can: UserPermissions;
     filters: UsersFilters;
 };
 

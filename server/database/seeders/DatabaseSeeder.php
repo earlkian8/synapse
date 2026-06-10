@@ -23,7 +23,10 @@ class DatabaseSeeder extends Seeder
             'middle_name' => null,
             'last_name' => 'User',
             'email' => 'dev@staffa.com',
-            'password' => Hash::make('password')
+            'password' => Hash::make('password'),
         ]);
+
+        // Roles, permissions, and the Super Admin grant for dev@staffa.com.
+        $this->call(RolePermissionSeeder::class);
     }
 }

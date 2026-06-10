@@ -29,7 +29,7 @@ type ConfirmConfig = {
 };
 
 export default function UsersIndex() {
-    const { users, stats, filters, auth } = usePage<
+    const { users, stats, filters, auth, assignableRoles, can } = usePage<
         UsersPageProps & { auth: Auth }
     >().props;
     const currentUserId = auth.user.id;
@@ -236,6 +236,8 @@ export default function UsersIndex() {
                 <div className="flex flex-col gap-4">
                     <UsersToolbar
                         filters={filters}
+                        canCreate={can.create}
+                        canExport={can.export}
                         onSearch={setSearch}
                         onStatus={setStatus}
                         onReset={reset}
@@ -246,6 +248,7 @@ export default function UsersIndex() {
                         <BulkActionsBar
                             count={selected.length}
                             scope={filters.status}
+                            can={can}
                             onAction={handleBulk}
                             onClear={() => setSelected([])}
                         />
@@ -255,6 +258,7 @@ export default function UsersIndex() {
                         users={rows}
                         filters={filters}
                         selected={selected}
+                        can={can}
                         onToggleSort={toggleSort}
                         onToggleAll={toggleAll}
                         onToggleRow={toggleRow}
@@ -278,6 +282,8 @@ export default function UsersIndex() {
 
             <UserFormSheet
                 user={formUser}
+                assignableRoles={assignableRoles}
+                canAssignRoles={can.assignRoles}
                 open={formOpen}
                 onOpenChange={setFormOpen}
             />

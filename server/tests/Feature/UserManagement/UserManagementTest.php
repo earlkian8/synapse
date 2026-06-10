@@ -7,14 +7,11 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
- * Create an administrator, authenticate as them, and return the model.
+ * Authenticate as a Super Admin (holds every permission) and return the model.
  */
 function loginAsAdmin(): User
 {
-    $admin = User::factory()->create();
-    test()->actingAs($admin);
-
-    return $admin;
+    return actingAsSuperAdmin();
 }
 
 beforeEach(function () {

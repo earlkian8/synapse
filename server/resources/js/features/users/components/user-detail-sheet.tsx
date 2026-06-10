@@ -8,6 +8,7 @@ import {
     Phone,
     ShieldCheck,
     ShieldX,
+    Users as UsersIcon,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,26 @@ export function UserDetailSheet({ user, open, onOpenChange, onEdit }: Props) {
                                 <Row icon={AtSign} label="Email" value={user.email} />
                                 <Row icon={Phone} label="Phone" value={user.phone_number} />
                                 <Row icon={Hash} label="Employee ID" value={user.employee_id} />
+                            </Group>
+
+                            <Group title="Roles">
+                                {user.roles.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 px-2 py-1">
+                                        {user.roles.map((role) => (
+                                            <span
+                                                key={role.id}
+                                                className="inline-flex items-center gap-1.5 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2.5 py-0.5 text-xs font-medium text-[#0ABFBF]"
+                                            >
+                                                <UsersIcon className="size-3" />
+                                                {role.label}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="px-2 py-1 text-sm text-muted-foreground">
+                                        No roles assigned
+                                    </p>
+                                )}
                             </Group>
 
                             <Group title="Security">

@@ -15,6 +15,8 @@ import type { UsersFilters } from '../types';
 
 type Props = {
     filters: UsersFilters;
+    canCreate: boolean;
+    canExport: boolean;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
     onReset: () => void;
@@ -23,6 +25,8 @@ type Props = {
 
 export function UsersToolbar({
     filters,
+    canCreate,
+    canExport,
     onSearch,
     onStatus,
     onReset,
@@ -108,16 +112,20 @@ export function UsersToolbar({
             </div>
 
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild>
-                    <a href={exportUrl}>
-                        <Download className="size-4" />
-                        Export
-                    </a>
-                </Button>
-                <Button size="sm" onClick={onCreate}>
-                    <Plus className="size-4" />
-                    Add user
-                </Button>
+                {canExport && (
+                    <Button variant="outline" size="sm" asChild>
+                        <a href={exportUrl}>
+                            <Download className="size-4" />
+                            Export
+                        </a>
+                    </Button>
+                )}
+                {canCreate && (
+                    <Button size="sm" onClick={onCreate}>
+                        <Plus className="size-4" />
+                        Add user
+                    </Button>
+                )}
             </div>
         </div>
     );

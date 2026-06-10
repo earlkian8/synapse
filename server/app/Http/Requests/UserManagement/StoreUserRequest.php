@@ -27,6 +27,8 @@ class StoreUserRequest extends FormRequest
             'email_verified' => ['boolean'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
+            'roles' => ['array'],
+            'roles.*' => ['integer', Rule::exists('roles', 'id')],
         ];
     }
 
