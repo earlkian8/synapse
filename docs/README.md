@@ -11,7 +11,7 @@ commit history rather than repeating them.
 | [`modules/`](./modules) | One document per functional module (User Management, Payroll, Recruitment, …). Describes features, routes, backend + frontend architecture, and how to extend it. | `kebab-case.md`, named after the module (`user-management.md`). |
 | [`database/`](./database) | Schema references for important tables — columns, constraints, and the migrations that shaped them. | `kebab-case.md`, named after the table (`users-table.md`). |
 | [`decisions/`](./decisions) | Architecture Decision Records (ADRs). Each captures **one** significant decision: the context, the choice, and the trade-offs. | `NNNN-short-title.md`, zero-padded sequential (`0001-…`). |
-| [`changelog/`](./changelog) | Per-change notes — what shipped in a meaningful set of work, file-by-file, for reviewers and future readers. | `YYYY-MM-DD-short-title.md`. |
+| [`changelog/`](./changelog) | Per-change notes — what shipped in a meaningful set of work, file-by-file, for reviewers and future readers. | `YYYY-MM-DD-NN-short-title.md`, where `NN` is a two-digit sequence within the day so entries sort chronologically. |
 
 ### Conventions
 
@@ -51,12 +51,12 @@ commit history rather than repeating them.
 - [0005 — Multi-tenancy: one organisation per registration](./decisions/0005-multi-tenancy.md)
 
 ### Changelog
-- [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-user-profile-photos-verification-toasts.md)
-- [2026-06-10 — Custom sidebar scrollbar](./changelog/2026-06-10-sidebar-scrollbar.md)
-- [2026-06-10 — Self-action toasts & header avatar](./changelog/2026-06-10-self-guard-toast-and-header-avatar.md)
-- [2026-06-10 — Activity Logs module](./changelog/2026-06-10-activity-logs-module.md)
-- [2026-06-10 — Roles & Permissions + authorization](./changelog/2026-06-10-roles-and-permissions.md)
-- [2026-06-10 — Roles row selection & bulk delete](./changelog/2026-06-10-roles-bulk-actions.md)
-- [2026-06-10 — Notifications module (in-app, email & web push)](./changelog/2026-06-10-notifications-module.md)
-- [2026-06-10 — Employees module + organisation foundation](./changelog/2026-06-10-employees-module.md)
-- [2026-06-11 — Multi-tenancy (one organisation per registration)](./changelog/2026-06-11-multi-tenancy.md)
+- [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
+- [2026-06-10 — Custom sidebar scrollbar](./changelog/2026-06-10-02-sidebar-scrollbar.md)
+- [2026-06-10 — Self-action toasts & header avatar](./changelog/2026-06-10-03-self-guard-toast-and-header-avatar.md)
+- [2026-06-10 — Activity Logs module](./changelog/2026-06-10-04-activity-logs-module.md)
+- [2026-06-10 — Roles & Permissions + authorization](./changelog/2026-06-10-05-roles-and-permissions.md)
+- [2026-06-10 — Roles row selection & bulk delete](./changelog/2026-06-10-06-roles-bulk-actions.md)
+- [2026-06-10 — Notifications module (in-app, email & web push)](./changelog/2026-06-10-07-notifications-module.md)
+- [2026-06-10 — Employees module + organisation foundation](./changelog/2026-06-10-08-employees-module.md)
+- [2026-06-11 — Multi-tenancy (one organisation per registration)](./changelog/2026-06-11-01-multi-tenancy.md)
