@@ -6,16 +6,17 @@ export const recruitmentRoutes = {
     index: '/recruitment',
     store: '/recruitment',
     export: '/recruitment/export',
-    show: (id: number) => `/recruitment/${id}`,
-    update: (id: number) => `/recruitment/${id}`,
-    destroy: (id: number) => `/recruitment/${id}`,
-    status: (id: number) => `/recruitment/${id}/status`,
+    // Postings are addressed by their obfuscated hashid (see App\Support\Hashid).
+    show: (hashid: string) => `/recruitment/${hashid}`,
+    update: (hashid: string) => `/recruitment/${hashid}`,
+    destroy: (hashid: string) => `/recruitment/${hashid}`,
+    status: (hashid: string) => `/recruitment/${hashid}/status`,
 
     applicants: '/recruitment/applicants',
     applicant: (id: number) => `/recruitment/applicants/${id}`,
 
-    applications: (postingId: number) =>
-        `/recruitment/${postingId}/applications`,
+    applications: (postingHashid: string) =>
+        `/recruitment/${postingHashid}/applications`,
     application: (id: number) => `/recruitment/applications/${id}`,
     applicationStage: (id: number) =>
         `/recruitment/applications/${id}/stage`,

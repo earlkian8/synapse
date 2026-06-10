@@ -18,6 +18,7 @@ class JobPostingResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'hashid' => $this->hashid,
             'title' => $this->title,
             'description' => $this->description,
             'requirements' => $this->requirements,

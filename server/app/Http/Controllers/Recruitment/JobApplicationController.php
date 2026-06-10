@@ -59,7 +59,7 @@ class JobApplicationController extends Controller
             'hr-manager',
             'New application',
             "{$applicant->full_name} applied for {$jobPosting->title}.",
-            url: '/recruitment/'.$jobPosting->id,
+            url: '/recruitment/'.$jobPosting->getRouteKey(),
             category: 'recruitment',
             actor: $request->user(),
         );

@@ -46,7 +46,7 @@ export default function RecruitmentIndex() {
     };
 
     const openPipeline = (posting: ManagedPosting) =>
-        router.visit(recruitmentRoutes.show(posting.id));
+        router.visit(recruitmentRoutes.show(posting.hashid));
 
     const openCreate = () => {
         setFormPosting(null);
@@ -60,7 +60,7 @@ export default function RecruitmentIndex() {
 
     const setStatusFor = (posting: ManagedPosting, status: string) =>
         router.patch(
-            recruitmentRoutes.status(posting.id),
+            recruitmentRoutes.status(posting.hashid),
             { status },
             { preserveScroll: true },
         );
@@ -72,7 +72,7 @@ export default function RecruitmentIndex() {
                 'This permanently removes the posting and every application in its pipeline. This cannot be undone.',
             confirmLabel: 'Delete posting',
             run: () =>
-                router.delete(recruitmentRoutes.destroy(posting.id), {
+                router.delete(recruitmentRoutes.destroy(posting.hashid), {
                     preserveScroll: true,
                     onStart: () => setProcessing(true),
                     onFinish: () => {

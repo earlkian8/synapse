@@ -25,7 +25,7 @@ import type { ApplicantSource, PipelineOptions } from '../types';
 import { RatingStars } from './rating-stars';
 
 type Props = {
-    postingId: number;
+    postingId: string;
     options: PipelineOptions;
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -70,7 +70,7 @@ function FormBody({
     options,
     onDone,
 }: {
-    postingId: number;
+    postingId: string;
     options: PipelineOptions;
     onDone: () => void;
 }) {

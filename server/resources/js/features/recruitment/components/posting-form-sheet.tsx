@@ -142,7 +142,7 @@ function FormBody({
         const opts = { preserveScroll: true, onSuccess: () => onDone() };
 
         if (isEditing && posting) {
-            post(recruitmentRoutes.update(posting.id), opts);
+            post(recruitmentRoutes.update(posting.hashid), opts);
         } else {
             post(recruitmentRoutes.store, opts);
         }

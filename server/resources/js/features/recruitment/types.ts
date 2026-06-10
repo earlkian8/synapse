@@ -31,6 +31,7 @@ export type PositionRef = { id: number; title: string };
 
 export type ManagedPosting = {
     id: number;
+    hashid: string;
     title: string;
     description: string | null;
     requirements: string | null;

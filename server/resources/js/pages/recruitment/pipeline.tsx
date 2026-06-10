@@ -148,7 +148,7 @@ export default function RecruitmentPipeline() {
             </div>
 
             <AddCandidateSheet
-                postingId={posting.id}
+                postingId={posting.hashid}
                 options={options}
                 open={addOpen}
                 onOpenChange={setAddOpen}
@@ -178,11 +178,12 @@ export default function RecruitmentPipeline() {
     );
 }
 
-RecruitmentPipeline.layout = {
+RecruitmentPipeline.layout = (props: PipelinePageProps) => ({
     breadcrumbs: [
+        { title: 'Recruitment', href: recruitmentRoutes.index },
         {
-            title: 'Recruitment',
-            href: '/recruitment',
+            title: props.posting.title,
+            href: recruitmentRoutes.show(props.posting.hashid),
         },
     ],
-};
+});
