@@ -40,6 +40,11 @@ class PermissionRegistry
             'recruitment.hire' => 'Hire applicants (create employees)',
             'recruitment.export' => 'Export recruitment data',
         ],
+        'Onboarding' => [
+            'onboarding.view' => 'View onboarding',
+            'onboarding.manage' => 'Start onboarding & manage checklists',
+            'onboarding.manage-programs' => 'Manage onboarding programs (templates)',
+        ],
         'User Management' => [
             'users.view' => 'View users',
             'users.create' => 'Create users',

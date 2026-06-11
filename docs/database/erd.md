@@ -10,7 +10,11 @@
 > [ADR 0005](../decisions/0005-multi-tenancy.md)), and **Recruitment**
 > (`job_postings`, `applicants`, `job_applications`, `interviews`, with the hire →
 > employee bridge — see [Recruitment](../modules/recruitment.md) and
-> [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md)).
+> [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md)), and **Onboarding**
+> (`onboarding_programs`, `onboarding_program_tasks`, `onboarding_cases`,
+> `onboarding_tasks`, auto-started by the hire bridge — see
+> [Onboarding](../modules/onboarding.md) and
+> [ADR 0007](../decisions/0007-onboarding-template-bridge.md)).
 > Review the **Design decisions** and **Open questions** sections first — a few
 > choices shape everything downstream.
 
@@ -337,7 +341,10 @@ erDiagram
     JOB_APPLICATION ||--o{ INTERVIEW : schedules
     JOB_APPLICATION ||--o| EMPLOYEE : "hired becomes"
     DEPARTMENT ||--o{ JOB_POSTING : for
-    EMPLOYEE ||--o{ ONBOARDING_TASK : assigned
+    EMPLOYEE ||--o| ONBOARDING_CASE : onboards
+    ONBOARDING_PROGRAM ||--o{ ONBOARDING_PROGRAM_TASK : blueprints
+    ONBOARDING_PROGRAM ||--o{ ONBOARDING_CASE : seeds
+    ONBOARDING_CASE ||--o{ ONBOARDING_TASK : checklist
 
     JOB_POSTING {
         bigint id PK
@@ -378,15 +385,41 @@ erDiagram
         text notes
         enum result "pending|passed|failed"
     }
+    ONBOARDING_PROGRAM {
+        bigint id PK
+        string name
+        bigint department_id FK "nullable"
+        string employment_type "nullable"
+        boolean is_default
+        boolean is_active
+    }
+    ONBOARDING_PROGRAM_TASK {
+        bigint id PK
+        bigint onboarding_program_id FK
+        string title
+        string category
+        int due_offset_days "days after start"
+        int sort_order
+    }
+    ONBOARDING_CASE {
+        bigint id PK
+        bigint employee_id FK "unique"
+        bigint onboarding_program_id FK "nullable"
+        enum status "pending|in_progress|completed|cancelled"
+        date start_date
+        date target_end_date
+        datetime completed_at
+    }
     ONBOARDING_TASK {
         bigint id PK
-        bigint employee_id FK
+        bigint onboarding_case_id FK
         string title
-        text description
+        string category
         bigint assigned_to FK "users"
         date due_date
-        enum status "pending|in_progress|done"
+        enum status "pending|in_progress|done|skipped"
         datetime completed_at
+        bigint completed_by FK "users"
     }
 ```
 
@@ -758,7 +791,7 @@ erDiagram
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
 3. **Operational** (generate ML features): Attendance/DTR, Leave, Performance, Training, Payroll, Benefits, Awards, Events.
-4. **Talent**: Recruitment, Onboarding; **Offboarding**.
+4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
 6. **Assistant**: LLM conversations, function-calling, document processor.
 

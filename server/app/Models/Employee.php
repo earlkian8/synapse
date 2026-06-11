@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Employee extends Model
@@ -142,6 +143,16 @@ class Employee extends Model
     public function promotions(): HasMany
     {
         return $this->hasMany(EmployeePromotion::class);
+    }
+
+    /**
+     * This employee's onboarding journey, if one has been started.
+     *
+     * @return HasOne<OnboardingCase, $this>
+     */
+    public function onboardingCase(): HasOne
+    {
+        return $this->hasOne(OnboardingCase::class);
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────
