@@ -99,9 +99,14 @@ const assistantNavItems: NavItem[] = [
     { title: 'Document Processor', href: '/assistant/documents', icon: FileScan },
 ];
 
-const companySetupNavItems: NavItem[] = [
+const companySetupNavItems: GatedNavItem[] = [
     { title: 'Company Profile', href: '/setup/company', icon: Building },
-    { title: 'Departments', href: '/setup/departments', icon: Network },
+    {
+        title: 'Departments',
+        href: '/setup/departments',
+        icon: Network,
+        permission: 'setup.departments.view',
+    },
     { title: 'Work Schedule & Holidays', href: '/setup/schedule', icon: CalendarClock },
     { title: 'Leave Types', href: '/setup/leave-types', icon: CalendarRange },
     { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
@@ -133,6 +138,10 @@ export function AppSidebar() {
     );
 
     const visibleTalentNavItems = talentNavItems.filter(
+        (item) => !item.permission || can(item.permission),
+    );
+
+    const visibleCompanySetupNavItems = companySetupNavItems.filter(
         (item) => !item.permission || can(item.permission),
     );
 
@@ -197,7 +206,10 @@ export function AppSidebar() {
                 />
 
                 {/* Company Setup */}
-                <NavMain label="Company Setup" items={companySetupNavItems} />
+                <NavMain
+                    label="Company Setup"
+                    items={visibleCompanySetupNavItems}
+                />
 
                 {/* System */}
                 {visibleSystemNavItems.length > 0 && (

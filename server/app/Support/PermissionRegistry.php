@@ -45,6 +45,10 @@ class PermissionRegistry
             'onboarding.manage' => 'Start onboarding & manage checklists',
             'onboarding.manage-programs' => 'Manage onboarding programs (templates)',
         ],
+        'Company Setup' => [
+            'setup.departments.view' => 'View departments & positions',
+            'setup.departments.manage' => 'Manage departments & positions',
+        ],
         'User Management' => [
             'users.view' => 'View users',
             'users.create' => 'Create users',

@@ -100,5 +100,26 @@ class OrganizationSeeder extends Seeder
                     ]);
                 });
         }
+
+        // 5. A bit of structure for the demo (idempotent): nested sub-departments
+        // and a head for each top-level department.
+        $it = $departments->firstWhere('code', 'IT');
+        $hr = $departments->firstWhere('code', 'HR');
+
+        foreach ([['IT Support', 'ITS', $it], ['Recruitment', 'REC', $hr]] as [$name, $code, $parent]) {
+            if ($parent) {
+                Department::firstOrCreate(['code' => $code], ['name' => $name, 'parent_id' => $parent->id]);
+            }
+        }
+
+        $departments->each(function (Department $department) {
+            if ($department->head_id === null) {
+                $headId = Employee::where('department_id', $department->id)->value('id');
+
+                if ($headId) {
+                    $department->update(['head_id' => $headId]);
+                }
+            }
+        });
     }
 }

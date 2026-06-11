@@ -118,6 +118,7 @@ class OrganizationProvisioner
                     'recruitment.schedule-interviews', 'recruitment.hire',
                     'recruitment.export',
                     'onboarding.view', 'onboarding.manage', 'onboarding.manage-programs',
+                    'setup.departments.view', 'setup.departments.manage',
                     'users.view', 'users.create', 'users.update',
                     'users.manage-status', 'users.reset-password', 'users.export',
                     'roles.view',
