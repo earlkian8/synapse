@@ -48,5 +48,8 @@ class DatabaseSeeder extends Seeder
 
         // Recruitment pipeline (postings, applicants, applications, interviews).
         $this->call(RecruitmentSeeder::class);
+
+        // Onboarding (default program + a few in-flight cases).
+        $this->call(OnboardingSeeder::class);
     }
 }

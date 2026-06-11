@@ -61,7 +61,12 @@ const talentNavItems: GatedNavItem[] = [
         icon: BriefcaseBusiness,
         permission: 'recruitment.view',
     },
-    { title: 'Onboarding', href: '/onboarding', icon: UserRoundCheck },
+    {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserRoundCheck,
+        permission: 'onboarding.view',
+    },
 ];
 
 const workforceNavItems: GatedNavItem[] = [

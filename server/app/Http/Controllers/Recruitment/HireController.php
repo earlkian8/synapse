@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\JobApplication;
 use App\Support\ActivityLogger;
 use App\Support\Notifier;
+use App\Support\OnboardingProvisioner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,10 @@ class HireController extends Controller
             $employee->save();
 
             $this->copyResumeToFile($applicant, $employee, $request->user()->id);
+
+            // Seed the new hire's onboarding from the best-matching program — the
+            // recruitment → onboarding handoff (ADR 0007).
+            OnboardingProvisioner::start($employee);
 
             $application->update([
                 'stage' => 'hired',

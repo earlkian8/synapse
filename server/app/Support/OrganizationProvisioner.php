@@ -117,6 +117,7 @@ class OrganizationProvisioner
                     'recruitment.delete', 'recruitment.manage-pipeline',
                     'recruitment.schedule-interviews', 'recruitment.hire',
                     'recruitment.export',
+                    'onboarding.view', 'onboarding.manage', 'onboarding.manage-programs',
                     'users.view', 'users.create', 'users.update',
                     'users.manage-status', 'users.reset-password', 'users.export',
                     'roles.view',
