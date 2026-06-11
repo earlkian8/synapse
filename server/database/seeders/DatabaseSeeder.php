@@ -51,5 +51,8 @@ class DatabaseSeeder extends Seeder
 
         // Onboarding (default program + a few in-flight cases).
         $this->call(OnboardingSeeder::class);
+
+        // Leave (default types + demo balances and requests).
+        $this->call(LeaveSeeder::class);
     }
 }

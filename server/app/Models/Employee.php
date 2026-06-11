@@ -155,6 +155,26 @@ class Employee extends Model
         return $this->hasOne(OnboardingCase::class);
     }
 
+    /**
+     * This employee's filed leave requests.
+     *
+     * @return HasMany<LeaveRequest, $this>
+     */
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    /**
+     * This employee's per-type, per-year leave allocations.
+     *
+     * @return HasMany<LeaveBalance, $this>
+     */
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(LeaveBalance::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**

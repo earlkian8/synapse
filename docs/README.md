@@ -32,6 +32,7 @@ commit history rather than repeating them.
 - [Recruitment](./modules/recruitment.md) — ATS: job postings, candidate pool, hiring pipeline, interviews, hire → employee bridge.
 - [Onboarding](./modules/onboarding.md) — template-driven checklists carrying each new hire from day one to productive.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
+- [Leave Management](./modules/leave.md) — time off: approval inbox, derived balances, leave types.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -47,6 +48,7 @@ commit history rather than repeating them.
 - [`employees` & organisation tables](./database/employees-tables.md) — employee hub, 201 file, departments/positions/schedules.
 - [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
+- [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -57,6 +59,7 @@ commit history rather than repeating them.
 - [0006 — Recruitment as an ATS, with a hire → employee bridge](./decisions/0006-recruitment-ats-and-hire-bridge.md)
 - [0007 — Onboarding as a template-driven hire → productive bridge](./decisions/0007-onboarding-template-bridge.md)
 - [0008 — Company Setup: managing the org structure (departments & positions)](./decisions/0008-company-setup-org-structure.md)
+- [0009 — Leave management: an approval workflow with derived balances](./decisions/0009-leave-management.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -71,3 +74,4 @@ commit history rather than repeating them.
 - [2026-06-11 — Recruitment module (applicant tracking + hire bridge)](./changelog/2026-06-11-02-recruitment-module.md)
 - [2026-06-11 — Onboarding module (template-driven hire → productive bridge)](./changelog/2026-06-11-03-onboarding-module.md)
 - [2026-06-11 — Departments module (Company Setup: org structure)](./changelog/2026-06-11-04-departments-module.md)
+- [2026-06-11 — Leave Management module (approval inbox + derived balances)](./changelog/2026-06-11-05-leave-management-module.md)
