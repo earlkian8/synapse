@@ -45,9 +45,16 @@ class PermissionRegistry
             'onboarding.manage' => 'Start onboarding & manage checklists',
             'onboarding.manage-programs' => 'Manage onboarding programs (templates)',
         ],
+        'Leave Management' => [
+            'leave.view' => 'View leave requests & balances',
+            'leave.request' => 'File & cancel leave requests',
+            'leave.manage' => 'Approve / reject leave & set balances',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
+            'setup.leave-types.view' => 'View leave types',
+            'setup.leave-types.manage' => 'Manage leave types',
         ],
         'User Management' => [
             'users.view' => 'View users',

@@ -464,34 +464,56 @@ erDiagram
 
 ## 6. Leave Management
 
+**Built** — leave types live in Company Setup; requests + balances in the Workforce
+module. **Balances store only the entitlement**; used / pending / remaining are *derived*
+from requests (never stored), so they cannot drift. See
+[Leave](../modules/leave.md), [leave tables](../database/leave-tables.md) and
+[ADR 0009](../decisions/0009-leave-management.md).
+
 ```mermaid
 erDiagram
-    EMPLOYEE ||--o{ LEAVE_APPLICATION : files
-    LEAVE_TYPE ||--o{ LEAVE_APPLICATION : categorizes
+    EMPLOYEE ||--o{ LEAVE_REQUEST : files
+    LEAVE_TYPE ||--o{ LEAVE_REQUEST : categorizes
     EMPLOYEE ||--o{ LEAVE_BALANCE : holds
     LEAVE_TYPE ||--o{ LEAVE_BALANCE : tracks
 
-    LEAVE_APPLICATION {
+    LEAVE_TYPE {
         bigint id PK
+        bigint organization_id FK
+        string name
+        string code "unique per tenant"
+        string color
+        decimal default_days
+        boolean is_paid
+        boolean allow_half_day
+        boolean requires_approval
+        boolean is_active
+        datetime deleted_at "soft delete"
+    }
+    LEAVE_REQUEST {
+        bigint id PK
+        bigint organization_id FK
         bigint employee_id FK
-        bigint leave_type_id FK
+        bigint leave_type_id FK "restrict on delete"
         date start_date
         date end_date
-        decimal days
+        decimal days "working days, server-computed"
+        boolean is_half_day
+        string half_day_period "morning|afternoon, nullable"
         text reason
-        enum status "pending|approved|disapproved|cancelled"
-        bigint approved_by FK "users"
-        datetime decided_at
-        text decision_remarks
+        enum status "pending|approved|rejected|cancelled"
+        bigint filed_by FK "users"
+        bigint reviewed_by FK "users"
+        datetime reviewed_at
+        text review_note
     }
     LEAVE_BALANCE {
         bigint id PK
+        bigint organization_id FK
         bigint employee_id FK
         bigint leave_type_id FK
         int year
-        decimal entitled
-        decimal used
-        decimal remaining
+        decimal entitled_days "entitlement only — used/remaining derived"
     }
 ```
 
@@ -790,9 +812,9 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): Attendance/DTR, Leave, Performance, Training, Payroll, Benefits, Awards, Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), Attendance/DTR (next), Performance, Training, Payroll, Benefits, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
-5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)); the rest of the config layer follows.
+5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
 7. **Assistant**: LLM conversations, function-calling, document processor.
 
