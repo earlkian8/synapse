@@ -163,7 +163,7 @@ erDiagram
     DEPARTMENT {
         bigint id PK
         string name
-        string code UK
+        string code "unique per tenant"
         bigint parent_id FK "self"
         bigint head_id FK "employees"
         text description
@@ -792,8 +792,9 @@ erDiagram
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
 3. **Operational** (generate ML features): Attendance/DTR, Leave, Performance, Training, Payroll, Benefits, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
-5. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
-6. **Assistant**: LLM conversations, function-calling, document processor.
+5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)); the rest of the config layer follows.
+6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
+7. **Assistant**: LLM conversations, function-calling, document processor.
 
 ---
 

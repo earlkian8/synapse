@@ -10,11 +10,11 @@ The tables behind the [Employees module](../modules/employees.md). Two migration
 | --- | --- | --- |
 | `id` | bigint (PK) | |
 | `name` | string | |
-| `code` | string, unique | e.g. `HR`, `IT`. |
-| `parent_id` | FK → departments, nullable | Sub-department (self ref). |
+| `code` | string | e.g. `HR`, `IT`. **Unique per tenant** via a partial index `(organization_id, code) WHERE deleted_at IS NULL` (see `…_make_department_code_unique_per_tenant`); archiving frees the code. |
+| `parent_id` | FK → departments, nullable | Sub-department (self ref). `nullOnDelete`. Cannot form a cycle (see [Departments module](../modules/departments.md)). |
 | `head_id` | FK → employees, nullable | Department head (FK added after `employees` exists). |
 | `description` | text, nullable | |
-| timestamps + `deleted_at` | | Soft-deletes. |
+| timestamps + `deleted_at` | | Soft-deletes. Managed via [Company Setup → Departments](../modules/departments.md). |
 
 ## `positions`
 
