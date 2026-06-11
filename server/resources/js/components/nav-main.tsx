@@ -8,6 +8,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
 type Props = {
@@ -17,7 +18,7 @@ type Props = {
 };
 
 export function NavMain({ items = [], label, badge }: Props) {
-    const { isCurrentUrl } = useCurrentUrl();
+    const { currentUrl } = useCurrentUrl();
 
     return (
         <SidebarGroup className="px-2 py-1">
@@ -29,7 +30,12 @@ export function NavMain({ items = [], label, badge }: Props) {
             )}
             <SidebarMenu>
                 {items.map((item) => {
-                    const active = isCurrentUrl(item.href);
+                    // Active when the URL is the item's route or a child of it,
+                    // so e.g. /recruitment/4 keeps "Recruitment" highlighted.
+                    const href = toUrl(item.href);
+                    const active =
+                        currentUrl === href ||
+                        currentUrl.startsWith(`${href}/`);
 
                     return (
                         <SidebarMenuItem key={item.title}>

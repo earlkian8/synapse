@@ -54,8 +54,13 @@ const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
 ];
 
-const talentNavItems: NavItem[] = [
-    { title: 'Recruitment', href: '/recruitment', icon: BriefcaseBusiness },
+const talentNavItems: GatedNavItem[] = [
+    {
+        title: 'Recruitment',
+        href: '/recruitment',
+        icon: BriefcaseBusiness,
+        permission: 'recruitment.view',
+    },
     { title: 'Onboarding', href: '/onboarding', icon: UserRoundCheck },
 ];
 
@@ -122,6 +127,10 @@ export function AppSidebar() {
         (item) => !item.permission || can(item.permission),
     );
 
+    const visibleTalentNavItems = talentNavItems.filter(
+        (item) => !item.permission || can(item.permission),
+    );
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             {/* ── Logo / Brand ── */}
@@ -143,7 +152,10 @@ export function AppSidebar() {
                 <NavMain label="Main" items={mainNavItems} />
 
                 {/* Talent Acquisition */}
-                <NavMain label="Talent Acquisition" items={talentNavItems} />
+                <NavMain
+                    label="Talent Acquisition"
+                    items={visibleTalentNavItems}
+                />
 
                 {/* Workforce */}
                 <NavMain label="Workforce" items={visibleWorkforceNavItems} />

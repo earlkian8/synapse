@@ -45,5 +45,8 @@ class DatabaseSeeder extends Seeder
 
         // Organisation foundation (departments, positions, schedules) + employees.
         $this->call(OrganizationSeeder::class);
+
+        // Recruitment pipeline (postings, applicants, applications, interviews).
+        $this->call(RecruitmentSeeder::class);
     }
 }
