@@ -31,6 +31,7 @@ class DepartmentResource extends JsonResource
                 'full_name' => $this->head->full_name,
                 'employee_no' => $this->head->employee_no,
                 'initials' => $this->head->initials(),
+                'photo' => $this->head->photo_url,
             ] : null),
             'parent' => $this->whenLoaded('parent', fn () => $this->parent ? [
                 'id' => $this->parent->id,

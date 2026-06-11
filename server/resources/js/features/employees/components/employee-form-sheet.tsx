@@ -1,5 +1,6 @@
 import { useForm } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { Trash2, Upload } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -128,6 +129,41 @@ function FormBody({
         pagibig_no: employee?.pagibig_no ?? '',
     });
 
+    const fileInput = useRef<HTMLInputElement>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(
+        employee?.photo ?? null,
+    );
+
+    const previewInitials =
+        `${data.first_name.charAt(0)}${data.last_name.charAt(0)}`.toUpperCase() ||
+        '?';
+
+    const pickPhoto = (file: File | null) => {
+        if (photoPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(photoPreview);
+        }
+
+        if (file) {
+            setData('photo', file);
+            setData('remove_photo', false);
+            setPhotoPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const clearPhoto = () => {
+        if (photoPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(photoPreview);
+        }
+
+        setData('photo', null);
+        setData('remove_photo', true);
+        setPhotoPreview(null);
+
+        if (fileInput.current) {
+            fileInput.current.value = '';
+        }
+    };
+
     // Positions are scoped to the chosen department (keeping any current pick).
     const positions = useMemo(() => {
         const deptId = data.department_id ? Number(data.department_id) : null;
@@ -203,6 +239,58 @@ function FormBody({
                     title="Personal information"
                     subtitle="Name and contact details."
                 >
+                    <div className="flex items-center gap-4">
+                        <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#0F2044] text-lg font-semibold text-white ring-1 ring-border">
+                            {photoPreview ? (
+                                <img
+                                    src={photoPreview}
+                                    alt="Employee preview"
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                previewInitials
+                            )}
+                        </span>
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => fileInput.current?.click()}
+                                >
+                                    <Upload className="size-4" />
+                                    {photoPreview ? 'Change photo' : 'Upload photo'}
+                                </Button>
+                                {photoPreview && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearPhoto}
+                                        className="text-destructive hover:text-destructive"
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Remove
+                                    </Button>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                JPG, PNG or WEBP. Max 2&nbsp;MB.
+                            </p>
+                            <input
+                                ref={fileInput}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(e) =>
+                                    pickPhoto(e.target.files?.[0] ?? null)
+                                }
+                            />
+                            <InputError message={errors.photo} />
+                        </div>
+                    </div>
+
                     <div className="grid gap-4 sm:grid-cols-2">
                         <Field
                             label="First name"
@@ -292,18 +380,6 @@ function FormBody({
                                 value={data.email ?? ''}
                                 onChange={(e) =>
                                     setData('email', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Photo" error={errors.photo}>
-                            <Input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) =>
-                                    setData(
-                                        'photo',
-                                        e.target.files?.[0] ?? null,
-                                    )
                                 }
                             />
                         </Field>

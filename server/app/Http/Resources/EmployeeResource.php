@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin Employee
@@ -34,7 +33,7 @@ class EmployeeResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'address' => $this->address,
-            'photo' => $this->photo ? Storage::disk('public')->url($this->photo) : null,
+            'photo' => $this->photo_url,
 
             'department' => $this->whenLoaded('department', fn () => $this->department ? [
                 'id' => $this->department->id,

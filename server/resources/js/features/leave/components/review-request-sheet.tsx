@@ -8,7 +8,7 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -130,17 +130,13 @@ function Body({
         <div className="flex h-full flex-col">
             <SheetHeader className="border-b border-border px-6 py-4">
                 <div className="flex items-center gap-3">
-                    <Avatar className="size-11 rounded-lg ring-1 ring-border">
-                        {employee?.photo && (
-                            <AvatarImage
-                                src={employee.photo}
-                                alt={employee.full_name}
-                            />
-                        )}
-                        <AvatarFallback className="rounded-lg bg-[#0F2044] text-sm font-semibold text-white">
-                            {employee?.initials ?? '?'}
-                        </AvatarFallback>
-                    </Avatar>
+                    <PersonAvatar
+                        name={employee?.full_name ?? 'Unknown employee'}
+                        initials={employee?.initials ?? '?'}
+                        photo={employee?.photo}
+                        className="size-11"
+                        fallbackClassName="text-sm"
+                    />
                     <div className="min-w-0 flex-1">
                         <SheetTitle className="truncate text-base">
                             {employee?.full_name ?? 'Unknown employee'}

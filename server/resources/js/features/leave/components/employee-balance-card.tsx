@@ -1,5 +1,5 @@
 import { SlidersHorizontal } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import type { BalanceSnapshot, EmployeeBalance } from '../types';
 
@@ -13,11 +13,11 @@ export function EmployeeBalanceCard({ employee, canManage, onAdjust }: Props) {
     return (
         <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm dark:border-sidebar-border sm:flex-row sm:items-center">
             <div className="flex min-w-0 items-center gap-3 sm:w-56 sm:shrink-0">
-                <Avatar className="size-9 rounded-lg ring-1 ring-border">
-                    <AvatarFallback className="rounded-lg bg-[#0F2044] text-[11px] font-semibold text-white">
-                        {employee.initials}
-                    </AvatarFallback>
-                </Avatar>
+                <PersonAvatar
+                    name={employee.full_name}
+                    initials={employee.initials}
+                    photo={employee.photo}
+                />
                 <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                         {employee.full_name}

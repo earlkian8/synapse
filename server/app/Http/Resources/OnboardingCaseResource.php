@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Models\OnboardingCase;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin OnboardingCase
@@ -36,7 +35,7 @@ class OnboardingCaseResource extends JsonResource
                 'full_name' => $this->employee->full_name,
                 'initials' => $this->employee->initials(),
                 'employee_no' => $this->employee->employee_no,
-                'photo' => $this->employee->photo ? Storage::disk('public')->url($this->employee->photo) : null,
+                'photo' => $this->employee->photo_url,
                 'employment_type' => $this->employee->employment_type,
                 'department' => $this->employee->relationLoaded('department') && $this->employee->department
                     ? ['id' => $this->employee->department->id, 'name' => $this->employee->department->name]

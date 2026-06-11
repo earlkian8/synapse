@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { AlertTriangle, CalendarClock, CheckCircle2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PersonAvatar } from '@/components/person-avatar';
 import { cn } from '@/lib/utils';
 import { onboardingRoutes } from '../routes';
 import type { OnboardingCase } from '../types';
@@ -19,17 +19,13 @@ export function OnboardingCaseCard({ case: c }: { case: OnboardingCase }) {
             className="group flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm transition-all hover:border-[#0ABFBF]/40 hover:shadow-md dark:border-sidebar-border"
         >
             <div className="flex items-start gap-3">
-                <Avatar className="size-10 rounded-lg ring-1 ring-border">
-                    {employee?.photo && (
-                        <AvatarImage
-                            src={employee.photo}
-                            alt={employee.full_name}
-                        />
-                    )}
-                    <AvatarFallback className="rounded-lg bg-[#0F2044] text-xs font-semibold text-white">
-                        {employee?.initials ?? '?'}
-                    </AvatarFallback>
-                </Avatar>
+                <PersonAvatar
+                    name={employee?.full_name ?? 'Unknown employee'}
+                    initials={employee?.initials ?? '?'}
+                    photo={employee?.photo}
+                    className="size-10"
+                    fallbackClassName="text-xs"
+                />
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                         <span className="block truncate text-sm font-semibold group-hover:text-[#0ABFBF]">

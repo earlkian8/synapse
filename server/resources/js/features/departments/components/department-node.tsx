@@ -9,6 +9,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useState } from 'react';
+import { PersonAvatar } from '@/components/person-avatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -88,11 +89,24 @@ export function DepartmentNode({
                             {department.code}
                         </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {department.head
-                            ? `Head: ${department.head.full_name}`
-                            : 'No head assigned'}
-                    </span>
+                    {department.head ? (
+                        <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <PersonAvatar
+                                name={department.head.full_name}
+                                initials={department.head.initials}
+                                photo={department.head.photo}
+                                className="size-5 rounded-md ring-0"
+                                fallbackClassName="text-[8px]"
+                            />
+                            <span className="truncate">
+                                {department.head.full_name}
+                            </span>
+                        </span>
+                    ) : (
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                            No head assigned
+                        </span>
+                    )}
                 </button>
 
                 <div className="hidden items-center gap-3 pr-1 text-[11px] text-muted-foreground sm:flex">

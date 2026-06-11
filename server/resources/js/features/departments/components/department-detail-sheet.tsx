@@ -8,6 +8,7 @@ import {
     UserCog,
     Users,
 } from 'lucide-react';
+import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -21,7 +22,7 @@ import {
     SheetHeader,
     SheetTitle,
 } from '@/components/ui/sheet';
-import type { Department, Position } from '../types';
+import type { Department, DepartmentHead, Position } from '../types';
 
 type Props = {
     department: Department | null;
@@ -97,15 +98,7 @@ export function DepartmentDetailSheet({
 
                         <div className="space-y-6 px-6 py-6">
                             <div className="grid grid-cols-2 gap-4">
-                                <Meta
-                                    icon={<UserCog className="size-4" />}
-                                    label="Head"
-                                    value={
-                                        department.head
-                                            ? `${department.head.full_name} · ${department.head.employee_no}`
-                                            : 'Not assigned'
-                                    }
-                                />
+                                <HeadMeta head={department.head} />
                                 <Meta
                                     icon={<Briefcase className="size-4" />}
                                     label="Parent"
@@ -224,6 +217,38 @@ function PositionRow({
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+            )}
+        </div>
+    );
+}
+
+function HeadMeta({ head }: { head: DepartmentHead | null }) {
+    return (
+        <div className="rounded-lg border border-sidebar-border/70 bg-card p-3 dark:border-sidebar-border">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <UserCog className="size-4" />
+                Head
+            </div>
+            {head ? (
+                <div className="mt-1.5 flex items-center gap-2">
+                    <PersonAvatar
+                        name={head.full_name}
+                        initials={head.initials}
+                        photo={head.photo}
+                        className="size-7"
+                        fallbackClassName="text-[10px]"
+                    />
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                            {head.full_name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                            {head.employee_no}
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <p className="mt-1 text-sm font-medium">Not assigned</p>
             )}
         </div>
     );

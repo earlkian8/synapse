@@ -3,6 +3,7 @@ export type DepartmentHead = {
     full_name: string;
     employee_no: string;
     initials: string;
+    photo: string | null;
 };
 
 export type Position = {

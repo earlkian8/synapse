@@ -1,5 +1,5 @@
 import { Check, X } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { HALF_DAY_LABELS } from '../constants';
 import type { LeaveRequest } from '../types';
@@ -37,14 +37,12 @@ export function LeaveRequestRow({
             }}
             className="flex cursor-pointer items-center gap-3 px-3 py-3 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none sm:gap-4"
         >
-            <Avatar className="size-9 shrink-0 rounded-lg ring-1 ring-border">
-                {employee?.photo && (
-                    <AvatarImage src={employee.photo} alt={employee.full_name} />
-                )}
-                <AvatarFallback className="rounded-lg bg-[#0F2044] text-[11px] font-semibold text-white">
-                    {employee?.initials ?? '?'}
-                </AvatarFallback>
-            </Avatar>
+            <PersonAvatar
+                name={employee?.full_name ?? 'Unknown employee'}
+                initials={employee?.initials ?? '?'}
+                photo={employee?.photo}
+                className="shrink-0"
+            />
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

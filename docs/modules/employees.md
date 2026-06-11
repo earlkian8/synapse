@@ -52,9 +52,18 @@ Foundation lookups (also new):
 > references `departments` — a deliberate cycle. The head FK is added *after* the
 > employees table exists (see the employees migration).
 
-Models: `Employee` (relations, `full_name`/`initials` accessors, `search`
-scope), `Department`, `Position`, `WorkSchedule`, `EmployeeDocument`,
+Models: `Employee` (relations, `full_name`/`initials`/`photo_url` accessors,
+`search` scope), `Department`, `Position`, `WorkSchedule`, `EmployeeDocument`,
 `EmployeeCertification`, `EmployeePromotion`. `User` gains an `employee()` hasOne.
+
+**Profile photo.** `employees.photo` stores either an uploaded file (on the
+`public` disk, via the form's preview/change/remove block) or, for seeded demo
+data, an absolute portrait URL. The **`photoUrl()`** accessor normalises both: an
+absolute URL passes through unchanged, a stored path resolves on the `public`
+disk. Every module that surfaces an employee renders the photo through the shared
+`resources/js/components/person-avatar.tsx` (`PersonAvatar`) — directory, leave
+inbox + balances, onboarding board, and the department org chart head. See the
+[2026-06-12 changelog](../changelog/2026-06-12-01-employee-profile-photos.md).
 
 ---
 

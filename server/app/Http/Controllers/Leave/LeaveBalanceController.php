@@ -54,6 +54,7 @@ class LeaveBalanceController extends Controller
                 'full_name' => $e->full_name,
                 'initials' => $e->initials(),
                 'employee_no' => $e->employee_no,
+                'photo' => $e->photo_url,
                 'department' => $e->department?->name,
                 'balances' => $balances[$e->id] ?? [],
             ]),

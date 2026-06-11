@@ -105,6 +105,7 @@ export type EmployeeBalance = {
     full_name: string;
     initials: string;
     employee_no: string;
+    photo: string | null;
     department: string | null;
     balances: BalanceSnapshot[];
 };

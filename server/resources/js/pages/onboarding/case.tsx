@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -150,17 +150,13 @@ export default function OnboardingCasePage() {
                                 <ArrowLeft className="size-4" />
                             </Link>
                         </Button>
-                        <Avatar className="size-11 rounded-lg ring-1 ring-border">
-                            {employee?.photo && (
-                                <AvatarImage
-                                    src={employee.photo}
-                                    alt={employee.full_name}
-                                />
-                            )}
-                            <AvatarFallback className="rounded-lg bg-[#0F2044] text-sm font-semibold text-white">
-                                {employee?.initials ?? '?'}
-                            </AvatarFallback>
-                        </Avatar>
+                        <PersonAvatar
+                            name={employee?.full_name ?? 'Unknown employee'}
+                            initials={employee?.initials ?? '?'}
+                            photo={employee?.photo}
+                            className="size-11"
+                            fallbackClassName="text-sm"
+                        />
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-xl font-semibold tracking-tight">

@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Employee extends Model
 {
@@ -189,6 +191,28 @@ class Employee extends Model
                 $this->last_name,
                 $this->suffix,
             ]))),
+        );
+    }
+
+    /**
+     * The employee's photo as a servable URL: an absolute URL is passed through
+     * as-is (e.g. seeded demo portraits), otherwise the stored path is resolved
+     * on the `public` disk. Null when no photo is set.
+     *
+     * @return Attribute<string|null, never>
+     */
+    protected function photoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?string {
+                if (! $this->photo) {
+                    return null;
+                }
+
+                return Str::startsWith($this->photo, ['http://', 'https://'])
+                    ? $this->photo
+                    : Storage::disk('public')->url($this->photo);
+            },
         );
     }
 

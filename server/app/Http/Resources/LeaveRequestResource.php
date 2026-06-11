@@ -5,7 +5,6 @@ namespace App\Http\Resources;
 use App\Models\LeaveRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin LeaveRequest
@@ -35,7 +34,7 @@ class LeaveRequestResource extends JsonResource
                 'full_name' => $this->employee->full_name,
                 'initials' => $this->employee->initials(),
                 'employee_no' => $this->employee->employee_no,
-                'photo' => $this->employee->photo ? Storage::disk('public')->url($this->employee->photo) : null,
+                'photo' => $this->employee->photo_url,
                 'department' => $this->employee->relationLoaded('department') && $this->employee->department
                     ? ['id' => $this->employee->department->id, 'name' => $this->employee->department->name]
                     : null,

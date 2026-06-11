@@ -121,5 +121,23 @@ class OrganizationSeeder extends Seeder
                 }
             }
         });
+
+        // 6. Give every employee a demo profile portrait (idempotent: only fills
+        // in the ones still missing one). Seeded photos are absolute URLs, which
+        // the Employee::photoUrl() accessor passes through unchanged.
+        Employee::whereNull('photo')->get()->each(
+            fn (Employee $employee) => $employee->update(['photo' => $this->portrait($employee)]),
+        );
+    }
+
+    /**
+     * A stable, gender-matched demo portrait URL for an employee.
+     */
+    private function portrait(Employee $employee): string
+    {
+        $bucket = $employee->gender === 'female' ? 'women' : 'men';
+        $n = $employee->id % 100;
+
+        return "https://randomuser.me/api/portraits/{$bucket}/{$n}.jpg";
     }
 }
