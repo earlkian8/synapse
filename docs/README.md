@@ -1,6 +1,6 @@
-# STAFFA Documentation
+# NEXO Documentation
 
-Project documentation for the STAFFA HR ERP. This folder is the single source of
+Project documentation for the NEXO HR ERP. This folder is the single source of
 truth for **how and why** the system is built — complementing the inline code and
 commit history rather than repeating them.
 

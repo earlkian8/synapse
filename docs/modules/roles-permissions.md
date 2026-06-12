@@ -2,7 +2,7 @@
 
 > Status: **Active** · Route prefix: `/system/roles` · Sidebar: System → Roles & Permissions
 
-The access-control centre of STAFFA. Defines **roles**, the **permissions** each
+The access-control centre of NEXO. Defines **roles**, the **permissions** each
 role grants, and (via User Management) who holds them. Built to mirror the
 [User Management](./user-management.md) design — stats cards, server-side table,
 slide-over create/edit and detail — with a grouped **permission matrix** as its
@@ -182,7 +182,7 @@ foreach (PermissionRegistry::names() as $permission) {
 | HR Manager | `hr-manager` | no | User view/create/update, status, password reset, export; roles.view; activity-logs view/export; notifications.send. |
 | Staff | `staff` | no | None (baseline). |
 
-`dev@staffa.com` is granted **Super Admin** by `RolePermissionSeeder`.
+`dev@nexo.com` is granted **Super Admin** by `RolePermissionSeeder`.
 
 > ⚠️ Because every `/system/*` route is now permission-gated, an authenticated
 > account **with no role** receives `403`. Assign roles via User Management (the

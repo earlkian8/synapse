@@ -12,7 +12,7 @@ import { email } from '@/routes/password';
 export default function ForgotPassword({ status }: { status?: string }) {
     return (
         <>
-            <Head title="Reset password — STAFFA" />
+            <Head title="Reset password — NEXO" />
 
             {status && (
                 <div className="mb-4 text-center text-sm font-medium text-green-600">

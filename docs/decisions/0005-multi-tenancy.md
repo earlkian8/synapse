@@ -7,12 +7,12 @@
 
 ## Context
 
-STAFFA began as a single-tenant ERP: one company per installation, no public
+NEXO began as a single-tenant ERP: one company per installation, no public
 sign-up, accounts provisioned from within. The ERD flagged single-tenant as the one
 decision that is *expensive to retrofit* (Design Decision #1) and called it out as
 Open Question #2.
 
-We now want STAFFA to be **generic**: anyone can register, get their own
+We now want NEXO to be **generic**: anyone can register, get their own
 organisation, and manage their own isolated data — a multi-tenant SaaS. Making this
 change while only a handful of modules exist (System, RBAC, Notifications, Employees)
 is far cheaper than after the operational modules (Attendance, Leave, Payroll, …)

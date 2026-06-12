@@ -1,6 +1,6 @@
 /**
- * STAFFA service worker — handles web-push delivery so notifications can
- * surface on the desktop even when no STAFFA tab is focused.
+ * NEXO service worker — handles web-push delivery so notifications can
+ * surface on the desktop even when no NEXO tab is focused.
  */
 
 self.addEventListener('install', () => {
@@ -21,10 +21,10 @@ self.addEventListener('push', (event) => {
     try {
         payload = event.data.json();
     } catch (e) {
-        payload = { title: 'STAFFA', body: event.data.text() };
+        payload = { title: 'NEXO', body: event.data.text() };
     }
 
-    const title = payload.title || 'STAFFA';
+    const title = payload.title || 'NEXO';
     const options = {
         body: payload.body || '',
         icon: payload.icon || '/favicon.ico',

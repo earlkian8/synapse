@@ -16,13 +16,15 @@ export default function Welcome() {
                             <div className="flex h-8 w-8 items-center justify-center">
                                 <AppLogoIcon className="size-8 object-contain" />
                             </div>
-                            <span className="text-sm font-bold tracking-widest text-white">STAFFA</span>
+                            <span className="text-sm font-bold tracking-widest text-white">
+                                NEXO
+                            </span>
                         </div>
                         <div className="flex items-center gap-4">
                             {auth.user ? (
                                 <Link
                                     href={dashboard()}
-                                    className="inline-block rounded-md border border-[#0ABFBF] px-5 py-1.5 text-sm leading-normal text-[#0ABFBF] hover:bg-[#0ABFBF] hover:text-[#0F2044] transition-colors"
+                                    className="inline-block rounded-md border border-[#0ABFBF] px-5 py-1.5 text-sm leading-normal text-[#0ABFBF] transition-colors hover:bg-[#0ABFBF] hover:text-[#0F2044]"
                                 >
                                     Dashboard
                                 </Link>
@@ -30,13 +32,13 @@ export default function Welcome() {
                                 <>
                                     <Link
                                         href={login()}
-                                        className="inline-block rounded-md px-5 py-1.5 text-sm leading-normal text-white/80 hover:text-white transition-colors"
+                                        className="inline-block rounded-md px-5 py-1.5 text-sm leading-normal text-white/80 transition-colors hover:text-white"
                                     >
                                         Log in
                                     </Link>
                                     <Link
                                         href={register()}
-                                        className="inline-block rounded-md border border-[#0ABFBF] bg-[#0ABFBF] px-5 py-1.5 text-sm leading-normal text-[#0F2044] font-semibold hover:bg-[#09aeae] transition-colors"
+                                        className="inline-block rounded-md border border-[#0ABFBF] bg-[#0ABFBF] px-5 py-1.5 text-sm leading-normal font-semibold text-[#0F2044] transition-colors hover:bg-[#09aeae]"
                                     >
                                         Get started
                                     </Link>
@@ -50,23 +52,25 @@ export default function Welcome() {
                     <main className="flex w-full max-w-[335px] flex-col lg:max-w-4xl lg:flex-row lg:items-center lg:gap-16">
                         {/* Hero text */}
                         <div className="flex-1 py-12 lg:py-0">
-                            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-4 py-1.5 text-xs font-medium text-[#0ABFBF] tracking-wider uppercase">
+                            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-4 py-1.5 text-xs font-medium tracking-wider text-[#0ABFBF] uppercase">
                                 AI-Powered HR ERP
                             </div>
                             <h1 className="mb-3 text-5xl font-extrabold tracking-widest text-white lg:text-7xl">
-                                STAFFA
+                                NEXO
                             </h1>
                             <p className="mb-4 text-xl font-medium text-[#0ABFBF] lg:text-2xl">
                                 Intelligent HR Management
                             </p>
-                            <p className="mb-8 max-w-md text-base text-white/60 leading-relaxed">
-                                Predictive workforce analytics, intelligent recruitment, and AI-driven HR decision support — purpose-built for Philippine institutions.
+                            <p className="mb-8 max-w-md text-base leading-relaxed text-white/60">
+                                Predictive workforce analytics, intelligent
+                                recruitment, and AI-driven HR decision support —
+                                purpose-built for Philippine institutions.
                             </p>
                             <div className="flex flex-wrap gap-3">
                                 {auth.user ? (
                                     <Link
                                         href={dashboard()}
-                                        className="inline-block rounded-md bg-[#0ABFBF] px-6 py-2.5 text-sm font-semibold text-[#0F2044] hover:bg-[#09aeae] transition-colors"
+                                        className="inline-block rounded-md bg-[#0ABFBF] px-6 py-2.5 text-sm font-semibold text-[#0F2044] transition-colors hover:bg-[#09aeae]"
                                     >
                                         Go to Dashboard
                                     </Link>
@@ -74,13 +78,13 @@ export default function Welcome() {
                                     <>
                                         <Link
                                             href={register()}
-                                            className="inline-block rounded-md bg-[#0ABFBF] px-6 py-2.5 text-sm font-semibold text-[#0F2044] hover:bg-[#09aeae] transition-colors"
+                                            className="inline-block rounded-md bg-[#0ABFBF] px-6 py-2.5 text-sm font-semibold text-[#0F2044] transition-colors hover:bg-[#09aeae]"
                                         >
                                             Get started free
                                         </Link>
                                         <Link
                                             href={login()}
-                                            className="inline-block rounded-md border border-white/20 px-6 py-2.5 text-sm font-semibold text-white hover:border-white/40 transition-colors"
+                                            className="inline-block rounded-md border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white/40"
                                         >
                                             Log in
                                         </Link>
@@ -110,8 +114,12 @@ export default function Welcome() {
                                     className="rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
                                 >
                                     <div className="mb-1 h-1 w-8 rounded-full bg-[#0ABFBF]" />
-                                    <h3 className="mb-1 text-sm font-semibold text-white">{f.title}</h3>
-                                    <p className="text-xs text-white/50 leading-relaxed">{f.desc}</p>
+                                    <h3 className="mb-1 text-sm font-semibold text-white">
+                                        {f.title}
+                                    </h3>
+                                    <p className="text-xs leading-relaxed text-white/50">
+                                        {f.desc}
+                                    </p>
                                 </div>
                             ))}
                         </div>
@@ -119,7 +127,8 @@ export default function Welcome() {
                 </div>
 
                 <footer className="mt-8 text-center text-xs text-white/30">
-                    &copy; {new Date().getFullYear()} STAFFA. Built for Philippine institutions.
+                    &copy; {new Date().getFullYear()} NEXO. Built for Philippine
+                    institutions.
                 </footer>
             </div>
         </>

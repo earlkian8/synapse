@@ -14,7 +14,7 @@ import { store } from '@/routes/password/confirm';
 export default function ConfirmPassword() {
     return (
         <>
-            <Head title="Confirm password — STAFFA" />
+            <Head title="Confirm password — NEXO" />
 
             <PasskeyVerify
                 routes={{
