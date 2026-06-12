@@ -229,14 +229,6 @@ export function AppSidebar() {
 
             {/* ── Footer ── */}
             <SidebarFooter className="border-t border-sidebar-border pt-2">
-                {auth.organization && (
-                    <div className="flex items-center gap-2 px-2 pt-1.5 text-sidebar-foreground">
-                        <Building2 className="size-4 shrink-0" />
-                        <span className="truncate text-xs font-medium group-data-[collapsible=icon]:hidden">
-                            {auth.organization.name}
-                        </span>
-                    </div>
-                )}
                 {auth.user && (
                     <div className="flex items-center gap-2 px-2 py-1.5 text-sidebar-foreground/70">
                         <Mail className="size-4 shrink-0" />
