@@ -57,8 +57,10 @@ class GeminiClient
             $payload['tool_config'] = ['function_calling_config' => ['mode' => 'AUTO']];
         }
 
-        // Transparently retry the transient overload/rate-limit statuses
-        // (429/503) Gemini returns under load, with a short linear backoff.
+        // Briefly retry only the transient 503 "high demand" overload (which
+        // usually clears in a second). A 429 is a real quota/rate limit — the
+        // quota won't refill in milliseconds, so fail fast and let the caller
+        // surface a friendly "try again shortly" message.
         $attempt = 0;
 
         do {
@@ -67,7 +69,7 @@ class GeminiClient
                 ->asJson()
                 ->post("{$this->baseUrl}/models/{$this->model}:generateContent", $payload);
 
-            if (! in_array($response->status(), [429, 503], true)) {
+            if ($response->status() !== 503) {
                 break;
             }
 
@@ -77,7 +79,8 @@ class GeminiClient
         } while ($attempt < 3);
 
         if ($response->failed()) {
-            throw new RuntimeException(
+            throw new GeminiException(
+                $response->status(),
                 'Gemini request failed ('.$response->status().'): '.$response->json('error.message', $response->body())
             );
         }

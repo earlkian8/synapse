@@ -26,7 +26,7 @@ export function EmployeeAssistant() {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [sending, setSending] = useState(false);
 
     const fileInput = useRef<HTMLInputElement>(null);
@@ -119,16 +119,20 @@ export function EmployeeAssistant() {
     const send = async () => {
         const text = input.trim();
 
-        if ((text === '' && !file) || sending) {
+        if ((text === '' && files.length === 0) || sending) {
             return;
         }
 
-        const attached = file;
+        const attached = files;
         const userMessage: ChatMessage = {
             id: nextId(),
             role: 'user',
-            text: text || 'Please review the attached file.',
-            fileName: attached?.name ?? null,
+            text:
+                text ||
+                (attached.length > 1
+                    ? 'Please review the attached files.'
+                    : 'Please review the attached file.'),
+            fileNames: attached.map((f) => f.name),
         };
         const pendingId = nextId();
 
@@ -142,7 +146,7 @@ export function EmployeeAssistant() {
             { id: pendingId, role: 'assistant', text: '', pending: true },
         ]);
         setInput('');
-        setFile(null);
+        setFiles([]);
         setSending(true);
         scrollToBottom();
 
@@ -150,7 +154,7 @@ export function EmployeeAssistant() {
             const result = await sendToAssistant({
                 message: text,
                 history,
-                file: attached,
+                files: attached,
             });
 
             setMessages((current) =>
@@ -236,21 +240,23 @@ export function EmployeeAssistant() {
 
                     <Composer
                         input={input}
-                        file={file}
+                        files={files}
                         sending={sending}
                         fileInput={fileInput}
                         onInput={setInput}
                         onKeyDown={onKeyDown}
                         onSend={() => void send()}
                         onPickFile={() => fileInput.current?.click()}
-                        onFile={(f) => setFile(f)}
-                        onClearFile={() => {
-                            setFile(null);
-
-                            if (fileInput.current) {
-                                fileInput.current.value = '';
-                            }
-                        }}
+                        onAddFiles={(picked) =>
+                            setFiles((current) =>
+                                [...current, ...picked].slice(0, 8),
+                            )
+                        }
+                        onRemoveFile={(index) =>
+                            setFiles((current) =>
+                                current.filter((_, i) => i !== index),
+                            )
+                        }
                     />
                 </div>
             )}
@@ -320,10 +326,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         return (
             <div className="flex justify-end">
                 <div className="max-w-[85%] animate-in rounded-2xl rounded-br-sm bg-[#0F2044] px-3.5 py-2 text-sm text-white duration-200 fade-in slide-in-from-bottom-1">
-                    {message.fileName && (
-                        <span className="mb-1 flex items-center gap-1.5 text-[11px] text-white/70">
-                            <Paperclip className="size-3" />
-                            {message.fileName}
+                    {message.fileNames && message.fileNames.length > 0 && (
+                        <span className="mb-1 flex flex-col gap-0.5 text-[11px] text-white/70">
+                            {message.fileNames.map((name, index) => (
+                                <span
+                                    key={index}
+                                    className="flex items-center gap-1.5"
+                                >
+                                    <Paperclip className="size-3 shrink-0" />
+                                    <span className="truncate">{name}</span>
+                                </span>
+                            ))}
                         </span>
                     )}
                     <p className="break-words whitespace-pre-wrap">
@@ -405,41 +418,50 @@ function Thinking() {
 
 function Composer({
     input,
-    file,
+    files,
     sending,
     fileInput,
     onInput,
     onKeyDown,
     onSend,
     onPickFile,
-    onFile,
-    onClearFile,
+    onAddFiles,
+    onRemoveFile,
 }: {
     input: string;
-    file: File | null;
+    files: File[];
     sending: boolean;
     fileInput: React.RefObject<HTMLInputElement | null>;
     onInput: (value: string) => void;
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
     onSend: () => void;
     onPickFile: () => void;
-    onFile: (file: File | null) => void;
-    onClearFile: () => void;
+    onAddFiles: (files: File[]) => void;
+    onRemoveFile: (index: number) => void;
 }) {
     return (
         <div className="border-t border-border bg-card px-3 py-2.5">
-            {file && (
-                <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs">
-                    <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    <button
-                        type="button"
-                        onClick={onClearFile}
-                        aria-label="Remove file"
-                        className="text-muted-foreground hover:text-destructive"
-                    >
-                        <X className="size-3.5" />
-                    </button>
+            {files.length > 0 && (
+                <div className="mb-2 flex flex-col gap-1">
+                    {files.map((file, index) => (
+                        <div
+                            key={`${file.name}-${index}`}
+                            className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs"
+                        >
+                            <Paperclip className="size-3 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate">
+                                {file.name}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => onRemoveFile(index)}
+                                aria-label={`Remove ${file.name}`}
+                                className="text-muted-foreground hover:text-destructive"
+                            >
+                                <X className="size-3.5" />
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -447,7 +469,7 @@ function Composer({
                 <button
                     type="button"
                     onClick={onPickFile}
-                    aria-label="Attach a file"
+                    aria-label="Attach files"
                     className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-[#0ABFBF]/40 hover:text-foreground"
                 >
                     <Paperclip className="size-4" />
@@ -455,11 +477,16 @@ function Composer({
                 <input
                     ref={fileInput}
                     type="file"
+                    multiple
                     accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain"
                     className="hidden"
-                    onChange={(event) =>
-                        onFile(event.target.files?.[0] ?? null)
-                    }
+                    onChange={(event) => {
+                        onAddFiles(Array.from(event.target.files ?? []));
+
+                        if (event.target) {
+                            event.target.value = '';
+                        }
+                    }}
                 />
 
                 <textarea
@@ -475,7 +502,9 @@ function Composer({
                     type="button"
                     size="icon"
                     onClick={onSend}
-                    disabled={sending || (input.trim() === '' && !file)}
+                    disabled={
+                        sending || (input.trim() === '' && files.length === 0)
+                    }
                     className="size-9 shrink-0 bg-[#0F2044] hover:bg-[#0F2044]/90"
                     aria-label="Send"
                 >

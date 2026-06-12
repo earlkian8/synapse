@@ -8,21 +8,21 @@ function xsrfToken(): string {
 }
 
 /**
- * Send a turn to the server-side employee agent. Uses multipart so an optional
- * CV/file can ride along for multimodal extraction.
+ * Send a turn to the server-side employee agent. Uses multipart so one or more
+ * CVs/files can ride along for multimodal extraction.
  */
 export async function sendToAssistant(opts: {
     message: string;
     history: { role: string; text: string }[];
-    file: File | null;
+    files: File[];
     signal?: AbortSignal;
 }): Promise<AssistantResponse> {
     const body = new FormData();
     body.append('message', opts.message);
     body.append('history', JSON.stringify(opts.history));
 
-    if (opts.file) {
-        body.append('file', opts.file);
+    for (const file of opts.files) {
+        body.append('files[]', file);
     }
 
     const response = await fetch('/employees/assistant', {

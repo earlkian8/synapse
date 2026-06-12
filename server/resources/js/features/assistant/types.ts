@@ -49,7 +49,7 @@ export type ChatMessage = {
     text: string;
     steps?: AgentStep[];
     actions?: AgentAction[];
-    fileName?: string | null;
+    fileNames?: string[];
     /** True while the assistant turn is still in flight. */
     pending?: boolean;
 };

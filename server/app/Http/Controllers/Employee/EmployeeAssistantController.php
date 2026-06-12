@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Services\Employee\EmployeeAgent;
+use App\Support\Ai\GeminiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -28,32 +29,51 @@ class EmployeeAssistantController extends Controller
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:4000'],
             'history' => ['nullable'],
-            'file' => ['nullable', 'file', 'mimes:pdf,png,jpg,jpeg,webp,txt', 'max:8192'],
+            'files' => ['nullable', 'array', 'max:8'],
+            'files.*' => ['file', 'mimes:pdf,png,jpg,jpeg,webp,txt', 'max:8192'],
         ]);
 
         $message = trim((string) ($validated['message'] ?? ''));
         $history = $this->normaliseHistory($request->input('history'));
+        $files = $request->file('files', []);
 
-        if ($message === '' && ! $request->hasFile('file')) {
+        if ($message === '' && $files === []) {
             return response()->json([
-                'reply' => 'Tell me what you need — for example, “add a new employee” or attach a CV.',
+                'reply' => 'Tell me what you need — for example, “add a new employee” or attach one or more CVs.',
                 'steps' => [],
                 'actions' => [],
             ]);
         }
 
-        $filePart = null;
+        $fileParts = [];
 
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $filePart = [
+        foreach ($files as $file) {
+            $fileParts[] = [
                 'mime' => $file->getMimeType() ?: 'application/octet-stream',
                 'data' => base64_encode((string) file_get_contents($file->getRealPath())),
             ];
         }
 
         try {
-            $result = $agent->handle($request->user(), $message, $history, $filePart);
+            $result = $agent->handle($request->user(), $message, $history, $fileParts);
+        } catch (GeminiException $e) {
+            // Rate-limited / overloaded: show a calm, retryable message in-chat.
+            if ($e->isBusy()) {
+                return response()->json([
+                    'reply' => "I'm getting a lot of requests right now and hit the AI rate limit. Please wait a few seconds and try again.",
+                    'steps' => [],
+                    'actions' => [],
+                ]);
+            }
+
+            report($e);
+
+            return response()->json([
+                'reply' => 'Something went wrong while I was working on that. Please try again.',
+                'steps' => [],
+                'actions' => [],
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
         } catch (Throwable $e) {
             report($e);
 

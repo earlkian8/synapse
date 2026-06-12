@@ -39,13 +39,13 @@ class EmployeeAgent
      * of what it actually did (for the UI to animate).
      *
      * @param  array<int, array{role?: string, text?: string}>  $history
-     * @param  array{mime: string, data: string}|null  $filePart  Base64 file (e.g. a CV) for multimodal input.
+     * @param  array<int, array{mime: string, data: string}>  $fileParts  Base64 files (e.g. CVs) for multimodal input.
      * @return array{reply: string, steps: array<int, array<string, mixed>>, actions: array<int, array<string, mixed>>}
      */
-    public function handle(User $user, string $message, array $history = [], ?array $filePart = null): array
+    public function handle(User $user, string $message, array $history = [], array $fileParts = []): array
     {
         $contents = $this->buildHistory($history);
-        $contents[] = $this->buildUserTurn($message, $filePart);
+        $contents[] = $this->buildUserTurn($message, $fileParts);
 
         $steps = [];
         $actions = [];
@@ -469,14 +469,18 @@ class EmployeeAgent
     }
 
     /**
-     * @param  array{mime: string, data: string}|null  $filePart
+     * @param  array<int, array{mime: string, data: string}>  $fileParts
      * @return array<string, mixed>
      */
-    private function buildUserTurn(string $message, ?array $filePart): array
+    private function buildUserTurn(string $message, array $fileParts): array
     {
-        $parts = [['text' => $message !== '' ? $message : 'Please review the attached document and add the employee.']];
+        $fallback = count($fileParts) > 1
+            ? 'Please review the attached documents and add each person as an employee.'
+            : 'Please review the attached document and add the employee.';
 
-        if ($filePart !== null) {
+        $parts = [['text' => $message !== '' ? $message : $fallback]];
+
+        foreach ($fileParts as $filePart) {
             $parts[] = ['inline_data' => ['mime_type' => $filePart['mime'], 'data' => $filePart['data']]];
         }
 
@@ -501,17 +505,19 @@ class EmployeeAgent
 
         return <<<PROMPT
         You are Nexo Assistant, an agentic HR helper embedded in the Nexo HR platform.
-        Your scope right now is **employee management only**: you can find, create, update and archive employee records by calling the provided tools. You cannot do payroll, leave, recruitment or anything else yet — politely say so if asked.
+
+        STRICT SCOPE — employee management ONLY. You may find, create, update and archive employee records by calling the provided tools, and answer questions about employees. You CANNOT do payroll, leave, attendance, recruitment, benefits, performance, analytics, or anything else, and you must not answer general/unrelated questions. If a request is outside this scope, reply with one short, polite sentence saying it's outside what you can do today, and DO NOT call any tool. Never invent capabilities or data.
 
         Today is {$today}.
 
         Behaviour:
-        - When the user asks to add/onboard someone (including from an attached CV/resume), extract every detail you can and call create_employee. Use sensible defaults when something is missing: date_hired = today, employment_type = probationary, employment_status = active. Mention any assumptions you made.
-        - To update or archive someone, first call find_employees to resolve the exact employee_id (unless the user already gave an employee number you can match). Never guess an id.
-        - Prefer ids from the catalogs below. If you only know a label, you may pass department_name, position_title, manager_name or work_schedule_name and the system will resolve it.
-        - After acting, reply in 1–3 short, warm sentences confirming what you did. Never invent data you weren't given. Reply in the user's language (English or Filipino).
+        - When the user asks to add/onboard someone (including from an attached CV/resume), extract every detail you can and call create_employee. If MULTIPLE CVs/resumes or people are provided, call create_employee once per person — never merge two people into one record. Use sensible defaults when something is missing: date_hired = today, employment_type = probationary, employment_status = active. Briefly mention any assumptions you made.
+        - To update or archive someone, FIRST call find_employees to resolve the exact employee_id (unless the user already gave an employee number you can match). Never guess an id. If find_employees returns no match, say so and stop — do not fabricate one.
+        - Only set fields you were actually given or can read from a document. Do not invent emails, salaries, ids or government numbers.
+        - Prefer ids from the catalogs below. If you only know a label, you may pass department_name, position_title, manager_name or work_schedule_name and the system will resolve it. If a label doesn't match the catalog, leave it unset rather than guessing.
+        - After acting, reply in 1–3 short, warm, accurate sentences describing exactly what you did (or why you couldn't). Reply in the user's language (English or Filipino).
 
-        Catalogs:
+        Catalogs (use these exact ids/labels):
         - Departments: {$departments}
         - Positions: {$positions}
         - Work schedules: {$schedules}
