@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'verified'])
     ->prefix('employees')
     ->name('employees.')
-    ->group(function () {
+    ->whereNumber('employee') // {employee} is always a numeric id, so literal
+    ->group(function () {      // segments like "assistant"/"bulk" never bind to it.
         Route::get('/', [EmployeeController::class, 'index'])->middleware('can:employees.view')->name('index');
         Route::get('export', EmployeeExportController::class)->middleware('can:employees.export')->name('export');
         Route::post('bulk', EmployeeBulkActionController::class)->middleware('can:employees.view')->name('bulk');

@@ -32,6 +32,7 @@ type Props = RowHandlers & {
     filters: EmployeesFilters;
     selected: number[];
     can: EmployeePermissions;
+    highlightId?: number | null;
     onToggleSort: (column: string) => void;
     onToggleAll: (checked: boolean) => void;
     onToggleRow: (id: number, checked: boolean) => void;
@@ -42,6 +43,7 @@ export function EmployeesTable({
     filters,
     selected,
     can,
+    highlightId,
     onToggleSort,
     onToggleAll,
     onToggleRow,
@@ -126,6 +128,10 @@ export function EmployeesTable({
                             <TableRow
                                 key={employee.id}
                                 data-state={isSelected ? 'selected' : undefined}
+                                className={cn(
+                                    employee.id === highlightId &&
+                                        'nexo-row-flash',
+                                )}
                             >
                                 <TableCell className="pl-4">
                                     <Checkbox

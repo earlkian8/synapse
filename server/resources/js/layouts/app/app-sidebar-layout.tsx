@@ -3,6 +3,7 @@ import { AppFooter } from '@/components/app-footer';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import { Assistant } from '@/features/assistant/components/assistant';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppSidebarLayout({
@@ -17,6 +18,8 @@ export default function AppSidebarLayout({
                 <div className="flex flex-1 flex-col">{children}</div>
                 <AppFooter />
             </AppContent>
+            {/* Persistent agentic assistant — mounted once for the whole app. */}
+            <Assistant />
         </AppShell>
     );
 }

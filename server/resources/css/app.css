@@ -220,3 +220,38 @@
 [data-slot='sidebar-content']::-webkit-scrollbar-thumb:hover {
     background-color: color-mix(in oklab, #0abfbf 65%, transparent);
 }
+
+/* ── Agentic assistant animations ─────────────────────────────────────────── */
+@keyframes assistant-pop {
+    0% {
+        transform: scale(0.6);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.08);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes assistant-sheen {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+/* Brief flash on a table row the assistant just created or updated. */
+@keyframes nexo-row-flash {
+    0% {
+        background-color: color-mix(in oklab, #0abfbf 22%, transparent);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.nexo-row-flash {
+    animation: nexo-row-flash 2.4s ease-out;
+}

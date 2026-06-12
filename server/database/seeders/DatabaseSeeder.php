@@ -6,14 +6,11 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database for a single demo organisation (tenant).
      *

@@ -3,6 +3,12 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Assistant\Assistant;
+use App\Services\Assistant\Modules\EmployeeModule;
+use App\Services\Assistant\Modules\LeaveModule;
+use App\Services\Assistant\Modules\OnboardingModule;
+use App\Services\Assistant\Modules\RecruitmentModule;
+use App\Support\Ai\GeminiClient;
 use App\Support\PermissionRegistry;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
@@ -23,6 +29,24 @@ class AppServiceProvider extends ServiceProvider
     {
         // The current-tenant holder must be shared for the whole request.
         $this->app->singleton(Tenancy::class);
+
+        // The Gemini client backing the agentic assistant.
+        $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
+            apiKey: config('services.gemini.key'),
+            model: config('services.gemini.model'),
+        ));
+
+        // The agentic assistant and the HR modules it can act on. Each module is
+        // permission-gated per user at runtime; register them all here.
+        $this->app->singleton(Assistant::class, fn ($app): Assistant => new Assistant(
+            $app->make(GeminiClient::class),
+            [
+                $app->make(EmployeeModule::class),
+                $app->make(LeaveModule::class),
+                $app->make(OnboardingModule::class),
+                $app->make(RecruitmentModule::class),
+            ],
+        ));
     }
 
     /**
