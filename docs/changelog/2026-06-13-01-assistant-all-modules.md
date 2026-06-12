@@ -72,11 +72,12 @@ generic:
 
 The function-calling loop is kept, but made much cheaper per turn:
 
-- **No trailing round-trip for the wording.** When a turn's tool calls are all
-  successful mutations, the reply is synthesized from the results instead of
-  spending another request to have the model phrase it. A typical "do X for Y"
-  now costs **1 request** instead of 2–3. Lookups (`find_*`) and errors still go
-  back to the model so it can chain or recover.
+- **No trailing round-trip for the wording.** When a turn's tool calls all
+  succeed — a lookup we can read straight from, or a mutation we just performed —
+  the reply is synthesized from the results instead of spending another request to
+  have the model phrase it. Both "do X for Y" **and** "tell me about Y" now cost
+  **1 request** (down from 2–3). Only errors / unknown tools go back to the model
+  to recover. Net effect: every turn is a single Gemini request — the floor.
 - **No redundant lookups.** The prompt tells the model to act on a named record
   directly (the backend resolves the name) rather than calling `find_*` first.
 - **Honest limit messages.** A `503` (brief overload) and a `429` (quota) now read

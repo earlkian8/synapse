@@ -53,6 +53,7 @@ class Assistant
         $steps = [];
         $actions = [];
         $reply = '';
+        $lastResults = [];
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
             $response = $this->gemini->generate($contents, $tools, $this->systemInstruction($modules));
@@ -98,23 +99,25 @@ class Assistant
                 $results[] = [$name, $result];
             }
 
-            // Cost saver: when every call this step was a successful mutation —
-            // nothing to reason over, nothing to recover from — we already know
-            // the outcome, so synthesize the confirmation rather than spend
-            // another request just to have the model word it. Lookups and errors
-            // still go back to the model so it can chain or fix.
-            if ($reply === '' && $actions !== [] && $this->isTerminal($results)) {
-                $reply = $this->summariseActions($actions);
+            // Cost saver: when every tool call this step succeeded — a lookup we
+            // can read straight from, or a mutation we just performed — we already
+            // hold the answer. Synthesize the reply instead of spending a second
+            // request just to have the model word it. This makes the common
+            // "look something up / do one thing" turn cost a single request.
+            // Only errors (and unknown tools) go back for the model to recover.
+            if ($reply === '' && $this->isTerminal($results)) {
+                $reply = $this->synthesize($results);
 
                 break;
             }
 
+            $lastResults = $results;
             $contents[] = ['role' => 'user', 'parts' => $responseParts];
         }
 
         if ($reply === '') {
-            $reply = $actions !== []
-                ? $this->summariseActions($actions)
+            $reply = $lastResults !== []
+                ? $this->synthesize($lastResults)
                 : "I wasn't able to complete that. Could you rephrase or give me a few more details?";
         }
 
@@ -162,16 +165,16 @@ class Assistant
     }
 
     /**
-     * Whether every call in a step was a successful, terminal mutation (no
-     * lookup the model must reason over, no error to recover from) — meaning we
-     * can answer without another round-trip.
+     * Whether every call in a step succeeded (read or write). When so, the result
+     * is already in hand and we can answer without another model round-trip. Only
+     * errors / unknown tools force a follow-up so the model can recover or explain.
      *
      * @param  array<int, array{0: string, 1: ?ToolResult}>  $results
      */
     private function isTerminal(array $results): bool
     {
-        foreach ($results as [$name, $result]) {
-            if ($result === null || $result->failed() || $result->cards === [] || str_starts_with($name, 'find_')) {
+        foreach ($results as [, $result]) {
+            if ($result === null || $result->failed()) {
                 return false;
             }
         }
@@ -254,7 +257,8 @@ class Assistant
         Use the provided tools to take real actions across the HR capabilities listed below, and ONLY those. Never claim to have done something unless a tool actually did it. If a request is outside every capability below (for example payroll, attendance, performance, analytics, or general/unrelated questions), reply with one short, polite sentence that it's outside what you can do today — and call no tools.
 
         How to work:
-        - To act on an existing record, pass the person/record by name or number directly in the action — the system resolves it for you. Do NOT call a find_* tool just to act on something; only use find_* when the user actually wants a list or you genuinely must choose among results. Never guess ids; if nothing matches, the system tells you and you relay that — never fabricate data.
+        - Use exactly one tool call per request whenever possible. Every action resolves a person/record by name or number on its own, so pass the name directly in the action — NEVER call a find_* tool first just to act on something.
+        - find_* tools are ONLY for when the user wants to look something up or see a list. Do not chain a find_* into another tool. Never guess ids; if nothing matches, the system says so and you relay it — never fabricate data.
         - Only set fields you were actually given or can read from an attached document. Do not invent emails, salaries, ids or government numbers.
         - Every action is permission-checked server-side; if one is denied, tell the user plainly.
         - Some actions are significant (archiving, hiring, rejecting) — only take them on a clear request.
@@ -311,23 +315,81 @@ class Assistant
     }
 
     /**
-     * Compose a short, accurate confirmation from the executed actions (used when
-     * we skip the model's wording round-trip).
+     * Compose a short, accurate reply from the executed tool results, so we can
+     * answer without a second model round-trip. Handles lookups (one or many
+     * matches, or none) and mutations.
      *
-     * @param  array<int, array<string, mixed>>  $actions
+     * @param  array<int, array{0: string, 1: ?ToolResult}>  $results
      */
-    private function summariseActions(array $actions): string
+    private function synthesize(array $results): string
     {
-        return collect($actions)
-            ->map(function (array $a): string {
-                $line = trim(((string) ($a['badge'] ?? 'Done')).' '.((string) ($a['title'] ?? '')));
+        $cards = [];
+        $emptyFinds = 0;
 
-                if (filled($a['subtitle'] ?? null)) {
-                    $line .= ' — '.$a['subtitle'];
-                }
+        foreach ($results as [$name, $result]) {
+            if ($result === null) {
+                continue;
+            }
 
-                return rtrim($line, '.').'.';
-            })
-            ->implode(' ');
+            if ($result->cards === [] && str_starts_with($name, 'find_')) {
+                $emptyFinds++;
+
+                continue;
+            }
+
+            foreach ($result->cards as $card) {
+                $cards[] = $card;
+            }
+        }
+
+        $finds = array_values(array_filter($cards, fn (array $c): bool => ($c['kind'] ?? '') === 'find'));
+        $mutations = array_values(array_filter($cards, fn (array $c): bool => ($c['kind'] ?? '') !== 'find'));
+
+        $parts = [];
+
+        foreach ($mutations as $card) {
+            $parts[] = $this->describeCard($card);
+        }
+
+        if (count($finds) === 1) {
+            $parts[] = $this->describeCard($finds[0], withMeta: true);
+        } elseif (count($finds) > 1) {
+            $names = array_map(fn (array $c): string => (string) $c['title'], $finds);
+            $shown = array_slice($names, 0, 5);
+            $more = count($names) - count($shown);
+            $parts[] = 'Found '.count($names).': '.implode(', ', $shown).($more > 0 ? " and {$more} more" : '').'.';
+        }
+
+        if ($parts !== []) {
+            return implode(' ', $parts);
+        }
+
+        return $emptyFinds > 0
+            ? "I couldn't find anything matching that."
+            : 'Done.';
+    }
+
+    /**
+     * @param  array<string, mixed>  $card
+     */
+    private function describeCard(array $card, bool $withMeta = false): string
+    {
+        $line = $withMeta
+            ? (string) ($card['title'] ?? '')
+            : trim(((string) ($card['badge'] ?? 'Done')).' '.((string) ($card['title'] ?? '')));
+
+        if (filled($card['subtitle'] ?? null)) {
+            $line .= ' — '.$card['subtitle'];
+        }
+
+        if ($withMeta) {
+            $meta = array_values(array_filter($card['meta'] ?? [], fn ($m): bool => filled($m)));
+
+            if ($meta !== []) {
+                $line .= ' ('.implode(' · ', $meta).')';
+            }
+        }
+
+        return rtrim($line, '.').'.';
     }
 }
