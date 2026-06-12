@@ -78,3 +78,4 @@ commit history rather than repeating them.
 - [2026-06-12 — Employee profile photos everywhere](./changelog/2026-06-12-01-employee-profile-photos.md)
 - [2026-06-12 — Agentic employee assistant (Gemini)](./changelog/2026-06-12-02-employee-agentic-assistant.md)
 - [2026-06-13 — Assistant goes org-wide (all HR modules)](./changelog/2026-06-13-01-assistant-all-modules.md)
+- [2026-06-13 — Premium assistant: conversations, streaming & markdown](./changelog/2026-06-13-02-assistant-premium-chat.md)

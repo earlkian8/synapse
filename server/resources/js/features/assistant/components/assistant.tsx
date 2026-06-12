@@ -1,19 +1,21 @@
 import { router } from '@inertiajs/react';
-import { Paperclip, Send, Sparkles, X } from 'lucide-react';
+import {
+    History,
+    Maximize2,
+    Minimize2,
+    PenSquare,
+    Sparkles,
+    X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/use-permissions';
-import { sendToAssistant } from '../api';
-import type { AgentCard, ChatMessage } from '../types';
-import { AgentActivity } from './agent-activity';
-
-const SUGGESTIONS = [
-    'Add a new employee',
-    'Onboard the attached CV',
-    'File sick leave for Maria tomorrow',
-    'Move a candidate to interview',
-];
+import { cn } from '@/lib/utils';
+import type { AgentCard } from '../types';
+import { useAssistant } from '../use-assistant';
+import { Composer } from './composer';
+import { ConversationList } from './conversation-list';
+import { MessageList } from './message-list';
 
 /** Permissions that make at least part of the assistant useful. */
 const ASSISTANT_PERMISSIONS = [
@@ -23,201 +25,97 @@ const ASSISTANT_PERMISSIONS = [
     'recruitment.view',
 ] as const;
 
-let messageSeq = 0;
-const nextId = () => `m${Date.now()}-${messageSeq++}`;
+const draftKey = (id: number | null) => `nexo.assistant.draft.${id ?? 'new'}`;
 
 /**
- * Floating, persistent agentic assistant. Mounted once in the authenticated
- * layout so its conversation survives page navigations. Acts across whichever HR
- * modules the signed-in user is permitted to use.
+ * The floating, persistent Nexo assistant. Mounted once in the authenticated
+ * layout so it survives navigation. A premium chat surface: multi-conversation
+ * history, markdown replies with streaming, copy/edit/regenerate, drag-and-drop
+ * attachments, and live HR actions across the modules the user can access.
  */
 export function Assistant() {
     const { can } = usePermissions();
+    const assistant = useAssistant();
+
     const [open, setOpen] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [expanded, setExpanded] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<File[]>([]);
-    const [sending, setSending] = useState(false);
 
-    const fileInput = useRef<HTMLInputElement>(null);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
+    const processed = useRef<Set<number | string>>(new Set());
 
-    // Keep the view pinned to the latest content, including as the agent
-    // timeline reveals itself after a response lands.
+    const { activeId, messages, conversations } = assistant;
+
+    // Restore the saved draft when the active conversation changes. This is an
+    // intentional external (localStorage) → state sync keyed on the thread.
     useEffect(() => {
-        const scroller = scrollRef.current;
-        const content = contentRef.current;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setInput(localStorage.getItem(draftKey(activeId)) ?? '');
+    }, [activeId]);
 
-        if (!scroller || !content) {
-            return;
+    // Persist the draft as it is typed.
+    useEffect(() => {
+        const key = draftKey(activeId);
+
+        if (input.trim() === '') {
+            localStorage.removeItem(key);
+        } else {
+            localStorage.setItem(key, input);
         }
+    }, [input, activeId]);
 
-        const pin = () => {
-            const distance =
-                scroller.scrollHeight -
-                scroller.scrollTop -
-                scroller.clientHeight;
-
-            if (distance < 160) {
-                scroller.scrollTop = scroller.scrollHeight;
+    // Apply side effects (toasts + live refresh) for newly executed actions.
+    useEffect(() => {
+        for (const message of messages) {
+            if (
+                message.role !== 'assistant' ||
+                message.pending ||
+                message.failed ||
+                !message.actions?.length ||
+                processed.current.has(message.id)
+            ) {
+                continue;
             }
-        };
 
-        const observer = new ResizeObserver(pin);
-        observer.observe(content);
-
-        return () => observer.disconnect();
-    }, [open]);
-
-    const scrollToBottom = () => {
-        requestAnimationFrame(() => {
-            const scroller = scrollRef.current;
-
-            if (scroller) {
-                scroller.scrollTop = scroller.scrollHeight;
-            }
-        });
-    };
+            processed.current.add(message.id);
+            applyEffects(message.actions);
+        }
+    }, [messages]);
 
     if (!ASSISTANT_PERMISSIONS.some((permission) => can(permission))) {
         return null;
     }
 
-    const applyEffects = (cards: AgentCard[]) => {
-        if (cards.length === 0) {
+    const activeTitle =
+        conversations.find((c) => c.id === activeId)?.title ??
+        'New conversation';
+
+    const send = () => {
+        if (input.trim() === '' && files.length === 0) {
             return;
         }
 
-        for (const card of cards) {
-            const message = `${card.badge} · ${card.title}`;
-
-            if (card.tone === 'positive') {
-                toast.success(message);
-            } else if (card.tone === 'danger' || card.tone === 'warning') {
-                toast(message);
-            } else if (card.kind !== 'find') {
-                toast(message);
-            }
-        }
-
-        // Refresh whatever index the user is currently viewing so mutations show
-        // up live, and flash a freshly-touched employee row on the directory.
-        const mutated = cards.filter((card) => card.kind !== 'find');
-
-        if (mutated.length === 0) {
-            return;
-        }
-
-        router.reload({
-            onSuccess: () => {
-                if (!window.location.pathname.startsWith('/employees')) {
-                    return;
-                }
-
-                const highlight = mutated.find(
-                    (card) =>
-                        card.module === 'employees' &&
-                        typeof card.id === 'number' &&
-                        (card.kind === 'add' || card.kind === 'edit'),
-                );
-
-                if (highlight) {
-                    window.dispatchEvent(
-                        new CustomEvent('nexo:employee-mutated', {
-                            detail: { id: highlight.id },
-                        }),
-                    );
-                }
-            },
-        });
-    };
-
-    const send = async () => {
-        const text = input.trim();
-
-        if ((text === '' && files.length === 0) || sending) {
-            return;
-        }
-
-        const attached = files;
-        const userMessage: ChatMessage = {
-            id: nextId(),
-            role: 'user',
-            text:
-                text ||
-                (attached.length > 1
-                    ? 'Please review the attached files.'
-                    : 'Please review the attached file.'),
-            fileNames: attached.map((f) => f.name),
-        };
-        const pendingId = nextId();
-
-        const history = messages
-            .filter((m) => !m.pending)
-            .map((m) => ({ role: m.role, text: m.text }));
-
-        setMessages((current) => [
-            ...current,
-            userMessage,
-            { id: pendingId, role: 'assistant', text: '', pending: true },
-        ]);
+        localStorage.removeItem(draftKey(activeId));
+        void assistant.sendMessage(input, files);
         setInput('');
         setFiles([]);
-        setSending(true);
-        scrollToBottom();
-
-        try {
-            const result = await sendToAssistant({
-                message: text,
-                history,
-                files: attached,
-            });
-
-            setMessages((current) =>
-                current.map((m) =>
-                    m.id === pendingId
-                        ? {
-                              id: pendingId,
-                              role: 'assistant',
-                              text: result.reply,
-                              steps: result.steps,
-                              actions: result.actions,
-                          }
-                        : m,
-                ),
-            );
-
-            applyEffects(result.actions ?? []);
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : 'Something went wrong. Please try again.';
-
-            setMessages((current) =>
-                current.map((m) =>
-                    m.id === pendingId
-                        ? { id: pendingId, role: 'assistant', text: message }
-                        : m,
-                ),
-            );
-        } finally {
-            setSending(false);
-            scrollToBottom();
-        }
     };
 
-    const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            void send();
-        }
+    const openConversation = (id: number) => {
+        void assistant.openConversation(id);
+        setShowHistory(false);
+    };
+
+    const newChat = () => {
+        assistant.newChat();
+        setShowHistory(false);
+        setInput('');
+        setFiles([]);
     };
 
     return (
         <>
-            {/* Launcher */}
             {!open && (
                 <button
                     type="button"
@@ -230,40 +128,62 @@ export function Assistant() {
                 </button>
             )}
 
-            {/* Panel */}
             {open && (
-                <div className="fixed right-5 bottom-5 z-50 flex h-[min(640px,calc(100vh-2.5rem))] w-[min(400px,calc(100vw-2.5rem))] animate-in flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25 duration-300 fade-in slide-in-from-bottom-4">
-                    <Header onClose={() => setOpen(false)} />
+                <div
+                    className={cn(
+                        'fixed right-5 bottom-5 z-50 flex animate-in flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25 duration-300 fade-in slide-in-from-bottom-4',
+                        expanded
+                            ? 'h-[min(760px,calc(100vh-2.5rem))] w-[min(560px,calc(100vw-2.5rem))]'
+                            : 'h-[min(640px,calc(100vh-2.5rem))] w-[min(400px,calc(100vw-2.5rem))]',
+                    )}
+                >
+                    <Header
+                        title={activeId ? activeTitle : 'Nexo Assistant'}
+                        subtitle={activeId ? 'HR copilot' : 'Your HR copilot'}
+                        expanded={expanded}
+                        onHistory={() => setShowHistory(true)}
+                        onNew={newChat}
+                        onToggleExpand={() => setExpanded((v) => !v)}
+                        onClose={() => setOpen(false)}
+                    />
 
-                    <div
-                        ref={scrollRef}
-                        className="flex-1 overflow-y-auto px-3.5 py-4"
-                    >
-                        <div ref={contentRef} className="flex flex-col gap-3">
-                            {messages.length === 0 ? (
-                                <EmptyState
-                                    onPick={(prompt) => setInput(prompt)}
-                                />
-                            ) : (
-                                messages.map((message) => (
-                                    <MessageBubble
-                                        key={message.id}
-                                        message={message}
-                                    />
-                                ))
-                            )}
-                        </div>
+                    <div className="relative flex min-h-0 flex-1 flex-col">
+                        <MessageList
+                            messages={messages}
+                            streamingId={assistant.streamingId}
+                            sending={assistant.sending}
+                            loading={assistant.loadingThread}
+                            onStreamDone={assistant.endStreaming}
+                            onRegenerate={() => void assistant.regenerate()}
+                            onEdit={(id, text) =>
+                                void assistant.editMessage(id, text)
+                            }
+                            onRetry={() => void assistant.regenerate()}
+                            onPickSuggestion={setInput}
+                        />
+
+                        {showHistory && (
+                            <ConversationList
+                                conversations={conversations}
+                                activeId={activeId}
+                                onOpen={openConversation}
+                                onNew={newChat}
+                                onRename={assistant.rename}
+                                onTogglePin={assistant.togglePin}
+                                onDelete={assistant.remove}
+                                onClearAll={assistant.clearAll}
+                                onClose={() => setShowHistory(false)}
+                            />
+                        )}
                     </div>
 
                     <Composer
                         input={input}
                         files={files}
-                        sending={sending}
-                        fileInput={fileInput}
+                        busy={
+                            assistant.sending || assistant.streamingId !== null
+                        }
                         onInput={setInput}
-                        onKeyDown={onKeyDown}
-                        onSend={() => void send()}
-                        onPickFile={() => fileInput.current?.click()}
                         onAddFiles={(picked) =>
                             setFiles((current) =>
                                 [...current, ...picked].slice(0, 8),
@@ -274,6 +194,8 @@ export function Assistant() {
                                 current.filter((_, i) => i !== index),
                             )
                         }
+                        onSend={send}
+                        onStop={assistant.stopStreaming}
                     />
                 </div>
             )}
@@ -281,253 +203,117 @@ export function Assistant() {
     );
 }
 
-function Header({ onClose }: { onClose: () => void }) {
-    return (
-        <div className="flex items-center gap-2.5 border-b border-border bg-gradient-to-r from-[#0F2044] to-[#16305f] px-4 py-3 text-white">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
-                <Sparkles className="size-4 text-[#0ABFBF]" />
-            </span>
-            <div className="flex-1">
-                <p className="text-sm leading-tight font-semibold">
-                    Nexo Assistant
-                </p>
-                <p className="flex items-center gap-1 text-[11px] text-white/60">
-                    <Sparkles className="size-3" />
-                    Your HR copilot
-                </p>
-            </div>
-            <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close assistant"
-                className="flex size-7 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-            >
-                <X className="size-4" />
-            </button>
-        </div>
-    );
-}
-
-function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
-    return (
-        <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-[#0F2044] text-[#0ABFBF] ring-1 ring-border">
-                <Sparkles className="size-6" />
-            </span>
-            <div>
-                <p className="text-sm font-semibold">How can I help?</p>
-                <p className="mx-auto mt-1 max-w-[260px] text-xs text-muted-foreground">
-                    I can manage employees, leave, onboarding and recruitment
-                    for you. Describe what you need, or drop in a CV and I'll
-                    take it from there.
-                </p>
-            </div>
-            <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-                {SUGGESTIONS.map((prompt) => (
-                    <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => onPick(prompt)}
-                        className="rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-[#0ABFBF]/40 hover:text-foreground"
-                    >
-                        {prompt}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function MessageBubble({ message }: { message: ChatMessage }) {
-    if (message.role === 'user') {
-        return (
-            <div className="flex justify-end">
-                <div className="max-w-[85%] animate-in rounded-2xl rounded-br-sm bg-[#0F2044] px-3.5 py-2 text-sm text-white duration-200 fade-in slide-in-from-bottom-1">
-                    {message.fileNames && message.fileNames.length > 0 && (
-                        <span className="mb-1 flex flex-col gap-0.5 text-[11px] text-white/70">
-                            {message.fileNames.map((name, index) => (
-                                <span
-                                    key={index}
-                                    className="flex items-center gap-1.5"
-                                >
-                                    <Paperclip className="size-3 shrink-0" />
-                                    <span className="truncate">{name}</span>
-                                </span>
-                            ))}
-                        </span>
-                    )}
-                    <p className="break-words whitespace-pre-wrap">
-                        {message.text}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    if (message.pending) {
-        return <Thinking />;
-    }
-
-    return <AssistantMessage message={message} />;
-}
-
-function AssistantMessage({ message }: { message: ChatMessage }) {
-    const hasActivity =
-        (message.steps?.length ?? 0) + (message.actions?.length ?? 0) > 0;
-    const [showText, setShowText] = useState(!hasActivity);
-
-    return (
-        <div className="flex flex-col gap-2">
-            {hasActivity && (
-                <AgentActivity
-                    steps={message.steps ?? []}
-                    actions={message.actions ?? []}
-                    onRevealed={() => setShowText(true)}
-                />
-            )}
-
-            {showText && message.text && (
-                <div className="max-w-[88%] animate-in self-start rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2 text-sm fade-in slide-in-from-bottom-1">
-                    <p className="break-words whitespace-pre-wrap">
-                        {message.text}
-                    </p>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function Thinking() {
-    const labels = [
-        'Thinking…',
-        'Reading your request…',
-        'Working on it…',
-        'Almost there…',
-    ];
-    const [index, setIndex] = useState(0);
-
-    useEffect(() => {
-        const timer = setInterval(
-            () => setIndex((value) => (value + 1) % labels.length),
-            1400,
-        );
-
-        return () => clearInterval(timer);
-    }, [labels.length]);
-
-    return (
-        <div className="flex items-center gap-2 self-start rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2.5">
-            <span className="flex gap-1">
-                {[0, 1, 2].map((dot) => (
-                    <span
-                        key={dot}
-                        className="size-1.5 animate-bounce rounded-full bg-[#0ABFBF]"
-                        style={{ animationDelay: `${dot * 0.15}s` }}
-                    />
-                ))}
-            </span>
-            <span className="text-xs text-muted-foreground">
-                {labels[index]}
-            </span>
-        </div>
-    );
-}
-
-function Composer({
-    input,
-    files,
-    sending,
-    fileInput,
-    onInput,
-    onKeyDown,
-    onSend,
-    onPickFile,
-    onAddFiles,
-    onRemoveFile,
+function Header({
+    title,
+    subtitle,
+    expanded,
+    onHistory,
+    onNew,
+    onToggleExpand,
+    onClose,
 }: {
-    input: string;
-    files: File[];
-    sending: boolean;
-    fileInput: React.RefObject<HTMLInputElement | null>;
-    onInput: (value: string) => void;
-    onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-    onSend: () => void;
-    onPickFile: () => void;
-    onAddFiles: (files: File[]) => void;
-    onRemoveFile: (index: number) => void;
+    title: string;
+    subtitle: string;
+    expanded: boolean;
+    onHistory: () => void;
+    onNew: () => void;
+    onToggleExpand: () => void;
+    onClose: () => void;
 }) {
     return (
-        <div className="border-t border-border bg-card px-3 py-2.5">
-            {files.length > 0 && (
-                <div className="mb-2 flex flex-col gap-1">
-                    {files.map((file, index) => (
-                        <div
-                            key={`${file.name}-${index}`}
-                            className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs"
-                        >
-                            <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 flex-1 truncate">
-                                {file.name}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => onRemoveFile(index)}
-                                aria-label={`Remove ${file.name}`}
-                                className="text-muted-foreground hover:text-destructive"
-                            >
-                                <X className="size-3.5" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            <div className="flex items-end gap-1.5">
-                <button
-                    type="button"
-                    onClick={onPickFile}
-                    aria-label="Attach files"
-                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-[#0ABFBF]/40 hover:text-foreground"
-                >
-                    <Paperclip className="size-4" />
-                </button>
-                <input
-                    ref={fileInput}
-                    type="file"
-                    multiple
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/png,image/jpeg,image/webp,text/plain"
-                    className="hidden"
-                    onChange={(event) => {
-                        onAddFiles(Array.from(event.target.files ?? []));
-
-                        if (event.target) {
-                            event.target.value = '';
-                        }
-                    }}
-                />
-
-                <textarea
-                    value={input}
-                    onChange={(event) => onInput(event.target.value)}
-                    onKeyDown={onKeyDown}
-                    rows={1}
-                    placeholder="Message the assistant…"
-                    className="max-h-28 min-h-9 flex-1 resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                />
-
-                <Button
-                    type="button"
-                    size="icon"
-                    onClick={onSend}
-                    disabled={
-                        sending || (input.trim() === '' && files.length === 0)
-                    }
-                    className="size-9 shrink-0 bg-[#0F2044] hover:bg-[#0F2044]/90"
-                    aria-label="Send"
-                >
-                    <Send className="size-4" />
-                </Button>
+        <div className="flex items-center gap-2 border-b border-border bg-gradient-to-r from-[#0F2044] to-[#16305f] px-3 py-2.5 text-white">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+                <Sparkles className="size-4 text-[#0ABFBF]" />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-sm leading-tight font-semibold">
+                    {title}
+                </p>
+                <p className="truncate text-[11px] text-white/60">{subtitle}</p>
             </div>
+            <HeaderButton label="Conversations" onClick={onHistory}>
+                <History className="size-4" />
+            </HeaderButton>
+            <HeaderButton label="New conversation" onClick={onNew}>
+                <PenSquare className="size-4" />
+            </HeaderButton>
+            <HeaderButton
+                label={expanded ? 'Shrink' : 'Expand'}
+                onClick={onToggleExpand}
+            >
+                {expanded ? (
+                    <Minimize2 className="size-4" />
+                ) : (
+                    <Maximize2 className="size-4" />
+                )}
+            </HeaderButton>
+            <HeaderButton label="Close" onClick={onClose}>
+                <X className="size-4" />
+            </HeaderButton>
         </div>
     );
+}
+
+function HeaderButton({
+    label,
+    onClick,
+    children,
+}: {
+    label: string;
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={label}
+            aria-label={label}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+        >
+            {children}
+        </button>
+    );
+}
+
+/** Toast each executed action and refresh the current page so it shows live. */
+function applyEffects(cards: AgentCard[]) {
+    const mutated = cards.filter((card) => card.kind !== 'find');
+
+    for (const card of mutated) {
+        const message = `${card.badge} · ${card.title}`;
+
+        if (card.tone === 'positive') {
+            toast.success(message);
+        } else {
+            toast(message);
+        }
+    }
+
+    if (mutated.length === 0) {
+        return;
+    }
+
+    router.reload({
+        onSuccess: () => {
+            if (!window.location.pathname.startsWith('/employees')) {
+                return;
+            }
+
+            const highlight = mutated.find(
+                (card) =>
+                    card.module === 'employees' &&
+                    typeof card.id === 'number' &&
+                    (card.kind === 'add' || card.kind === 'edit'),
+            );
+
+            if (highlight) {
+                window.dispatchEvent(
+                    new CustomEvent('nexo:employee-mutated', {
+                        detail: { id: highlight.id },
+                    }),
+                );
+            }
+        },
+    });
 }

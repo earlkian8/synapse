@@ -1,7 +1,6 @@
 /**
- * Types for the Nexo assistant — the floating agentic chat that can act across
- * the HR modules (employees, leave, onboarding, recruitment) on the user's
- * behalf, one tool call at a time.
+ * Types for the Nexo assistant — a persistent, multi-conversation agentic chat
+ * that acts across the HR modules (employees, leave, onboarding, recruitment).
  */
 
 export type AssistantRole = 'user' | 'assistant';
@@ -57,21 +56,55 @@ export type AgentCard = {
     id: number | string | null;
 };
 
-/** The JSON shape returned by POST /assistant. */
-export type AssistantResponse = {
-    reply: string;
-    steps: AgentStep[];
-    actions: AgentCard[];
-    error?: string | null;
-};
-
+/** A turn in the chat (client view). `id` is the server id, or a temp string. */
 export type ChatMessage = {
-    id: string;
+    id: number | string;
     role: AssistantRole;
     text: string;
     steps?: AgentStep[];
     actions?: AgentCard[];
-    fileNames?: string[];
-    /** True while the assistant turn is still in flight. */
+    attachments?: string[];
+    /** The assistant turn failed (rate limit / error) and can be retried. */
+    failed?: boolean;
+    /** The assistant turn is still in flight. */
     pending?: boolean;
+    /** The assistant reply should reveal progressively (simulated streaming). */
+    streaming?: boolean;
+    createdAt?: string | null;
+};
+
+/** A conversation thread in the history list. */
+export type Conversation = {
+    id: number;
+    title: string;
+    pinned: boolean;
+    lastActivityAt: string | null;
+    preview?: string | null;
+};
+
+// ── API payloads ─────────────────────────────────────────────────────────────
+
+export type ServerMessage = {
+    id: number | null;
+    role: AssistantRole;
+    body: string;
+    steps: AgentStep[];
+    actions: AgentCard[];
+    attachments: string[];
+    failed: boolean;
+    created_at: string | null;
+};
+
+export type TurnResponse = {
+    conversation_id: number;
+    title: string;
+    user_message_id: number;
+    message: ServerMessage;
+};
+
+export type ConversationDetail = {
+    id: number;
+    title: string;
+    pinned: boolean;
+    messages: ServerMessage[];
 };
