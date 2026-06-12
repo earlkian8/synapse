@@ -68,8 +68,24 @@ generic:
 - After any mutation the current page reloads so the relevant index updates live;
   the employee directory still flashes a freshly-touched row.
 
+## Cost / quota
+
+The function-calling loop is kept, but made much cheaper per turn:
+
+- **No trailing round-trip for the wording.** When a turn's tool calls are all
+  successful mutations, the reply is synthesized from the results instead of
+  spending another request to have the model phrase it. A typical "do X for Y"
+  now costs **1 request** instead of 2–3. Lookups (`find_*`) and errors still go
+  back to the model so it can chain or recover.
+- **No redundant lookups.** The prompt tells the model to act on a named record
+  directly (the backend resolves the name) rather than calling `find_*` first.
+- **Honest limit messages.** A `503` (brief overload) and a `429` (quota) now read
+  differently; the `429` message reflects that the free tier has a small
+  request cap and that enabling billing raises it, and uses the server's
+  suggested retry delay when present.
+
 ## Notes
 
 - No new environment or dependencies — same `GEMINI_API_KEY` and Gemini 2.5
-  Flash. Intermittent `429` responses are the free-tier quota, not a bug, and are
-  surfaced as a calm in-chat "try again shortly" message.
+  Flash. The free tier caps requests (e.g. 20/day on `generate_content_free_tier`),
+  so heavy testing can still exhaust it — that is the quota, not a bug.

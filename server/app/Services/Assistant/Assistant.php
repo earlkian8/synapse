@@ -86,16 +86,27 @@ class Assistant
             }
 
             $responseParts = [];
+            $results = [];
 
             foreach ($calls as $call) {
                 $name = (string) ($call['name'] ?? '');
                 $args = (array) ($call['args'] ?? []);
+                $result = $this->dispatch($user, $modules, $name, $args, $steps, $actions);
                 $responseParts[] = [
-                    'functionResponse' => [
-                        'name' => $name,
-                        'response' => $this->dispatch($user, $modules, $name, $args, $steps, $actions),
-                    ],
+                    'functionResponse' => ['name' => $name, 'response' => $this->toFunctionResponse($result)],
                 ];
+                $results[] = [$name, $result];
+            }
+
+            // Cost saver: when every call this step was a successful mutation —
+            // nothing to reason over, nothing to recover from — we already know
+            // the outcome, so synthesize the confirmation rather than spend
+            // another request just to have the model word it. Lookups and errors
+            // still go back to the model so it can chain or fix.
+            if ($reply === '' && $actions !== [] && $this->isTerminal($results)) {
+                $reply = $this->summariseActions($actions);
+
+                break;
             }
 
             $contents[] = ['role' => 'user', 'parts' => $responseParts];
@@ -120,9 +131,8 @@ class Assistant
      * @param  array<string, mixed>  $args
      * @param  array<int, array<string, mixed>>  $steps
      * @param  array<int, array<string, mixed>>  $actions
-     * @return array<string, mixed>
      */
-    private function dispatch(User $user, array $modules, string $name, array $args, array &$steps, array &$actions): array
+    private function dispatch(User $user, array $modules, string $name, array $args, array &$steps, array &$actions): ?ToolResult
     {
         $module = null;
 
@@ -137,7 +147,7 @@ class Assistant
         if (! $module) {
             $steps[] = ['label' => "Unknown action “{$name}”", 'status' => 'error', 'detail' => 'That tool is not available.'];
 
-            return ['ok' => false, 'error' => 'That tool is not available to you.'];
+            return null;
         }
 
         $result = $module->run($user, $name, $args);
@@ -148,7 +158,25 @@ class Assistant
             $actions[] = $card;
         }
 
-        return $this->toFunctionResponse($result);
+        return $result;
+    }
+
+    /**
+     * Whether every call in a step was a successful, terminal mutation (no
+     * lookup the model must reason over, no error to recover from) — meaning we
+     * can answer without another round-trip.
+     *
+     * @param  array<int, array{0: string, 1: ?ToolResult}>  $results
+     */
+    private function isTerminal(array $results): bool
+    {
+        foreach ($results as [$name, $result]) {
+            if ($result === null || $result->failed() || $result->cards === [] || str_starts_with($name, 'find_')) {
+                return false;
+            }
+        }
+
+        return $results !== [];
     }
 
     /**
@@ -156,8 +184,12 @@ class Assistant
      *
      * @return array<string, mixed>
      */
-    private function toFunctionResponse(ToolResult $result): array
+    private function toFunctionResponse(?ToolResult $result): array
     {
+        if ($result === null) {
+            return ['ok' => false, 'error' => 'That tool is not available to you.'];
+        }
+
         $payload = ['ok' => ! $result->failed()];
 
         if ($result->failed()) {
@@ -222,7 +254,7 @@ class Assistant
         Use the provided tools to take real actions across the HR capabilities listed below, and ONLY those. Never claim to have done something unless a tool actually did it. If a request is outside every capability below (for example payroll, attendance, performance, analytics, or general/unrelated questions), reply with one short, polite sentence that it's outside what you can do today — and call no tools.
 
         How to work:
-        - To act on an existing record, first look it up with the relevant find_* tool (or pass a name/number to match). Never guess ids. If nothing matches, say so and stop — never fabricate data.
+        - To act on an existing record, pass the person/record by name or number directly in the action — the system resolves it for you. Do NOT call a find_* tool just to act on something; only use find_* when the user actually wants a list or you genuinely must choose among results. Never guess ids; if nothing matches, the system tells you and you relay that — never fabricate data.
         - Only set fields you were actually given or can read from an attached document. Do not invent emails, salaries, ids or government numbers.
         - Every action is permission-checked server-side; if one is denied, tell the user plainly.
         - Some actions are significant (archiving, hiring, rejecting) — only take them on a clear request.
@@ -279,12 +311,23 @@ class Assistant
     }
 
     /**
+     * Compose a short, accurate confirmation from the executed actions (used when
+     * we skip the model's wording round-trip).
+     *
      * @param  array<int, array<string, mixed>>  $actions
      */
     private function summariseActions(array $actions): string
     {
         return collect($actions)
-            ->map(fn (array $a): string => trim(($a['badge'] ?? 'Done').' '.($a['title'] ?? '')).'.')
+            ->map(function (array $a): string {
+                $line = trim(((string) ($a['badge'] ?? 'Done')).' '.((string) ($a['title'] ?? '')));
+
+                if (filled($a['subtitle'] ?? null)) {
+                    $line .= ' — '.$a['subtitle'];
+                }
+
+                return rtrim($line, '.').'.';
+            })
             ->implode(' ');
     }
 }

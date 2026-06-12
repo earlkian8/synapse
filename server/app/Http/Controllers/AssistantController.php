@@ -56,10 +56,10 @@ class AssistantController extends Controller
         try {
             $result = $assistant->handle($request->user(), $message, $history, $fileParts);
         } catch (GeminiException $e) {
-            // Rate-limited / overloaded: show a calm, retryable message in-chat.
+            // Rate-limited / overloaded: show a calm, accurate, retryable message.
             if ($e->isBusy()) {
                 return response()->json([
-                    'reply' => "I'm getting a lot of requests right now and hit the AI rate limit. Please wait a few seconds and try again.",
+                    'reply' => $this->busyMessage($e),
                     'steps' => [],
                     'actions' => [],
                 ]);
@@ -85,6 +85,30 @@ class AssistantController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * An honest in-chat message for a busy/limited AI, distinguishing the cases:
+     *  - 503: the model is briefly overloaded (retry in seconds).
+     *  - 429 with a short retry delay: a per-minute pacing burst (the free tier
+     *    allows only a few requests/minute); it clears on its own.
+     *  - 429 with a long/absent delay: the larger allowance is used up for now.
+     */
+    private function busyMessage(GeminiException $e): string
+    {
+        if ($e->isOverloaded()) {
+            return 'The AI is briefly overloaded right now. Please try again in a few seconds.';
+        }
+
+        $retry = $e->retryAfterSeconds();
+
+        if ($retry !== null && $retry <= 75) {
+            return "I'm sending requests a little faster than the free tier allows (only a few per minute). ".
+                "Give it about {$retry}s and try again — nothing's wrong on your end.";
+        }
+
+        return "I've used up the AI free-tier allowance for now; it resets after a while. ".
+            'Enabling billing on the API key removes this limit.';
     }
 
     /**
