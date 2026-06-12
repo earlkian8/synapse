@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeBulkActionsBar } from '@/features/employees/components/employee-bulk-actions-bar';
@@ -51,6 +51,25 @@ export default function EmployeesIndex() {
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [highlightId, setHighlightId] = useState<number | null>(null);
+
+    // The agentic assistant fires this after it creates/updates an employee so
+    // the freshly-reloaded row briefly flashes into view.
+    useEffect(() => {
+        const onMutated = (event: Event) => {
+            const id = (event as CustomEvent<{ id: number }>).detail?.id;
+
+            if (typeof id === 'number') {
+                setHighlightId(id);
+                window.setTimeout(() => setHighlightId(null), 2600);
+            }
+        };
+
+        window.addEventListener('nexo:employee-mutated', onMutated);
+
+        return () =>
+            window.removeEventListener('nexo:employee-mutated', onMutated);
+    }, []);
 
     // Drop stale selections whenever the result set changes.
     const signature = useMemo(
@@ -233,6 +252,7 @@ export default function EmployeesIndex() {
                         filters={filters}
                         selected={selected}
                         can={can}
+                        highlightId={highlightId}
                         onToggleSort={toggleSort}
                         onToggleAll={toggleAll}
                         onToggleRow={toggleRow}

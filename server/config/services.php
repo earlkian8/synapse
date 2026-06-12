@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    /*
+    | Google Gemini — powers the in-app agentic assistant. The key is read
+    | server-side only and must never be exposed to the browser.
+    */
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+    ],
+
 ];

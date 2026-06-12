@@ -76,3 +76,4 @@ commit history rather than repeating them.
 - [2026-06-11 — Departments module (Company Setup: org structure)](./changelog/2026-06-11-04-departments-module.md)
 - [2026-06-11 — Leave Management module (approval inbox + derived balances)](./changelog/2026-06-11-05-leave-management-module.md)
 - [2026-06-12 — Employee profile photos everywhere](./changelog/2026-06-12-01-employee-profile-photos.md)
+- [2026-06-12 — Agentic employee assistant (Gemini)](./changelog/2026-06-12-02-employee-agentic-assistant.md)

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\Ai\GeminiClient;
 use App\Support\PermissionRegistry;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
@@ -23,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
     {
         // The current-tenant holder must be shared for the whole request.
         $this->app->singleton(Tenancy::class);
+
+        // The Gemini client backing the agentic assistant.
+        $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
+            apiKey: config('services.gemini.key'),
+            model: config('services.gemini.model'),
+        ));
     }
 
     /**
