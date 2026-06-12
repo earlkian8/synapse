@@ -1,35 +1,54 @@
 import {
     ArchiveX,
+    ArrowRightCircle,
+    BadgeCheck,
+    Ban,
+    CalendarClock,
     Check,
+    CheckCircle2,
     Loader2,
+    Megaphone,
     PencilLine,
+    PlayCircle,
+    Search,
     UserPlus,
     X,
+    XCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
 import { cn } from '@/lib/utils';
-import type { AgentAction, AgentActionType, AgentStep } from '../types';
+import type {
+    AgentCard,
+    AgentCardKind,
+    AgentCardTone,
+    AgentStep,
+} from '../types';
 
-const ACTION_META: Record<
-    AgentActionType,
-    { label: string; icon: typeof UserPlus; tone: string }
-> = {
-    created: {
-        label: 'Added',
-        icon: UserPlus,
-        tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
-    },
-    updated: {
-        label: 'Updated',
-        icon: PencilLine,
-        tone: 'bg-sky-500/12 text-sky-600 dark:text-sky-400',
-    },
-    archived: {
-        label: 'Archived',
-        icon: ArchiveX,
-        tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
-    },
+/** Icon per card kind (with a sensible fallback). */
+const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
+    add: UserPlus,
+    edit: PencilLine,
+    archive: ArchiveX,
+    approve: CheckCircle2,
+    reject: XCircle,
+    cancel: Ban,
+    schedule: CalendarClock,
+    find: Search,
+    start: PlayCircle,
+    move: ArrowRightCircle,
+    hire: BadgeCheck,
+    post: Megaphone,
+};
+
+/** Badge colour per tone. */
+const TONE_CLASS: Record<AgentCardTone, string> = {
+    positive: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+    info: 'bg-sky-500/12 text-sky-600 dark:text-sky-400',
+    warning: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+    danger: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
+    neutral: 'bg-muted text-muted-foreground',
 };
 
 /**
@@ -42,7 +61,7 @@ export function AgentActivity({
     onRevealed,
 }: {
     steps: AgentStep[];
-    actions: AgentAction[];
+    actions: AgentCard[];
     onRevealed?: () => void;
 }) {
     const total = steps.length + actions.length;
@@ -103,11 +122,8 @@ export function AgentActivity({
                 </ol>
             )}
 
-            {actions.slice(0, visibleActions).map((action) => (
-                <ResultCard
-                    key={action.employee.id + action.type}
-                    action={action}
-                />
+            {actions.slice(0, visibleActions).map((card, index) => (
+                <ResultCard key={index} card={card} />
             ))}
         </div>
     );
@@ -135,13 +151,10 @@ function StepIcon({ status, isLast }: { status: string; isLast: boolean }) {
     );
 }
 
-function ResultCard({ action }: { action: AgentAction }) {
-    const meta = ACTION_META[action.type];
-    const Icon = meta.icon;
-    const employee = action.employee;
-    const subtitle = [employee.position, employee.department]
-        .filter(Boolean)
-        .join(' · ');
+function ResultCard({ card }: { card: AgentCard }) {
+    const Icon = KIND_ICON[card.kind] ?? Check;
+    const tone = TONE_CLASS[card.tone] ?? TONE_CLASS.neutral;
+    const meta = card.meta.filter(Boolean);
 
     return (
         <div className="relative animate-in overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm duration-500 zoom-in-95 fade-in slide-in-from-bottom-1">
@@ -149,32 +162,43 @@ function ResultCard({ action }: { action: AgentAction }) {
             <span className="pointer-events-none absolute inset-0 -translate-x-full animate-[assistant-sheen_1.1s_ease-out_forwards] bg-gradient-to-r from-transparent via-[#0ABFBF]/10 to-transparent" />
             <div className="flex items-center gap-3">
                 <span className="animate-[assistant-pop_0.5s_ease-out]">
-                    <PersonAvatar
-                        name={employee.full_name}
-                        initials={employee.initials}
-                        photo={employee.photo}
-                        className="size-10 ring-2 ring-[#0ABFBF]/30"
-                    />
+                    {card.avatar ? (
+                        <PersonAvatar
+                            name={card.avatar.name}
+                            initials={card.avatar.initials}
+                            photo={card.avatar.photo}
+                            className="size-10 ring-2 ring-[#0ABFBF]/30"
+                        />
+                    ) : (
+                        <span className="flex size-10 items-center justify-center rounded-full bg-[#0F2044] text-[#0ABFBF] ring-2 ring-[#0ABFBF]/30">
+                            <Icon className="size-5" />
+                        </span>
+                    )}
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
-                        {employee.full_name}
+                        {card.title}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                        <span className="font-mono">
-                            {employee.employee_no}
-                        </span>
-                        {subtitle && <> · {subtitle}</>}
+                        {meta.length > 0 && (
+                            <span className="font-mono">{meta[0]}</span>
+                        )}
+                        {card.subtitle && (
+                            <>
+                                {meta.length > 0 && <> · </>}
+                                {card.subtitle}
+                            </>
+                        )}
                     </p>
                 </div>
                 <span
                     className={cn(
                         'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                        meta.tone,
+                        tone,
                     )}
                 >
                     <Icon className="size-3" />
-                    {meta.label}
+                    {card.badge}
                 </span>
             </div>
         </div>

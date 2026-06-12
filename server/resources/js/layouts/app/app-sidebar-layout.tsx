@@ -3,7 +3,7 @@ import { AppFooter } from '@/components/app-footer';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
-import { EmployeeAssistant } from '@/features/assistant/components/employee-assistant';
+import { Assistant } from '@/features/assistant/components/assistant';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppSidebarLayout({
@@ -19,7 +19,7 @@ export default function AppSidebarLayout({
                 <AppFooter />
             </AppContent>
             {/* Persistent agentic assistant — mounted once for the whole app. */}
-            <EmployeeAssistant />
+            <Assistant />
         </AppShell>
     );
 }

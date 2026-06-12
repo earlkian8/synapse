@@ -8,8 +8,8 @@ function xsrfToken(): string {
 }
 
 /**
- * Send a turn to the server-side employee agent. Uses multipart so one or more
- * CVs/files can ride along for multimodal extraction.
+ * Send a turn to the server-side agent. Uses multipart so one or more CVs/files
+ * can ride along for multimodal extraction.
  */
 export async function sendToAssistant(opts: {
     message: string;
@@ -25,7 +25,7 @@ export async function sendToAssistant(opts: {
         body.append('files[]', file);
     }
 
-    const response = await fetch('/employees/assistant', {
+    const response = await fetch('/assistant', {
         method: 'POST',
         headers: { 'X-XSRF-TOKEN': xsrfToken(), Accept: 'application/json' },
         credentials: 'same-origin',

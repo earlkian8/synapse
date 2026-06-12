@@ -1,27 +1,37 @@
 import { router } from '@inertiajs/react';
-import { Paperclip, Send, Sparkles, UserCog, X } from 'lucide-react';
+import { Paperclip, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/use-permissions';
 import { sendToAssistant } from '../api';
-import type { AgentAction, ChatMessage } from '../types';
+import type { AgentCard, ChatMessage } from '../types';
 import { AgentActivity } from './agent-activity';
 
 const SUGGESTIONS = [
     'Add a new employee',
     'Onboard the attached CV',
-    'Find Maria Santos',
+    'File sick leave for Maria tomorrow',
+    'Move a candidate to interview',
 ];
+
+/** Permissions that make at least part of the assistant useful. */
+const ASSISTANT_PERMISSIONS = [
+    'employees.view',
+    'leave.view',
+    'onboarding.view',
+    'recruitment.view',
+] as const;
 
 let messageSeq = 0;
 const nextId = () => `m${Date.now()}-${messageSeq++}`;
 
 /**
- * Floating, persistent agentic assistant for employee management. Mounted once
- * in the authenticated layout so its conversation survives page navigations.
+ * Floating, persistent agentic assistant. Mounted once in the authenticated
+ * layout so its conversation survives page navigations. Acts across whichever HR
+ * modules the signed-in user is permitted to use.
  */
-export function EmployeeAssistant() {
+export function Assistant() {
     const { can } = usePermissions();
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -70,50 +80,57 @@ export function EmployeeAssistant() {
         });
     };
 
-    if (!can('employees.view')) {
+    if (!ASSISTANT_PERMISSIONS.some((permission) => can(permission))) {
         return null;
     }
 
-    const applyEffects = (actions: AgentAction[]) => {
-        if (actions.length === 0) {
+    const applyEffects = (cards: AgentCard[]) => {
+        if (cards.length === 0) {
             return;
         }
 
-        for (const action of actions) {
-            const name = action.employee.full_name;
-            const verb =
-                action.type === 'created'
-                    ? 'added to the directory'
-                    : action.type === 'updated'
-                      ? 'updated'
-                      : 'archived';
+        for (const card of cards) {
+            const message = `${card.badge} · ${card.title}`;
 
-            if (action.type === 'archived') {
-                toast(`${name} ${verb}.`);
-            } else {
-                toast.success(`${name} ${verb}.`);
+            if (card.tone === 'positive') {
+                toast.success(message);
+            } else if (card.tone === 'danger' || card.tone === 'warning') {
+                toast(message);
+            } else if (card.kind !== 'find') {
+                toast(message);
             }
         }
 
-        // Reflect changes live if the user is on the employee directory.
-        if (window.location.pathname.startsWith('/employees')) {
-            router.reload({
-                only: ['employees', 'stats'],
-                onSuccess: () => {
-                    const highlight = actions.find(
-                        (a) => a.type !== 'archived',
-                    );
+        // Refresh whatever index the user is currently viewing so mutations show
+        // up live, and flash a freshly-touched employee row on the directory.
+        const mutated = cards.filter((card) => card.kind !== 'find');
 
-                    if (highlight) {
-                        window.dispatchEvent(
-                            new CustomEvent('nexo:employee-mutated', {
-                                detail: { id: highlight.employee.id },
-                            }),
-                        );
-                    }
-                },
-            });
+        if (mutated.length === 0) {
+            return;
         }
+
+        router.reload({
+            onSuccess: () => {
+                if (!window.location.pathname.startsWith('/employees')) {
+                    return;
+                }
+
+                const highlight = mutated.find(
+                    (card) =>
+                        card.module === 'employees' &&
+                        typeof card.id === 'number' &&
+                        (card.kind === 'add' || card.kind === 'edit'),
+                );
+
+                if (highlight) {
+                    window.dispatchEvent(
+                        new CustomEvent('nexo:employee-mutated', {
+                            detail: { id: highlight.id },
+                        }),
+                    );
+                }
+            },
+        });
     };
 
     const send = async () => {
@@ -275,8 +292,8 @@ function Header({ onClose }: { onClose: () => void }) {
                     Nexo Assistant
                 </p>
                 <p className="flex items-center gap-1 text-[11px] text-white/60">
-                    <UserCog className="size-3" />
-                    Employee management
+                    <Sparkles className="size-3" />
+                    Your HR copilot
                 </p>
             </div>
             <button
@@ -300,9 +317,9 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
             <div>
                 <p className="text-sm font-semibold">How can I help?</p>
                 <p className="mx-auto mt-1 max-w-[260px] text-xs text-muted-foreground">
-                    I can add, update, find or archive employees for you.
-                    Describe what you need, or drop in a CV and I'll take it
-                    from there.
+                    I can manage employees, leave, onboarding and recruitment
+                    for you. Describe what you need, or drop in a CV and I'll
+                    take it from there.
                 </p>
             </div>
             <div className="mt-1 flex flex-wrap justify-center gap-1.5">
@@ -384,8 +401,8 @@ function Thinking() {
     const labels = [
         'Thinking…',
         'Reading your request…',
-        'Checking the directory…',
         'Working on it…',
+        'Almost there…',
     ];
     const [index, setIndex] = useState(0);
 

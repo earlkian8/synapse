@@ -10,7 +10,8 @@ use RuntimeException;
  * endpoint. The API key lives in config (env) and never leaves the backend.
  *
  * Supports function-calling: pass `function_declarations` as tools and the
- * model may answer with `functionCall` parts that the caller executes.
+ * model may answer with `functionCall` parts that the caller executes, feeding
+ * the results back across a bounded multi-step loop.
  */
 class GeminiClient
 {
@@ -31,9 +32,9 @@ class GeminiClient
     /**
      * Run one generation turn.
      *
-     * @param  array<int, array<string, mixed>>  $contents       The conversation so far.
+     * @param  array<int, array<string, mixed>>  $contents  The conversation so far.
      * @param  array<int, array<string, mixed>>  $functionDeclarations  Tool schemas the model may call.
-     * @return array<string, mixed>  The decoded Gemini response.
+     * @return array<string, mixed> The decoded Gemini response.
      */
     public function generate(array $contents, array $functionDeclarations = [], ?string $systemInstruction = null): array
     {

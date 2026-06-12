@@ -1,24 +1,23 @@
 <?php
 
-namespace App\Http\Controllers\Employee;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Services\Employee\EmployeeAgent;
+use App\Services\Assistant\Assistant;
 use App\Support\Ai\GeminiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
 
 /**
- * JSON endpoint backing the floating Employee assistant. Runs entirely
- * server-side so the Gemini key is never exposed and every mutation is gated by
- * the same permissions as the manual UI.
+ * JSON endpoint backing the floating Nexo assistant. Runs entirely server-side
+ * so the Gemini key is never exposed, and every action it takes is gated by the
+ * same permissions as the manual UI (enforced inside each module).
  */
-class EmployeeAssistantController extends Controller
+class AssistantController extends Controller
 {
-    public function __invoke(Request $request, EmployeeAgent $agent): JsonResponse
+    public function __invoke(Request $request, Assistant $assistant): JsonResponse
     {
-        if (! $agent->configured()) {
+        if (! $assistant->configured()) {
             return response()->json([
                 'reply' => 'The assistant is not configured yet. Add a GEMINI_API_KEY to enable it.',
                 'steps' => [],
@@ -39,7 +38,7 @@ class EmployeeAssistantController extends Controller
 
         if ($message === '' && $files === []) {
             return response()->json([
-                'reply' => 'Tell me what you need — for example, “add a new employee” or attach one or more CVs.',
+                'reply' => 'Tell me what you need — for example, “file sick leave for Maria tomorrow”, “add a new employee”, or attach a CV.',
                 'steps' => [],
                 'actions' => [],
             ]);
@@ -55,7 +54,7 @@ class EmployeeAssistantController extends Controller
         }
 
         try {
-            $result = $agent->handle($request->user(), $message, $history, $fileParts);
+            $result = $assistant->handle($request->user(), $message, $history, $fileParts);
         } catch (GeminiException $e) {
             // Rate-limited / overloaded: show a calm, retryable message in-chat.
             if ($e->isBusy()) {

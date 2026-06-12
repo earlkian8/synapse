@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Employee\EmployeeAssistantController;
 use App\Http\Controllers\Employee\EmployeeBulkActionController;
 use App\Http\Controllers\Employee\EmployeeCertificationController;
 use App\Http\Controllers\Employee\EmployeeController;
@@ -21,7 +20,6 @@ Route::middleware(['auth', 'verified'])
         Route::get('/', [EmployeeController::class, 'index'])->middleware('can:employees.view')->name('index');
         Route::get('export', EmployeeExportController::class)->middleware('can:employees.export')->name('export');
         Route::post('bulk', EmployeeBulkActionController::class)->middleware('can:employees.view')->name('bulk');
-        Route::post('assistant', EmployeeAssistantController::class)->middleware('can:employees.view')->name('assistant');
         Route::post('/', [EmployeeController::class, 'store'])->middleware('can:employees.create')->name('store');
 
         Route::get('{employee}', [EmployeeController::class, 'show'])->middleware('can:employees.view')->name('show');
