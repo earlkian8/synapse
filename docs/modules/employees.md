@@ -2,7 +2,7 @@
 
 > Status: **Active** · Route prefix: `/employees` · Sidebar: Workforce → Employees
 
-The HR hub of STAFFA — the `employees` record that almost every operational
+The HR hub of NEXO — the `employees` record that almost every operational
 module (attendance, leave, payroll, performance, …) will reference. Built to the
 same ERP-grade pattern as [User Management](./user-management.md): stats cards,
 server-side filtered table, bulk actions, a sectioned create/edit drawer, and a

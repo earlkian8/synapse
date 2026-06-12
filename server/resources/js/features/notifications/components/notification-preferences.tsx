@@ -57,7 +57,7 @@ export function NotificationPreferencesPanel({ preferences, webPush }: Props) {
                     />
                 }
                 title="Desktop notifications"
-                description="Get push alerts on your desktop, even when STAFFA isn't open."
+                description="Get push alerts on your desktop, even when NEXO isn't open."
             >
                 <Switch
                     checked={preferences.push}

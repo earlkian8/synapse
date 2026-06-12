@@ -67,7 +67,7 @@ class LeaveSeeder extends Seeder
 
         // 2. A bit of demo activity for a handful of employees.
         $year = (int) now()->year;
-        $reviewer = User::where('email', 'dev@staffa.com')->first();
+        $reviewer = User::where('email', 'dev@nexo.com')->first();
         $employees = Employee::query()->inRandomOrder()->limit(6)->get();
 
         foreach ($employees as $i => $employee) {

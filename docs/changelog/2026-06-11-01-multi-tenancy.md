@@ -1,6 +1,6 @@
 # 2026-06-11 — Multi-tenancy (one organisation per registration)
 
-STAFFA becomes a multi-tenant SaaS: every registration creates an isolated
+NEXO becomes a multi-tenant SaaS: every registration creates an isolated
 **organisation**, and all business data is scoped to it. See
 [ADR 0005](../decisions/0005-multi-tenancy.md) and the
 [module doc](../modules/multi-tenancy.md).
@@ -58,6 +58,6 @@ and the full registration action verified there; HTTP smoke test (login/register
 ## ⚠️ Migration note
 
 Run `php artisan migrate`. Existing rows are folded into a **"Default Organization"**;
-the seeded `dev@staffa.com` account and all current data stay intact. New sign-ups via
+the seeded `dev@nexo.com` account and all current data stay intact. New sign-ups via
 `/register` each get their own organisation. No re-seed required, but
 `php artisan db:seed` remains idempotent against the demo tenant.

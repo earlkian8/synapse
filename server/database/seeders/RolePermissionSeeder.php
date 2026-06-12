@@ -37,7 +37,7 @@ class RolePermissionSeeder extends Seeder
         $superAdmin = OrganizationProvisioner::provisionRoles($organization);
 
         // 3. Grant the seeded developer account Super Admin.
-        User::where('email', 'dev@staffa.com')->first()
+        User::where('email', 'dev@nexo.com')->first()
             ?->roles()->syncWithoutDetaching([$superAdmin->id]);
     }
 }

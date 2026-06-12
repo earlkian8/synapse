@@ -29,7 +29,7 @@ entry point. It resolves an audience and fans a `SystemNotification` out to it,
 returning the recipient count.
 
 ```php
-Notifier::toUser($user, 'Welcome to STAFFA', 'Your account is ready.', url: '/dashboard', level: 'success');
+Notifier::toUser($user, 'Welcome to NEXO', 'Your account is ready.', url: '/dashboard', level: 'success');
 Notifier::toRole('hr-manager', 'Policy update', 'The 2026 leave policy is live.');
 Notifier::toAll('Maintenance tonight', 'The system will be down at 10pm.', level: 'warning');
 ```

@@ -7,7 +7,7 @@
 ## Context
 
 The starter `users` table carried a single `name` column and the minimum auth
-fields. STAFFA is an HR ERP where the user record is the backbone of employees,
+fields. NEXO is an HR ERP where the user record is the backbone of employees,
 payroll, recruitment, etc. We needed structured identity, HR profile data, and an
 administrative management surface — without losing data when an account leaves.
 

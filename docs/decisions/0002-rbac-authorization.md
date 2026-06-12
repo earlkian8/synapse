@@ -8,7 +8,7 @@
 ## Context
 
 User Management and Activity Logs shipped with **no authorization** — any
-authenticated, verified user could reach every action. STAFFA is an HR ERP with
+authenticated, verified user could reach every action. NEXO is an HR ERP with
 sensitive data (payroll, performance, PII), so access must be controlled per
 capability. We needed a model that is granular, easy to extend per module, and
 that the frontend can reflect without becoming the source of truth.
@@ -30,7 +30,7 @@ assigned roles. Effective permissions are the union across a user's roles.
      endpoints (bulk) call `Gate::authorize()` per action.
 
 3. **A protected `super-admin` role** bypasses all checks, cannot be edited, and
-   is granted to `dev@staffa.com` at seed time. `is_system` roles cannot be
+   is granted to `dev@nexo.com` at seed time. `is_system` roles cannot be
    deleted.
 
 4. **The schema mirrors `spatie/laravel-permission`** (`roles`, `permissions`,

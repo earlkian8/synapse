@@ -93,10 +93,10 @@ class SystemNotification extends Notification implements ShouldQueue
             ->line($this->body);
 
         if ($this->url) {
-            $mail->action('View in STAFFA', url($this->url));
+            $mail->action('View in NEXO', url($this->url));
         }
 
-        return $mail->salutation('— The STAFFA Team');
+        return $mail->salutation('— The NEXO Team');
     }
 
     /**

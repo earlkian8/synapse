@@ -86,7 +86,7 @@ class UserController extends Controller
         // Auto-notify the new account holder (in-app + email/push if enabled).
         Notifier::toUser(
             $user,
-            'Welcome to STAFFA',
+            'Welcome to NEXO',
             'Your account has been created. You can sign in and start exploring your workspace.',
             url: '/dashboard',
             level: 'success',

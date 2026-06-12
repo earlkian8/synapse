@@ -7,7 +7,7 @@
 
 ## Context
 
-STAFFA needs an **employee** entity — the HR record at the centre of attendance,
+NEXO needs an **employee** entity — the HR record at the centre of attendance,
 leave, payroll, performance, etc. It already has a **user** entity for
 authentication and RBAC. The pivotal modelling question (ERD open question #1):
 are these the same row, or two linked rows?

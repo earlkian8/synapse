@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "staffa/staffa",
+    "name": "nexo/nexo",
     "type": "project",
-    "description": "STAFFA — Intelligent HR Management for Philippine institutions.",
+    "description": "NEXO — Intelligent HR Management for Philippine institutions.",
     "keywords": [
         "laravel",
         "framework"

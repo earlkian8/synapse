@@ -1,6 +1,6 @@
 {
-    "name": "STAFFA",
-    "short_name": "STAFFA",
+    "name": "NEXO",
+    "short_name": "NEXO",
     "description": "Intelligent HR Management for Philippine institutions",
     "start_url": "/",
     "display": "standalone",
@@ -8,13 +8,13 @@
     "theme_color": "#0F2044",
     "icons": [
         {
-            "src": "/staffa-logo-white-background.png",
+            "src": "/nexo-logo-white-background.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/staffa-logo-transparent.png",
+            "src": "/nexo-logo-transparent.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
