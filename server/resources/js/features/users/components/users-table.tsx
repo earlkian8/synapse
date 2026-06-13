@@ -1,4 +1,10 @@
-import { ArrowDown, ArrowUp, ChevronsUpDown, ShieldCheck, Users2 } from 'lucide-react';
+import {
+    ArrowDown,
+    ArrowUp,
+    ChevronsUpDown,
+    ShieldCheck,
+    Users2,
+} from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
@@ -19,6 +25,7 @@ type RowHandlers = {
     onEdit: (user: ManagedUser) => void;
     onToggleStatus: (user: ManagedUser) => void;
     onResetPassword: (user: ManagedUser) => void;
+    onResendVerification: (user: ManagedUser) => void;
     onArchive: (user: ManagedUser) => void;
     onRestore: (user: ManagedUser) => void;
     onDelete: (user: ManagedUser) => void;
@@ -61,24 +68,42 @@ export function UsersTable({
                                           ? 'indeterminate'
                                           : false
                                 }
-                                onCheckedChange={(value) => onToggleAll(value === true)}
+                                onCheckedChange={(value) =>
+                                    onToggleAll(value === true)
+                                }
                                 aria-label="Select all"
                             />
                         </TableHead>
-                        <SortHeader column="first_name" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="first_name"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             User
                         </SortHeader>
-                        <SortHeader column="employee_id" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="employee_id"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             Employee ID
                         </SortHeader>
                         <TableHead>Phone</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Roles</TableHead>
                         <TableHead>Security</TableHead>
-                        <SortHeader column="last_login_at" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="last_login_at"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             Last login
                         </SortHeader>
-                        <SortHeader column="created_at" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="created_at"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             Joined
                         </SortHeader>
                         <TableHead className="w-10 pr-4" />
@@ -92,10 +117,12 @@ export function UsersTable({
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <Users2 className="size-6 text-muted-foreground" />
                                     </span>
-                                    <p className="text-sm font-medium">No users found</p>
+                                    <p className="text-sm font-medium">
+                                        No users found
+                                    </p>
                                     <p className="max-w-xs text-sm text-muted-foreground">
-                                        Try adjusting your search or filters, or add a
-                                        new user to get started.
+                                        Try adjusting your search or filters, or
+                                        add a new user to get started.
                                     </p>
                                 </div>
                             </TableCell>
@@ -142,7 +169,9 @@ export function UsersTable({
                                             {user.employee_id}
                                         </span>
                                     ) : (
-                                        <span className="text-muted-foreground">—</span>
+                                        <span className="text-muted-foreground">
+                                            —
+                                        </span>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
@@ -154,14 +183,16 @@ export function UsersTable({
                                 <TableCell>
                                     {user.roles.length > 0 ? (
                                         <div className="flex flex-wrap gap-1">
-                                            {user.roles.slice(0, 2).map((role) => (
-                                                <span
-                                                    key={role.id}
-                                                    className="inline-flex items-center rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2 py-0.5 text-[11px] font-medium text-[#0ABFBF]"
-                                                >
-                                                    {role.label}
-                                                </span>
-                                            ))}
+                                            {user.roles
+                                                .slice(0, 2)
+                                                .map((role) => (
+                                                    <span
+                                                        key={role.id}
+                                                        className="inline-flex items-center rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2 py-0.5 text-[11px] font-medium text-[#0ABFBF]"
+                                                    >
+                                                        {role.label}
+                                                    </span>
+                                                ))}
                                             {user.roles.length > 2 && (
                                                 <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                                                     +{user.roles.length - 2}
@@ -205,7 +236,11 @@ export function UsersTable({
                                     {user.created_human ?? '—'}
                                 </TableCell>
                                 <TableCell className="pr-4 text-right">
-                                    <UserRowActions user={user} can={can} {...handlers} />
+                                    <UserRowActions
+                                        user={user}
+                                        can={can}
+                                        {...handlers}
+                                    />
                                 </TableCell>
                             </TableRow>
                         );

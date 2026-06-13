@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -16,6 +18,9 @@ function loginAsAdmin(): User
 
 beforeEach(function () {
     loginAsAdmin();
+    // Creating/updating users now fans out verification + welcome notifications;
+    // fake them so tests neither hit the mailer nor leak across cases.
+    Notification::fake();
 });
 
 // ── Listing ─────────────────────────────────────────────────────────────────
@@ -118,17 +123,18 @@ test('it rejects a duplicate email on create', function () {
     ])->assertSessionHasErrors('email');
 });
 
-test('it can mark a new user as verified', function () {
+test('it creates new users unverified and emails a confirmation link', function () {
     $this->post(route('system.users.store'), [
         'first_name' => 'Veri',
         'last_name' => 'Fied',
         'email' => 'veri.fied@example.com',
         'is_active' => true,
-        'email_verified' => true,
     ])->assertSessionHasNoErrors();
 
-    expect(User::where('email', 'veri.fied@example.com')->first()->email_verified_at)
-        ->not->toBeNull();
+    $user = User::where('email', 'veri.fied@example.com')->first();
+
+    expect($user->email_verified_at)->toBeNull();
+    Notification::assertSentTo($user, VerifyEmail::class);
 });
 
 test('it stores an uploaded profile photo', function () {
@@ -163,26 +169,52 @@ test('it updates a user', function () {
     expect($user->fresh()->first_name)->toBe('Updated');
 });
 
-test('it verifies and unverifies a user on update', function () {
+test('changing a user email resets verification and resends the link', function () {
+    $user = User::factory()->create(); // verified by default
+
+    $this->patch(route('system.users.update', $user), [
+        'first_name' => $user->first_name,
+        'last_name' => $user->last_name,
+        'email' => 'changed.address@example.com',
+        'is_active' => true,
+    ])->assertSessionHasNoErrors();
+
+    $fresh = $user->fresh();
+
+    expect($fresh->email)->toBe('changed.address@example.com')
+        ->and($fresh->email_verified_at)->toBeNull();
+    Notification::assertSentTo($fresh, VerifyEmail::class);
+});
+
+test('updating a user without changing the email keeps verification', function () {
+    $user = User::factory()->create(); // verified by default
+
+    $this->patch(route('system.users.update', $user), [
+        'first_name' => 'Updated',
+        'last_name' => $user->last_name,
+        'email' => $user->email,
+        'is_active' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->email_verified_at)->not->toBeNull();
+    Notification::assertNothingSent();
+});
+
+test('it resends the verification link to an unverified user', function () {
     $user = User::factory()->unverified()->create();
 
-    $this->patch(route('system.users.update', $user), [
-        'first_name' => $user->first_name,
-        'last_name' => $user->last_name,
-        'email' => $user->email,
-        'is_active' => true,
-        'email_verified' => true,
-    ])->assertSessionHasNoErrors();
-    expect($user->fresh()->email_verified_at)->not->toBeNull();
+    $this->post(route('system.users.resend-verification', $user))
+        ->assertSessionHasNoErrors();
 
-    $this->patch(route('system.users.update', $user), [
-        'first_name' => $user->first_name,
-        'last_name' => $user->last_name,
-        'email' => $user->email,
-        'is_active' => true,
-        'email_verified' => false,
-    ]);
-    expect($user->fresh()->email_verified_at)->toBeNull();
+    Notification::assertSentTo($user, VerifyEmail::class);
+});
+
+test('it will not resend verification to an already-verified user', function () {
+    $user = User::factory()->create(); // verified by default
+
+    $this->post(route('system.users.resend-verification', $user));
+
+    Notification::assertNothingSent();
 });
 
 // ── Status ──────────────────────────────────────────────────────────────────

@@ -24,7 +24,6 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
             'phone_number' => ['nullable', 'string', 'max:32'],
             'is_active' => ['required', 'boolean'],
-            'email_verified' => ['boolean'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'roles' => ['array'],
@@ -39,7 +38,6 @@ class StoreUserRequest extends FormRequest
     {
         $this->merge([
             'is_active' => $this->boolean('is_active'),
-            'email_verified' => $this->boolean('email_verified'),
         ]);
     }
 }

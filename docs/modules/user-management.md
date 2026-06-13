@@ -15,7 +15,7 @@ acting administrator is protected from locking themselves out.
 | --- | --- |
 | **Listing** | Server-side search, status filter, column sorting, pagination (10–100 / page). |
 | **Stats** | Live headline cards: total, active, inactive, unverified, new-this-month, archived. |
-| **Create / Edit** | Slide-over form with sectioned layout, inline validation, **profile photo upload** (preview + remove), **email-verified toggle**, optional password (invite-later flow) + secure password generator. |
+| **Create / Edit** | Slide-over form with sectioned layout, inline validation, **profile photo upload** (preview + remove), optional password (invite-later flow) + secure password generator. A **confirmation email** is sent on create and whenever the email changes. |
 | **View** | Read-only profile drawer (contact, security, activity). |
 | **Per-row actions** | View, edit, activate/deactivate, reset password, archive, restore, delete permanently. |
 | **Bulk actions** | Activate, deactivate, archive (active scope); restore, delete (archived scope). |
@@ -39,6 +39,7 @@ middleware `['auth', 'verified']` and name prefix `system.users.*`.
 | GET | `/system/users/export` | `export` | `UserExportController` | CSV of filtered users. |
 | POST | `/system/users/bulk` | `bulk` | `UserBulkActionController` | Batch action over IDs. |
 | PATCH | `/system/users/{user}` | `update` | `UserController@update` | Update a user. |
+| POST | `/system/users/{user}/resend-verification` | `resend-verification` | `UserController@resendVerification` | Resend the email-confirmation link. |
 | DELETE | `/system/users/{user}` | `destroy` | `UserController@destroy` | Archive (soft delete). |
 | PATCH | `/system/users/{user}/status` | `status` | `UserStatusController@update` | Activate / deactivate. |
 | PUT | `/system/users/{user}/password` | `password` | `UserPasswordController@update` | Admin password reset. |
@@ -182,12 +183,42 @@ this module: `first_name`, `middle_name`, `last_name`, `suffix`, `email`,
 `profile_photo`, `last_login_at`, `password_changed_at`, `deleted_at` (archive).
 
 **Form coverage:** the create/edit form edits name parts, email, phone, active
-state, email-verification, and the profile photo. `employee_id` is **displayed**
-(table + detail drawer) but is not set through this form — it is provisioned by the
-HR/employee module. Profile photos are stored on the `public` disk under
-`profile-photos/` (requires `php artisan storage:link`); `UserResource` returns a
-full URL. The `email_verified` toggle writes `email_verified_at` and is authoritative
-on update (it overrides the usual "email changed ⇒ re-verify" reset).
+state, and the profile photo. `employee_id` is **displayed** (table + detail drawer)
+but is not set through this form — it is provisioned by the HR/employee module.
+Profile photos are stored on the `public` disk under `profile-photos/` (requires
+`php artisan storage:link`); `UserResource` returns a full URL. The form has **no**
+"mark verified" control — verification is proven by the user via the emailed link
+(see below).
+
+---
+
+## 5a. Email verification (confirmation)
+
+The model implements `Illuminate\Contracts\Auth\MustVerifyEmail`, so the existing
+`verified` middleware **enforces** confirmation: an unverified user is bounced to
+the verification notice page and cannot use the app until they click the link.
+
+- **On create** the new account starts unverified and a branded confirmation email
+  is sent to its address.
+- **On email change** the account is reset to unverified and a fresh link is sent to
+  the new address.
+- **Resend** — `UserController@resendVerification` (per-row action + a button in the
+  detail drawer, shown only for unverified accounts) re-issues the link; gated by
+  `users.update`.
+- There is **no admin bypass** — ownership must be proven via the email. A backfill
+  migration (`…_backfill_email_verified_at_for_existing_users`) marks every account
+  that existed when the feature shipped as verified, so enforcement applies only to
+  new/re-emailed accounts and nobody is locked out.
+
+The verification link, the `Registered`-event auto-send (registration), and Fortify's
+resend endpoint are the framework standards — we only **brand** the email, in
+`AppServiceProvider` via `VerifyEmail::toMailUsing()`. It is sent **synchronously**
+(not queued) so delivery never depends on a running queue worker — a silently dropped
+email would lock the user out. Transport failures are caught so a mail outage can't
+break the create/update itself; the admin sees a warning toast and can resend.
+
+Delivery uses the app's default mailer — **Brevo** over SMTP (`smtp-relay.brevo.com`),
+configured in `.env` (`MAIL_*`).
 
 ---
 

@@ -13,6 +13,8 @@ use App\Support\PermissionRegistry;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -56,7 +58,31 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureAuthorization();
+        $this->configureEmailVerification();
         $this->recordLastLogin();
+    }
+
+    /**
+     * Brand the email-verification ("confirm your address") message.
+     *
+     * We customise the standard {@see VerifyEmail} notification in place rather
+     * than swapping in a subclass, so the framework's verification flow — the
+     * signed link, the `Registered` listener, Fortify's resend endpoint — keeps
+     * working untouched. Delivery rides the app's default mailer (Brevo SMTP).
+     */
+    protected function configureEmailVerification(): void
+    {
+        VerifyEmail::toMailUsing(function (object $notifiable, string $url): MailMessage {
+            $app = config('app.name');
+
+            return (new MailMessage)
+                ->subject("Verify your email address — {$app}")
+                ->greeting("Welcome to {$app}!")
+                ->line('Please confirm your email address to activate your account and start using your workspace.')
+                ->action('Verify email address', $url)
+                ->line('This link expires in '.config('auth.verification.expire', 60).' minutes. If you didn’t expect this email, you can safely ignore it.')
+                ->salutation("— The {$app} Team");
+        });
     }
 
     /**

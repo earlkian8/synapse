@@ -106,6 +106,14 @@ export default function UsersIndex() {
         setPasswordOpen(true);
     };
 
+    const resendVerification = (user: ManagedUser) => {
+        router.post(
+            userRoutes.resendVerification(user.id),
+            {},
+            { preserveScroll: true },
+        );
+    };
+
     // Guard the destructive self-actions on the client for instant feedback.
     // The backend enforces the same rules as defense-in-depth.
     const isSelf = (user: ManagedUser) => user.id === currentUserId;
@@ -137,7 +145,8 @@ export default function UsersIndex() {
                 'The account will be deactivated and hidden from the main list. You can restore it later from the Archived filter.',
             confirmLabel: 'Archive user',
             destructive: true,
-            run: () => router.delete(userRoutes.destroy(user.id), withProcessing),
+            run: () =>
+                router.delete(userRoutes.destroy(user.id), withProcessing),
         });
     };
 
@@ -213,7 +222,9 @@ export default function UsersIndex() {
 
     const toggleRow = (id: number, checked: boolean) =>
         setSelected((current) =>
-            checked ? [...current, id] : current.filter((value) => value !== id),
+            checked
+                ? [...current, id]
+                : current.filter((value) => value !== id),
         );
 
     return (
@@ -266,6 +277,7 @@ export default function UsersIndex() {
                         onEdit={openEdit}
                         onToggleStatus={toggleStatus}
                         onResetPassword={openResetPassword}
+                        onResendVerification={resendVerification}
                         onArchive={archive}
                         onRestore={restore}
                         onDelete={remove}
@@ -293,6 +305,7 @@ export default function UsersIndex() {
                 open={detailOpen}
                 onOpenChange={setDetailOpen}
                 onEdit={openEdit}
+                onResendVerification={resendVerification}
             />
 
             <ResetPasswordDialog

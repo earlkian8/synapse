@@ -27,6 +27,7 @@ Route::middleware(['auth', 'verified'])
             Route::get('export', UserExportController::class)->middleware('can:users.export')->name('export');
             Route::post('bulk', UserBulkActionController::class)->middleware('can:users.view')->name('bulk');
             Route::patch('{user}', [UserController::class, 'update'])->middleware('can:users.update')->name('update');
+            Route::post('{user}/resend-verification', [UserController::class, 'resendVerification'])->middleware('can:users.update')->name('resend-verification');
             Route::delete('{user}', [UserController::class, 'destroy'])->middleware('can:users.delete')->name('destroy');
             Route::patch('{user}/status', [UserStatusController::class, 'update'])->middleware('can:users.manage-status')->name('status');
             Route::put('{user}/password', [UserPasswordController::class, 'update'])->middleware('can:users.reset-password')->name('password');
