@@ -16,7 +16,7 @@ role, or everyone, and each recipient controls which channels reach them.
 | **In-app centre** | `/notifications` page: filter (all / unread), mark one/all read, delete one, clear all, pagination. |
 | **Header bell** | Live-ish unread badge + recent list, shared on every page and polled every 30s. Click marks read and follows the link. |
 | **Compose / broadcast** | Permitted users send a notification to **everyone**, **a role**, or **one person**, with a title, body, importance level, and optional deep link. |
-| **Channels** | In-app (always), **email** (Brevo SMTP), **web push** (VAPID). Email & push are queued so they never block the request. |
+| **Channels** | In-app (always), **email** (Brevo SMTP), **web push** (VAPID). All delivered synchronously — no queue worker required. |
 | **Preferences** | Each user toggles email and push; web push additionally requires a per-device opt-in (browser permission + subscription). |
 | **Auto-notifications** | Emitted by other modules — e.g. a new user gets a welcome; granting a role notifies that user. |
 
@@ -45,15 +45,24 @@ Notifier::toAll('Maintenance tonight', 'The system will be down at 10pm.', level
 
 | Channel | Sent when | Notes |
 | --- | --- | --- |
-| `database` | always | Powers the bell + centre. Written **synchronously** (see below). |
+| `database` | always | Powers the bell + centre. Written **synchronously**. |
 | `mail` | `email_notifications` is on **and** the user has an email | Rendered as a `MailMessage`; delivered via Brevo SMTP. |
-| `WebPushChannel` | `push_notifications` is on **and** ≥1 push subscription exists | Encrypted payload sent to the browser's push service. |
+| `SafeWebPushChannel` | `push_notifications` is on **and** ≥1 push subscription exists | Encrypted payload sent to the browser's push service, best-effort (see below). |
 
-`SystemNotification` implements `ShouldQueue`, so email and web push run on the
-queue. But `viaConnections()` pins the `database` channel to the `sync`
-connection, so **the in-app row is written immediately** — the bell updates even
-if no queue worker is running. Email/push wait for the worker (`php artisan
-queue:work`, already part of `composer dev`).
+`SystemNotification` implements `ShouldQueue`, but `viaConnections()` pins
+**every** channel — `database`, `mail`, and web push — to the `sync` connection,
+so all three are delivered **inline on the request**. Delivery never waits on a
+queue worker, so email arrives whether the app is run with `composer dev` or a
+bare `php artisan serve`. (Trade-off: a broadcast to "everyone" runs N sends
+inline; acceptable at this scale.)
+
+Web push is wrapped by `App\Notifications\Channels\SafeWebPushChannel`: signing a
+VAPID token needs working EC crypto, and a PHP build that can't do it (e.g. a
+local Windows install with `OPENSSL_CONF` unset or no `gmp` extension) would
+otherwise throw and abort the whole notification. The wrapper catches that,
+**logs a warning, and lets the in-app + email channels through**. Push therefore
+won't deliver on such a machine until `OPENSSL_CONF`/`gmp` is fixed, but it never
+breaks sending.
 
 ---
 
@@ -146,7 +155,7 @@ event and focuses/open the deep link on click.
    key is exposed to the page so the browser can subscribe.
 3. On the notifications page, **Enable** registers `sw.js`, requests the browser
    permission, subscribes via the Push API, and POSTs the subscription to
-   `subscriptions.store`. The server then delivers via `WebPushChannel`.
+   `subscriptions.store`. The server then delivers via `SafeWebPushChannel`.
 
 > Web push requires HTTPS (or `localhost`) and a user gesture to grant
 > permission. It is independent per browser/device — the user opts in on each.
@@ -156,8 +165,11 @@ event and focuses/open the deep link on click.
 ## 9. Email setup
 
 Email uses SMTP (Brevo) configured in `.env` (`MAIL_MAILER=smtp`,
-`MAIL_HOST=smtp-relay.brevo.com`, …). Because `SystemNotification` is queued,
-emails are sent by the queue worker, not during the web request.
+`MAIL_HOST=smtp-relay.brevo.com`, …). Email is delivered **synchronously during
+the web request** (no queue worker needed) — so if a notification's recipients
+have `email_notifications` on and a valid address, the message goes out
+immediately. If mail isn't arriving, check the `.env` SMTP credentials and the
+Brevo sender/domain verification, not the queue.
 
 ---
 

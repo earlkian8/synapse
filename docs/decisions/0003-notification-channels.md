@@ -1,9 +1,20 @@
 # 0003 — Notification delivery & channels
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-06-14)
 - **Date:** 2026-06-10
 - **Supersedes:** —
 - **Related:** [Notifications module](../modules/notifications.md), [0002 — RBAC](./0002-rbac-authorization.md)
+
+> **Amendment (2026-06-14) — synchronous delivery.** Email and push are no longer
+> queued: `viaConnections()` now pins **every** channel to the `sync` connection,
+> so delivery never depends on a running queue worker. In practice the app is
+> often served locally with a bare `php artisan serve` (no `queue:work`), and a
+> queued email that silently never sends is worse than a marginally slower
+> request — the same reasoning already applied to the verification email. Web
+> push is delivered through a best-effort wrapper, `SafeWebPushChannel`, so a
+> platform that can't sign VAPID (e.g. a local PHP with `OPENSSL_CONF` unset /
+> no `gmp`) logs a warning instead of failing the send. Points 2–3 and the
+> consequences below are updated accordingly.
 
 ## Context
 
@@ -23,14 +34,16 @@ a thin façade.
    call site other modules use — mirroring `ActivityLogger`.
 
 2. **Three channels, preference-gated.** `via()` returns `database` always, plus
-   `mail` and/or `WebPushChannel` based on the recipient's `email_notifications`
+   `mail` and/or `SafeWebPushChannel` based on the recipient's `email_notifications`
    / `push_notifications` flags (and, for push, an existing subscription).
 
-3. **Instant in-app, async email/push.** The notification is `ShouldQueue`, but
-   `viaConnections()` pins `database` to the `sync` connection. The bell updates
-   synchronously while email and push are queued — so the in-app experience never
-   depends on a running worker, and a broadcast to "everyone" never blocks the
-   request on N emails.
+3. **Synchronous, worker-independent delivery.** The notification stays
+   `ShouldQueue`, but `viaConnections()` pins **every** channel — `database`,
+   `mail`, and the web-push channel — to the `sync` connection, so all three are
+   delivered inline on the request. Nothing waits on `php artisan queue:work`.
+   (Originally email/push were queued; see the 2026-06-14 amendment for why that
+   was reversed.) The trade-off — a broadcast to "everyone" runs N sends inline —
+   is acceptable at this scale and can be revisited with a real worker later.
 
 4. **In-app store = Laravel's `notifications` table.** Rich fields live in the
    JSON `data` column; `read_at` drives unread state. No custom table — the
@@ -65,8 +78,14 @@ a thin façade.
   choice; in-app is instant and worker-independent; email/push scale off the
   request path; a clean migration path to WebSockets later.
 - **Negative / watch-outs:**
-  - Email and push require a **queue worker** (`php artisan queue:work`); without
-    one those channels sit in the `jobs` table.
+  - Delivery is synchronous, so a large broadcast runs N email/push sends inline
+    on the request. Fine at the current scale; revisit (re-queue with a running
+    worker) if "everyone" broadcasts grow large or SMTP gets slow.
   - Web push needs **HTTPS** (or localhost) and per-device permission; the VAPID
     keys in `.env` must be stable (rotating them invalidates subscriptions).
+  - Signing VAPID needs working EC crypto. A local PHP with `OPENSSL_CONF` unset
+    or no `gmp` extension can't, so push **won't actually deliver there** —
+    `SafeWebPushChannel` degrades it to a logged warning (point in-app + email
+    still work). Set `OPENSSL_CONF` to a valid `openssl.cnf` / enable `gmp` to
+    deliver push locally; the deployed (Linux) environment is unaffected.
   - The shared bell payload costs ~2 light queries per Inertia response.
