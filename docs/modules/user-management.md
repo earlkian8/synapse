@@ -83,8 +83,9 @@ server/app/
 1. Applies the **status** scope (`active`, `inactive`, `unverified`, `archived`, or `all`).
    `archived` switches the query to `onlyTrashed()`.
 2. Applies **search** via the `User::scopeSearch()` model scope — a case-insensitive
-   `lower(col) LIKE %term%` across `first_name, middle_name, last_name, suffix, email,
-   employee_id, phone_number` (portable across Postgres and SQLite).
+   `col ILIKE %term%` across `first_name, middle_name, last_name, suffix, email,
+   employee_id, phone_number` (Postgres' native `ILIKE`, falling back to `LIKE` on
+   SQLite — whose `LIKE` is already case-insensitive — so the test suite stays portable).
 3. Applies a whitelisted **sort** column + direction, with `id desc` as a stable tiebreaker.
 4. Paginates with `withQueryString()` so filters survive page changes.
 

@@ -88,11 +88,12 @@ class Applicant extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function (Builder $query) use ($needle) {
+        $query->where(function (Builder $query) use ($needle, $like) {
             foreach (['first_name', 'last_name', 'email', 'headline'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
         });
     }

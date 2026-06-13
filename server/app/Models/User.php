@@ -139,11 +139,12 @@ class User extends Authenticatable implements PasskeyUser
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function ($query) use ($needle) {
+        $query->where(function ($query) use ($needle, $like) {
             foreach (['first_name', 'middle_name', 'last_name', 'suffix', 'email', 'employee_id', 'phone_number'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
         });
     }

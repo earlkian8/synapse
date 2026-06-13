@@ -241,11 +241,12 @@ class Employee extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function (Builder $query) use ($needle) {
+        $query->where(function (Builder $query) use ($needle, $like) {
             foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'email', 'phone'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
         });
     }

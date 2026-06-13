@@ -76,16 +76,17 @@ class ActivityLog extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function ($query) use ($needle) {
+        $query->where(function ($query) use ($needle, $like) {
             foreach (['description', 'event', 'ip_address', 'subject_label'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
 
-            $query->orWhereHas('causer', function ($causer) use ($needle) {
+            $query->orWhereHas('causer', function ($causer) use ($needle, $like) {
                 foreach (['first_name', 'last_name', 'email'] as $column) {
-                    $causer->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                    $causer->orWhere($column, $like, $needle);
                 }
             });
         });
