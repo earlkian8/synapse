@@ -9,6 +9,7 @@ use App\Http\Controllers\Notification\PushSubscriptionController;
 use App\Http\Controllers\RolePermission\RoleBulkActionController;
 use App\Http\Controllers\RolePermission\RoleController;
 use App\Http\Controllers\RolePermission\RoleExportController;
+use App\Http\Controllers\System\TrashController;
 use App\Http\Controllers\UserManagement\UserBulkActionController;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Http\Controllers\UserManagement\UserExportController;
@@ -56,6 +57,17 @@ Route::middleware(['auth', 'verified'])
             Route::put('preferences', [NotificationPreferenceController::class, 'update'])->name('preferences');
             Route::post('subscriptions', [PushSubscriptionController::class, 'store'])->name('subscriptions.store');
             Route::delete('subscriptions', [PushSubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+        });
+
+        // Trash Bin — archived records across modules. Visibility + each action
+        // are authorised per item type inside the controller (RBAC by owning
+        // module), so no static `can:` middleware fits here.
+        Route::prefix('trash')->name('trash.')->group(function () {
+            Route::get('/', [TrashController::class, 'index'])->name('index');
+            Route::post('restore', [TrashController::class, 'restore'])->name('restore');
+            Route::post('force-delete', [TrashController::class, 'forceDelete'])->name('force-delete');
+            Route::post('bulk', [TrashController::class, 'bulk'])->name('bulk');
+            Route::post('empty', [TrashController::class, 'empty'])->name('empty');
         });
 
         // Activity Logs

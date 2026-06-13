@@ -26,6 +26,7 @@ import {
     Settings,
     ShieldCheck,
     Target,
+    Trash2,
     TrendingDown,
     Trophy,
     UserCog,
@@ -70,7 +71,12 @@ const talentNavItems: GatedNavItem[] = [
 ];
 
 const workforceNavItems: GatedNavItem[] = [
-    { title: 'Employees', href: '/employees', icon: Users, permission: 'employees.view' },
+    {
+        title: 'Employees',
+        href: '/employees',
+        icon: Users,
+        permission: 'employees.view',
+    },
     { title: 'Departments', href: '/departments', icon: Building2 },
     { title: 'Attendance', href: '/attendance', icon: CalendarCheck },
     {
@@ -80,7 +86,11 @@ const workforceNavItems: GatedNavItem[] = [
         permission: 'leave.view',
     },
     { title: 'Payroll', href: '/payroll', icon: Wallet },
-    { title: 'Benefits Administration', href: '/benefits', icon: HeartHandshake },
+    {
+        title: 'Benefits Administration',
+        href: '/benefits',
+        icon: HeartHandshake,
+    },
     { title: 'Performance Management', href: '/performance', icon: Gauge },
     { title: 'Training & Development', href: '/training', icon: GraduationCap },
     { title: 'Awards & Recognition', href: '/awards', icon: Award },
@@ -92,16 +102,36 @@ const offboardingNavItems: NavItem[] = [
 ];
 
 const analyticsNavItems: NavItem[] = [
-    { title: 'Workforce Dashboard', href: '/analytics/workforce', icon: LayoutDashboard },
-    { title: 'Attrition Predictions', href: '/analytics/attrition', icon: TrendingDown },
-    { title: 'Performance Forecast', href: '/analytics/performance-forecast', icon: LineChart },
-    { title: 'Promotion Readiness', href: '/analytics/promotion-readiness', icon: Medal },
+    {
+        title: 'Workforce Dashboard',
+        href: '/analytics/workforce',
+        icon: LayoutDashboard,
+    },
+    {
+        title: 'Attrition Predictions',
+        href: '/analytics/attrition',
+        icon: TrendingDown,
+    },
+    {
+        title: 'Performance Forecast',
+        href: '/analytics/performance-forecast',
+        icon: LineChart,
+    },
+    {
+        title: 'Promotion Readiness',
+        href: '/analytics/promotion-readiness',
+        icon: Medal,
+    },
     { title: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
 const assistantNavItems: NavItem[] = [
     { title: 'HR Assistant', href: '/assistant', icon: Bot },
-    { title: 'Document Processor', href: '/assistant/documents', icon: FileScan },
+    {
+        title: 'Document Processor',
+        href: '/assistant/documents',
+        icon: FileScan,
+    },
 ];
 
 const companySetupNavItems: GatedNavItem[] = [
@@ -112,7 +142,11 @@ const companySetupNavItems: GatedNavItem[] = [
         icon: Network,
         permission: 'setup.departments.view',
     },
-    { title: 'Work Schedule & Holidays', href: '/setup/schedule', icon: CalendarClock },
+    {
+        title: 'Work Schedule & Holidays',
+        href: '/setup/schedule',
+        icon: CalendarClock,
+    },
     {
         title: 'Leave Types',
         href: '/setup/leave-types',
@@ -122,38 +156,72 @@ const companySetupNavItems: GatedNavItem[] = [
     { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
     { title: 'KPI & Evaluation Criteria', href: '/setup/kpi', icon: Target },
     { title: 'Payroll Configuration', href: '/setup/payroll', icon: Settings },
-    { title: 'Email & Notifications', href: '/setup/notifications', icon: Mail },
+    {
+        title: 'Email & Notifications',
+        href: '/setup/notifications',
+        icon: Mail,
+    },
 ];
 
-type GatedNavItem = NavItem & { permission?: string };
+type GatedNavItem = NavItem & {
+    permission?: string;
+    permissionAny?: string[];
+};
 
 const systemNavItems: GatedNavItem[] = [
     { title: 'Notifications', href: '/system/notifications', icon: Bell },
-    { title: 'User Management', href: '/system/users', icon: UserCog, permission: 'users.view' },
-    { title: 'Roles & Permissions', href: '/system/roles', icon: ShieldCheck, permission: 'roles.view' },
-    { title: 'Activity Logs', href: '/system/activity-logs', icon: ScrollText, permission: 'activity-logs.view' },
-    { title: 'Data Backup & Export', href: '/system/backup', icon: DatabaseBackup },
+    {
+        title: 'User Management',
+        href: '/system/users',
+        icon: UserCog,
+        permission: 'users.view',
+    },
+    {
+        title: 'Roles & Permissions',
+        href: '/system/roles',
+        icon: ShieldCheck,
+        permission: 'roles.view',
+    },
+    {
+        title: 'Activity Logs',
+        href: '/system/activity-logs',
+        icon: ScrollText,
+        permission: 'activity-logs.view',
+    },
+    {
+        title: 'Trash Bin',
+        href: '/system/trash',
+        icon: Trash2,
+        // Visible to anyone who can view at least one archivable record type.
+        permissionAny: [
+            'users.view',
+            'employees.view',
+            'setup.departments.view',
+            'setup.leave-types.view',
+        ],
+    },
+    {
+        title: 'Data Backup & Export',
+        href: '/system/backup',
+        icon: DatabaseBackup,
+    },
 ];
 
 export function AppSidebar() {
     const { auth } = usePage().props;
-    const { can } = usePermissions();
+    const { can, canAny } = usePermissions();
 
-    const visibleSystemNavItems = systemNavItems.filter(
-        (item) => !item.permission || can(item.permission),
-    );
+    const isVisible = (item: GatedNavItem): boolean =>
+        (!item.permission || can(item.permission)) &&
+        (!item.permissionAny || canAny(...item.permissionAny));
 
-    const visibleWorkforceNavItems = workforceNavItems.filter(
-        (item) => !item.permission || can(item.permission),
-    );
+    const visibleSystemNavItems = systemNavItems.filter(isVisible);
 
-    const visibleTalentNavItems = talentNavItems.filter(
-        (item) => !item.permission || can(item.permission),
-    );
+    const visibleWorkforceNavItems = workforceNavItems.filter(isVisible);
 
-    const visibleCompanySetupNavItems = companySetupNavItems.filter(
-        (item) => !item.permission || can(item.permission),
-    );
+    const visibleTalentNavItems = talentNavItems.filter(isVisible);
+
+    const visibleCompanySetupNavItems = companySetupNavItems.filter(isVisible);
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -194,7 +262,7 @@ export function AppSidebar() {
                     badge={
                         <Badge
                             variant="outline"
-                            className="ml-auto border-[#0ABFBF]/40 bg-[#0ABFBF]/10 text-[#0ABFBF] text-[9px] tracking-wider px-1.5 py-0 h-4 rounded-full font-semibold group-data-[collapsible=icon]:hidden"
+                            className="ml-auto h-4 rounded-full border-[#0ABFBF]/40 bg-[#0ABFBF]/10 px-1.5 py-0 text-[9px] font-semibold tracking-wider text-[#0ABFBF] group-data-[collapsible=icon]:hidden"
                         >
                             AI
                         </Badge>
@@ -208,7 +276,7 @@ export function AppSidebar() {
                     badge={
                         <Badge
                             variant="outline"
-                            className="ml-auto border-[#0ABFBF]/40 bg-[#0ABFBF]/10 text-[#0ABFBF] text-[9px] tracking-wider px-1.5 py-0 h-4 rounded-full font-semibold group-data-[collapsible=icon]:hidden"
+                            className="ml-auto h-4 rounded-full border-[#0ABFBF]/40 bg-[#0ABFBF]/10 px-1.5 py-0 text-[9px] font-semibold tracking-wider text-[#0ABFBF] group-data-[collapsible=icon]:hidden"
                         >
                             AI
                         </Badge>
