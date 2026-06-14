@@ -1,10 +1,12 @@
 import {
     KanbanSquare,
+    Link2,
     MoreHorizontal,
     Pencil,
     SlidersHorizontal,
     Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -37,6 +39,17 @@ export function PostingRowActions({
     onStatus,
     onDelete,
 }: Props) {
+    const copyPublicLink = () => {
+        if (!posting.apply_url) {
+            return;
+        }
+
+        navigator.clipboard.writeText(posting.apply_url).then(
+            () => toast.success('Public application link copied'),
+            () => toast.error('Could not copy the link'),
+        );
+    };
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -57,6 +70,13 @@ export function PostingRowActions({
                     <KanbanSquare className="size-4" />
                     Open pipeline
                 </DropdownMenuItem>
+
+                {posting.is_open && posting.apply_url && (
+                    <DropdownMenuItem onSelect={copyPublicLink}>
+                        <Link2 className="size-4" />
+                        Copy public link
+                    </DropdownMenuItem>
+                )}
 
                 {can.update && (
                     <>

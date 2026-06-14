@@ -21,6 +21,12 @@ export default function Welcome() {
                             </span>
                         </div>
                         <div className="flex items-center gap-4">
+                            <Link
+                                href="/careers"
+                                className="inline-block rounded-md px-5 py-1.5 text-sm leading-normal text-white/80 transition-colors hover:text-white"
+                            >
+                                Careers
+                            </Link>
                             {auth.user ? (
                                 <Link
                                     href={dashboard()}

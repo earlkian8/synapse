@@ -73,7 +73,7 @@ class JobApplicationController extends Controller
     public function show(JobApplication $application): JobApplicationResource
     {
         $application->load([
-            'applicant',
+            'applicant.documents',
             'jobPosting:id,title',
             'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no',
             'interviews' => fn ($query) => $query->with('interviewer:id,first_name,middle_name,last_name,suffix')->latest('scheduled_at'),
@@ -177,7 +177,11 @@ class JobApplicationController extends Controller
             'last_name' => $data['last_name'],
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
+            'current_location' => $data['current_location'] ?? null,
             'headline' => $data['headline'] ?? null,
+            'linkedin_url' => $data['linkedin_url'] ?? null,
+            'portfolio_url' => $data['portfolio_url'] ?? null,
+            'years_experience' => $data['years_experience'] ?? null,
             'source' => $data['source'] ?? 'other',
         ]);
     }

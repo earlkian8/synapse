@@ -7,6 +7,7 @@ use App\Http\Requests\Recruitment\StoreApplicantRequest;
 use App\Http\Requests\Recruitment\UpdateApplicantRequest;
 use App\Models\Applicant;
 use App\Support\ActivityLogger;
+use App\Support\ApplicantDocumentStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
@@ -19,13 +20,15 @@ class ApplicantController extends Controller
      */
     public function store(StoreApplicantRequest $request): RedirectResponse
     {
-        $applicant = new Applicant(Arr::except($request->validated(), ['resume']));
+        $applicant = new Applicant(Arr::except($request->validated(), ['resume', 'documents']));
 
         if ($request->hasFile('resume')) {
             $applicant->resume = $request->file('resume')->store('applicant-resumes', 'public');
         }
 
         $applicant->save();
+
+        ApplicantDocumentStore::store($applicant, $request->validated('documents') ?? [], $request->user()->id);
 
         ActivityLogger::log(
             event: 'created',
@@ -43,7 +46,7 @@ class ApplicantController extends Controller
      */
     public function update(UpdateApplicantRequest $request, Applicant $applicant): RedirectResponse
     {
-        $applicant->fill(Arr::except($request->validated(), ['resume']));
+        $applicant->fill(Arr::except($request->validated(), ['resume', 'documents']));
 
         if ($request->hasFile('resume')) {
             $this->deleteResume($applicant);
@@ -51,6 +54,8 @@ class ApplicantController extends Controller
         }
 
         $applicant->save();
+
+        ApplicantDocumentStore::store($applicant, $request->validated('documents') ?? [], $request->user()->id);
 
         ActivityLogger::log(
             event: 'updated',
@@ -70,6 +75,11 @@ class ApplicantController extends Controller
     {
         $label = $applicant->full_name;
         $this->deleteResume($applicant);
+
+        foreach ($applicant->documents as $document) {
+            Storage::disk('public')->delete($document->file);
+        }
+
         $applicant->delete();
 
         ActivityLogger::log(

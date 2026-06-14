@@ -2,8 +2,11 @@ import { router } from '@inertiajs/react';
 import {
     CalendarPlus,
     FileText,
+    Globe,
+    Linkedin,
     Mail,
     MapPin,
+    Paperclip,
     Phone,
     Trash2,
     UserRoundCheck,
@@ -217,6 +220,83 @@ export function ApplicationDetailSheet({
                                 </a>
                             )}
                         </div>
+                    )}
+
+                    {/* Profile */}
+                    {applicant &&
+                        (applicant.current_location ||
+                            applicant.headline ||
+                            applicant.years_experience != null ||
+                            applicant.linkedin_url ||
+                            applicant.portfolio_url) && (
+                            <Group title="Profile">
+                                {applicant.headline && (
+                                    <Row
+                                        label="Headline"
+                                        value={applicant.headline}
+                                    />
+                                )}
+                                {applicant.current_location && (
+                                    <Row
+                                        label="Location"
+                                        value={applicant.current_location}
+                                    />
+                                )}
+                                {applicant.years_experience != null && (
+                                    <Row
+                                        label="Experience"
+                                        value={`${applicant.years_experience} ${applicant.years_experience === 1 ? 'year' : 'years'}`}
+                                    />
+                                )}
+                                {(applicant.linkedin_url ||
+                                    applicant.portfolio_url) && (
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 text-sm">
+                                        {applicant.linkedin_url && (
+                                            <a
+                                                href={applicant.linkedin_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 font-medium text-[#0ABFBF] hover:underline"
+                                            >
+                                                <Linkedin className="size-3.5" />
+                                                LinkedIn
+                                            </a>
+                                        )}
+                                        {applicant.portfolio_url && (
+                                            <a
+                                                href={applicant.portfolio_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 font-medium text-[#0ABFBF] hover:underline"
+                                            >
+                                                <Globe className="size-3.5" />
+                                                Portfolio
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                            </Group>
+                        )}
+
+                    {/* Documents */}
+                    {applicant?.documents && applicant.documents.length > 0 && (
+                        <Group title="Documents">
+                            <ul className="space-y-1.5">
+                                {applicant.documents.map((doc) => (
+                                    <li key={doc.id}>
+                                        <a
+                                            href={doc.url ?? '#'}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0ABFBF] hover:underline"
+                                        >
+                                            <Paperclip className="size-3.5" />
+                                            {doc.title}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </Group>
                     )}
 
                     {/* Assessment */}

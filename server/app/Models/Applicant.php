@@ -22,11 +22,22 @@ class Applicant extends Model
         'last_name',
         'email',
         'phone',
+        'current_location',
         'headline',
+        'linkedin_url',
+        'portfolio_url',
+        'years_experience',
         'source',
         'resume',
         'notes',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'years_experience' => 'integer',
+        ];
+    }
 
     /**
      * @var list<string>
@@ -41,6 +52,16 @@ class Applicant extends Model
     public function applications(): HasMany
     {
         return $this->hasMany(JobApplication::class);
+    }
+
+    /**
+     * Supporting files the candidate has attached (besides the primary résumé).
+     *
+     * @return HasMany<ApplicantDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ApplicantDocument::class);
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

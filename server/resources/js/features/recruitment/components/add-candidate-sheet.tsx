@@ -80,7 +80,11 @@ function FormBody({
         last_name: '',
         email: '',
         phone: '',
+        current_location: '',
         headline: '',
+        linkedin_url: '',
+        portfolio_url: '',
+        years_experience: '',
         source: 'website' as ApplicantSource,
         expected_salary: '',
         cover_note: '',
@@ -102,10 +106,21 @@ function FormBody({
                 cleaned.last_name = null;
                 cleaned.email = null;
                 cleaned.phone = null;
+                cleaned.current_location = null;
                 cleaned.headline = null;
+                cleaned.linkedin_url = null;
+                cleaned.portfolio_url = null;
+                cleaned.years_experience = null;
             }
 
-            for (const key of ['expected_salary', 'cover_note']) {
+            for (const key of [
+                'expected_salary',
+                'cover_note',
+                'current_location',
+                'linkedin_url',
+                'portfolio_url',
+                'years_experience',
+            ]) {
                 if (cleaned[key] === '') {
                     cleaned[key] = null;
                 }
@@ -133,9 +148,7 @@ function FormBody({
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value={NEW}>
-                                + New candidate
-                            </SelectItem>
+                            <SelectItem value={NEW}>+ New candidate</SelectItem>
                             {options.applicants.map((a) => (
                                 <SelectItem key={a.id} value={String(a.id)}>
                                     {a.full_name}
@@ -196,6 +209,52 @@ function FormBody({
                                     setData('headline', e.target.value)
                                 }
                                 placeholder="Current role"
+                            />
+                        </Field>
+                        <Field label="Location" error={errors.current_location}>
+                            <Input
+                                value={data.current_location}
+                                onChange={(e) =>
+                                    setData('current_location', e.target.value)
+                                }
+                                placeholder="City, Province"
+                            />
+                        </Field>
+                        <Field
+                            label="Years of experience"
+                            error={errors.years_experience}
+                        >
+                            <Input
+                                type="number"
+                                min="0"
+                                max="60"
+                                value={data.years_experience}
+                                onChange={(e) =>
+                                    setData('years_experience', e.target.value)
+                                }
+                            />
+                        </Field>
+                        <Field label="LinkedIn URL" error={errors.linkedin_url}>
+                            <Input
+                                type="url"
+                                value={data.linkedin_url}
+                                onChange={(e) =>
+                                    setData('linkedin_url', e.target.value)
+                                }
+                                placeholder="https://linkedin.com/in/…"
+                            />
+                        </Field>
+                        <Field
+                            label="Portfolio URL"
+                            error={errors.portfolio_url}
+                        >
+                            <Input
+                                type="url"
+                                value={data.portfolio_url}
+                                onChange={(e) =>
+                                    setData('portfolio_url', e.target.value)
+                                }
+                                placeholder="https://…"
                             />
                         </Field>
                         <Field label="Source" error={errors.source}>
