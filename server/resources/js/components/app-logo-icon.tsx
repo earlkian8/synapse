@@ -6,8 +6,8 @@ export default function AppLogoIcon({
 }: ImgHTMLAttributes<HTMLImageElement>) {
     return (
         <img
-            src="/nexo-logo-transparent.png"
-            alt="NEXO"
+            src="/synapse-logo-transparent.png"
+            alt="SYNAPSE"
             className={className}
             {...props}
         />

@@ -1,6 +1,6 @@
 # Multi-tenancy
 
-NEXO is a multi-tenant SaaS: every registration creates an **organisation**
+SYNAPSE is a multi-tenant SaaS: every registration creates an **organisation**
 (tenant), and all business data is isolated per organisation. This document explains
 how isolation works and how to keep new code tenant-safe. The *why* is in
 [ADR 0005](../decisions/0005-multi-tenancy.md).

@@ -17,7 +17,7 @@ export default function Welcome() {
                                 <AppLogoIcon className="size-8 object-contain" />
                             </div>
                             <span className="text-sm font-bold tracking-widest text-white">
-                                NEXO
+                                SYNAPSE
                             </span>
                         </div>
                         <div className="flex items-center gap-4">
@@ -56,7 +56,7 @@ export default function Welcome() {
                                 AI-Powered HR ERP
                             </div>
                             <h1 className="mb-3 text-5xl font-extrabold tracking-widest text-white lg:text-7xl">
-                                NEXO
+                                SYNAPSE
                             </h1>
                             <p className="mb-4 text-xl font-medium text-[#0ABFBF] lg:text-2xl">
                                 Intelligent HR Management
@@ -127,8 +127,8 @@ export default function Welcome() {
                 </div>
 
                 <footer className="mt-8 text-center text-xs text-white/30">
-                    &copy; {new Date().getFullYear()} NEXO. Built for Philippine
-                    institutions.
+                    &copy; {new Date().getFullYear()} SYNAPSE. Built for
+                    Philippine institutions.
                 </footer>
             </div>
         </>

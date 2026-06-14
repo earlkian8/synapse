@@ -25,10 +25,11 @@ const ASSISTANT_PERMISSIONS = [
     'recruitment.view',
 ] as const;
 
-const draftKey = (id: number | null) => `nexo.assistant.draft.${id ?? 'new'}`;
+const draftKey = (id: number | null) =>
+    `synapse.assistant.draft.${id ?? 'new'}`;
 
 /**
- * The floating, persistent Nexo assistant. Mounted once in the authenticated
+ * The floating, persistent Synapse assistant. Mounted once in the authenticated
  * layout so it survives navigation. A premium chat surface: multi-conversation
  * history, markdown replies with streaming, copy/edit/regenerate, drag-and-drop
  * attachments, and live HR actions across the modules the user can access.
@@ -138,7 +139,7 @@ export function Assistant() {
                     )}
                 >
                     <Header
-                        title={activeId ? activeTitle : 'Nexo Assistant'}
+                        title={activeId ? activeTitle : 'Synapse Assistant'}
                         subtitle={activeId ? 'HR copilot' : 'Your HR copilot'}
                         expanded={expanded}
                         onHistory={() => setShowHistory(true)}
@@ -309,7 +310,7 @@ function applyEffects(cards: AgentCard[]) {
 
             if (highlight) {
                 window.dispatchEvent(
-                    new CustomEvent('nexo:employee-mutated', {
+                    new CustomEvent('synapse:employee-mutated', {
                         detail: { id: highlight.id },
                     }),
                 );

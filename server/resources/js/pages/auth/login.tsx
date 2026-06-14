@@ -20,7 +20,7 @@ type Props = {
 export default function Login({ status, canResetPassword }: Props) {
     return (
         <>
-            <Head title="Sign in — NEXO" />
+            <Head title="Sign in — SYNAPSE" />
 
             <PasskeyVerify />
 

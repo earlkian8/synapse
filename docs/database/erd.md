@@ -1,4 +1,4 @@
-# NEXO — Entity Relationship Diagram
+# SYNAPSE — Entity Relationship Diagram
 
 > **Status: DRAFT for review.** This is the proposed data model for the whole
 > system, derived from the capstone proposal and the application navigation. Built
@@ -42,7 +42,7 @@
 
 ## Design decisions (please confirm)
 
-1. ~~**Single-tenant deployment.**~~ **Superseded — NEXO is now multi-tenant**
+1. ~~**Single-tenant deployment.**~~ **Superseded — SYNAPSE is now multi-tenant**
    ([ADR 0005](../decisions/0005-multi-tenancy.md)). Every registration creates an
    `organizations` row (the tenant, and also the company profile — there is no separate
    `company_profiles` singleton). Tenant-owned tables carry a non-null `organization_id`

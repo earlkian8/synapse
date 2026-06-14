@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Turn NEXO into a multi-tenant system (ADR 0005).
+     * Turn SYNAPSE into a multi-tenant system (ADR 0005).
      *
      * Creates the `organizations` table (also the company profile) and stamps every
      * tenant-owned table with a non-null `organization_id`. Existing data — the dev

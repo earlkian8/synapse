@@ -12,7 +12,7 @@ use Illuminate\Http\UploadedFile;
 use Throwable;
 
 /**
- * The chat turn endpoint behind the floating Nexo assistant. Runs the agent
+ * The chat turn endpoint behind the floating Synapse assistant. Runs the agent
  * server-side (the Gemini key never leaves the backend), persists each turn to
  * the signed-in user's conversation history, and supports regenerating the last
  * answer. Every action the agent takes is permission-gated inside its modules.

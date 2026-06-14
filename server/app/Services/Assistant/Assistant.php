@@ -8,7 +8,7 @@ use App\Support\Ai\GeminiClient;
 use Illuminate\Support\Carbon;
 
 /**
- * The agentic brain behind the floating Nexo assistant.
+ * The agentic brain behind the floating Synapse assistant.
  *
  * Aggregates the tools of every module the user is permitted to use, then runs a
  * bounded Gemini function-calling loop: the model decides which tools to call,
@@ -241,7 +241,7 @@ class Assistant
 
         if ($modules === []) {
             return <<<TXT
-            You are Nexo Assistant, an agentic HR copilot embedded in the Nexo HR platform.
+            You are Synapse Assistant, an agentic HR copilot embedded in the Synapse HR platform.
             The signed-in user has no HR modules available to them. Politely say you can't help with that right now, in one short sentence, and call no tools.
             Today is {$today}.
             TXT;
@@ -252,7 +252,7 @@ class Assistant
             ->implode("\n\n");
 
         return <<<TXT
-        You are Nexo Assistant, an agentic HR copilot embedded in the Nexo HR platform.
+        You are Synapse Assistant, an agentic HR copilot embedded in the Synapse HR platform.
 
         Use the provided tools to take real actions across the HR capabilities listed below, and ONLY those. Never claim to have done something unless a tool actually did it. If a request is outside every capability below (for example payroll, attendance, performance, analytics, or general/unrelated questions), reply with one short, polite sentence that it's outside what you can do today — and call no tools.
 

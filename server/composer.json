@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "nexo/nexo",
+    "name": "synapse/synapse",
     "type": "project",
-    "description": "NEXO — Intelligent HR Management for Philippine institutions.",
+    "description": "SYNAPSE — Intelligent HR Management for Philippine institutions.",
     "keywords": [
         "laravel",
         "framework"

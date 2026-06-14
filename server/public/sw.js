@@ -1,6 +1,6 @@
 /**
- * NEXO service worker — handles web-push delivery so notifications can
- * surface on the desktop even when no NEXO tab is focused.
+ * SYNAPSE service worker — handles web-push delivery so notifications can
+ * surface on the desktop even when no SYNAPSE tab is focused.
  */
 
 self.addEventListener('install', () => {
@@ -21,10 +21,10 @@ self.addEventListener('push', (event) => {
     try {
         payload = event.data.json();
     } catch (e) {
-        payload = { title: 'NEXO', body: event.data.text() };
+        payload = { title: 'SYNAPSE', body: event.data.text() };
     }
 
-    const title = payload.title || 'NEXO';
+    const title = payload.title || 'SYNAPSE';
     const options = {
         body: payload.body || '',
         icon: payload.icon || '/favicon.ico',

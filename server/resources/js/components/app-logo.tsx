@@ -8,7 +8,7 @@ export default function AppLogo() {
             </div>
             <div className="ml-1 grid flex-1 text-left text-sm leading-none">
                 <span className="truncate text-xs font-bold tracking-[0.2em] text-sidebar-foreground uppercase">
-                    NEXO
+                    SYNAPSE
                 </span>
                 <span className="mt-0.5 truncate text-[10px] tracking-wide text-sidebar-foreground/50">
                     HR Management

@@ -6,7 +6,7 @@
 
 ## Context
 
-NEXO's sidebar models an employee's life cycle — **Talent Acquisition →
+SYNAPSE's sidebar models an employee's life cycle — **Talent Acquisition →
 Workforce → Offboarding**. Until now an Employee could only be created by a manual
 "New employee" form, which makes the Recruitment step decorative: if anyone can
 conjure an employee, what is recruitment for?

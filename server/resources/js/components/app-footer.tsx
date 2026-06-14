@@ -23,7 +23,7 @@ export function AppFooter() {
             {/* Left: copyright + version */}
             <div className="flex min-w-0 items-center gap-2.5">
                 <span className="truncate">
-                    &copy; {year} NEXO. All rights reserved.
+                    &copy; {year} SYNAPSE. All rights reserved.
                 </span>
                 <Separator
                     orientation="vertical"

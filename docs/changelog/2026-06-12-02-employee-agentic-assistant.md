@@ -57,14 +57,14 @@ archives employee records on your behalf, with live, animated feedback. Scope is
   - `components/employee-assistant.tsx` — launcher FAB, chat panel, composer
     (text + file attach, Enter to send), thinking state, and the success effects
     (toast + `router.reload({ only: ['employees', 'stats'] })` + a
-    `nexo:employee-mutated` window event).
+    `synapse:employee-mutated` window event).
   - `components/agent-activity.tsx` — the staged-reveal step timeline and the
     animated result cards (reusing the shared `PersonAvatar`).
 - Mounted once in **`layouts/app/app-sidebar-layout.tsx`** (authenticated shell),
   gated client-side on `employees.view`.
 - **Employee directory** (`pages/employees/index.tsx` + `employees-table.tsx`)
-  listens for `nexo:employee-mutated` and briefly flashes the affected row via a
-  new `nexo-row-flash` keyframe in `app.css` (alongside the assistant's
+  listens for `synapse:employee-mutated` and briefly flashes the affected row via a
+  new `synapse-row-flash` keyframe in `app.css` (alongside the assistant's
   `assistant-pop` / `assistant-sheen` keyframes).
 
 ## Environment / setup

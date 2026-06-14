@@ -20,13 +20,13 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $organization = Organization::first()
-            ?? OrganizationProvisioner::create('NEXO Demo Co')[0];
+            ?? OrganizationProvisioner::create('SYNAPSE Demo Co')[0];
 
         // Bind the tenant so every scoped model below lands in this organisation.
         app(Tenancy::class)->set($organization);
 
         User::firstOrCreate(
-            ['email' => 'dev@nexo.com'],
+            ['email' => 'dev@synapse.com'],
             [
                 'first_name' => 'Test',
                 'middle_name' => null,
@@ -37,7 +37,7 @@ class DatabaseSeeder extends Seeder
         );
 
         // Permission catalogue, this organisation's built-in roles, and the
-        // Super Admin grant for dev@nexo.com.
+        // Super Admin grant for dev@synapse.com.
         $this->call(RolePermissionSeeder::class);
 
         // Organisation foundation (departments, positions, schedules) + employees.

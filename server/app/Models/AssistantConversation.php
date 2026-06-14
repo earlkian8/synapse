@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 /**
- * One chat thread with the Nexo assistant, owned by a user and tenant-scoped.
+ * One chat thread with the Synapse assistant, owned by a user and tenant-scoped.
  * The title is derived from the first user message; threads can be pinned to the
  * top of the history list. See {@see AssistantMessage} for the turns.
  */

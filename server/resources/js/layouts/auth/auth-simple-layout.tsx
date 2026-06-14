@@ -116,7 +116,7 @@ export default function AuthSimpleLayout({
                                 <AppLogoIcon className="h-full w-full object-contain" />
                             </div>
                             <span className="text-xs font-bold tracking-[0.22em] text-white uppercase opacity-90">
-                                NEXO
+                                SYNAPSE
                             </span>
                         </Link>
 
@@ -143,8 +143,8 @@ export default function AuthSimpleLayout({
 
                                 <p className="max-w-[280px] text-[13px] leading-relaxed text-white/45">
                                     From government agencies to private
-                                    enterprises — NEXO brings data-driven HR to
-                                    every Philippine institution.
+                                    enterprises — SYNAPSE brings data-driven HR
+                                    to every Philippine institution.
                                 </p>
                             </div>
 
@@ -186,7 +186,7 @@ export default function AuthSimpleLayout({
                         <div className="mt-auto pt-8">
                             <Separator className="mb-5 bg-white/10" />
                             <p className="text-[11px] text-white/25">
-                                &copy; {year} NEXO. All rights reserved.
+                                &copy; {year} SYNAPSE. All rights reserved.
                             </p>
                         </div>
                     </div>
@@ -205,7 +205,7 @@ export default function AuthSimpleLayout({
                                 <AppLogoIcon className="h-full w-full object-contain" />
                             </div>
                             <span className="text-[11px] font-bold tracking-[0.18em] text-[#0F2044] uppercase dark:text-white">
-                                NEXO
+                                SYNAPSE
                             </span>
                         </Link>
 
@@ -282,7 +282,7 @@ export default function AuthSimpleLayout({
                     {/* Footer */}
                     <footer className="flex h-11 flex-shrink-0 items-center justify-between border-t border-black/[0.07] bg-white px-6 md:px-10 dark:border-white/[0.07] dark:bg-[#0d1120]">
                         <p className="text-[11px] text-slate-400">
-                            &copy; {year} NEXO. All rights reserved.
+                            &copy; {year} SYNAPSE. All rights reserved.
                         </p>
                         <div className="flex items-center gap-4">
                             <a
