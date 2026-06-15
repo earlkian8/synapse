@@ -11,6 +11,7 @@ import {
     CalendarClock,
     CalendarDays,
     CalendarRange,
+    Clock,
     DatabaseBackup,
     FileScan,
     Gauge,
@@ -78,7 +79,18 @@ const workforceNavItems: GatedNavItem[] = [
         permission: 'employees.view',
     },
     { title: 'Departments', href: '/departments', icon: Building2 },
-    { title: 'Attendance', href: '/attendance', icon: CalendarCheck },
+    {
+        title: 'Attendance',
+        href: '/attendance',
+        icon: CalendarCheck,
+        permission: 'attendance.view',
+    },
+    {
+        title: 'My Attendance',
+        href: '/attendance/me',
+        icon: Clock,
+        permission: 'attendance.clock',
+    },
     {
         title: 'Leave Management',
         href: '/leave',

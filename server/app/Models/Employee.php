@@ -177,6 +177,26 @@ class Employee extends Model
         return $this->hasMany(LeaveBalance::class);
     }
 
+    /**
+     * This employee's Daily Time Records (one per day).
+     *
+     * @return HasMany<AttendanceRecord, $this>
+     */
+    public function attendanceRecords(): HasMany
+    {
+        return $this->hasMany(AttendanceRecord::class);
+    }
+
+    /**
+     * This employee's raw attendance punch events.
+     *
+     * @return HasMany<AttendancePunch, $this>
+     */
+    public function attendancePunches(): HasMany
+    {
+        return $this->hasMany(AttendancePunch::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**
