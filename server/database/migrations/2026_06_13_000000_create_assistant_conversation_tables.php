@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Persistent history for the Nexo assistant so conversations survive across
+     * Persistent history for the Synapse assistant so conversations survive across
      * sessions and devices (per user, tenant-scoped).
      *
      *  - **assistant_conversations**: one chat thread owned by a user, with a

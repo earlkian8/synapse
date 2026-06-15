@@ -5,6 +5,7 @@ import {
     Clock,
     Hash,
     KeyRound,
+    MailCheck,
     Phone,
     ShieldCheck,
     ShieldX,
@@ -27,9 +28,16 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onEdit: (user: ManagedUser) => void;
+    onResendVerification: (user: ManagedUser) => void;
 };
 
-export function UserDetailSheet({ user, open, onOpenChange, onEdit }: Props) {
+export function UserDetailSheet({
+    user,
+    open,
+    onOpenChange,
+    onEdit,
+    onResendVerification,
+}: Props) {
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
@@ -44,7 +52,10 @@ export function UserDetailSheet({ user, open, onOpenChange, onEdit }: Props) {
                     <>
                         <div className="border-b border-border bg-muted/30 px-6 py-6">
                             <div className="flex items-start gap-4">
-                                <UserAvatar user={user} className="size-14 text-base" />
+                                <UserAvatar
+                                    user={user}
+                                    className="size-14 text-base"
+                                />
                                 <div className="min-w-0 flex-1">
                                     <h2 className="truncate text-lg font-semibold">
                                         {user.full_name}
@@ -61,9 +72,21 @@ export function UserDetailSheet({ user, open, onOpenChange, onEdit }: Props) {
 
                         <div className="space-y-6 px-6 py-6">
                             <Group title="Contact & identity">
-                                <Row icon={AtSign} label="Email" value={user.email} />
-                                <Row icon={Phone} label="Phone" value={user.phone_number} />
-                                <Row icon={Hash} label="Employee ID" value={user.employee_id} />
+                                <Row
+                                    icon={AtSign}
+                                    label="Email"
+                                    value={user.email}
+                                />
+                                <Row
+                                    icon={Phone}
+                                    label="Phone"
+                                    value={user.phone_number}
+                                />
+                                <Row
+                                    icon={Hash}
+                                    label="Employee ID"
+                                    value={user.employee_id}
+                                />
                             </Group>
 
                             <Group title="Roles">
@@ -88,29 +111,70 @@ export function UserDetailSheet({ user, open, onOpenChange, onEdit }: Props) {
 
                             <Group title="Security">
                                 <Row
-                                    icon={user.email_verified ? ShieldCheck : ShieldX}
+                                    icon={
+                                        user.email_verified
+                                            ? ShieldCheck
+                                            : ShieldX
+                                    }
                                     label="Email verified"
-                                    value={user.email_verified ? 'Verified' : 'Not verified'}
-                                    tone={user.email_verified ? 'positive' : 'warning'}
+                                    value={
+                                        user.email_verified
+                                            ? 'Verified'
+                                            : 'Not verified'
+                                    }
+                                    tone={
+                                        user.email_verified
+                                            ? 'positive'
+                                            : 'warning'
+                                    }
                                 />
                                 <Row
                                     icon={BadgeCheck}
                                     label="Two-factor"
-                                    value={user.two_factor_enabled ? 'Enabled' : 'Disabled'}
-                                    tone={user.two_factor_enabled ? 'positive' : undefined}
+                                    value={
+                                        user.two_factor_enabled
+                                            ? 'Enabled'
+                                            : 'Disabled'
+                                    }
+                                    tone={
+                                        user.two_factor_enabled
+                                            ? 'positive'
+                                            : undefined
+                                    }
                                 />
                                 <Row
                                     icon={KeyRound}
                                     label="Password"
-                                    value={user.has_password ? 'Set' : 'Not set (invited)'}
+                                    value={
+                                        user.has_password
+                                            ? 'Set'
+                                            : 'Not set (invited)'
+                                    }
                                 />
+                                {!user.email_verified &&
+                                    user.status !== 'archived' && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="mt-1 w-full"
+                                            onClick={() =>
+                                                onResendVerification(user)
+                                            }
+                                        >
+                                            <MailCheck className="size-4" />
+                                            Resend verification email
+                                        </Button>
+                                    )}
                             </Group>
 
                             <Group title="Activity">
                                 <Row
                                     icon={Clock}
                                     label="Last login"
-                                    value={user.last_login_human ?? 'Never signed in'}
+                                    value={
+                                        user.last_login_human ??
+                                        'Never signed in'
+                                    }
                                 />
                                 <Row
                                     icon={CalendarPlus}

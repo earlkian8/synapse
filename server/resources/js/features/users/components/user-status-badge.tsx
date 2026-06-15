@@ -1,7 +1,10 @@
 import { cn } from '@/lib/utils';
 import type { UserStatus } from '../types';
 
-const STATUS_STYLES: Record<UserStatus, { dot: string; text: string; bg: string }> = {
+const STATUS_STYLES: Record<
+    UserStatus,
+    { dot: string; text: string; bg: string }
+> = {
     active: {
         dot: 'bg-emerald-500',
         text: 'text-emerald-700 dark:text-emerald-400',

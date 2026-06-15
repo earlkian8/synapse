@@ -63,16 +63,12 @@ class UserController extends Controller
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $user = new User(Arr::except($request->validated(), [
-            'password', 'photo', 'email_verified', 'roles',
+            'password', 'photo', 'roles',
         ]));
 
         if (filled($request->validated('password'))) {
             $user->password = $request->validated('password');
             $user->password_changed_at = now();
-        }
-
-        if ($request->boolean('email_verified')) {
-            $user->email_verified_at = now();
         }
 
         if ($request->hasFile('photo')) {
@@ -83,11 +79,15 @@ class UserController extends Controller
 
         $this->syncRoles($request, $user);
 
+        // New accounts start unverified — email a confirmation link so the holder
+        // proves ownership of the address before they can sign in.
+        $sent = $this->sendVerification($user);
+
         // Auto-notify the new account holder (in-app + email/push if enabled).
         Notifier::toUser(
             $user,
-            'Welcome to NEXO',
-            'Your account has been created. You can sign in and start exploring your workspace.',
+            'Welcome to SYNAPSE',
+            'Your account has been created. Please check your inbox to verify your email address, then sign in to get started.',
             url: '/dashboard',
             level: 'success',
             category: 'account',
@@ -102,7 +102,9 @@ class UserController extends Controller
             subjectLabel: $user->full_name,
         );
 
-        return $this->respond('User created.');
+        return $sent
+            ? $this->respond("User created. A verification email was sent to {$user->email}.")
+            : $this->respond('User created, but the verification email could not be sent — you can resend it from the user’s actions.', 'warning');
     }
 
     /**
@@ -111,14 +113,16 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
         $user->fill(Arr::except($request->validated(), [
-            'photo', 'remove_photo', 'email_verified', 'roles',
+            'photo', 'remove_photo', 'roles',
         ]));
 
-        // The admin's verification toggle is authoritative — it overrides the
-        // usual "email changed, so re-verify" behaviour.
-        $user->email_verified_at = $request->boolean('email_verified')
-            ? ($user->email_verified_at ?? now())
-            : null;
+        // A changed email must be re-confirmed: drop the verified state now and
+        // send a fresh confirmation link to the new address after saving.
+        $emailChanged = $user->isDirty('email');
+
+        if ($emailChanged) {
+            $user->email_verified_at = null;
+        }
 
         if ($request->boolean('remove_photo')) {
             $this->deletePhoto($user);
@@ -134,6 +138,10 @@ class UserController extends Controller
         $user->save();
 
         $changes = $this->syncRoles($request, $user);
+
+        if ($emailChanged) {
+            $this->sendVerification($user);
+        }
 
         // Let the user know when they've been granted new role(s).
         if (! empty($changes['attached'])) {
@@ -159,7 +167,33 @@ class UserController extends Controller
             subjectLabel: $user->full_name,
         );
 
-        return $this->respond('User updated.');
+        return $this->respond($emailChanged
+            ? 'User updated. A verification email was sent to the new address.'
+            : 'User updated.');
+    }
+
+    /**
+     * Resend the email-verification (confirmation) link to an unverified user.
+     */
+    public function resendVerification(Request $request, User $user): RedirectResponse
+    {
+        if ($user->hasVerifiedEmail()) {
+            return $this->respond('This email address is already verified.', 'error');
+        }
+
+        if (! $this->sendVerification($user)) {
+            return $this->respond('The verification email could not be sent. Please try again.', 'error');
+        }
+
+        ActivityLogger::log(
+            event: 'verification_sent',
+            description: "Resent the email verification link to {$user->full_name}",
+            subject: $user,
+            logName: 'user_management',
+            subjectLabel: $user->full_name,
+        );
+
+        return $this->respond("Verification email sent to {$user->email}.");
     }
 
     /**
@@ -246,6 +280,31 @@ class UserController extends Controller
         }
 
         return $user->roles()->sync($request->validated('roles') ?? []);
+    }
+
+    /**
+     * Email the verification (confirmation) link to a user.
+     *
+     * Sent synchronously so delivery doesn't depend on a running queue worker —
+     * with verification enforced, a silently-dropped email would lock the user
+     * out. Transport failures are swallowed (and reported) so a mail outage
+     * never breaks the create/update itself. Returns whether it was dispatched.
+     */
+    private function sendVerification(User $user): bool
+    {
+        if ($user->hasVerifiedEmail()) {
+            return false;
+        }
+
+        try {
+            $user->sendEmailVerificationNotification();
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     /**

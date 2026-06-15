@@ -9,7 +9,7 @@ Management and Activity Logs (routes, controllers, and UI).
   grouped permission matrix, create/edit/detail drawers, delete, CSV export).
 - A code-defined **permission catalogue** + Laravel **Gate** integration.
 - **User Management** and **Activity Logs** are now permission-gated end to end.
-- `dev@nexo.com` is granted the **Super Admin** role.
+- `dev@synapse.com` is granted the **Super Admin** role.
 
 ## Backend
 

@@ -24,7 +24,11 @@ class StoreJobApplicationRequest extends FormRequest
             'last_name' => ['required_without:applicant_id', 'nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:32'],
+            'current_location' => ['nullable', 'string', 'max:255'],
             'headline' => ['nullable', 'string', 'max:255'],
+            'linkedin_url' => ['nullable', 'url', 'max:255'],
+            'portfolio_url' => ['nullable', 'url', 'max:255'],
+            'years_experience' => ['nullable', 'integer', 'between:0,60'],
             'source' => ['nullable', Rule::in(StoreApplicantRequest::SOURCES)],
 
             // Application details.

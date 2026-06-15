@@ -130,7 +130,7 @@ export function EmployeesTable({
                                 data-state={isSelected ? 'selected' : undefined}
                                 className={cn(
                                     employee.id === highlightId &&
-                                        'nexo-row-flash',
+                                        'synapse-row-flash',
                                 )}
                             >
                                 <TableCell className="pl-4">

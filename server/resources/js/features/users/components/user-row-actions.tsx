@@ -2,6 +2,7 @@ import {
     ArchiveRestore,
     Eye,
     KeyRound,
+    MailCheck,
     MoreHorizontal,
     Pencil,
     Power,
@@ -25,6 +26,7 @@ type Props = {
     onEdit: (user: ManagedUser) => void;
     onToggleStatus: (user: ManagedUser) => void;
     onResetPassword: (user: ManagedUser) => void;
+    onResendVerification: (user: ManagedUser) => void;
     onArchive: (user: ManagedUser) => void;
     onRestore: (user: ManagedUser) => void;
     onDelete: (user: ManagedUser) => void;
@@ -37,6 +39,7 @@ export function UserRowActions({
     onEdit,
     onToggleStatus,
     onResetPassword,
+    onResendVerification,
     onArchive,
     onRestore,
     onDelete,
@@ -73,15 +76,27 @@ export function UserRowActions({
                             </DropdownMenuItem>
                         )}
                         {can.manageStatus && (
-                            <DropdownMenuItem onSelect={() => onToggleStatus(user)}>
+                            <DropdownMenuItem
+                                onSelect={() => onToggleStatus(user)}
+                            >
                                 <Power className="size-4" />
                                 {user.is_active ? 'Deactivate' : 'Activate'}
                             </DropdownMenuItem>
                         )}
                         {can.resetPassword && (
-                            <DropdownMenuItem onSelect={() => onResetPassword(user)}>
+                            <DropdownMenuItem
+                                onSelect={() => onResetPassword(user)}
+                            >
                                 <KeyRound className="size-4" />
                                 Reset password
+                            </DropdownMenuItem>
+                        )}
+                        {can.update && !user.email_verified && (
+                            <DropdownMenuItem
+                                onSelect={() => onResendVerification(user)}
+                            >
+                                <MailCheck className="size-4" />
+                                Resend verification
                             </DropdownMenuItem>
                         )}
                         {can.delete && (

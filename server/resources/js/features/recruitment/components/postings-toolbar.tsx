@@ -1,4 +1,12 @@
-import { Download, Plus, RotateCcw, Search, X } from 'lucide-react';
+import {
+    Download,
+    LayoutGrid,
+    List,
+    Plus,
+    RotateCcw,
+    Search,
+    X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,18 +17,21 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { STATUS_FILTERS } from '../constants';
 import { recruitmentRoutes } from '../routes';
-import type { DepartmentRef, PostingsFilters } from '../types';
+import type { DepartmentRef, PostingsFilters, PostingsView } from '../types';
 
 type Props = {
     filters: PostingsFilters;
     departments: DepartmentRef[];
     canCreate: boolean;
     canExport: boolean;
+    view: PostingsView;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
     onDepartment: (value: number | null) => void;
+    onView: (value: PostingsView) => void;
     onReset: () => void;
     onCreate: () => void;
 };
@@ -30,9 +41,11 @@ export function PostingsToolbar({
     departments,
     canCreate,
     canExport,
+    view,
     onSearch,
     onStatus,
     onDepartment,
+    onView,
     onReset,
     onCreate,
 }: Props) {
@@ -145,6 +158,24 @@ export function PostingsToolbar({
             </div>
 
             <div className="flex items-center gap-2">
+                <ToggleGroup
+                    type="single"
+                    value={view}
+                    onValueChange={(value) =>
+                        value && onView(value as PostingsView)
+                    }
+                    variant="outline"
+                    size="sm"
+                    aria-label="Switch layout"
+                >
+                    <ToggleGroupItem value="table" aria-label="Table view">
+                        <List className="size-4" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="grid" aria-label="Card view">
+                        <LayoutGrid className="size-4" />
+                    </ToggleGroupItem>
+                </ToggleGroup>
+
                 {canExport && (
                     <Button variant="outline" size="sm" asChild>
                         <a href={exportUrl}>

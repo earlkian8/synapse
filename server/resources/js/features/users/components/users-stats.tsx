@@ -19,12 +19,42 @@ type Card = {
 };
 
 const CARDS: Card[] = [
-    { key: 'total', label: 'Total Users', icon: Users, accent: 'text-[#0ABFBF] bg-[#0ABFBF]/10' },
-    { key: 'active', label: 'Active', icon: CheckCircle2, accent: 'text-emerald-600 bg-emerald-500/10' },
-    { key: 'inactive', label: 'Inactive', icon: PauseCircle, accent: 'text-amber-600 bg-amber-500/10' },
-    { key: 'unverified', label: 'Unverified', icon: ShieldAlert, accent: 'text-rose-600 bg-rose-500/10' },
-    { key: 'new_this_month', label: 'New this month', icon: TrendingUp, accent: 'text-indigo-600 bg-indigo-500/10' },
-    { key: 'archived', label: 'Archived', icon: Archive, accent: 'text-neutral-500 bg-neutral-500/10' },
+    {
+        key: 'total',
+        label: 'Total Users',
+        icon: Users,
+        accent: 'text-[#0ABFBF] bg-[#0ABFBF]/10',
+    },
+    {
+        key: 'active',
+        label: 'Active',
+        icon: CheckCircle2,
+        accent: 'text-emerald-600 bg-emerald-500/10',
+    },
+    {
+        key: 'inactive',
+        label: 'Inactive',
+        icon: PauseCircle,
+        accent: 'text-amber-600 bg-amber-500/10',
+    },
+    {
+        key: 'unverified',
+        label: 'Unverified',
+        icon: ShieldAlert,
+        accent: 'text-rose-600 bg-rose-500/10',
+    },
+    {
+        key: 'new_this_month',
+        label: 'New this month',
+        icon: TrendingUp,
+        accent: 'text-indigo-600 bg-indigo-500/10',
+    },
+    {
+        key: 'archived',
+        label: 'Archived',
+        icon: Archive,
+        accent: 'text-neutral-500 bg-neutral-500/10',
+    },
 ];
 
 export function UsersStats({ stats }: { stats: UserStats }) {

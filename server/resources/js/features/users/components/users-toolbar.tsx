@@ -54,8 +54,7 @@ export function UsersToolbar({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [term]);
 
-    const hasActiveFilters =
-        filters.search !== '' || filters.status !== 'all';
+    const hasActiveFilters = filters.search !== '' || filters.status !== 'all';
 
     const exportUrl = `${userRoutes.export}${
         typeof window !== 'undefined' ? window.location.search : ''
@@ -86,7 +85,10 @@ export function UsersToolbar({
                 </div>
 
                 <Select value={filters.status} onValueChange={onStatus}>
-                    <SelectTrigger className="w-[150px]" aria-label="Filter by status">
+                    <SelectTrigger
+                        className="w-[150px]"
+                        aria-label="Filter by status"
+                    >
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>

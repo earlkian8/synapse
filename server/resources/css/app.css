@@ -243,7 +243,7 @@
 }
 
 /* Brief flash on a table row the assistant just created or updated. */
-@keyframes nexo-row-flash {
+@keyframes synapse-row-flash {
     0% {
         background-color: color-mix(in oklab, #0abfbf 22%, transparent);
     }
@@ -252,6 +252,6 @@
     }
 }
 
-.nexo-row-flash {
-    animation: nexo-row-flash 2.4s ease-out;
+.synapse-row-flash {
+    animation: synapse-row-flash 2.4s ease-out;
 }

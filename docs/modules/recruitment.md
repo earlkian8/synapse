@@ -18,12 +18,57 @@ migration, bypass hires), not the default path.
 
 ## Surfaces
 
-- **`/recruitment`** — the job-postings board: stats, a filtered/sortable table,
-  create/edit drawer, status lifecycle, CSV export. Opening a posting goes to its
-  pipeline.
-- **`/recruitment/{posting}`** — the **pipeline board**: columns for each stage
-  (Applied · Screening · Interview · Offer · Hired · Rejected) with candidate cards.
-  Add candidates, move them, schedule interviews, reject, and hire.
+- **`/recruitment`** — the job-postings board: stats, search/status/department
+  filters, a **table ⇄ card-grid** view switch in the toolbar (the choice is
+  remembered per browser), create/edit drawer, status lifecycle, CSV export.
+  Selecting a posting opens a **read-only details drawer** (overview, public
+  application link, description/requirements, pipeline summary) with **Open pipeline**
+  and **Edit** actions; the pipeline-count chip and the row menu's "Open pipeline"
+  jump straight to the board.
+- **`/recruitment/{posting}`** — the **pipeline**, with a **table ⇄ card-grid** view
+  switch (remembered per browser; **table is the default**), mirroring the postings
+  board. **Stage tabs** (All · Applied · Screening · Interview · Offer · Hired ·
+  Rejected, each with a count) sit above both views and filter the candidates shown.
+  Both views expose the same per-candidate Move / Hire / Reject menu. Add candidates,
+  move them, schedule interviews, reject, and hire.
+- **`/careers/{org-slug}`** and **`/careers/{org-slug}/jobs/{posting}`** — the
+  **public, unauthenticated careers surface** (see below). Recruiters copy a
+  posting's public link from the board row actions ("Copy public link").
+
+## Public careers & applications
+
+Each organisation has a public careers board at `/careers/{slug}`; every **open**
+posting has its own shareable page at `/careers/{slug}/jobs/{hashid}` where a
+candidate applies with their details, a required résumé, and optional supporting
+documents. The surface is unauthenticated — there is no logged-in tenant — so:
+
+- Routes live in [`routes/careers.php`](../../server/routes/careers.php) (outside
+  the auth group) and are served by `App\Http\Controllers\Public\CareersController`.
+- The posting is addressed by its obfuscated **hashid**; only `status = open`
+  postings are viewable or accept applications (others 404), and a posting reached
+  through the wrong organisation slug 404s.
+- A submission is stamped with the posting's organisation via
+  `Tenancy::runFor($organization, …)` — applicant, application, documents,
+  activity log, and the `hr-manager` notification all created under that tenant.
+- The applicant pool is reused by **email**: a repeat applicant updates their
+  profile and latest résumé; a second application to the same posting is a no-op.
+- **Anti-abuse:** the apply route is rate-limited (`throttle:5,1`), files are
+  validated strictly (pdf/doc/docx/jpg/png, ≤10MB), and a hidden **honeypot**
+  field silently drops bots. `source` is recorded as `website`.
+- The bare `/careers` redirects to the board only when a single organisation
+  exists (single-company installs); it 404s when several do, to avoid leaking the
+  tenant list.
+
+### Richer candidate profile + documents
+
+The candidate record gained `current_location`, `linkedin_url`, `portfolio_url`,
+and `years_experience`, plus an **`applicant_documents`** table for supporting
+uploads (cover letter, certificate, transcript, portfolio, government ID, other).
+The primary `resume` column stays (it is what the hire bridge copies into the 201
+file). Documents are captured on the public form **and** the recruiter's
+add-candidate / applicant-edit forms (`App\Support\ApplicantDocumentStore` is the
+one place that persists them), and shown — with download links — in the pipeline
+application detail drawer.
 
 ## Data model
 
@@ -71,10 +116,16 @@ is only ever produced by this action.
 ## Frontend
 
 `features/recruitment/` — types, routes, constants, the postings filter hook, and
-components: stats, postings toolbar/table/row-actions, posting status badge, posting
-form sheet, pagination; and the pipeline pieces — **board**, **column**, **card**,
-**application detail sheet** (rating, stage moves, interviews, hire, reject), **add
-candidate sheet**, stage badge, rating stars. Pages: `pages/recruitment/index.tsx`
+two layout-preference hooks built on a shared `use-stored-view` (localStorage-backed):
+`use-postings-view` (table/grid) and `use-pipeline-view` (board/table). Components:
+stats, postings toolbar (search/status/department filters + the table/card-grid view
+switch), **table** and **card grid**, row-actions, posting status badge, **posting
+detail sheet** (read-only overview + public link), posting form sheet, pagination;
+and the pipeline pieces — **table** and **card grid** (of candidate cards), **stage
+tabs** (filter both, with counts), the shared **application actions menu** (Move /
+Hire / Reject, used by the card and the table), **application detail sheet** (rating,
+stage moves, interviews, hire, reject), **add candidate sheet**, stage badge, rating
+stars. Pages: `pages/recruitment/index.tsx`
 and `pages/recruitment/pipeline.tsx`. The detail drawer lazy-loads the full
 application (`GET /recruitment/applications/{id}` JSON). The sidebar **Talent
 Acquisition → Recruitment** link is gated on `recruitment.view`.

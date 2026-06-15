@@ -57,7 +57,7 @@ export function NotificationPreferencesPanel({ preferences, webPush }: Props) {
                     />
                 }
                 title="Desktop notifications"
-                description="Get push alerts on your desktop, even when NEXO isn't open."
+                description="Get push alerts on your desktop, even when SYNAPSE isn't open."
             >
                 <Switch
                     checked={preferences.push}

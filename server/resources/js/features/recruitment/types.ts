@@ -26,6 +26,15 @@ export type ApplicantSource =
 
 export type SortDirection = 'asc' | 'desc';
 
+/** How the postings index is laid out: a dense table or a card grid. */
+export type PostingsView = 'table' | 'grid';
+
+/** How the pipeline is laid out: a flat table or a card grid. */
+export type PipelineView = 'table' | 'grid';
+
+/** The pipeline table's stage filter: a specific stage, or all of them. */
+export type StageFilter = Stage | 'all';
+
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };
 
@@ -39,6 +48,8 @@ export type ManagedPosting = {
     openings: number;
     status: PostingStatus;
     closing_date: string | null;
+    is_open: boolean;
+    apply_url: string | null;
     department: DepartmentRef | null;
     position: PositionRef | null;
     posted_by: string | null;
@@ -50,6 +61,14 @@ export type ManagedPosting = {
     created_human: string | null;
 };
 
+export type ApplicantDocument = {
+    id: number;
+    title: string;
+    type: string;
+    url: string | null;
+    uploaded_human: string | null;
+};
+
 export type Applicant = {
     id: number;
     first_name: string;
@@ -58,10 +77,15 @@ export type Applicant = {
     initials: string;
     email: string | null;
     phone: string | null;
+    current_location: string | null;
     headline: string | null;
+    linkedin_url: string | null;
+    portfolio_url: string | null;
+    years_experience: number | null;
     source: ApplicantSource;
     resume_url: string | null;
     notes: string | null;
+    documents?: ApplicantDocument[];
     applications_count?: number;
     created_human?: string | null;
 };

@@ -1,10 +1,13 @@
 import {
+    Eye,
     KanbanSquare,
+    Link2,
     MoreHorizontal,
     Pencil,
     SlidersHorizontal,
     Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -23,6 +26,7 @@ import type { ManagedPosting, RecruitmentPermissions } from '../types';
 type Props = {
     posting: ManagedPosting;
     can: RecruitmentPermissions;
+    onView: (posting: ManagedPosting) => void;
     onOpen: (posting: ManagedPosting) => void;
     onEdit: (posting: ManagedPosting) => void;
     onStatus: (posting: ManagedPosting, status: string) => void;
@@ -32,11 +36,23 @@ type Props = {
 export function PostingRowActions({
     posting,
     can,
+    onView,
     onOpen,
     onEdit,
     onStatus,
     onDelete,
 }: Props) {
+    const copyPublicLink = () => {
+        if (!posting.apply_url) {
+            return;
+        }
+
+        navigator.clipboard.writeText(posting.apply_url).then(
+            () => toast.success('Public application link copied'),
+            () => toast.error('Could not copy the link'),
+        );
+    };
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -53,10 +69,21 @@ export function PostingRowActions({
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                     Manage posting
                 </DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => onView(posting)}>
+                    <Eye className="size-4" />
+                    View details
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onOpen(posting)}>
                     <KanbanSquare className="size-4" />
                     Open pipeline
                 </DropdownMenuItem>
+
+                {posting.is_open && posting.apply_url && (
+                    <DropdownMenuItem onSelect={copyPublicLink}>
+                        <Link2 className="size-4" />
+                        Copy public link
+                    </DropdownMenuItem>
+                )}
 
                 {can.update && (
                     <>

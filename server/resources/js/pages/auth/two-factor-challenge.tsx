@@ -51,7 +51,7 @@ export default function TwoFactorChallenge() {
 
     return (
         <>
-            <Head title="Two-factor authentication — NEXO" />
+            <Head title="Two-factor authentication — SYNAPSE" />
 
             <div className="space-y-6">
                 <Form

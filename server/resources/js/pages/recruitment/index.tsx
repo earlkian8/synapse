@@ -2,12 +2,15 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
+import { PostingDetailSheet } from '@/features/recruitment/components/posting-detail-sheet';
 import { PostingFormSheet } from '@/features/recruitment/components/posting-form-sheet';
+import { PostingsGrid } from '@/features/recruitment/components/postings-grid';
 import { PostingsPagination } from '@/features/recruitment/components/postings-pagination';
 import { PostingsTable } from '@/features/recruitment/components/postings-table';
 import { PostingsToolbar } from '@/features/recruitment/components/postings-toolbar';
 import { RecruitmentStatsCards } from '@/features/recruitment/components/recruitment-stats';
 import { usePostingsFilters } from '@/features/recruitment/hooks/use-postings-filters';
+import { usePostingsView } from '@/features/recruitment/hooks/use-postings-view';
 import { recruitmentRoutes } from '@/features/recruitment/routes';
 import type {
     ManagedPosting,
@@ -33,9 +36,14 @@ export default function RecruitmentIndex() {
         toggleSort,
         reset,
     } = usePostingsFilters(filters);
+    const { view, changeView } = usePostingsView();
 
     const [formPosting, setFormPosting] = useState<ManagedPosting | null>(null);
     const [formOpen, setFormOpen] = useState(false);
+    const [detailPosting, setDetailPosting] = useState<ManagedPosting | null>(
+        null,
+    );
+    const [detailOpen, setDetailOpen] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -47,6 +55,11 @@ export default function RecruitmentIndex() {
 
     const openPipeline = (posting: ManagedPosting) =>
         router.visit(recruitmentRoutes.show(posting.hashid));
+
+    const openDetail = (posting: ManagedPosting) => {
+        setDetailPosting(posting);
+        setDetailOpen(true);
+    };
 
     const openCreate = () => {
         setFormPosting(null);
@@ -105,23 +118,38 @@ export default function RecruitmentIndex() {
                         departments={options.departments}
                         canCreate={can.create}
                         canExport={can.export}
+                        view={view}
                         onSearch={setSearch}
                         onStatus={setStatus}
                         onDepartment={setDepartment}
+                        onView={changeView}
                         onReset={reset}
                         onCreate={openCreate}
                     />
 
-                    <PostingsTable
-                        postings={postings.data}
-                        filters={filters}
-                        can={can}
-                        onToggleSort={toggleSort}
-                        onOpen={openPipeline}
-                        onEdit={openEdit}
-                        onStatus={setStatusFor}
-                        onDelete={remove}
-                    />
+                    {view === 'table' ? (
+                        <PostingsTable
+                            postings={postings.data}
+                            filters={filters}
+                            can={can}
+                            onToggleSort={toggleSort}
+                            onView={openDetail}
+                            onOpen={openPipeline}
+                            onEdit={openEdit}
+                            onStatus={setStatusFor}
+                            onDelete={remove}
+                        />
+                    ) : (
+                        <PostingsGrid
+                            postings={postings.data}
+                            can={can}
+                            onView={openDetail}
+                            onOpen={openPipeline}
+                            onEdit={openEdit}
+                            onStatus={setStatusFor}
+                            onDelete={remove}
+                        />
+                    )}
 
                     <PostingsPagination
                         meta={postings.meta}
@@ -131,6 +159,15 @@ export default function RecruitmentIndex() {
                     />
                 </div>
             </div>
+
+            <PostingDetailSheet
+                posting={detailPosting}
+                open={detailOpen}
+                can={can}
+                onOpenChange={setDetailOpen}
+                onOpenPipeline={openPipeline}
+                onEdit={openEdit}
+            />
 
             <PostingFormSheet
                 posting={formPosting}

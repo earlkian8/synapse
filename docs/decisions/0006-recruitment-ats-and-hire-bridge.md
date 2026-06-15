@@ -1,12 +1,26 @@
 # 0006 — Recruitment as an ATS, with a hire → employee bridge
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-06-14)
 - **Date:** 2026-06-11
 - **Related:** [Recruitment module](../modules/recruitment.md), [ERD §4](../database/erd.md), [0004 — Employee ↔ User](./0004-employee-user-separation.md), [0005 — Multi-tenancy](./0005-multi-tenancy.md)
 
+> **Amendment (2026-06-14) — public application channel.** Applicants no longer
+> enter the pool only by a recruiter typing them in: each organisation has a
+> public, unauthenticated careers surface (`/careers/{slug}` board +
+> `/careers/{slug}/jobs/{hashid}` apply page) where candidates apply directly with
+> a résumé and supporting files. Submissions carry no logged-in tenant, so the
+> controller resolves the organisation from the URL and stamps everything via
+> `Tenancy::runFor()`; only `open` postings accept applications, and the route is
+> rate-limited + honeypot-guarded. The candidate record was enriched
+> (`current_location`, `linkedin_url`, `portfolio_url`, `years_experience`) and a
+> new `applicant_documents` table holds supporting uploads — the `applicants.resume`
+> column (what the hire bridge copies into the 201 file) is unchanged. The
+> "standalone applicant pool" and "hire is an explicit action" decisions below
+> still hold; this only adds an inbound channel into the pool.
+
 ## Context
 
-NEXO's sidebar models an employee's life cycle — **Talent Acquisition →
+SYNAPSE's sidebar models an employee's life cycle — **Talent Acquisition →
 Workforce → Offboarding**. Until now an Employee could only be created by a manual
 "New employee" form, which makes the Recruitment step decorative: if anyone can
 conjure an employee, what is recruitment for?

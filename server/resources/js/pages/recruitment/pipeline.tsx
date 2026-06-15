@@ -1,19 +1,25 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, Plus, Users2 } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, LayoutGrid, List, Plus, Users2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AddCandidateSheet } from '@/features/recruitment/components/add-candidate-sheet';
 import { ApplicationDetailSheet } from '@/features/recruitment/components/application-detail-sheet';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
-import { PipelineBoard } from '@/features/recruitment/components/pipeline-board';
+import { PipelineGrid } from '@/features/recruitment/components/pipeline-grid';
+import { PipelineStageTabs } from '@/features/recruitment/components/pipeline-stage-tabs';
+import { PipelineTable } from '@/features/recruitment/components/pipeline-table';
 import { PostingStatusBadge } from '@/features/recruitment/components/posting-status-badge';
 import { TYPE_LABELS } from '@/features/recruitment/constants';
+import { usePipelineView } from '@/features/recruitment/hooks/use-pipeline-view';
 import { recruitmentRoutes } from '@/features/recruitment/routes';
 import type {
     Application,
     PipelinePageProps,
+    PipelineView,
     Stage,
+    StageFilter,
 } from '@/features/recruitment/types';
 
 type ConfirmConfig = {
@@ -27,13 +33,40 @@ type ConfirmConfig = {
 export default function RecruitmentPipeline() {
     const { posting, applications, options, can } =
         usePage<PipelinePageProps>().props;
+    const { view, changeView } = usePipelineView();
 
+    const [stage, setStage] = useState<StageFilter>('all');
     const [detailApp, setDetailApp] = useState<Application | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    const stageCounts = useMemo(() => {
+        const counts: Record<Stage, number> = {
+            applied: 0,
+            screening: 0,
+            interview: 0,
+            offer: 0,
+            hired: 0,
+            rejected: 0,
+        };
+
+        for (const application of applications) {
+            counts[application.stage] += 1;
+        }
+
+        return counts;
+    }, [applications]);
+
+    const visibleApplications = useMemo(
+        () =>
+            stage === 'all'
+                ? applications
+                : applications.filter((a) => a.stage === stage),
+        [applications, stage],
+    );
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);
@@ -122,29 +155,75 @@ export default function RecruitmentPipeline() {
                                 {TYPE_LABELS[posting.employment_type]} ·{' '}
                                 <span className="inline-flex items-center gap-1">
                                     <Users2 className="size-3.5" />
-                                    {posting.hired_count ?? 0}/{posting.openings}{' '}
-                                    hired
+                                    {posting.hired_count ?? 0}/
+                                    {posting.openings} hired
                                 </span>
                             </p>
                         </div>
                     </div>
 
-                    {can.create && (
-                        <Button size="sm" onClick={() => setAddOpen(true)}>
-                            <Plus className="size-4" />
-                            Add candidate
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <ToggleGroup
+                            type="single"
+                            value={view}
+                            onValueChange={(value) =>
+                                value && changeView(value as PipelineView)
+                            }
+                            variant="outline"
+                            size="sm"
+                            aria-label="Switch layout"
+                        >
+                            <ToggleGroupItem
+                                value="table"
+                                aria-label="Table view"
+                            >
+                                <List className="size-4" />
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                                value="grid"
+                                aria-label="Card view"
+                            >
+                                <LayoutGrid className="size-4" />
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+
+                        {can.create && (
+                            <Button size="sm" onClick={() => setAddOpen(true)}>
+                                <Plus className="size-4" />
+                                Add candidate
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                <PipelineBoard
-                    applications={applications}
-                    can={can}
-                    onOpen={openDetail}
-                    onMove={move}
-                    onHire={hire}
-                    onReject={reject}
-                />
+                <div className="flex flex-col gap-4">
+                    <PipelineStageTabs
+                        value={stage}
+                        counts={stageCounts}
+                        total={applications.length}
+                        onChange={setStage}
+                    />
+
+                    {view === 'grid' ? (
+                        <PipelineGrid
+                            applications={visibleApplications}
+                            can={can}
+                            onOpen={openDetail}
+                            onMove={move}
+                            onHire={hire}
+                            onReject={reject}
+                        />
+                    ) : (
+                        <PipelineTable
+                            applications={visibleApplications}
+                            can={can}
+                            onOpen={openDetail}
+                            onMove={move}
+                            onHire={hire}
+                            onReject={reject}
+                        />
+                    )}
+                </div>
             </div>
 
             <AddCandidateSheet

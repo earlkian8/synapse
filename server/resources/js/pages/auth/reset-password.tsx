@@ -16,7 +16,7 @@ type Props = {
 export default function ResetPassword({ token, email, passwordRules }: Props) {
     return (
         <>
-            <Head title="New password — NEXO" />
+            <Head title="New password — SYNAPSE" />
 
             <Form
                 {...update.form()}

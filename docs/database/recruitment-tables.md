@@ -1,7 +1,8 @@
 # Database: recruitment tables
 
 The tables behind the [Recruitment module](../modules/recruitment.md), created by the
-`…_create_recruitment_tables` migration. Every table is tenant-scoped — a non-null
+`…_create_recruitment_tables` migration (and extended by
+`…_extend_applicants_and_add_documents`). Every table is tenant-scoped — a non-null
 `organization_id` FK (ADR 0005), omitted from the columns below for brevity.
 
 ## `job_postings`
@@ -29,10 +30,28 @@ The standalone candidate pool (not users or employees).
 | `id` | bigint (PK) | |
 | `first_name` / `last_name` | string | |
 | `email` / `phone` | string, nullable | `email` indexed. |
+| `current_location` | string, nullable | City / region. |
 | `headline` | string, nullable | Current role / one-liner. |
+| `linkedin_url` / `portfolio_url` | string, nullable | Professional links. |
+| `years_experience` | tinyint, nullable | 0–60. |
 | `source` | string | website / referral / linkedin / agency / walk_in / other. |
-| `resume` | string, nullable | Stored on the `public` disk. |
+| `resume` | string, nullable | The **primary CV**, stored on the `public` disk; copied into the 201 file at hire. |
 | `notes` | text, nullable | |
+
+## `applicant_documents`
+
+Supporting files an applicant attaches besides the primary résumé (cover letter,
+certificate, transcript, portfolio, government ID, …). Mirrors `employee_documents`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `applicant_id` | FK → applicants | `cascadeOnDelete`. Indexed. |
+| `title` | string | Original file name. |
+| `type` | string | cover_letter / certificate / transcript / portfolio / government_id / other. |
+| `file` | string | Stored on the `public` disk. |
+| `uploaded_by` | FK → users, nullable | The recruiter; **null** for public submissions. `nullOnDelete`. |
+| timestamps | | |
 
 ## `job_applications`
 

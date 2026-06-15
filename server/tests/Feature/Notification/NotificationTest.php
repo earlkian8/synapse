@@ -1,11 +1,11 @@
 <?php
 
 use App\Models\User;
+use App\Notifications\Channels\SafeWebPushChannel;
 use App\Notifications\SystemNotification;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
-use NotificationChannels\WebPush\WebPushChannel;
 
 /**
  * Seed a real in-app (database) notification for a user.
@@ -199,7 +199,17 @@ test('the web push channel is used only when subscribed and enabled', function (
     $user->updatePushSubscription('https://push.example/abc', 'p256dh-key', 'auth-key');
 
     expect((new SystemNotification('t', 'b'))->via($user->fresh()))
-        ->toBe(['database', WebPushChannel::class]);
+        ->toBe(['database', SafeWebPushChannel::class]);
+});
+
+test('every channel is delivered synchronously so no queue worker is required', function () {
+    $connections = (new SystemNotification('t', 'b'))->viaConnections();
+
+    expect($connections)->toBe([
+        'database' => 'sync',
+        'mail' => 'sync',
+        SafeWebPushChannel::class => 'sync',
+    ]);
 });
 
 // â”€â”€ Preferences & subscriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

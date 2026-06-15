@@ -65,10 +65,10 @@ export default function EmployeesIndex() {
             }
         };
 
-        window.addEventListener('nexo:employee-mutated', onMutated);
+        window.addEventListener('synapse:employee-mutated', onMutated);
 
         return () =>
-            window.removeEventListener('nexo:employee-mutated', onMutated);
+            window.removeEventListener('synapse:employee-mutated', onMutated);
     }, []);
 
     // Drop stale selections whenever the result set changes.

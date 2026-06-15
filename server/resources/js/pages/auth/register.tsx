@@ -16,7 +16,7 @@ type Props = {
 export default function Register({ passwordRules }: Props) {
     return (
         <>
-            <Head title="Create account — NEXO" />
+            <Head title="Create account — SYNAPSE" />
             <Form
                 {...store.form()}
                 resetOnSuccess={['password', 'password_confirmation']}

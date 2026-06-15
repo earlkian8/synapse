@@ -79,11 +79,12 @@ class LeaveType extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function (Builder $query) use ($needle) {
-            $query->whereRaw('lower(name) like ?', [$needle])
-                ->orWhereRaw('lower(code) like ?', [$needle]);
+        $query->where(function (Builder $query) use ($needle, $like) {
+            $query->where('name', $like, $needle)
+                ->orWhere('code', $like, $needle);
         });
     }
 }

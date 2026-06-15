@@ -8,6 +8,8 @@ export const userRoutes = {
     bulk: '/system/users/bulk',
     export: '/system/users/export',
     update: (id: number) => `/system/users/${id}`,
+    resendVerification: (id: number) =>
+        `/system/users/${id}/resend-verification`,
     destroy: (id: number) => `/system/users/${id}`,
     status: (id: number) => `/system/users/${id}/status`,
     password: (id: number) => `/system/users/${id}/password`,

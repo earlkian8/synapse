@@ -22,11 +22,22 @@ class Applicant extends Model
         'last_name',
         'email',
         'phone',
+        'current_location',
         'headline',
+        'linkedin_url',
+        'portfolio_url',
+        'years_experience',
         'source',
         'resume',
         'notes',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'years_experience' => 'integer',
+        ];
+    }
 
     /**
      * @var list<string>
@@ -41,6 +52,16 @@ class Applicant extends Model
     public function applications(): HasMany
     {
         return $this->hasMany(JobApplication::class);
+    }
+
+    /**
+     * Supporting files the candidate has attached (besides the primary résumé).
+     *
+     * @return HasMany<ApplicantDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ApplicantDocument::class);
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────
@@ -88,11 +109,12 @@ class Applicant extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function (Builder $query) use ($needle) {
+        $query->where(function (Builder $query) use ($needle, $like) {
             foreach (['first_name', 'last_name', 'email', 'headline'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
         });
     }

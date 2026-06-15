@@ -26,6 +26,8 @@ class JobPostingResource extends JsonResource
             'openings' => $this->openings,
             'status' => $this->status,
             'closing_date' => $this->closing_date?->toDateString(),
+            'is_open' => $this->status === 'open',
+            'apply_url' => $this->publicApplyUrl($request),
 
             'department' => $this->whenLoaded('department', fn () => $this->department ? [
                 'id' => $this->department->id,
@@ -49,5 +51,20 @@ class JobPostingResource extends JsonResource
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * The shareable public application URL for this posting.
+     *
+     * Built from the current user's organisation slug — every posting in a
+     * recruiter's view belongs to their tenant — so it costs no per-row query.
+     */
+    private function publicApplyUrl(Request $request): ?string
+    {
+        $slug = $request->user()?->organization?->slug;
+
+        return $slug
+            ? route('careers.show', ['organization' => $slug, 'jobPosting' => $this->hashid])
+            : null;
     }
 }

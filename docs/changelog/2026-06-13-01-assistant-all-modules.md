@@ -1,6 +1,6 @@
 # 2026-06-13 — Assistant goes org-wide (all HR modules)
 
-The floating assistant is no longer employee-only. It is now **Nexo Assistant**,
+The floating assistant is no longer employee-only. It is now **Synapse Assistant**,
 an HR copilot that can act across **Employees, Leave, Onboarding and
 Recruitment** — and it only ever exposes the modules the signed-in user is
 permitted to use. The conversational, animated, multimodal experience is

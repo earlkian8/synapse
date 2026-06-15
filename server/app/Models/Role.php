@@ -76,11 +76,12 @@ class Role extends Model
             return;
         }
 
-        $needle = '%'.mb_strtolower($term).'%';
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
-        $query->where(function ($query) use ($needle) {
+        $query->where(function ($query) use ($needle, $like) {
             foreach (['name', 'label', 'description'] as $column) {
-                $query->orWhereRaw('lower('.$column.') like ?', [$needle]);
+                $query->orWhere($column, $like, $needle);
             }
         });
     }

@@ -23,6 +23,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 require __DIR__.'/settings.php';
 require __DIR__.'/system.php';
+require __DIR__.'/careers.php';
 require __DIR__.'/employees.php';
 require __DIR__.'/recruitment.php';
 require __DIR__.'/onboarding.php';

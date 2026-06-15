@@ -9,7 +9,9 @@ type Props = {
 
 export function UserAvatar({ user, className }: Props) {
     return (
-        <Avatar className={cn('size-9 rounded-full ring-1 ring-border', className)}>
+        <Avatar
+            className={cn('size-9 rounded-full ring-1 ring-border', className)}
+        >
             {user.profile_photo && (
                 <AvatarImage src={user.profile_photo} alt={user.full_name} />
             )}

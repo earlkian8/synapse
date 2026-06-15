@@ -31,10 +31,17 @@ class JobApplicationResource extends JsonResource
                 'initials' => $this->applicant->initials(),
                 'email' => $this->applicant->email,
                 'phone' => $this->applicant->phone,
+                'current_location' => $this->applicant->current_location,
                 'headline' => $this->applicant->headline,
+                'linkedin_url' => $this->applicant->linkedin_url,
+                'portfolio_url' => $this->applicant->portfolio_url,
+                'years_experience' => $this->applicant->years_experience,
                 'source' => $this->applicant->source,
                 'resume_url' => $this->applicant->resumeUrl(),
                 'notes' => $this->applicant->notes,
+                'documents' => $this->applicant->relationLoaded('documents')
+                    ? ApplicantDocumentResource::collection($this->applicant->documents)
+                    : [],
             ] : null),
             'job_posting' => $this->whenLoaded('jobPosting', fn () => $this->jobPosting ? [
                 'id' => $this->jobPosting->id,
@@ -54,7 +61,7 @@ class JobApplicationResource extends JsonResource
 
             'applied_at' => $this->applied_at?->toIso8601String(),
             'applied_human' => $this->applied_at?->diffForHumans(),
-            'age_days' => $this->applied_at?->diffInDays(now()),
+            'age_days' => $this->applied_at ? (int) $this->applied_at->diffInDays() : null,
             'decided_at' => $this->decided_at?->toIso8601String(),
             'updated_human' => $this->updated_at?->diffForHumans(),
         ];

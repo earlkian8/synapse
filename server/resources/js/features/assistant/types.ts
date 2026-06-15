@@ -1,5 +1,5 @@
 /**
- * Types for the Nexo assistant — a persistent, multi-conversation agentic chat
+ * Types for the Synapse assistant — a persistent, multi-conversation agentic chat
  * that acts across the HR modules (employees, leave, onboarding, recruitment).
  */
 

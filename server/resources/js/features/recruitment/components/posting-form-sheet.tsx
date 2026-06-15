@@ -226,10 +226,7 @@ function FormBody({
                                 options={POSTING_STATUS_OPTIONS}
                             />
                         </Field>
-                        <Field
-                            label="Closing date"
-                            error={errors.closing_date}
-                        >
+                        <Field label="Closing date" error={errors.closing_date}>
                             <Input
                                 type="date"
                                 value={data.closing_date ?? ''}

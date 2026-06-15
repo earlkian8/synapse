@@ -61,7 +61,7 @@ ERD's actor/subject convention.
   judgement call (optional tasks, waived steps). We keep **completion** a human action and
   only automate the harmless `pending → in_progress` nudge.
 - **A general workflow/BPM engine.** Overkill for a checklist; adds a dependency and
-  concepts the rest of NEXO doesn't use. Deferred.
+  concepts the rest of SYNAPSE doesn't use. Deferred.
 
 ## Consequences
 

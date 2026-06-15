@@ -1,5 +1,12 @@
 import { useForm } from '@inertiajs/react';
-import { Check, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import {
+    Check,
+    MailCheck,
+    RefreshCw,
+    ShieldCheck,
+    Trash2,
+    Upload,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
@@ -104,7 +111,6 @@ function UserFormBody({
         email: user?.email ?? '',
         phone_number: user?.phone_number ?? '',
         is_active: user?.is_active ?? true,
-        email_verified: user?.email_verified ?? false,
         photo: null as File | null,
         remove_photo: false,
         password: '',
@@ -223,7 +229,9 @@ function UserFormBody({
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
                             className="hidden"
-                            onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+                            onChange={(e) =>
+                                pickPhoto(e.target.files?.[0] ?? null)
+                            }
                         />
                         <InputError message={errors.photo} />
                     </div>
@@ -234,35 +242,63 @@ function UserFormBody({
                     description="Legal name as it should appear across the system."
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="First name" htmlFor="first_name" error={errors.first_name} required>
+                        <Field
+                            label="First name"
+                            htmlFor="first_name"
+                            error={errors.first_name}
+                            required
+                        >
                             <Input
                                 id="first_name"
                                 value={data.first_name}
-                                onChange={(e) => setData('first_name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('first_name', e.target.value)
+                                }
                                 autoFocus
                                 required
                             />
                         </Field>
-                        <Field label="Last name" htmlFor="last_name" error={errors.last_name} required>
+                        <Field
+                            label="Last name"
+                            htmlFor="last_name"
+                            error={errors.last_name}
+                            required
+                        >
                             <Input
                                 id="last_name"
                                 value={data.last_name}
-                                onChange={(e) => setData('last_name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('last_name', e.target.value)
+                                }
                                 required
                             />
                         </Field>
-                        <Field label="Middle name" htmlFor="middle_name" error={errors.middle_name} optional>
+                        <Field
+                            label="Middle name"
+                            htmlFor="middle_name"
+                            error={errors.middle_name}
+                            optional
+                        >
                             <Input
                                 id="middle_name"
                                 value={data.middle_name}
-                                onChange={(e) => setData('middle_name', e.target.value)}
+                                onChange={(e) =>
+                                    setData('middle_name', e.target.value)
+                                }
                             />
                         </Field>
-                        <Field label="Suffix" htmlFor="suffix" error={errors.suffix} optional>
+                        <Field
+                            label="Suffix"
+                            htmlFor="suffix"
+                            error={errors.suffix}
+                            optional
+                        >
                             <Input
                                 id="suffix"
                                 value={data.suffix}
-                                onChange={(e) => setData('suffix', e.target.value)}
+                                onChange={(e) =>
+                                    setData('suffix', e.target.value)
+                                }
                                 placeholder="Jr., Sr., III"
                             />
                         </Field>
@@ -274,20 +310,36 @@ function UserFormBody({
                     description="How the organisation reaches this person."
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Email address" htmlFor="email" error={errors.email} required className="sm:col-span-2">
+                        <Field
+                            label="Email address"
+                            htmlFor="email"
+                            error={errors.email}
+                            required
+                            className="sm:col-span-2"
+                        >
                             <Input
                                 id="email"
                                 type="email"
                                 value={data.email}
-                                onChange={(e) => setData('email', e.target.value)}
+                                onChange={(e) =>
+                                    setData('email', e.target.value)
+                                }
                                 required
                             />
                         </Field>
-                        <Field label="Phone number" htmlFor="phone_number" error={errors.phone_number} optional className="sm:col-span-2">
+                        <Field
+                            label="Phone number"
+                            htmlFor="phone_number"
+                            error={errors.phone_number}
+                            optional
+                            className="sm:col-span-2"
+                        >
                             <Input
                                 id="phone_number"
                                 value={data.phone_number}
-                                onChange={(e) => setData('phone_number', e.target.value)}
+                                onChange={(e) =>
+                                    setData('phone_number', e.target.value)
+                                }
                             />
                         </Field>
                     </div>
@@ -299,31 +351,29 @@ function UserFormBody({
                 >
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
                         <div>
-                            <p className="text-sm font-medium">Active account</p>
+                            <p className="text-sm font-medium">
+                                Active account
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                                Inactive users keep their data but cannot sign in.
+                                Inactive users keep their data but cannot sign
+                                in.
                             </p>
                         </div>
                         <Switch
                             checked={data.is_active}
-                            onCheckedChange={(value) => setData('is_active', value)}
+                            onCheckedChange={(value) =>
+                                setData('is_active', value)
+                            }
                         />
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
-                        <div>
-                            <p className="text-sm font-medium">Email verified</p>
-                            <p className="text-xs text-muted-foreground">
-                                Mark the email address as verified, bypassing the
-                                confirmation email.
-                            </p>
-                        </div>
-                        <Switch
-                            checked={data.email_verified}
-                            onCheckedChange={(value) =>
-                                setData('email_verified', value)
-                            }
-                        />
+                    <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                        <MailCheck className="mt-0.5 size-4 shrink-0 text-[#0ABFBF]" />
+                        <p className="text-xs text-muted-foreground">
+                            {isEditing
+                                ? 'If you change the email address, a verification link will be sent and the user must confirm it before signing in again.'
+                                : 'A verification link will be emailed to this address. The user must confirm it before they can sign in.'}
+                        </p>
                     </div>
 
                     {!isEditing && (
@@ -348,7 +398,9 @@ function UserFormBody({
                                 <PasswordInput
                                     id="password"
                                     value={data.password}
-                                    onChange={(e) => setData('password', e.target.value)}
+                                    onChange={(e) =>
+                                        setData('password', e.target.value)
+                                    }
                                     autoComplete="new-password"
                                     placeholder="Leave blank to invite later"
                                 />
@@ -363,7 +415,10 @@ function UserFormBody({
                                         id="password_confirmation"
                                         value={data.password_confirmation}
                                         onChange={(e) =>
-                                            setData('password_confirmation', e.target.value)
+                                            setData(
+                                                'password_confirmation',
+                                                e.target.value,
+                                            )
                                         }
                                         autoComplete="new-password"
                                     />
@@ -395,7 +450,7 @@ function UserFormBody({
                                                 : 'border-border bg-muted/20 hover:bg-muted/40',
                                         )}
                                     >
-                                        <span className="flex items-center gap-2 min-w-0">
+                                        <span className="flex min-w-0 items-center gap-2">
                                             <ShieldCheck
                                                 className={cn(
                                                     'size-4 shrink-0',
@@ -421,7 +476,9 @@ function UserFormBody({
                                                     : 'border-muted-foreground/40',
                                             )}
                                         >
-                                            {checked && <Check className="size-3" />}
+                                            {checked && (
+                                                <Check className="size-3" />
+                                            )}
                                         </span>
                                     </button>
                                 );
@@ -496,7 +553,9 @@ function Field({
             <div className="mb-1.5 flex items-center justify-between">
                 <Label htmlFor={htmlFor}>
                     {label}
-                    {required && <span className="ml-0.5 text-destructive">*</span>}
+                    {required && (
+                        <span className="ml-0.5 text-destructive">*</span>
+                    )}
                     {optional && (
                         <span className="ml-1 text-xs font-normal text-muted-foreground">
                             optional

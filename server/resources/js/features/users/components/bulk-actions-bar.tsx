@@ -1,4 +1,11 @@
-import { Archive, ArchiveRestore, CheckCircle2, PauseCircle, Trash2, X } from 'lucide-react';
+import {
+    Archive,
+    ArchiveRestore,
+    CheckCircle2,
+    PauseCircle,
+    Trash2,
+    X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { BulkAction, UserPermissions } from '../types';
 
@@ -10,7 +17,13 @@ type Props = {
     onClear: () => void;
 };
 
-export function BulkActionsBar({ count, scope, can, onAction, onClear }: Props) {
+export function BulkActionsBar({
+    count,
+    scope,
+    can,
+    onAction,
+    onClear,
+}: Props) {
     const isArchivedScope = scope === 'archived';
 
     return (
@@ -27,7 +40,11 @@ export function BulkActionsBar({ count, scope, can, onAction, onClear }: Props) 
             {isArchivedScope ? (
                 <>
                     {can.restore && (
-                        <Button variant="ghost" size="sm" onClick={() => onAction('restore')}>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onAction('restore')}
+                        >
                             <ArchiveRestore className="size-4" />
                             Restore
                         </Button>
@@ -48,11 +65,19 @@ export function BulkActionsBar({ count, scope, can, onAction, onClear }: Props) 
                 <>
                     {can.manageStatus && (
                         <>
-                            <Button variant="ghost" size="sm" onClick={() => onAction('activate')}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onAction('activate')}
+                            >
                                 <CheckCircle2 className="size-4" />
                                 Activate
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => onAction('deactivate')}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onAction('deactivate')}
+                            >
                                 <PauseCircle className="size-4" />
                                 Deactivate
                             </Button>

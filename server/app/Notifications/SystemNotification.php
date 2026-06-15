@@ -2,20 +2,22 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Channels\SafeWebPushChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
 
 /**
  * The single notification type that powers the whole module.
  *
- * Every in-app, email, and web-push notification flows through this class. It is
- * queued so email and web-push delivery never block the request — but the
- * `database` channel is forced onto the synchronous connection (see
- * {@see self::viaConnections()}) so the in-app bell updates instantly.
+ * Every in-app, email, and web-push notification flows through this class. All
+ * channels are delivered on the synchronous connection (see
+ * {@see self::viaConnections()}) so delivery never depends on a running queue
+ * worker — in local dev the app is often served with a bare `php artisan serve`
+ * (no `queue:work`), and a silently-queued email that never sends is worse than
+ * a slightly slower request. Web push is best-effort via {@see SafeWebPushChannel}.
  */
 class SystemNotification extends Notification implements ShouldQueue
 {
@@ -48,21 +50,26 @@ class SystemNotification extends Notification implements ShouldQueue
         }
 
         if (($notifiable->push_notifications ?? false) && $this->hasPushSubscriptions($notifiable)) {
-            $channels[] = WebPushChannel::class;
+            $channels[] = SafeWebPushChannel::class;
         }
 
         return $channels;
     }
 
     /**
-     * Keep the in-app write synchronous (instant bell update) while email and
-     * web-push fan out on the queue.
+     * Force every channel onto the synchronous connection so delivery never
+     * waits on a queue worker (see the class docblock). The notification stays
+     * {@see ShouldQueue} so the per-channel routing still flows through here.
      *
      * @return array<string, string>
      */
     public function viaConnections(): array
     {
-        return ['database' => 'sync'];
+        return [
+            'database' => 'sync',
+            'mail' => 'sync',
+            SafeWebPushChannel::class => 'sync',
+        ];
     }
 
     /**
@@ -93,10 +100,10 @@ class SystemNotification extends Notification implements ShouldQueue
             ->line($this->body);
 
         if ($this->url) {
-            $mail->action('View in NEXO', url($this->url));
+            $mail->action('View in SYNAPSE', url($this->url));
         }
 
-        return $mail->salutation('— The NEXO Team');
+        return $mail->salutation('— The SYNAPSE Team');
     }
 
     /**
