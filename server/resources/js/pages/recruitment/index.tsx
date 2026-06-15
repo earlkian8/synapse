@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
 import { PostingDetailSheet } from '@/features/recruitment/components/posting-detail-sheet';
 import { PostingFormSheet } from '@/features/recruitment/components/posting-form-sheet';
-import { PostingsControls } from '@/features/recruitment/components/postings-controls';
 import { PostingsGrid } from '@/features/recruitment/components/postings-grid';
 import { PostingsPagination } from '@/features/recruitment/components/postings-pagination';
 import { PostingsTable } from '@/features/recruitment/components/postings-table';
@@ -119,17 +118,13 @@ export default function RecruitmentIndex() {
                         departments={options.departments}
                         canCreate={can.create}
                         canExport={can.export}
+                        view={view}
                         onSearch={setSearch}
+                        onStatus={setStatus}
                         onDepartment={setDepartment}
+                        onView={changeView}
                         onReset={reset}
                         onCreate={openCreate}
-                    />
-
-                    <PostingsControls
-                        status={filters.status}
-                        view={view}
-                        onStatus={setStatus}
-                        onView={changeView}
                     />
 
                     {view === 'table' ? (

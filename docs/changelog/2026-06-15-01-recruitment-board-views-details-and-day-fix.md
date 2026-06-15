@@ -1,9 +1,9 @@
-# 2026-06-15 — Recruitment board: status tabs, view switch, posting details & a day fix
+# 2026-06-15 — Recruitment board: view switch, posting details & a day fix
 
 Three fixes to the Recruitment postings board (`/recruitment`): candidate cards
 showed a fractional "days" number, a posting could only be opened into its pipeline
-(never just *read*), and the board was a single fixed table. This adds tabs, a
-table/card-grid switch, and a read-only posting details drawer.
+(never just *read*), and the board was a single fixed table. This adds a
+table/card-grid switch and a read-only posting details drawer.
 
 ## Highlights
 
@@ -16,10 +16,10 @@ table/card-grid switch, and a read-only posting details drawer.
   total), the public application link (copy + open), and the full description and
   requirements — with **Open pipeline** and **Edit** actions. Previously the only
   way into a posting was straight to the pipeline board.
-- **Tabs + table/card views.** Status filtering moved from a dropdown into tabs
-  (All / Draft / Open / Closed / Filled). A new view switch toggles between the
-  dense **table** and a **card grid**; the preference is remembered per browser
-  (localStorage). The pipeline-count chip and the row menu still jump to the board.
+- **Table / card views.** A new view switch in the toolbar toggles between the dense
+  **table** and a **card grid**; the preference is remembered per browser
+  (localStorage). Status/department filters stay as toolbar dropdowns. The
+  pipeline-count chip and the row menu still jump to the board.
 
 ## Backend
 
@@ -28,14 +28,13 @@ table/card-grid switch, and a read-only posting details drawer.
 ## Frontend
 
 - New `features/recruitment/`: `hooks/use-postings-view.ts` (persisted view choice),
-  `components/postings-controls.tsx` (status tabs + view toggle),
   `components/postings-grid.tsx` (card grid), `components/posting-detail-sheet.tsx`
   (read-only drawer).
-- `pages/recruitment/index.tsx` wires the view switch, tabs, table/grid swap, and the
-  details drawer. `postings-table` / `postings-grid` / `posting-row-actions` gained an
-  `onView` handler (title/card click and a "View details" menu item open the drawer);
-  the status `<Select>` was removed from `postings-toolbar` (now the tabs).
-  `types.ts` adds `PostingsView`.
+- `postings-toolbar` gained the **table/card view toggle** (and keeps the status and
+  department filters). `pages/recruitment/index.tsx` wires the view switch, the
+  table/grid swap, and the details drawer. `postings-table` / `postings-grid` /
+  `posting-row-actions` gained an `onView` handler (title/card click and a "View
+  details" menu item open the drawer). `types.ts` adds `PostingsView`.
 
 ## Docs
 
