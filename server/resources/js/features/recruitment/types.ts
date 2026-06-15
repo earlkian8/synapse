@@ -29,6 +29,9 @@ export type SortDirection = 'asc' | 'desc';
 /** How the postings index is laid out: a dense table or a card grid. */
 export type PostingsView = 'table' | 'grid';
 
+/** How the pipeline is laid out: the kanban board or a flat table. */
+export type PipelineView = 'board' | 'table';
+
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };
 

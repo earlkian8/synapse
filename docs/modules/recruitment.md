@@ -25,9 +25,12 @@ migration, bypass hires), not the default path.
   application link, description/requirements, pipeline summary) with **Open pipeline**
   and **Edit** actions; the pipeline-count chip and the row menu's "Open pipeline"
   jump straight to the board.
-- **`/recruitment/{posting}`** — the **pipeline board**: columns for each stage
-  (Applied · Screening · Interview · Offer · Hired · Rejected) with candidate cards.
-  Add candidates, move them, schedule interviews, reject, and hire.
+- **`/recruitment/{posting}`** — the **pipeline**, with a **board ⇄ table** view
+  switch (remembered per browser). The board has a column per stage (Applied ·
+  Screening · Interview · Offer · Hired · Rejected) with candidate cards; the table
+  is a flat list (candidate, stage, rating, interviews, age). Both expose the same
+  per-candidate Move / Hire / Reject menu. Add candidates, move them, schedule
+  interviews, reject, and hire.
 - **`/careers/{org-slug}`** and **`/careers/{org-slug}/jobs/{posting}`** — the
   **public, unauthenticated careers surface** (see below). Recruiters copy a
   posting's public link from the board row actions ("Copy public link").
@@ -112,14 +115,16 @@ is only ever produced by this action.
 
 ## Frontend
 
-`features/recruitment/` — types, routes, constants, the postings filter hook and a
-view-preference hook (`use-postings-view`, localStorage-backed), and components:
+`features/recruitment/` — types, routes, constants, the postings filter hook, and
+two layout-preference hooks built on a shared `use-stored-view` (localStorage-backed):
+`use-postings-view` (table/grid) and `use-pipeline-view` (board/table). Components:
 stats, postings toolbar (search/status/department filters + the table/card-grid view
 switch), **table** and **card grid**, row-actions, posting status badge, **posting
 detail sheet** (read-only overview + public link), posting form sheet, pagination;
-and the pipeline pieces — **board**, **column**, **card**, **application detail
-sheet** (rating, stage moves, interviews, hire, reject), **add candidate sheet**,
-stage badge, rating stars. Pages: `pages/recruitment/index.tsx`
+and the pipeline pieces — **board**, **column**, **card**, **table**, the shared
+**application actions menu** (Move / Hire / Reject, used by card and table),
+**application detail sheet** (rating, stage moves, interviews, hire, reject), **add
+candidate sheet**, stage badge, rating stars. Pages: `pages/recruitment/index.tsx`
 and `pages/recruitment/pipeline.tsx`. The detail drawer lazy-loads the full
 application (`GET /recruitment/applications/{id}` JSON). The sidebar **Talent
 Acquisition → Recruitment** link is gated on `recruitment.view`.

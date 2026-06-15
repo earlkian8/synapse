@@ -1,24 +1,7 @@
-import {
-    CalendarClock,
-    Clock,
-    MoreHorizontal,
-    MoveRight,
-    UserRoundCheck,
-    XCircle,
-} from 'lucide-react';
+import { CalendarClock, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuSub,
-    DropdownMenuSubContent,
-    DropdownMenuSubTrigger,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MOVABLE_STAGES } from '../constants';
 import type { Application, RecruitmentPermissions, Stage } from '../types';
+import { ApplicationActionsMenu } from './application-actions-menu';
 import { RatingStars } from './rating-stars';
 
 type Props = {
@@ -41,8 +24,6 @@ export function ApplicationCard({
     const applicant = application.applicant;
     const terminal =
         application.stage === 'hired' || application.stage === 'rejected';
-    const canHire =
-        can.hire && ['interview', 'offer'].includes(application.stage);
 
     return (
         <div className="group rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
@@ -66,62 +47,14 @@ export function ApplicationCard({
                 </button>
 
                 {!terminal && (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted data-[state=open]:bg-muted data-[state=open]:opacity-100"
-                                aria-label="Card actions"
-                            >
-                                <MoreHorizontal className="size-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                            {can.managePipeline && (
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                        <MoveRight className="size-4" />
-                                        Move to
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                        {MOVABLE_STAGES.filter(
-                                            (s) =>
-                                                s.value !== application.stage,
-                                        ).map((s) => (
-                                            <DropdownMenuItem
-                                                key={s.value}
-                                                onSelect={() =>
-                                                    onMove(application, s.value)
-                                                }
-                                            >
-                                                {s.label}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                            )}
-                            {canHire && (
-                                <DropdownMenuItem
-                                    onSelect={() => onHire(application)}
-                                >
-                                    <UserRoundCheck className="size-4" />
-                                    Hire
-                                </DropdownMenuItem>
-                            )}
-                            {can.managePipeline && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        onSelect={() => onReject(application)}
-                                    >
-                                        <XCircle className="size-4" />
-                                        Reject
-                                    </DropdownMenuItem>
-                                </>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ApplicationActionsMenu
+                        application={application}
+                        can={can}
+                        onMove={onMove}
+                        onHire={onHire}
+                        onReject={onReject}
+                        triggerClassName="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                    />
                 )}
             </div>
 
