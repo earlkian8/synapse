@@ -72,12 +72,42 @@ export const PIPELINE_STAGES: {
     accent: string;
     dot: string;
 }[] = [
-    { value: 'applied', label: 'Applied', accent: 'text-slate-600', dot: 'bg-slate-400' },
-    { value: 'screening', label: 'Screening', accent: 'text-indigo-600', dot: 'bg-indigo-400' },
-    { value: 'interview', label: 'Interview', accent: 'text-violet-600', dot: 'bg-violet-400' },
-    { value: 'offer', label: 'Offer', accent: 'text-amber-600', dot: 'bg-amber-400' },
-    { value: 'hired', label: 'Hired', accent: 'text-emerald-600', dot: 'bg-emerald-400' },
-    { value: 'rejected', label: 'Rejected', accent: 'text-rose-600', dot: 'bg-rose-400' },
+    {
+        value: 'applied',
+        label: 'Applied',
+        accent: 'text-slate-600',
+        dot: 'bg-slate-400',
+    },
+    {
+        value: 'screening',
+        label: 'Screening',
+        accent: 'text-indigo-600',
+        dot: 'bg-indigo-400',
+    },
+    {
+        value: 'interview',
+        label: 'Interview',
+        accent: 'text-violet-600',
+        dot: 'bg-violet-400',
+    },
+    {
+        value: 'offer',
+        label: 'Offer',
+        accent: 'text-amber-600',
+        dot: 'bg-amber-400',
+    },
+    {
+        value: 'hired',
+        label: 'Hired',
+        accent: 'text-emerald-600',
+        dot: 'bg-emerald-400',
+    },
+    {
+        value: 'rejected',
+        label: 'Rejected',
+        accent: 'text-rose-600',
+        dot: 'bg-rose-400',
+    },
 ];
 
 /** Stages a recruiter may move a card to directly (terminal stages excluded). */
@@ -98,7 +128,8 @@ export const STAGE_LABELS: Record<Stage, string> = {
 };
 
 export const STAGE_STYLES: Record<Stage, string> = {
-    applied: 'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+    applied:
+        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
     screening:
         'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
     interview:

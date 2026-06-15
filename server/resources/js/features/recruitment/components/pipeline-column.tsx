@@ -27,7 +27,7 @@ export function PipelineColumn({
                     <span className={cn('size-2 rounded-full', dot)} />
                     {label}
                 </span>
-                <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
                     {applications.length}
                 </span>
             </div>

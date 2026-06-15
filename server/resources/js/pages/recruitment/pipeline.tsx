@@ -122,8 +122,8 @@ export default function RecruitmentPipeline() {
                                 {TYPE_LABELS[posting.employment_type]} ·{' '}
                                 <span className="inline-flex items-center gap-1">
                                     <Users2 className="size-3.5" />
-                                    {posting.hired_count ?? 0}/{posting.openings}{' '}
-                                    hired
+                                    {posting.hired_count ?? 0}/
+                                    {posting.openings} hired
                                 </span>
                             </p>
                         </div>

@@ -9,7 +9,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { STATUS_FILTERS } from '../constants';
 import { recruitmentRoutes } from '../routes';
 import type { DepartmentRef, PostingsFilters } from '../types';
 
@@ -19,7 +18,6 @@ type Props = {
     canCreate: boolean;
     canExport: boolean;
     onSearch: (value: string) => void;
-    onStatus: (value: string) => void;
     onDepartment: (value: number | null) => void;
     onReset: () => void;
     onCreate: () => void;
@@ -31,7 +29,6 @@ export function PostingsToolbar({
     canCreate,
     canExport,
     onSearch,
-    onStatus,
     onDepartment,
     onReset,
     onCreate,
@@ -110,22 +107,6 @@ export function PostingsToolbar({
                                 value={String(department.id)}
                             >
                                 {department.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={filters.status} onValueChange={onStatus}>
-                    <SelectTrigger
-                        className="w-[140px]"
-                        aria-label="Filter by status"
-                    >
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {STATUS_FILTERS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
                             </SelectItem>
                         ))}
                     </SelectContent>

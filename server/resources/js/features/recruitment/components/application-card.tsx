@@ -85,7 +85,8 @@ export function ApplicationCard({
                                     </DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
                                         {MOVABLE_STAGES.filter(
-                                            (s) => s.value !== application.stage,
+                                            (s) =>
+                                                s.value !== application.stage,
                                         ).map((s) => (
                                             <DropdownMenuItem
                                                 key={s.value}

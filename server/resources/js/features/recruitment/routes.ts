@@ -18,10 +18,8 @@ export const recruitmentRoutes = {
     applications: (postingHashid: string) =>
         `/recruitment/${postingHashid}/applications`,
     application: (id: number) => `/recruitment/applications/${id}`,
-    applicationStage: (id: number) =>
-        `/recruitment/applications/${id}/stage`,
-    applicationReject: (id: number) =>
-        `/recruitment/applications/${id}/reject`,
+    applicationStage: (id: number) => `/recruitment/applications/${id}/stage`,
+    applicationReject: (id: number) => `/recruitment/applications/${id}/reject`,
     applicationHire: (id: number) => `/recruitment/applications/${id}/hire`,
     applicationInterviews: (id: number) =>
         `/recruitment/applications/${id}/interviews`,

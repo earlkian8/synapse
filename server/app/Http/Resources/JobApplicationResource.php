@@ -61,7 +61,7 @@ class JobApplicationResource extends JsonResource
 
             'applied_at' => $this->applied_at?->toIso8601String(),
             'applied_human' => $this->applied_at?->diffForHumans(),
-            'age_days' => $this->applied_at?->diffInDays(now()),
+            'age_days' => $this->applied_at ? (int) $this->applied_at->diffInDays() : null,
             'decided_at' => $this->decided_at?->toIso8601String(),
             'updated_human' => $this->updated_at?->diffForHumans(),
         ];

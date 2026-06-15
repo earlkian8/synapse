@@ -1,4 +1,9 @@
-import { ArrowDown, ArrowUp, BriefcaseBusiness, ChevronsUpDown } from 'lucide-react';
+import {
+    ArrowDown,
+    ArrowUp,
+    BriefcaseBusiness,
+    ChevronsUpDown,
+} from 'lucide-react';
 import {
     Table,
     TableBody,
@@ -18,6 +23,7 @@ import { PostingRowActions } from './posting-row-actions';
 import { PostingStatusBadge } from './posting-status-badge';
 
 type RowHandlers = {
+    onView: (posting: ManagedPosting) => void;
     onOpen: (posting: ManagedPosting) => void;
     onEdit: (posting: ManagedPosting) => void;
     onStatus: (posting: ManagedPosting, status: string) => void;
@@ -102,7 +108,7 @@ export function PostingsTable({
                             <TableCell>
                                 <button
                                     type="button"
-                                    onClick={() => handlers.onOpen(posting)}
+                                    onClick={() => handlers.onView(posting)}
                                     className="flex flex-col text-left"
                                 >
                                     <span className="font-medium hover:underline">
