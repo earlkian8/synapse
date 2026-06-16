@@ -119,6 +119,7 @@ class OrganizationProvisioner
                     'recruitment.export',
                     'onboarding.view', 'onboarding.manage', 'onboarding.manage-programs',
                     'leave.view', 'leave.request', 'leave.manage',
+                    'attendance.view', 'attendance.manage', 'attendance.clock',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
                     'users.view', 'users.create', 'users.update',
@@ -133,7 +134,10 @@ class OrganizationProvisioner
                 'label' => 'Staff',
                 'description' => 'Baseline access for regular employees.',
                 'is_system' => false,
-                'permissions' => [],
+                'permissions' => [
+                    // Self-service: clock in/out from web or the mobile app.
+                    'attendance.clock',
+                ],
             ],
         ];
     }

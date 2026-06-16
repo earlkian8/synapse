@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\Assistant\Assistant;
+use App\Services\Assistant\Modules\AttendanceModule;
 use App\Services\Assistant\Modules\EmployeeModule;
 use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\OnboardingModule;
@@ -45,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
             [
                 $app->make(EmployeeModule::class),
                 $app->make(LeaveModule::class),
+                $app->make(AttendanceModule::class),
                 $app->make(OnboardingModule::class),
                 $app->make(RecruitmentModule::class),
             ],

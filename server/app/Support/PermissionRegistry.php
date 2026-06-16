@@ -50,6 +50,11 @@ class PermissionRegistry
             'leave.request' => 'File & cancel leave requests',
             'leave.manage' => 'Approve / reject leave & set balances',
         ],
+        'Attendance' => [
+            'attendance.view' => 'View attendance & time records',
+            'attendance.manage' => 'Manual entry, corrections & approvals',
+            'attendance.clock' => 'Clock in / out (self-service)',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
