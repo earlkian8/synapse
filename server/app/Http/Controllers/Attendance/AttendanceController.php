@@ -9,8 +9,10 @@ use App\Http\Resources\AttendanceRecordResource;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Queries\AttendanceMonthlyReport;
 use App\Queries\AttendanceRecordsIndexQuery;
 use App\Queries\AttendanceStatistics;
+use App\Queries\AttendanceWeeklyQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use Illuminate\Http\RedirectResponse;
@@ -28,24 +30,54 @@ class AttendanceController extends Controller
     public function __construct(private readonly AttendanceClock $clock) {}
 
     /**
-     * The daily board: the whole team's records for a chosen date.
+     * The attendance workspace: a daily log, a weekly grid and a monthly report
+     * over the same roster. Only the active tab's dataset is built — the weekly
+     * and monthly closures stay cheap on the (default) daily tab and are fetched
+     * on demand via Inertia partial reloads when the tab changes.
      */
-    public function index(Request $request, AttendanceRecordsIndexQuery $query, AttendanceStatistics $statistics): Response
-    {
+    public function index(
+        Request $request,
+        AttendanceRecordsIndexQuery $query,
+        AttendanceStatistics $statistics,
+        AttendanceWeeklyQuery $weekly,
+        AttendanceMonthlyReport $monthly,
+    ): Response {
         $date = $query->date($request);
+        $tab = $this->tab($request);
+        $department = $request->integer('department') ?: null;
+        $search = $request->string('search')->toString();
 
         return Inertia::render('attendance/index', [
-            'records' => AttendanceRecordResource::collection($query->get($request))->resolve($request),
+            'records' => fn () => $tab === 'today'
+                ? AttendanceRecordResource::collection($query->get($request))->resolve($request)
+                : [],
+            'week' => fn () => $tab === 'weekly'
+                ? $weekly->toArray($date, $department, $search)
+                : null,
+            'report' => fn () => $tab === 'monthly'
+                ? $monthly->toArray($date, $department, $search)
+                : null,
             'stats' => $statistics->toArray($date),
             'options' => $this->indexOptions(),
             'can' => $this->permissions($request),
             'filters' => [
                 'date' => $date,
-                'search' => $request->string('search')->toString(),
+                'tab' => $tab,
+                'search' => $search,
                 'status' => $query->status($request),
-                'department' => $request->integer('department') ?: null,
+                'department' => $department,
             ],
         ]);
+    }
+
+    /**
+     * The active workspace tab; defaults to the daily log.
+     */
+    private function tab(Request $request): string
+    {
+        $tab = $request->string('tab')->toString();
+
+        return in_array($tab, ['today', 'weekly', 'monthly'], true) ? $tab : 'today';
     }
 
     /**

@@ -76,15 +76,85 @@ export type EmployeeOption = {
 
 export type AttendancePermissions = { manage: boolean; clock: boolean };
 
+export type AttendanceTab = 'today' | 'weekly' | 'monthly';
+
 export type AttendanceFilters = {
     date: string;
+    tab: AttendanceTab;
     search: string;
     status: string;
     department: number | null;
 };
 
+// ── Weekly grid ──────────────────────────────────────────────────────────────
+
+/** The roster person carried by the weekly grid / monthly report rows. */
+export type GridEmployee = {
+    id: number;
+    full_name: string;
+    initials: string;
+    employee_no: string;
+    photo: string | null;
+    department: { id: number; name: string } | null;
+};
+
+export type WeekDayHeader = {
+    date: string;
+    weekday: string;
+    day: string;
+    is_today: boolean;
+    is_future: boolean;
+};
+
+export type WeekCell = {
+    date: string;
+    status: AttendanceStatus | null;
+    worked_minutes: number;
+    late_minutes: number;
+    overtime_minutes: number;
+    undertime_minutes: number;
+    first_in_at: string | null;
+    last_out_at: string | null;
+    hashid: string | null;
+    is_future: boolean;
+};
+
+export type WeeklyRow = {
+    employee: GridEmployee;
+    cells: WeekCell[];
+};
+
+export type WeeklyView = {
+    start: string;
+    end: string;
+    days: WeekDayHeader[];
+    rows: WeeklyRow[];
+};
+
+// ── Monthly report ───────────────────────────────────────────────────────────
+
+export type MonthlyRow = {
+    employee: GridEmployee;
+    present_days: number;
+    late_count: number;
+    absent_count: number;
+    overtime_hours: number;
+    worked_hours: number;
+    attendance_rate: number | null;
+    trend: number[];
+};
+
+export type MonthlyReport = {
+    start: string;
+    end: string;
+    label: string;
+    rows: MonthlyRow[];
+};
+
 export type AttendanceIndexPageProps = {
     records: AttendanceRecord[];
+    week: WeeklyView | null;
+    report: MonthlyReport | null;
     stats: AttendanceStats;
     options: {
         departments: DepartmentRef[];

@@ -1,6 +1,6 @@
 import { Coffee, LogIn, LogOut, Play } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { AttendanceStatus, PunchType } from './types';
+import type { AttendanceRecord, AttendanceStatus, PunchType } from './types';
 
 export const DEFAULT_STATUS = 'all';
 
@@ -56,6 +56,67 @@ export const STATUS_DOT: Record<AttendanceStatus, string> = {
     holiday: 'bg-indigo-500',
     incomplete: 'bg-sky-500',
 };
+
+/**
+ * Filled tile styling per status, for the heatmap cells and the weekly grid —
+ * a soft tint with a matching hover ring, light & dark.
+ */
+export const STATUS_TILE: Record<AttendanceStatus, string> = {
+    present:
+        'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:ring-emerald-500/40',
+    late: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40',
+    undertime:
+        'bg-orange-500/20 text-orange-700 dark:text-orange-300 hover:ring-orange-500/40',
+    absent: 'bg-rose-500/20 text-rose-700 dark:text-rose-300 hover:ring-rose-500/40',
+    on_leave:
+        'bg-[#0ABFBF]/20 text-[#0a8b91] dark:text-[#0ABFBF] hover:ring-[#0ABFBF]/40',
+    day_off:
+        'bg-slate-400/15 text-slate-500 dark:text-slate-400 hover:ring-slate-400/40',
+    holiday:
+        'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:ring-indigo-500/40',
+    incomplete:
+        'bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:ring-sky-500/40',
+};
+
+/** A late arrival at or over this many minutes is surfaced as an exception. */
+export const LATE_EXCEPTION_MINUTES = 30;
+
+export type Anomaly = { label: string; tone: 'warn' | 'danger' };
+
+/**
+ * The notable problems with one day's record — drives the table's flag icon and
+ * feeds the exceptions panel. Empty when the day is clean.
+ */
+export function recordAnomalies(record: AttendanceRecord): Anomaly[] {
+    const out: Anomaly[] = [];
+
+    if (record.status === 'incomplete') {
+        out.push({ label: 'Missing time-out', tone: 'danger' });
+    }
+
+    if (record.status === 'absent') {
+        out.push({ label: 'Unscheduled absence', tone: 'danger' });
+    }
+
+    if (record.late_minutes > 0) {
+        out.push({
+            label: `Late by ${formatDuration(record.late_minutes)}`,
+            tone:
+                record.late_minutes >= LATE_EXCEPTION_MINUTES
+                    ? 'danger'
+                    : 'warn',
+        });
+    }
+
+    if (record.undertime_minutes > 0) {
+        out.push({
+            label: `Left ${formatDuration(record.undertime_minutes)} early`,
+            tone: 'warn',
+        });
+    }
+
+    return out;
+}
 
 type PunchMeta = {
     label: string;

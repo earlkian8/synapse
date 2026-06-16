@@ -51,5 +51,8 @@ class DatabaseSeeder extends Seeder
 
         // Leave (default types + demo balances and requests).
         $this->call(LeaveSeeder::class);
+
+        // Attendance (~6 weeks of demo punches across the team).
+        $this->call(AttendanceSeeder::class);
     }
 }

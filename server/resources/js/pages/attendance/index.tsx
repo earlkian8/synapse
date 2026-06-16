@@ -2,14 +2,16 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { CalendarCheck, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { AttendanceCard } from '@/features/attendance/components/attendance-card';
-import { AttendanceRow } from '@/features/attendance/components/attendance-row';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
-import type { AttendanceView } from '@/features/attendance/components/attendance-toolbar';
+import { AttendanceViewTabs } from '@/features/attendance/components/attendance-view-tabs';
 import { ConfirmDialog } from '@/features/attendance/components/confirm-dialog';
+import { ExceptionsPanel } from '@/features/attendance/components/exceptions-panel';
 import { ManualEntrySheet } from '@/features/attendance/components/manual-entry-sheet';
+import { MonthlyReportTable } from '@/features/attendance/components/monthly-report-table';
 import { RecordDetailSheet } from '@/features/attendance/components/record-detail-sheet';
+import { TodayLogTable } from '@/features/attendance/components/today-log-table';
+import { WeeklyGrid } from '@/features/attendance/components/weekly-grid';
 import { useAttendanceFilters } from '@/features/attendance/hooks/use-attendance-filters';
 import { attendanceRoutes } from '@/features/attendance/routes';
 import type {
@@ -18,12 +20,10 @@ import type {
 } from '@/features/attendance/types';
 
 export default function AttendanceIndex() {
-    const { records, stats, options, can, filters } =
+    const { records, week, report, stats, options, can, filters } =
         usePage<AttendanceIndexPageProps>().props;
-    const { setDate, setSearch, setStatus, setDepartment } =
+    const { setTab, setDate, goToDay, setSearch, setStatus, setDepartment } =
         useAttendanceFilters(filters);
-
-    const [view, setView] = useState<AttendanceView>('board');
 
     const [detail, setDetail] = useState<AttendanceRecord | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -103,43 +103,42 @@ export default function AttendanceIndex() {
 
                 <AttendanceStatsCards stats={stats} />
 
+                <AttendanceViewTabs value={filters.tab} onChange={setTab} />
+
                 <div className="flex flex-col gap-4">
                     <AttendanceToolbar
                         filters={filters}
                         departments={options.departments}
-                        view={view}
                         canManage={can.manage}
                         onDate={setDate}
                         onSearch={setSearch}
                         onStatus={setStatus}
                         onDepartment={setDepartment}
-                        onView={setView}
                         onManualEntry={() => openManual(null)}
                     />
 
-                    {records.length === 0 ? (
-                        <EmptyState />
-                    ) : view === 'board' ? (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            {records.map((record) => (
-                                <AttendanceCard
-                                    key={record.employee?.id ?? record.id}
-                                    record={record}
-                                    onOpen={openDetail}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-border overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-                            {records.map((record) => (
-                                <AttendanceRow
-                                    key={record.employee?.id ?? record.id}
-                                    record={record}
-                                    onOpen={openDetail}
-                                />
-                            ))}
-                        </div>
+                    {filters.tab === 'today' && (
+                        <TodayTab
+                            records={records}
+                            canManage={can.manage}
+                            onOpen={openDetail}
+                            onResolve={openManual}
+                        />
                     )}
+
+                    {filters.tab === 'weekly' &&
+                        (week ? (
+                            <WeeklyGrid week={week} onPickDay={goToDay} />
+                        ) : (
+                            <Loading />
+                        ))}
+
+                    {filters.tab === 'monthly' &&
+                        (report ? (
+                            <MonthlyReportTable report={report} />
+                        ) : (
+                            <Loading />
+                        ))}
                 </div>
             </div>
 
@@ -171,6 +170,42 @@ export default function AttendanceIndex() {
                 onConfirm={remove}
             />
         </>
+    );
+}
+
+function TodayTab({
+    records,
+    canManage,
+    onOpen,
+    onResolve,
+}: {
+    records: AttendanceRecord[];
+    canManage: boolean;
+    onOpen: (record: AttendanceRecord) => void;
+    onResolve: (record: AttendanceRecord) => void;
+}) {
+    if (records.length === 0) {
+        return <EmptyState />;
+    }
+
+    return (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            <TodayLogTable records={records} onOpen={onOpen} />
+            <ExceptionsPanel
+                records={records}
+                canManage={canManage}
+                onResolve={onResolve}
+                onOpen={onOpen}
+            />
+        </div>
+    );
+}
+
+function Loading() {
+    return (
+        <div className="flex items-center justify-center rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 dark:border-sidebar-border">
+            <span className="text-sm text-muted-foreground">Loading…</span>
+        </div>
     );
 }
 

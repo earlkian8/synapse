@@ -12,14 +12,23 @@ Everything is tenant-scoped (ADR 0005).
 
 ## Surfaces
 
-- **`/attendance`** — the **HR daily board** for a chosen date: stat cards (present /
-  late / absent / on-leave / avg hours), a **date stepper** (prev / today / next +
-  picker), status tabs, and search + department filters. The roster is built from *every*
-  employee, so people with no punches still appear as **Absent** / **Day off** /
-  **On leave**. Two layouts via a header toggle: a **card grid** (default) and a compact
-  **list**. Opening a card reveals the **day-detail drawer** — the full punch timeline
-  (each punch's time, source, GPS pin and selfie), the computed totals, and HR actions
-  (correct, approve, delete).
+- **`/attendance`** — the **HR attendance workspace**: stat cards (present / late /
+  absent / on-leave / avg hours), a **period-aware stepper** (prev / today / next +
+  picker, stepping by day / week / month), search + department filters, and three tabs
+  over the same roster (which is built from *every* employee, so people with no punches
+  still appear as **Absent** / **Day off** / **On leave**):
+  - **Today's Log** — a sortable table: avatar + name, time in / out, computed hours, a
+    **status pill** and an **anomaly flag** (late by N, missing time-out, left early,
+    unscheduled absence), beside an **exceptions panel** (the day's problems grouped by
+    kind, each actionable). A **status filter** narrows it (present / late / …).
+  - **Weekly View** — a matrix: employees down, Mon–Sun across, each cell a status tile;
+    clicking a cell jumps to that day's log.
+  - **Monthly Report** — one summary row per employee (present days, late count, absences,
+    overtime, attendance-rate %) with an inline worked-hours **sparkline**.
+
+  Opening any record reveals the **day-detail drawer** — the full punch timeline (each
+  punch's time, source, GPS pin and selfie), the computed totals, and HR actions (correct,
+  approve, delete).
 - **`/attendance/me`** — employee **self-service**: a live **clock card** whose primary
   button flips with the day's state (Clock in → Start break → End break → Clock out),
   capturing geolocation (and an optional selfie) on each punch; plus today's punch
@@ -28,9 +37,10 @@ Everything is tenant-scoped (ADR 0005).
   app: `POST /api/auth/login`, `GET /api/attendance/today`, `POST /api/attendance/punch`
   (with GPS + selfie), `GET /api/attendance/records`.
 
-The board is a **roster of cards**, not a wide time table: attendance is a glanceable
-"who's in right now" surface. Self-service is a **single big clock**, the way a punch
-clock should feel.
+The daily log stays a per-person table — the right tool for "what happened today" — while
+the weekly/monthly tabs give the depth and the exceptions panel gives the utility (so it
+reads as an ERP module, not a spreadsheet with a stylesheet). Self-service is a **single
+big clock**, the way a punch clock should feel.
 
 ## Data model
 
