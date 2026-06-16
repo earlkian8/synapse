@@ -120,6 +120,7 @@ class OrganizationProvisioner
                     'onboarding.view', 'onboarding.manage', 'onboarding.manage-programs',
                     'leave.view', 'leave.request', 'leave.manage',
                     'attendance.view', 'attendance.manage', 'attendance.clock',
+                    'payroll.view', 'payroll.process', 'payroll.release',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
                     'users.view', 'users.create', 'users.update',

@@ -521,6 +521,12 @@ erDiagram
 
 ## 7. Payroll & Benefits
 
+**Built (Payroll)** — `payroll_periods`, `payslips`, `payslip_earnings`,
+`payslip_deductions`, plus the §2 config tables `allowance_types` / `deduction_types`.
+Payslips are computed from salaries + attendance (see [Payroll](../modules/payroll.md) and
+[payroll tables](../database/payroll-tables.md)). `benefit_contributions` and recurring
+`employee_allowances` are deferred.
+
 ```mermaid
 erDiagram
     PAYROLL_PERIOD ||--o{ PAYSLIP : contains
@@ -812,7 +818,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), Attendance/DTR (next), Performance, Training, Payroll, Benefits, Awards, Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), Performance, Training, Benefits, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.

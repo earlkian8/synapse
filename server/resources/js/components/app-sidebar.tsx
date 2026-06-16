@@ -97,7 +97,7 @@ const workforceNavItems: GatedNavItem[] = [
         icon: CalendarDays,
         permission: 'leave.view',
     },
-    { title: 'Payroll', href: '/payroll', icon: Wallet },
+    { title: 'Payroll', href: '/payroll', icon: Wallet, permission: 'payroll.view' },
     {
         title: 'Benefits Administration',
         href: '/benefits',

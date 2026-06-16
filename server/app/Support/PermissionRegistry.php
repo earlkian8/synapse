@@ -55,6 +55,11 @@ class PermissionRegistry
             'attendance.manage' => 'Manual entry, corrections & approvals',
             'attendance.clock' => 'Clock in / out (self-service)',
         ],
+        'Payroll' => [
+            'payroll.view' => 'View payroll runs & payslips',
+            'payroll.process' => 'Create & process payroll runs',
+            'payroll.release' => 'Finalize, release payslips & mark paid',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
