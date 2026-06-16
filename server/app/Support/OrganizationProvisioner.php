@@ -123,6 +123,7 @@ class OrganizationProvisioner
                     'payroll.view', 'payroll.process', 'payroll.release',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
+                    'setup.payroll.view', 'setup.payroll.manage',
                     'users.view', 'users.create', 'users.update',
                     'users.manage-status', 'users.reset-password', 'users.export',
                     'roles.view',

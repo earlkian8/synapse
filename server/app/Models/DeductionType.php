@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasHashid;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -14,7 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class DeductionType extends Model
 {
-    use BelongsToOrganization, SoftDeletes;
+    use BelongsToOrganization, HasHashid, SoftDeletes;
 
     /** The recognised deduction kinds. */
     public const KINDS = ['sss', 'philhealth', 'pagibig', 'withholding_tax', 'loan', 'other'];
@@ -33,5 +35,15 @@ class DeductionType extends Model
             'is_mandatory' => 'boolean',
             'computation' => 'array',
         ];
+    }
+
+    /**
+     * The payslip deduction lines typed by this deduction.
+     *
+     * @return HasMany<PayslipDeduction, $this>
+     */
+    public function payslipDeductions(): HasMany
+    {
+        return $this->hasMany(PayslipDeduction::class);
     }
 }

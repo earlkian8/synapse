@@ -167,7 +167,12 @@ const companySetupNavItems: GatedNavItem[] = [
     },
     { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
     { title: 'KPI & Evaluation Criteria', href: '/setup/kpi', icon: Target },
-    { title: 'Payroll Configuration', href: '/setup/payroll', icon: Settings },
+    {
+        title: 'Payroll Configuration',
+        href: '/setup/payroll',
+        icon: Settings,
+        permission: 'setup.payroll.view',
+    },
     {
         title: 'Email & Notifications',
         href: '/setup/notifications',

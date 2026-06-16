@@ -32,7 +32,10 @@ class PayrollPeriodResource extends JsonResource
             'total_net' => (float) ($this->payslips_sum_net_pay ?? 0),
             'total_deductions' => (float) ($this->payslips_sum_total_deductions ?? 0),
 
-            'payslips' => PayslipResource::collection($this->whenLoaded('payslips')),
+            'payslips' => $this->whenLoaded(
+                'payslips',
+                fn () => PayslipResource::collection($this->payslips)->resolve($request),
+            ),
         ];
     }
 }

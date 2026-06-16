@@ -65,6 +65,8 @@ class PermissionRegistry
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',
             'setup.leave-types.manage' => 'Manage leave types',
+            'setup.payroll.view' => 'View payroll configuration',
+            'setup.payroll.manage' => 'Manage payroll configuration',
         ],
         'User Management' => [
             'users.view' => 'View users',

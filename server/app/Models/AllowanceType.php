@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasHashid;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -13,7 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class AllowanceType extends Model
 {
-    use BelongsToOrganization, SoftDeletes;
+    use BelongsToOrganization, HasHashid, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -26,5 +28,15 @@ class AllowanceType extends Model
         return [
             'is_taxable' => 'boolean',
         ];
+    }
+
+    /**
+     * The payslip earning lines typed by this allowance.
+     *
+     * @return HasMany<PayslipEarning, $this>
+     */
+    public function payslipEarnings(): HasMany
+    {
+        return $this->hasMany(PayslipEarning::class);
     }
 }

@@ -6,8 +6,9 @@ from the employee's salary and the **attendance** recorded in the window. The da
 ERD §7 (Payroll & Benefits) + the §2 config tables it reads from; everything is
 tenant-scoped (ADR 0005).
 
-> Status: **Active** · Route prefix: `/payroll`
-> Sidebar: Workforce → Payroll (gated by `payroll.view`)
+> Status: **Active** · Route prefix: `/payroll` · Config: `/setup/payroll`
+> Sidebar: Workforce → Payroll (gated by `payroll.view`); Company Setup → Payroll
+> Configuration (gated by `setup.payroll.view`)
 
 ## Surfaces
 
@@ -51,14 +52,23 @@ overtime_pay + total_earnings`; `net_pay = gross_pay − total_deductions`.
 **paid** (every payslip released to its employee). Open runs can be re-processed or
 deleted; finalized/paid runs cannot.
 
+## Configuration (`/setup/payroll`)
+
+Company Setup → **Payroll Configuration** manages the lookups the engine reads:
+**allowance types** (name + taxable) and **deduction types** (name, kind, mandatory flag,
+and a flat percentage rate + optional monthly cap that assembles the `computation` config).
+Both support create / edit / archive (soft delete) / restore / permanent delete; each row
+shows how many payslips reference it. A deduction that uses a progressive **bracket** (e.g.
+withholding tax) is shown read-only and only replaced if a rate is set.
+
 ## Permissions
 
 `payroll.view` (runs & payslips), `payroll.process` (create / re-process / delete runs),
-`payroll.release` (finalize, mark paid, release payslips). Built-in **HR Manager** gets all
-three.
+`payroll.release` (finalize, mark paid, release payslips); `setup.payroll.view` /
+`setup.payroll.manage` (the configuration surface). Built-in **HR Manager** gets all of
+them.
 
 ## Out of scope (this cut)
 
-Deferred from the ERD: `benefit_contributions`, recurring `employee_allowances`, the
-`/setup/payroll` configuration CRUD (the allowance/deduction types are seeded), an employee
+Deferred from the ERD: `benefit_contributions`, recurring `employee_allowances`, an employee
 self-service payslip view, and an assistant capability.
