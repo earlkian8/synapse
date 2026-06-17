@@ -4,10 +4,13 @@ import {
     Briefcase,
     Building2,
     Clock,
+    Coins,
     FileText,
     Pencil,
+    Plus,
     Trash2,
     Upload,
+    Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -27,12 +30,26 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
-import type { EmployeeDetail, ManagedEmployee } from '../types';
+import type {
+    EmployeeDetail,
+    EmployeeDetailResponse,
+    ManagedEmployee,
+    PayItemType,
+} from '../types';
 import { EmployeeAvatar } from './employee-avatar';
 import { EmployeeStatusBadge } from './employee-status-badge';
+
+const peso = (v: number) =>
+    `₱${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+type Catalogue = {
+    allowanceTypes: PayItemType[];
+    deductionTypes: PayItemType[];
+};
 
 type Props = {
     employee: ManagedEmployee | null;
@@ -43,10 +60,16 @@ type Props = {
     onEdit: (employee: ManagedEmployee) => void;
 };
 
-type Tab = 'profile' | 'documents' | 'certifications' | 'history';
+type Tab =
+    | 'profile'
+    | 'compensation'
+    | 'documents'
+    | 'certifications'
+    | 'history';
 
 const TABS: { value: Tab; label: string }[] = [
     { value: 'profile', label: 'Profile' },
+    { value: 'compensation', label: 'Compensation' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -61,6 +84,11 @@ export function EmployeeDetailSheet({
     onEdit,
 }: Props) {
     const [detail, setDetail] = useState<EmployeeDetail | null>(null);
+    const [catalogue, setCatalogue] = useState<Catalogue>({
+        allowanceTypes: [],
+        deductionTypes: [],
+    });
+    const [canAdjust, setCanAdjust] = useState(false);
     const [tab, setTab] = useState<Tab>('profile');
     const [openedId, setOpenedId] = useState<number | null>(null);
 
@@ -76,7 +104,14 @@ export function EmployeeDetailSheet({
             credentials: 'same-origin',
         })
             .then((res) => res.json())
-            .then((json) => setDetail(json.data as EmployeeDetail));
+            .then((json: EmployeeDetailResponse) => {
+                setDetail(json.data);
+                setCatalogue({
+                    allowanceTypes: json.allowance_types ?? [],
+                    deductionTypes: json.deduction_types ?? [],
+                });
+                setCanAdjust(Boolean(json.can_adjust_payroll));
+            });
     }, [employee]);
 
     useEffect(() => {
@@ -178,6 +213,14 @@ export function EmployeeDetailSheet({
                         </div>
                     )}
 
+                    {tab === 'compensation' && detail && (
+                        <CompensationTab
+                            e={detail}
+                            canManage={canAdjust}
+                            catalogue={catalogue}
+                            onChanged={load}
+                        />
+                    )}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -291,6 +334,290 @@ function Row({
                 {value || '—'}
             </dd>
         </div>
+    );
+}
+
+// ── Compensation ─────────────────────────────────────────────────────────────
+
+type PayItem = {
+    id: number;
+    name: string | null;
+    amount: number;
+    is_active: boolean;
+    type_id: number | null;
+};
+
+function CompensationTab({
+    e,
+    canManage,
+    catalogue,
+    onChanged,
+}: {
+    e: EmployeeDetail;
+    canManage: boolean;
+    catalogue: Catalogue;
+    onChanged: () => void;
+}) {
+    const handlers = {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: onChanged,
+    };
+
+    return (
+        <div className="space-y-6">
+            <p className="text-xs text-muted-foreground">
+                Recurring pay items applied to every payslip the next time a run
+                is processed. Statutory deductions (SSS, PhilHealth, Pag-IBIG,
+                tax) are computed automatically and aren't listed here.
+            </p>
+
+            <PayItemSection
+                title="Allowances"
+                icon={Wallet}
+                emptyText="No recurring allowances assigned."
+                addLabel="Add allowance"
+                canManage={canManage}
+                types={catalogue.allowanceTypes}
+                items={e.allowances.map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    amount: a.amount,
+                    is_active: a.is_active,
+                    type_id: a.allowance_type_id,
+                }))}
+                add={(typeId, amount, h) =>
+                    router.post(
+                        employeeRoutes.allowances(e.id),
+                        { allowance_type_id: typeId, amount },
+                        h,
+                    )
+                }
+                toggle={(item, active) =>
+                    router.patch(
+                        employeeRoutes.allowance(e.id, item.id),
+                        {
+                            allowance_type_id: item.type_id,
+                            amount: item.amount,
+                            is_active: active,
+                        },
+                        handlers,
+                    )
+                }
+                remove={(item) =>
+                    router.delete(
+                        employeeRoutes.allowance(e.id, item.id),
+                        handlers,
+                    )
+                }
+                onChanged={onChanged}
+            />
+
+            <PayItemSection
+                title="Deductions"
+                icon={Coins}
+                emptyText="No recurring deductions assigned."
+                addLabel="Add deduction"
+                canManage={canManage}
+                types={catalogue.deductionTypes}
+                items={e.recurring_deductions.map((d) => ({
+                    id: d.id,
+                    name: d.name,
+                    amount: d.amount,
+                    is_active: d.is_active,
+                    type_id: d.deduction_type_id,
+                }))}
+                add={(typeId, amount, h) =>
+                    router.post(
+                        employeeRoutes.deductions(e.id),
+                        { deduction_type_id: typeId, amount },
+                        h,
+                    )
+                }
+                toggle={(item, active) =>
+                    router.patch(
+                        employeeRoutes.deduction(e.id, item.id),
+                        {
+                            deduction_type_id: item.type_id,
+                            amount: item.amount,
+                            is_active: active,
+                        },
+                        handlers,
+                    )
+                }
+                remove={(item) =>
+                    router.delete(
+                        employeeRoutes.deduction(e.id, item.id),
+                        handlers,
+                    )
+                }
+                onChanged={onChanged}
+            />
+        </div>
+    );
+}
+
+function PayItemSection({
+    title,
+    icon: Icon,
+    emptyText,
+    addLabel,
+    canManage,
+    types,
+    items,
+    add,
+    toggle,
+    remove,
+    onChanged,
+}: {
+    title: string;
+    icon: typeof Wallet;
+    emptyText: string;
+    addLabel: string;
+    canManage: boolean;
+    types: PayItemType[];
+    items: PayItem[];
+    add: (typeId: number, amount: number, handlers: object) => void;
+    toggle: (item: PayItem, active: boolean) => void;
+    remove: (item: PayItem) => void;
+    onChanged: () => void;
+}) {
+    const [typeId, setTypeId] = useState('');
+    const [amount, setAmount] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const submit = () => {
+        const value = Number(amount);
+
+        if (!typeId || amount === '' || Number.isNaN(value) || value < 0) {
+            return;
+        }
+
+        add(Number(typeId), value, {
+            preserveScroll: true,
+            preserveState: true,
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
+            onSuccess: () => {
+                setTypeId('');
+                setAmount('');
+                onChanged();
+            },
+        });
+    };
+
+    return (
+        <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <Icon className="size-3.5" />
+                {title}
+            </h3>
+
+            {items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{emptyText}</p>
+            ) : (
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                    {items.map((item) => (
+                        <li
+                            key={item.id}
+                            className="flex items-center gap-3 px-3 py-2.5"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <p
+                                    className={cn(
+                                        'truncate text-sm font-medium',
+                                        !item.is_active &&
+                                            'text-muted-foreground line-through',
+                                    )}
+                                >
+                                    {item.name ?? 'Unknown type'}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground tabular-nums">
+                                    {peso(item.amount)} / period
+                                </p>
+                            </div>
+                            {canManage ? (
+                                <>
+                                    <Switch
+                                        checked={item.is_active}
+                                        onCheckedChange={(v) => toggle(item, v)}
+                                        aria-label="Active"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => remove(item)}
+                                        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                        aria-label={`Remove ${title.toLowerCase()}`}
+                                    >
+                                        <Trash2 className="size-4" />
+                                    </button>
+                                </>
+                            ) : (
+                                <span
+                                    className={cn(
+                                        'rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                                        item.is_active
+                                            ? 'bg-emerald-500/10 text-emerald-600'
+                                            : 'bg-muted text-muted-foreground',
+                                    )}
+                                >
+                                    {item.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {canManage && (
+                <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="min-w-[10rem] flex-1">
+                        <Label className="mb-1.5 block">Type</Label>
+                        <Select value={typeId} onValueChange={setTypeId}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {types.length === 0 ? (
+                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                        No types configured in Setup.
+                                    </div>
+                                ) : (
+                                    types.map((t) => (
+                                        <SelectItem
+                                            key={t.id}
+                                            value={String(t.id)}
+                                        >
+                                            {t.name}
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="w-32">
+                        <Label className="mb-1.5 block">Amount</Label>
+                        <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={amount}
+                            onChange={(ev) => setAmount(ev.target.value)}
+                            placeholder="0.00"
+                        />
+                    </div>
+                    <Button
+                        size="sm"
+                        onClick={submit}
+                        disabled={busy || !typeId || amount === ''}
+                    >
+                        {busy ? <Spinner /> : <Plus className="size-4" />}
+                        {addLabel}
+                    </Button>
+                </div>
+            )}
+        </section>
     );
 }
 

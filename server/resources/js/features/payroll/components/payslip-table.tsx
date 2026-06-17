@@ -121,9 +121,16 @@ export function PayslipTable({
                                         {formatPeso(payslip.net_pay)}
                                     </TableCell>
                                     <TableCell>
-                                        <PayslipStatusBadge
-                                            status={payslip.status}
-                                        />
+                                        <div className="flex items-center gap-1.5">
+                                            <PayslipStatusBadge
+                                                status={payslip.status}
+                                            />
+                                            {payslip.is_adjusted && (
+                                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                                    Adjusted
+                                                </span>
+                                            )}
+                                        </div>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <Button

@@ -259,6 +259,7 @@ erDiagram
     EMPLOYEE ||--o{ EMPLOYEE_PROMOTION : promoted
     EMPLOYEE ||--o{ EMPLOYEE_CERTIFICATION : earns
     EMPLOYEE ||--o{ EMPLOYEE_ALLOWANCE : receives
+    EMPLOYEE ||--o{ EMPLOYEE_DEDUCTION : owes
     EMPLOYEE ||--o{ EMPLOYEE_DOCUMENT : owns
 
     EMPLOYEE {
@@ -316,7 +317,14 @@ erDiagram
     EMPLOYEE_ALLOWANCE {
         bigint id PK
         bigint employee_id FK
-        bigint allowance_type_id FK
+        bigint allowance_type_id FK "nullable"
+        decimal amount
+        boolean is_active
+    }
+    EMPLOYEE_DEDUCTION {
+        bigint id PK
+        bigint employee_id FK
+        bigint deduction_type_id FK "nullable; e.g. a loan"
         decimal amount
         boolean is_active
     }
@@ -523,9 +531,11 @@ erDiagram
 
 **Built (Payroll)** — `payroll_periods`, `payslips`, `payslip_earnings`,
 `payslip_deductions`, plus the §2 config tables `allowance_types` / `deduction_types`.
-Payslips are computed from salaries + attendance (see [Payroll](../modules/payroll.md) and
-[payroll tables](../database/payroll-tables.md)). `benefit_contributions` and recurring
-`employee_allowances` are deferred.
+Payslips are computed from salaries + attendance, then refined by recurring
+**per-employee pay items** (`employee_allowances` / `employee_deductions`, ERD §3)
+and optional **manual line edits** (`payslips.is_adjusted`) — see
+[Payroll](../modules/payroll.md) and [payroll tables](../database/payroll-tables.md).
+`benefit_contributions` is still deferred.
 
 ```mermaid
 erDiagram
@@ -558,6 +568,7 @@ erDiagram
         decimal net_pay
         decimal days_worked
         enum status "draft|released"
+        boolean is_adjusted "lines hand-edited; re-process skips it"
     }
     PAYSLIP_EARNING {
         bigint id PK

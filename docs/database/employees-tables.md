@@ -97,3 +97,22 @@ Career history, **auto-recorded** on position/salary change.
 | `effective_date` | date | |
 | `reason` | text, nullable | |
 | `approved_by` | FK → users, nullable | |
+
+## `employee_allowances` · `employee_deductions`
+
+Recurring **per-employee pay items** (ERD §3 `EMPLOYEE_ALLOWANCE`, plus the
+symmetric `EMPLOYEE_DEDUCTION`). They tie a Company-Setup allowance / deduction
+type to an individual employee with a per-employee peso amount, so payroll config
+actually drives payslips. Active items become the allowance earning lines and the
+extra (e.g. loan) deduction lines when a run is processed — see
+[Payroll](../modules/payroll.md) and `App\Support\Payroll\PayrollProcessor`.
+Tenant-scoped (`organization_id`); managed from the Employee detail → **Compensation**.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `organization_id` | FK → organizations | Tenant. |
+| `employee_id` | FK → employees | `cascadeOnDelete`. Indexed. |
+| `allowance_type_id` / `deduction_type_id` | FK → allowance_types / deduction_types, nullable | `nullOnDelete`; an archived type resolves to null and is skipped by a run. |
+| `amount` | decimal(12,2) | The per-employee peso amount per pay period. |
+| `is_active` | boolean | Inactive items are ignored by a run. |

@@ -47,3 +47,29 @@ export function markPaid(hashid: string, h: Handlers = {}): void {
 export function deleteRun(hashid: string, h: Handlers = {}): void {
     router.delete(payrollRoutes.destroy(hashid), opts(h));
 }
+
+export type PayslipLineInput = {
+    label: string;
+    amount: number;
+    allowance_type_id?: number | null;
+    deduction_type_id?: number | null;
+};
+
+export type AdjustPayslipPayload = {
+    earnings: PayslipLineInput[];
+    deductions: PayslipLineInput[];
+};
+
+/** Replace a payslip's manual lines and recompute its totals. */
+export function adjustPayslip(
+    hashid: string,
+    payload: AdjustPayslipPayload,
+    h: Handlers = {},
+): void {
+    router.patch(payrollRoutes.payslipUpdate(hashid), payload, opts(h));
+}
+
+/** Reset a hand-adjusted payslip back to the auto-computed figures. */
+export function resetPayslip(hashid: string, h: Handlers = {}): void {
+    router.patch(payrollRoutes.payslipReset(hashid), {}, opts(h));
+}

@@ -17,12 +17,15 @@ export type PayslipLine = {
     label: string;
     amount: number;
     kind?: string | null;
+    allowance_type_id?: number | null;
+    deduction_type_id?: number | null;
 };
 
 export type Payslip = {
     id: number;
     hashid: string;
     status: PayslipStatus;
+    is_adjusted: boolean;
     basic_pay: number;
     overtime_pay: number;
     gross_pay: number;
@@ -65,7 +68,19 @@ export type PayrollStats = {
     pending: number;
 };
 
-export type PayrollPermissions = { process: boolean; release: boolean };
+export type PayrollPermissions = {
+    process: boolean;
+    release: boolean;
+    adjust: boolean;
+};
+
+/** A Company-Setup allowance / deduction type, for the payslip editor pickers. */
+export type PayItemType = { id: number; name: string };
+
+export type PayrollCatalogue = {
+    allowanceTypes: PayItemType[];
+    deductionTypes: PayItemType[];
+};
 
 export type PayrollIndexPageProps = {
     periods: PayrollPeriod[];
@@ -77,4 +92,5 @@ export type PayrollIndexPageProps = {
 export type PayrollShowPageProps = {
     period: PayrollPeriod;
     can: PayrollPermissions;
+    catalogue: PayrollCatalogue;
 };

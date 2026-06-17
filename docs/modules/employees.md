@@ -20,8 +20,9 @@ work schedules) the employee form selects from.
 | **Directory** | Server-side search (name / no. / email), filters (department, status, employment type), sortable columns, pagination (10–100). |
 | **Stats** | Total, active, regular, probationary, on-leave, new this month. |
 | **Create / Edit** | Slide-over with grouped sections: Personal, Employment, Compensation, Government IDs, System account. Employee number auto-generates when blank. |
-| **Profile drawer** | Tabbed: **Profile** (read-only sections), **Documents**, **Certifications**, **History** (career timeline). Sub-records are lazy-loaded. |
+| **Profile drawer** | Tabbed: **Profile** (read-only sections), **Compensation**, **Documents**, **Certifications**, **History** (career timeline). Sub-records are lazy-loaded. |
 | **201 file** | Upload/remove **documents** (contract, CV, govt ID…) and **certifications** (with expiry tracking). |
+| **Compensation** | Manage recurring per-employee **allowances** and **deductions** (type from the Setup catalogue + amount, toggle active, remove). These drive payslip lines — see [Payroll](payroll.md). Gated by `payroll.adjust`. |
 | **Career history** | A `employee_promotions` row is **auto-recorded** whenever an employee's position or salary changes. |
 | **Lifecycle** | Quick status change (active / on-leave / suspended / resigned / terminated), archive (soft delete), restore, permanent delete. |
 | **Bulk actions** | Archive, restore, permanent delete, and set-status across a selection. |
@@ -130,7 +131,7 @@ resources/js/
         ├── employee-row-actions.tsx · employee-status-badge.tsx · employee-avatar.tsx
         ├── employee-bulk-actions-bar.tsx · employees-pagination.tsx
         ├── employee-form-sheet.tsx           # sectioned create/edit; FK selects; dept→position scoping
-        ├── employee-detail-sheet.tsx         # tabbed profile + documents/certifications/history
+        ├── employee-detail-sheet.tsx         # tabbed profile + compensation/documents/certifications/history
         └── confirm-dialog.tsx
 ```
 

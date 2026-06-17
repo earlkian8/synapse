@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Payroll\PayrollController;
+use App\Http\Controllers\Payroll\PayslipController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,6 +16,11 @@ Route::middleware(['auth', 'verified'])
     ->group(function () {
         Route::get('/', [PayrollController::class, 'index'])->middleware('can:payroll.view')->name('index');
         Route::post('/', [PayrollController::class, 'store'])->middleware('can:payroll.process')->name('store');
+
+        // Manual payslip adjustment (literal "payslips" segment — before the
+        // {payrollPeriod} wildcard). Payslips are addressed by hashid.
+        Route::patch('payslips/{payslip}', [PayslipController::class, 'update'])->middleware('can:payroll.adjust')->name('payslips.update');
+        Route::patch('payslips/{payslip}/reset', [PayslipController::class, 'resetToAuto'])->middleware('can:payroll.adjust')->name('payslips.reset');
 
         // A single run and its lifecycle (wildcard — declared after literals).
         Route::get('{payrollPeriod}', [PayrollController::class, 'show'])->middleware('can:payroll.view')->name('show');

@@ -50,6 +50,27 @@ export type EmployeePromotion = {
     reason: string | null;
 };
 
+/** A recurring per-employee allowance (drives a payslip earning line). */
+export type EmployeeAllowance = {
+    id: number;
+    allowance_type_id: number | null;
+    name: string | null;
+    amount: number;
+    is_active: boolean;
+};
+
+/** A recurring per-employee deduction, e.g. a loan (drives a deduction line). */
+export type EmployeeDeduction = {
+    id: number;
+    deduction_type_id: number | null;
+    name: string | null;
+    amount: number;
+    is_active: boolean;
+};
+
+/** A Company-Setup allowance / deduction type, for the Compensation pickers. */
+export type PayItemType = { id: number; name: string };
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -106,6 +127,16 @@ export type EmployeeDetail = ManagedEmployee & {
     documents: EmployeeDocument[];
     certifications: EmployeeCertification[];
     promotions: EmployeePromotion[];
+    allowances: EmployeeAllowance[];
+    recurring_deductions: EmployeeDeduction[];
+};
+
+/** Top-level extras returned alongside `data` by the employee show endpoint. */
+export type EmployeeDetailResponse = {
+    data: EmployeeDetail;
+    allowance_types: PayItemType[];
+    deduction_types: PayItemType[];
+    can_adjust_payroll: boolean;
 };
 
 export type EmployeeStats = {

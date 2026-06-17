@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -58,11 +58,17 @@ const ACTION_COPY: Record<
 };
 
 export default function PayrollShow() {
-    const { period, can } = usePage<PayrollShowPageProps>().props;
+    const { period, can, catalogue } = usePage<PayrollShowPageProps>().props;
     const payslips = useMemo(() => period.payslips ?? [], [period.payslips]);
 
-    const [detail, setDetail] = useState<Payslip | null>(null);
+    const [detailId, setDetailId] = useState<number | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
+    // Derive the open payslip from the (possibly refreshed) list so it stays live
+    // after a manual adjustment without re-opening the modal.
+    const detail = useMemo<Payslip | null>(
+        () => payslips.find((p) => p.id === detailId) ?? null,
+        [payslips, detailId],
+    );
     const [action, setAction] = useState<ActionKind | null>(null);
     const [processing, setProcessing] = useState(false);
 
@@ -81,7 +87,7 @@ export default function PayrollShow() {
 
     const locked = period.status === 'finalized' || period.status === 'paid';
     const openView = (payslip: Payslip) => {
-        setDetail(payslip);
+        setDetailId(payslip.id);
         setDetailOpen(true);
     };
 
@@ -215,7 +221,10 @@ export default function PayrollShow() {
             <PayslipDocumentModal
                 payslip={detail}
                 open={detailOpen}
+                canAdjust={can.adjust}
+                catalogue={catalogue}
                 onOpenChange={setDetailOpen}
+                onChanged={() => router.reload({ only: ['period'] })}
             />
 
             <ConfirmDialog

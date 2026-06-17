@@ -12,4 +12,8 @@ export const payrollRoutes = {
     finalize: (hashid: string) => `/payroll/${hashid}/finalize`,
     paid: (hashid: string) => `/payroll/${hashid}/paid`,
     destroy: (hashid: string) => `/payroll/${hashid}`,
+
+    // Manual payslip adjustment (payslips addressed by hashid).
+    payslipUpdate: (hashid: string) => `/payroll/payslips/${hashid}`,
+    payslipReset: (hashid: string) => `/payroll/payslips/${hashid}/reset`,
 } as const;

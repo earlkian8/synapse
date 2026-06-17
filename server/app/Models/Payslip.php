@@ -33,6 +33,7 @@ class Payslip extends Model
         'net_pay',
         'days_worked',
         'status',
+        'is_adjusted',
     ];
 
     protected function casts(): array
@@ -45,6 +46,7 @@ class Payslip extends Model
             'total_deductions' => 'decimal:2',
             'net_pay' => 'decimal:2',
             'days_worked' => 'decimal:2',
+            'is_adjusted' => 'boolean',
         ];
     }
 

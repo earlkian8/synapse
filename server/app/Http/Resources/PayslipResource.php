@@ -22,6 +22,7 @@ class PayslipResource extends JsonResource
             'id' => $this->id,
             'hashid' => $this->hashid,
             'status' => $this->status,
+            'is_adjusted' => (bool) $this->is_adjusted,
 
             'basic_pay' => (float) $this->basic_pay,
             'overtime_pay' => (float) $this->overtime_pay,
@@ -58,6 +59,7 @@ class PayslipResource extends JsonResource
                     'id' => $earning->id,
                     'label' => $earning->label,
                     'amount' => (float) $earning->amount,
+                    'allowance_type_id' => $earning->allowance_type_id,
                 ])
                 ->values()
                 ->all()),
@@ -67,6 +69,7 @@ class PayslipResource extends JsonResource
                     'id' => $deduction->id,
                     'label' => $deduction->label,
                     'amount' => (float) $deduction->amount,
+                    'deduction_type_id' => $deduction->deduction_type_id,
                     'kind' => $deduction->relationLoaded('deductionType') ? $deduction->deductionType?->kind : null,
                 ])
                 ->values()

@@ -30,8 +30,11 @@ seeder, so a run behaves identically everywhere):
 
 - **`PayrollProcessor`** — for each active employee with a salary, derives `days_worked`
   and overtime **from the `attendance_records` in the period** (reusing the DTR rather than
-  re-deriving time), computes the figures, and persists the payslip + its lines.
-  Re-processing is idempotent (existing payslips are replaced).
+  re-deriving time), adds the employee's **active recurring allowances** as earning lines
+  and **recurring deductions** (e.g. a loan) on top of the statutory ones, computes the
+  figures, and persists the payslip + its lines. Re-processing replaces auto payslips but
+  **preserves hand-adjusted ones** (`is_adjusted`). `buildFor()` regenerates a single
+  payslip (used by "Reset to auto").
 - **`PayrollCalculator`** — pure arithmetic: `basic_pay = (salary ÷ 22) × days_worked`,
   `overtime_pay = (daily ÷ 8) × 1.25 × OT hours`, and each deduction from its
   `DeductionType.computation` (a flat rate with optional floor/cap, or a progressive
@@ -39,8 +42,23 @@ seeder, so a run behaves identically everywhere):
   period's gross so they stay proportional; **withholding tax** is a bracket on the gross
   net of those contributions.
 
-Totals contract: `total_earnings` = Σ allowance earnings; `gross_pay = basic_pay +
-overtime_pay + total_earnings`; `net_pay = gross_pay − total_deductions`.
+Totals contract (one source of truth, `PayrollCalculator::totals()`):
+`total_earnings` = Σ allowance earnings; `gross_pay = basic_pay + overtime_pay +
+total_earnings`; `net_pay = gross_pay − total_deductions`.
+
+## Per-employee pay items & manual editing
+
+- **Recurring per-employee items** (`employee_allowances` / `employee_deductions`) are
+  managed on the **Employee detail → Compensation** tab: pick an allowance / deduction
+  type from the Company-Setup catalogue and set a per-employee peso amount (toggle active,
+  remove). These drive the payslip lines, so a Setup type like "Transportation Allowance"
+  only appears once it's assigned — and contractual / part-time staff can now receive
+  allowances. Replaces the old hardcoded Rice/Meal defaults.
+- **Manual payslip editing**: open a generated payslip (while the run is draft/processing)
+  and **Edit lines** — add/remove/relabel allowance earning lines and deduction lines with
+  a live net preview; basic & overtime pay stay auto. Saving flags the payslip **Adjusted**;
+  a re-process leaves it untouched, and **Reset to auto** regenerates it from salary +
+  attendance. Blocked once the run is finalized / paid.
 
 > The model is deliberately simple and deterministic for a believable demo — a monthly
 > salary spread over a standard 22-day month. It **approximates** Philippine statutory
@@ -64,11 +82,11 @@ withholding tax) is shown read-only and only replaced if a rate is set.
 ## Permissions
 
 `payroll.view` (runs & payslips), `payroll.process` (create / re-process / delete runs),
-`payroll.release` (finalize, mark paid, release payslips); `setup.payroll.view` /
-`setup.payroll.manage` (the configuration surface). Built-in **HR Manager** gets all of
-them.
+`payroll.release` (finalize, mark paid, release payslips), `payroll.adjust` (per-employee
+pay items + manual payslip editing); `setup.payroll.view` / `setup.payroll.manage` (the
+configuration surface). Built-in **HR Manager** gets all of them.
 
 ## Out of scope (this cut)
 
-Deferred from the ERD: `benefit_contributions`, recurring `employee_allowances`, an employee
-self-service payslip view, and an assistant capability.
+Deferred from the ERD: `benefit_contributions`, an employee self-service payslip view, and
+an assistant capability.

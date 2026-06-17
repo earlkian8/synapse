@@ -4,6 +4,9 @@ namespace Database\Seeders;
 
 use App\Models\AllowanceType;
 use App\Models\DeductionType;
+use App\Models\Employee;
+use App\Models\EmployeeAllowance;
+use App\Models\EmployeeDeduction;
 use App\Models\Organization;
 use App\Models\PayrollPeriod;
 use App\Models\User;
@@ -55,6 +58,12 @@ class PayrollSeeder extends Seeder
         ]],
     ];
 
+    /**
+     * A non-mandatory deduction type so recurring per-employee deductions (loans)
+     * have something to reference.
+     */
+    private const LOAN_TYPE = 'Company Loan';
+
     public function run(): void
     {
         $tenancy = app(Tenancy::class);
@@ -70,6 +79,7 @@ class PayrollSeeder extends Seeder
         }
 
         $this->seedConfig();
+        $this->seedEmployeeItems();
 
         if (PayrollPeriod::count() > 0) {
             return;
@@ -109,6 +119,66 @@ class PayrollSeeder extends Seeder
                 ['kind' => $deduction['kind'], 'is_mandatory' => true, 'computation' => $deduction['computation']],
             );
         }
+
+        DeductionType::firstOrCreate(
+            ['name' => self::LOAN_TYPE],
+            ['kind' => 'loan', 'is_mandatory' => false, 'computation' => null],
+        );
+    }
+
+    /**
+     * Assign recurring per-employee pay items so demo payslips keep showing
+     * allowances (and a loan) now that the engine reads per-employee config rather
+     * than hardcoding. Idempotent. Tenured staff get the standard non-taxable
+     * allowances; some staff (including non-tenured) get Transportation to prove
+     * the config drives payslips end-to-end.
+     */
+    private function seedEmployeeItems(): void
+    {
+        $rice = AllowanceType::where('name', 'Rice Subsidy')->first();
+        $meal = AllowanceType::where('name', 'Meal Allowance')->first();
+        $transport = AllowanceType::where('name', 'Transportation Allowance')->first();
+        $loan = DeductionType::where('name', self::LOAN_TYPE)->first();
+
+        $employees = Employee::query()->orderBy('id')->get()->values();
+
+        foreach ($employees as $i => $employee) {
+            $tenured = in_array($employee->employment_type, ['regular', 'probationary'], true);
+
+            if ($tenured && $rice) {
+                $this->assignAllowance($employee, $rice->id, 2000);
+            }
+
+            if ($tenured && $meal) {
+                $this->assignAllowance($employee, $meal->id, 1500);
+            }
+
+            // Transportation for every third employee, tenured or not.
+            if ($transport && $i % 3 === 0) {
+                $this->assignAllowance($employee, $transport->id, 1500);
+            }
+
+            // A modest recurring loan for every fifth employee.
+            if ($loan && $i % 5 === 0) {
+                $this->assignDeduction($employee, $loan->id, 1000);
+            }
+        }
+    }
+
+    private function assignAllowance(Employee $employee, int $typeId, float $amount): void
+    {
+        EmployeeAllowance::firstOrCreate(
+            ['employee_id' => $employee->id, 'allowance_type_id' => $typeId],
+            ['amount' => $amount, 'is_active' => true],
+        );
+    }
+
+    private function assignDeduction(Employee $employee, int $typeId, float $amount): void
+    {
+        EmployeeDeduction::firstOrCreate(
+            ['employee_id' => $employee->id, 'deduction_type_id' => $typeId],
+            ['amount' => $amount, 'is_active' => true],
+        );
     }
 
     /**

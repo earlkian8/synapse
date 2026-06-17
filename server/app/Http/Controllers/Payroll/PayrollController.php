@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Payroll;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payroll\StorePayrollPeriodRequest;
 use App\Http\Resources\PayrollPeriodResource;
+use App\Models\AllowanceType;
+use App\Models\DeductionType;
 use App\Models\PayrollPeriod;
 use App\Support\ActivityLogger;
 use App\Support\Payroll\PayrollProcessor;
@@ -66,6 +68,11 @@ class PayrollController extends Controller
         return Inertia::render('payroll/show', [
             'period' => (new PayrollPeriodResource($payrollPeriod))->resolve($request),
             'can' => $this->permissions($request),
+            // The Setup catalogues the manual payslip editor's pickers read.
+            'catalogue' => [
+                'allowanceTypes' => AllowanceType::orderBy('name')->get(['id', 'name']),
+                'deductionTypes' => DeductionType::orderBy('name')->get(['id', 'name']),
+            ],
         ]);
     }
 
@@ -217,6 +224,7 @@ class PayrollController extends Controller
         return [
             'process' => $user->can('payroll.process'),
             'release' => $user->can('payroll.release'),
+            'adjust' => $user->can('payroll.adjust'),
         ];
     }
 

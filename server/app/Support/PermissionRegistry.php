@@ -59,6 +59,7 @@ class PermissionRegistry
             'payroll.view' => 'View payroll runs & payslips',
             'payroll.process' => 'Create & process payroll runs',
             'payroll.release' => 'Finalize, release payslips & mark paid',
+            'payroll.adjust' => 'Adjust payslips & per-employee pay items',
         ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',

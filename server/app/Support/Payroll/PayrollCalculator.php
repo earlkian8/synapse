@@ -52,6 +52,46 @@ class PayrollCalculator
     }
 
     /**
+     * Reconcile a payslip's totals from its lines — the single source of truth
+     * for the totals contract, reused by the processor and by manual edits:
+     *
+     *   total_earnings   = Σ earning-line amounts (the allowances)
+     *   gross_pay        = basic_pay + overtime_pay + total_earnings
+     *   total_deductions = Σ deduction-line amounts
+     *   net_pay          = gross_pay − total_deductions
+     *
+     * Basic and overtime pay are passed in (they live in their own columns); the
+     * earning lines are the allowances only.
+     *
+     * @param  iterable<array{amount: int|float|string}>  $earnings
+     * @param  iterable<array{amount: int|float|string}>  $deductions
+     * @return array{total_earnings: float, gross_pay: float, total_deductions: float, net_pay: float}
+     */
+    public static function totals(float $basicPay, float $overtimePay, iterable $earnings, iterable $deductions): array
+    {
+        $sum = static function (iterable $lines): float {
+            $total = 0.0;
+
+            foreach ($lines as $line) {
+                $total += (float) $line['amount'];
+            }
+
+            return round($total, 2);
+        };
+
+        $totalEarnings = $sum($earnings);
+        $totalDeductions = $sum($deductions);
+        $gross = round($basicPay + $overtimePay + $totalEarnings, 2);
+
+        return [
+            'total_earnings' => $totalEarnings,
+            'gross_pay' => $gross,
+            'total_deductions' => $totalDeductions,
+            'net_pay' => round($gross - $totalDeductions, 2),
+        ];
+    }
+
+    /**
      * The amount of one deduction, interpreting its computation config:
      *
      *  - `{"type":"rate","rate":r,"base":"salary|taxable","min":m,"max":cap}`

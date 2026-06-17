@@ -52,6 +52,7 @@ the lines (see `App\Support\Payroll`), never trusted from the client.
 | `net_pay` | decimal(12,2) | `gross_pay − total_deductions`. |
 | `days_worked` | decimal(6,2) | Worked days drawn from attendance. |
 | `status` | string | `draft \| released`. |
+| `is_adjusted` | boolean | Set once a payslip's lines are hand-edited; a re-process **skips** it so manual edits survive. "Reset to auto" regenerates it and clears the flag. |
 | timestamps | | |
 
 **Indexes:** unique `(payroll_period_id, employee_id)`; `employee_id`.
@@ -64,5 +65,6 @@ null on delete), a `label`, and an `amount` (decimal(12,2)), plus timestamps. Th
 `payslip_earnings` lines are the **allowances** only — basic pay and overtime live in their
 own payslip columns.
 
-> Deferred from ERD §7/§3 for this cut: `benefit_contributions`, recurring
-> `employee_allowances`, and an employee self-service payslip view.
+> Recurring per-employee pay items (`employee_allowances` / `employee_deductions`)
+> now drive the lines — see [employees tables](employees-tables.md). Still deferred
+> from ERD §7: `benefit_contributions` and an employee self-service payslip view.

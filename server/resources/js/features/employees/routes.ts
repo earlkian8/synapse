@@ -19,4 +19,10 @@ export const employeeRoutes = {
     certifications: (id: number) => `/employees/${id}/certifications`,
     certification: (id: number, certId: number) =>
         `/employees/${id}/certifications/${certId}`,
+    allowances: (id: number) => `/employees/${id}/allowances`,
+    allowance: (id: number, allowanceId: number) =>
+        `/employees/${id}/allowances/${allowanceId}`,
+    deductions: (id: number) => `/employees/${id}/deductions`,
+    deduction: (id: number, deductionId: number) =>
+        `/employees/${id}/deductions/${deductionId}`,
 } as const;
