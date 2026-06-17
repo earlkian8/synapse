@@ -186,6 +186,8 @@ class PayrollController extends Controller
             subjectLabel: $name,
         );
 
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Payroll run \"{$name}\" deleted."]);
+
         return redirect()->route('payroll.index');
     }
 
