@@ -10,6 +10,7 @@ use App\Models\EmployeeDeduction;
 use App\Models\Organization;
 use App\Models\PayrollPeriod;
 use App\Models\User;
+use App\Support\Payroll\BenefitContributionGenerator;
 use App\Support\Payroll\PayrollProcessor;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
@@ -43,9 +44,12 @@ class PayrollSeeder extends Seeder
         // Statutory contributions are computed on the period's gross (the
         // `taxable` base the processor passes), so they stay proportional to the
         // pay actually earned — a barely-worked cutoff never out-deducts itself.
-        ['name' => 'SSS Contribution', 'kind' => 'sss', 'computation' => ['type' => 'rate', 'rate' => 0.045, 'base' => 'taxable', 'max' => 1350]],
-        ['name' => 'PhilHealth', 'kind' => 'philhealth', 'computation' => ['type' => 'rate', 'rate' => 0.025, 'base' => 'taxable', 'max' => 2500]],
-        ['name' => 'Pag-IBIG', 'kind' => 'pagibig', 'computation' => ['type' => 'rate', 'rate' => 0.02, 'base' => 'taxable', 'max' => 200]],
+        // Each statutory type carries an `employer` block — the company counterpart
+        // share (used by BenefitContributionGenerator); the top-level rate is the
+        // employee's. SSS employer ~9.5%, PhilHealth split 50/50, Pag-IBIG matched.
+        ['name' => 'SSS Contribution', 'kind' => 'sss', 'computation' => ['type' => 'rate', 'rate' => 0.045, 'base' => 'taxable', 'max' => 1350, 'employer' => ['type' => 'rate', 'rate' => 0.095, 'base' => 'taxable', 'max' => 2880]]],
+        ['name' => 'PhilHealth', 'kind' => 'philhealth', 'computation' => ['type' => 'rate', 'rate' => 0.025, 'base' => 'taxable', 'max' => 2500, 'employer' => ['type' => 'rate', 'rate' => 0.025, 'base' => 'taxable', 'max' => 2500]]],
+        ['name' => 'Pag-IBIG', 'kind' => 'pagibig', 'computation' => ['type' => 'rate', 'rate' => 0.02, 'base' => 'taxable', 'max' => 200, 'employer' => ['type' => 'rate', 'rate' => 0.02, 'base' => 'taxable', 'max' => 200]]],
         ['name' => 'Withholding Tax', 'kind' => 'withholding_tax', 'computation' => [
             'type' => 'bracket',
             'brackets' => [
@@ -114,7 +118,9 @@ class PayrollSeeder extends Seeder
         }
 
         foreach (self::DEDUCTIONS as $deduction) {
-            DeductionType::firstOrCreate(
+            // updateOrCreate so the employer-share config is refreshed onto any
+            // statutory types seeded before it existed.
+            DeductionType::updateOrCreate(
                 ['name' => $deduction['name']],
                 ['kind' => $deduction['kind'], 'is_mandatory' => true, 'computation' => $deduction['computation']],
             );
@@ -201,6 +207,7 @@ class PayrollSeeder extends Seeder
         ]);
 
         $processor->process($period);
+        app(BenefitContributionGenerator::class)->generate($period);
 
         $period->update(['status' => $status]);
 

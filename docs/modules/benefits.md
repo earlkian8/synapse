@@ -1,12 +1,11 @@
 # Benefits Administration
 
-The organisation's benefit program: the **plans** it offers (HMO, insurance,
-retirement, wellness) and **who is enrolled** in each. Plans are configured in
-Company Setup; the Benefits module manages enrollment and surfaces coverage + cost.
-Data model is ERD §7 (the benefits side) + the `benefit_plans` config table;
-everything is tenant-scoped (ADR 0005). See
-[ADR 0011](../decisions/0011-benefits-administration.md) for the plan-vs-contribution
-decision.
+The organisation's benefit program has two halves: the **plans** it offers (HMO,
+insurance, retirement, wellness) and **who is enrolled** in each, plus the monthly
+**statutory contributions** (SSS / PhilHealth / Pag-IBIG) it must remit. Plans are
+configured in Company Setup; contributions are derived from payroll. Data model is
+ERD §7 (the benefits side); everything is tenant-scoped (ADR 0005). See
+[ADR 0011](../decisions/0011-benefits-administration.md) for why both halves exist.
 
 > Status: **Active** · Route prefix: `/benefits` · Config: `/setup/benefits`
 > Sidebar: Workforce → Benefits Administration (gated by `benefits.view`);
@@ -23,6 +22,12 @@ decision.
   enrolled employees (status, member reference, enrolled date). HR can **enroll an
   employee**, **edit** an enrollment (status / reference / dates / notes), or
   **remove** one.
+- **`/benefits/contributions`** — the **statutory remittance report**: pick a
+  remittance month, see per-agency totals (SSS / PhilHealth / Pag-IBIG, employee +
+  employer share) and a per-employee register. Figures are **derived from processed
+  payroll runs** — the employee share is the payslip's statutory deduction, the
+  employer share is the company counterpart (computed). Regenerated whenever a run is
+  processed / re-processed or a payslip is adjusted.
 - **Employee detail → Benefits tab** — a read-only summary of an employee's plan
   enrollments (managed from this module, not the employee record).
 

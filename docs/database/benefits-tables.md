@@ -1,8 +1,9 @@
 # Database: benefits tables
 
 The tables behind the [Benefits module](../modules/benefits.md), created by
-`…_create_benefits_tables` (ERD §7, the benefits side). They replace the deferred
-`benefit_contributions` snapshot with a plan + enrollment model (see
+`…_create_benefits_tables` and `…_create_benefit_contributions_table` (ERD §7, the
+benefits side). Two complementary halves — `benefit_plans` + `benefit_enrollments`
+for program administration, and `benefit_contributions` for statutory remittance (see
 [ADR 0011](../decisions/0011-benefits-administration.md)). All are tenant-scoped
 (`organization_id`). Money is `decimal(12,2)`.
 
@@ -48,3 +49,30 @@ per plan; `employee_id`.
 
 > Cost rollups normalise each plan's per-period cost to a **monthly equivalent**
 > (`quarterly ÷ 3`, `annual ÷ 12`, `one_time` excluded) × its active enrollee count.
+
+## `benefit_contributions`
+
+Statutory government contributions (SSS / PhilHealth / Pag-IBIG), **derived** from a
+processed payroll run — never hand-entered. The employee share is the run's statutory
+payslip deduction; the employer share is computed from an `employer` block on the
+deduction type's `computation`. Drives the monthly remittance report
+(`/benefits/contributions`). See `App\Support\Payroll\BenefitContributionGenerator`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `organization_id` | FK → organizations | Tenant. |
+| `employee_id` | FK → employees | Cascade on delete. Indexed. |
+| `payroll_period_id` | FK → payroll_periods, nullable | The run it was derived from; cascade on delete. |
+| `period` | string(7) | Remittance month, `YYYY-MM` (from the run's end date). |
+| `benefit` | string | `sss \| philhealth \| pagibig`. |
+| `employee_share` | decimal(12,2) | = the statutory deduction on the payslip. |
+| `employer_share` | decimal(12,2) | The company counterpart (computed). |
+| `total` | decimal(12,2) | `employee_share + employer_share`. |
+| timestamps | | |
+
+**Indexes:** unique `(payroll_period_id, employee_id, benefit)`; `(period, benefit)`;
+`employee_id`.
+
+> Regenerated whenever a run is processed / re-processed or a payslip is adjusted, so
+> it stays in step with the payslip deductions (the single source of truth).

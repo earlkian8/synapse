@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Benefits\BenefitContributionController;
 use App\Http\Controllers\Benefits\BenefitController;
 use App\Http\Controllers\Benefits\BenefitEnrollmentController;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,10 @@ Route::middleware(['auth', 'verified'])
     ->name('benefits.')
     ->group(function () {
         Route::get('/', [BenefitController::class, 'index'])->middleware('can:benefits.view')->name('index');
+
+        // Statutory contributions remittance report (literal segment, before the
+        // {benefitPlan} wildcard).
+        Route::get('contributions', [BenefitContributionController::class, 'index'])->middleware('can:benefits.view')->name('contributions');
 
         // Enrollment mutations (literal "enrollments" — declared before the
         // {benefitPlan} wildcard so it never binds to it).

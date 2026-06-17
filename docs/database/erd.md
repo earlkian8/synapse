@@ -536,9 +536,12 @@ Payslips are computed from salaries + attendance, then refined by recurring
 and optional **manual line edits** (`payslips.is_adjusted`) — see
 [Payroll](../modules/payroll.md) and [payroll tables](../database/payroll-tables.md).
 
-**Built (Benefits)** — `benefit_plans` (Company-Setup catalogue) + `benefit_enrollments`
-(employee ↔ plan), replacing the deferred `benefit_contributions` snapshot with a
-richer plan + enrollment model — see [Benefits](../modules/benefits.md),
+**Built (Benefits)** — two complementary halves: `benefit_plans` (Company-Setup
+catalogue) + `benefit_enrollments` (employee ↔ plan) for **program administration**
+(HMO, insurance, retirement, wellness), and `benefit_contributions` for **statutory
+remittance** — one row per employee per run per government benefit (SSS / PhilHealth
+/ Pag-IBIG) carrying the employee **and employer** shares, derived from the run's
+statutory payslip deductions. See [Benefits](../modules/benefits.md),
 [benefits tables](../database/benefits-tables.md) and
 [ADR 0011](../decisions/0011-benefits-administration.md).
 
@@ -552,6 +555,8 @@ erDiagram
     DEDUCTION_TYPE ||--o{ PAYSLIP_DEDUCTION : typed
     BENEFIT_PLAN ||--o{ BENEFIT_ENROLLMENT : offers
     EMPLOYEE ||--o{ BENEFIT_ENROLLMENT : enrolled
+    EMPLOYEE ||--o{ BENEFIT_CONTRIBUTION : contributes
+    PAYROLL_PERIOD ||--o{ BENEFIT_CONTRIBUTION : sources
 
     PAYROLL_PERIOD {
         bigint id PK
@@ -601,6 +606,16 @@ erDiagram
         enum frequency "monthly|quarterly|annual|one_time"
         boolean is_active
         datetime deleted_at "soft delete"
+    }
+    BENEFIT_CONTRIBUTION {
+        bigint id PK
+        bigint employee_id FK
+        bigint payroll_period_id FK "nullable"
+        string period "YYYY-MM"
+        enum benefit "sss|philhealth|pagibig"
+        decimal employee_share
+        decimal employer_share
+        decimal total
     }
     BENEFIT_ENROLLMENT {
         bigint id PK
@@ -867,10 +882,10 @@ erDiagram
    `users.employee_id` string column becomes redundant — drop it once Employees exist?
 4. **Approvers/evaluators as `users`** (current convention) vs. as `employees` — OK?
 5. ~~**Benefit contributions**: standalone table vs. derived from payslip
-   deductions~~ — **Resolved:** dropped the `benefit_contributions` snapshot;
-   built **`benefit_plans` + `benefit_enrollments`** (plans & coverage) instead,
-   with statutory figures left as payslip deductions — see
-   [ADR 0011](../decisions/0011-benefits-administration.md).
+   deductions~~ — **Resolved:** kept **`benefit_contributions`** but generated it
+   from the run's statutory deductions (adding the **employer** share the payslips
+   lack), and added **`benefit_plans` + `benefit_enrollments`** for benefit-program
+   administration — see [ADR 0011](../decisions/0011-benefits-administration.md).
 6. ~~**Recruitment applicants** are *not* users/employees until hired~~ — **Resolved:
    standalone `applicants` table** (a reusable candidate pool); a hire creates an
    employee via the bridge — see [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md).

@@ -1,4 +1,4 @@
-# 0011 — Benefits Administration: plans + enrollments, not a contribution snapshot
+# 0011 — Benefits Administration: program enrollments + derived statutory contributions
 
 - **Status:** Accepted
 - **Date:** 2026-06-17
@@ -23,30 +23,43 @@ program. None of that is derivable from payslip deductions.
 
 ## Decision
 
-Model **plans + enrollments**, not contribution snapshots:
+Build **both halves** — they answer different questions and don't conflict:
 
+**1. Program administration** — `benefit_plans` + `benefit_enrollments`:
 - **`benefit_plans`** — a Company-Setup catalogue (category, provider, employee /
-  employer cost, frequency, active flag). The configuration layer, mirroring how
-  `allowance_types` / `deduction_types` back payroll.
+  employer cost, frequency, active flag), mirroring how `allowance_types` /
+  `deduction_types` back payroll.
 - **`benefit_enrollments`** — the employee ↔ plan link with a status, member
   reference and coverage dates. One row per employee per plan.
+- Cost reporting is **derived** from active enrollments × each plan's
+  monthly-equivalent cost (store the source, derive the rollup — ADR 0009).
 
-Cost reporting is **derived** from active enrollments × each plan's monthly-equivalent
-cost, rather than stored per period — the same "store the source, derive the rollup"
-principle the leave balances use (ADR 0009).
+**2. Statutory remittance** — `benefit_contributions` (the ERD's table, kept):
+- One row per employee per pay period per government benefit (SSS / PhilHealth /
+  Pag-IBIG), holding the **employee and employer** shares.
+- **Generated from each processed payroll run**: the employee share is the statutory
+  deduction already on the payslip; the **employer share** — the company counterpart
+  the payslip does *not* carry — is computed from an `employer` block on the statutory
+  deduction type's `computation`, on the same gross. This is the real gap the table
+  fills: nothing else in the system computes the employer's mandatory contribution.
 
-Statutory contributions stay where they already are — **payslip deductions** computed
-by the payroll engine — so there is no second source of truth for SSS / PhilHealth /
-Pag-IBIG figures. `benefit_contributions` is dropped from the build.
+### Why keep both rather than pick one
+
+The original ERD scoped "Benefits" to `benefit_contributions` only. Building just
+that would be a thin report over data payroll mostly has; building only
+plans/enrollments would leave the employer-share + remittance gap unfilled and drop
+the ERD's table. The contributions table is the higher-value, compliance-critical
+half; the plan/enrollment module is complementary program admin. Together they cover
+both the legal remittance need and the HR benefits-program need.
 
 ## Consequences
 
-- The Benefits module is about **coverage and cost**, complementary to payroll, not a
-  re-derivation of statutory math.
-- Benefit costs are **not** auto-pushed into payroll deductions in this cut; if an
+- Statutory figures still have **one source of truth**: the payslip deductions.
+  `benefit_contributions` is *derived* from them (regenerated whenever a run is
+  processed / re-processed / a payslip is adjusted), never hand-entered — so it can't
+  drift from payroll.
+- Benefit-plan costs are **not** auto-pushed into payroll deductions in this cut; if an
   employee's share should hit their pay, HR adds a per-employee deduction in Payroll.
-  A future enhancement could bridge an enrollment's `employee_cost` into a payslip
-  line automatically.
-- A dedicated `benefits.*` / `setup.benefits.*` permission set gates the module and
-  its configuration; the built-in HR Manager role gets both.
+- A dedicated `benefits.*` / `setup.benefits.*` permission set gates the module and its
+  configuration; the built-in HR Manager role gets both.
 - Dependents / beneficiaries and employee self-service are out of scope for now.

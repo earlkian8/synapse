@@ -60,6 +60,16 @@ export const CATEGORY_META: Record<
     },
 };
 
+/** The statutory government benefits tracked in the contributions report. */
+export const STATUTORY_LABELS: Record<
+    'sss' | 'philhealth' | 'pagibig',
+    string
+> = {
+    sss: 'SSS',
+    philhealth: 'PhilHealth',
+    pagibig: 'Pag-IBIG',
+};
+
 export const FREQUENCY_LABELS: Record<BenefitFrequency, string> = {
     monthly: 'Monthly',
     quarterly: 'Quarterly',

@@ -85,3 +85,43 @@ export type BenefitsShowPageProps = {
     enrollable: EnrollableEmployee[];
     can: BenefitPermissions;
 };
+
+// ── Statutory contributions (remittance report) ──────────────────────────────
+
+export type StatutoryBenefit = 'sss' | 'philhealth' | 'pagibig';
+
+export type ContributionShare = { employee: number; employer: number };
+
+export type ContributionPeriodOption = { value: string; label: string };
+
+export type ContributionSummary = {
+    benefits: Record<
+        StatutoryBenefit,
+        { employee: number; employer: number; total: number }
+    >;
+    employee: number;
+    employer: number;
+    total: number;
+    employees: number;
+};
+
+export type ContributionRow = {
+    employee: {
+        id: number;
+        full_name: string;
+        initials: string;
+        employee_no: string;
+        photo: string | null;
+        position: string | null;
+        department: string | null;
+    } | null;
+    shares: Record<StatutoryBenefit, ContributionShare>;
+    total: number;
+};
+
+export type ContributionsPageProps = {
+    periods: ContributionPeriodOption[];
+    selected: string | null;
+    summary: ContributionSummary;
+    rows: ContributionRow[];
+};

@@ -3,6 +3,7 @@ import { HeartHandshake } from 'lucide-react';
 import { useMemo } from 'react';
 import { BenefitPlanCard } from '@/features/benefits/components/benefit-plan-card';
 import { BenefitStatsCards } from '@/features/benefits/components/benefit-stats';
+import { BenefitsTabs } from '@/features/benefits/components/benefits-tabs';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/features/benefits/constants';
 import type {
     BenefitCategory,
@@ -42,6 +43,8 @@ export default function BenefitsIndex() {
                         The organisation's benefit plans and who's enrolled.
                     </p>
                 </div>
+
+                <BenefitsTabs />
 
                 <BenefitStatsCards stats={stats} />
 
