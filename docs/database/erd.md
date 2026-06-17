@@ -535,7 +535,12 @@ Payslips are computed from salaries + attendance, then refined by recurring
 **per-employee pay items** (`employee_allowances` / `employee_deductions`, ERD §3)
 and optional **manual line edits** (`payslips.is_adjusted`) — see
 [Payroll](../modules/payroll.md) and [payroll tables](../database/payroll-tables.md).
-`benefit_contributions` is still deferred.
+
+**Built (Benefits)** — `benefit_plans` (Company-Setup catalogue) + `benefit_enrollments`
+(employee ↔ plan), replacing the deferred `benefit_contributions` snapshot with a
+richer plan + enrollment model — see [Benefits](../modules/benefits.md),
+[benefits tables](../database/benefits-tables.md) and
+[ADR 0011](../decisions/0011-benefits-administration.md).
 
 ```mermaid
 erDiagram
@@ -545,7 +550,8 @@ erDiagram
     PAYSLIP ||--o{ PAYSLIP_DEDUCTION : has
     ALLOWANCE_TYPE ||--o{ PAYSLIP_EARNING : typed
     DEDUCTION_TYPE ||--o{ PAYSLIP_DEDUCTION : typed
-    EMPLOYEE ||--o{ BENEFIT_CONTRIBUTION : accrues
+    BENEFIT_PLAN ||--o{ BENEFIT_ENROLLMENT : offers
+    EMPLOYEE ||--o{ BENEFIT_ENROLLMENT : enrolled
 
     PAYROLL_PERIOD {
         bigint id PK
@@ -584,14 +590,27 @@ erDiagram
         string label
         decimal amount
     }
-    BENEFIT_CONTRIBUTION {
+    BENEFIT_PLAN {
         bigint id PK
+        string name
+        enum category "hmo|insurance|retirement|wellness|other"
+        string provider "nullable"
+        text description "nullable"
+        decimal employee_cost
+        decimal employer_cost
+        enum frequency "monthly|quarterly|annual|one_time"
+        boolean is_active
+        datetime deleted_at "soft delete"
+    }
+    BENEFIT_ENROLLMENT {
+        bigint id PK
+        bigint benefit_plan_id FK
         bigint employee_id FK
-        enum benefit "sss|philhealth|pagibig"
-        string period "YYYY-MM"
-        decimal employee_share
-        decimal employer_share
-        decimal total
+        enum status "active|pending|waived|terminated"
+        string reference_no "nullable; member/policy no"
+        date enrolled_on
+        date ended_on "nullable"
+        text notes "nullable"
     }
 ```
 
@@ -829,7 +848,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), Performance, Training, Benefits, Awards, Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), Performance, Training, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
@@ -847,8 +866,11 @@ erDiagram
 3. **`employees.employee_no`** is the canonical HR id; the existing
    `users.employee_id` string column becomes redundant — drop it once Employees exist?
 4. **Approvers/evaluators as `users`** (current convention) vs. as `employees` — OK?
-5. **Benefit contributions**: standalone table (as drawn) vs. derived purely from
-   payslip deductions — which do you prefer for reporting?
+5. ~~**Benefit contributions**: standalone table vs. derived from payslip
+   deductions~~ — **Resolved:** dropped the `benefit_contributions` snapshot;
+   built **`benefit_plans` + `benefit_enrollments`** (plans & coverage) instead,
+   with statutory figures left as payslip deductions — see
+   [ADR 0011](../decisions/0011-benefits-administration.md).
 6. ~~**Recruitment applicants** are *not* users/employees until hired~~ — **Resolved:
    standalone `applicants` table** (a reusable candidate pool); a hire creates an
    employee via the bridge — see [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md).

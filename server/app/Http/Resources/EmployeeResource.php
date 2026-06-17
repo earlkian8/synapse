@@ -86,6 +86,22 @@ class EmployeeResource extends JsonResource
             'promotions' => EmployeePromotionResource::collection($this->whenLoaded('promotions')),
             'allowances' => EmployeeAllowanceResource::collection($this->whenLoaded('allowances')),
             'recurring_deductions' => EmployeeDeductionResource::collection($this->whenLoaded('recurringDeductions')),
+            'benefit_enrollments' => $this->whenLoaded('benefitEnrollments', fn () => $this->benefitEnrollments
+                ->map(fn ($enrollment): array => [
+                    'id' => $enrollment->id,
+                    'status' => $enrollment->status,
+                    'reference_no' => $enrollment->reference_no,
+                    'plan' => $enrollment->relationLoaded('plan') && $enrollment->plan ? [
+                        'name' => $enrollment->plan->name,
+                        'category' => $enrollment->plan->category,
+                        'provider' => $enrollment->plan->provider,
+                        'employee_cost' => (float) $enrollment->plan->employee_cost,
+                        'employer_cost' => (float) $enrollment->plan->employer_cost,
+                        'frequency' => $enrollment->plan->frequency,
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
 
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),

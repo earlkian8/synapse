@@ -169,6 +169,16 @@ class Employee extends Model
     }
 
     /**
+     * This employee's benefit-plan enrollments (HMO, insurance, …).
+     *
+     * @return HasMany<BenefitEnrollment, $this>
+     */
+    public function benefitEnrollments(): HasMany
+    {
+        return $this->hasMany(BenefitEnrollment::class);
+    }
+
+    /**
      * This employee's onboarding journey, if one has been started.
      *
      * @return HasOne<OnboardingCase, $this>

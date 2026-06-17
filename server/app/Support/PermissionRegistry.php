@@ -61,6 +61,10 @@ class PermissionRegistry
             'payroll.release' => 'Finalize, release payslips & mark paid',
             'payroll.adjust' => 'Adjust payslips & per-employee pay items',
         ],
+        'Benefits' => [
+            'benefits.view' => 'View benefit plans & enrollments',
+            'benefits.manage' => 'Enroll employees & manage enrollments',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
@@ -68,6 +72,8 @@ class PermissionRegistry
             'setup.leave-types.manage' => 'Manage leave types',
             'setup.payroll.view' => 'View payroll configuration',
             'setup.payroll.manage' => 'Manage payroll configuration',
+            'setup.benefits.view' => 'View benefits configuration',
+            'setup.benefits.manage' => 'Manage benefits configuration',
         ],
         'User Management' => [
             'users.view' => 'View users',

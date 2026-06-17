@@ -57,5 +57,8 @@ class DatabaseSeeder extends Seeder
 
         // Payroll (statutory config + recent runs processed from attendance).
         $this->call(PayrollSeeder::class);
+
+        // Benefits (plan catalogue + employee enrollments).
+        $this->call(BenefitSeeder::class);
     }
 }

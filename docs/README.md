@@ -33,6 +33,9 @@ commit history rather than repeating them.
 - [Onboarding](./modules/onboarding.md) — template-driven checklists carrying each new hire from day one to productive.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [Leave Management](./modules/leave.md) — time off: approval inbox, derived balances, leave types.
+- [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules; mobile token API.
+- [Payroll](./modules/payroll.md) — pay runs & payslips from salary + attendance; per-employee pay items + manual editing.
+- [Benefits Administration](./modules/benefits.md) — benefit plans (HMO, insurance, retirement, wellness) + employee enrollments.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -49,6 +52,9 @@ commit history rather than repeating them.
 - [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
+- [attendance tables](./database/attendance-tables.md) — punch events, daily records, import batches.
+- [payroll tables](./database/payroll-tables.md) — periods, payslips, earning/deduction lines, allowance/deduction types.
+- [benefits tables](./database/benefits-tables.md) — benefit plans (catalogue) + employee enrollments.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -60,6 +66,8 @@ commit history rather than repeating them.
 - [0007 — Onboarding as a template-driven hire → productive bridge](./decisions/0007-onboarding-template-bridge.md)
 - [0008 — Company Setup: managing the org structure (departments & positions)](./decisions/0008-company-setup-org-structure.md)
 - [0009 — Leave management: an approval workflow with derived balances](./decisions/0009-leave-management.md)
+- [0010 — Attendance (DTR): a punch-event model and a token API for mobile](./decisions/0010-attendance-and-mobile-api.md)
+- [0011 — Benefits Administration: plans + enrollments, not a contribution snapshot](./decisions/0011-benefits-administration.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
