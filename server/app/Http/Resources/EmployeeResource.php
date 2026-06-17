@@ -84,6 +84,8 @@ class EmployeeResource extends JsonResource
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
             'certifications' => EmployeeCertificationResource::collection($this->whenLoaded('certifications')),
             'promotions' => EmployeePromotionResource::collection($this->whenLoaded('promotions')),
+            'allowances' => EmployeeAllowanceResource::collection($this->whenLoaded('allowances')),
+            'recurring_deductions' => EmployeeDeductionResource::collection($this->whenLoaded('recurringDeductions')),
 
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),

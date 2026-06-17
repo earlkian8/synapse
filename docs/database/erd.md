@@ -259,6 +259,7 @@ erDiagram
     EMPLOYEE ||--o{ EMPLOYEE_PROMOTION : promoted
     EMPLOYEE ||--o{ EMPLOYEE_CERTIFICATION : earns
     EMPLOYEE ||--o{ EMPLOYEE_ALLOWANCE : receives
+    EMPLOYEE ||--o{ EMPLOYEE_DEDUCTION : owes
     EMPLOYEE ||--o{ EMPLOYEE_DOCUMENT : owns
 
     EMPLOYEE {
@@ -316,7 +317,14 @@ erDiagram
     EMPLOYEE_ALLOWANCE {
         bigint id PK
         bigint employee_id FK
-        bigint allowance_type_id FK
+        bigint allowance_type_id FK "nullable"
+        decimal amount
+        boolean is_active
+    }
+    EMPLOYEE_DEDUCTION {
+        bigint id PK
+        bigint employee_id FK
+        bigint deduction_type_id FK "nullable; e.g. a loan"
         decimal amount
         boolean is_active
     }
@@ -521,6 +529,14 @@ erDiagram
 
 ## 7. Payroll & Benefits
 
+**Built (Payroll)** — `payroll_periods`, `payslips`, `payslip_earnings`,
+`payslip_deductions`, plus the §2 config tables `allowance_types` / `deduction_types`.
+Payslips are computed from salaries + attendance, then refined by recurring
+**per-employee pay items** (`employee_allowances` / `employee_deductions`, ERD §3)
+and optional **manual line edits** (`payslips.is_adjusted`) — see
+[Payroll](../modules/payroll.md) and [payroll tables](../database/payroll-tables.md).
+`benefit_contributions` is still deferred.
+
 ```mermaid
 erDiagram
     PAYROLL_PERIOD ||--o{ PAYSLIP : contains
@@ -552,6 +568,7 @@ erDiagram
         decimal net_pay
         decimal days_worked
         enum status "draft|released"
+        boolean is_adjusted "lines hand-edited; re-process skips it"
     }
     PAYSLIP_EARNING {
         bigint id PK
@@ -812,7 +829,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), Attendance/DTR (next), Performance, Training, Payroll, Benefits, Awards, Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), Performance, Training, Benefits, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.

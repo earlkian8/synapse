@@ -54,5 +54,8 @@ class DatabaseSeeder extends Seeder
 
         // Attendance (~6 weeks of demo punches across the team).
         $this->call(AttendanceSeeder::class);
+
+        // Payroll (statutory config + recent runs processed from attendance).
+        $this->call(PayrollSeeder::class);
     }
 }

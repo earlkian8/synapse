@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\StoreEmployeeRequest;
 use App\Http\Requests\Employee\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
+use App\Models\AllowanceType;
+use App\Models\DeductionType;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
@@ -56,17 +58,24 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Return a single employee with all sub-records (for the detail drawer).
+     * Return a single employee with all sub-records (for the detail drawer). The
+     * allowance / deduction type catalogues are attached alongside so the
+     * Compensation tab's pickers read the tenant's Company-Setup config.
      */
-    public function show(Employee $employee): EmployeeResource
+    public function show(Request $request, Employee $employee): EmployeeResource
     {
         $employee->load([
             'department', 'position', 'manager', 'workSchedule', 'user',
             'documents.uploader', 'certifications',
             'promotions.fromPosition', 'promotions.toPosition',
+            'allowances.allowanceType', 'recurringDeductions.deductionType',
         ])->loadCount(['documents', 'certifications']);
 
-        return new EmployeeResource($employee);
+        return (new EmployeeResource($employee))->additional([
+            'allowance_types' => AllowanceType::orderBy('name')->get(['id', 'name']),
+            'deduction_types' => DeductionType::orderBy('name')->get(['id', 'name']),
+            'can_adjust_payroll' => $request->user()->can('payroll.adjust'),
+        ]);
     }
 
     /**

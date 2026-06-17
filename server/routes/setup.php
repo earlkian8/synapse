@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\Setup\AllowanceTypeController;
+use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\LeaveTypeController;
+use App\Http\Controllers\Setup\PayrollSetupController;
 use App\Http\Controllers\Setup\PositionController;
 use Illuminate\Support\Facades\Route;
 
@@ -38,4 +41,20 @@ Route::middleware(['auth', 'verified'])
         Route::delete('leave-types/{leaveType}', [LeaveTypeController::class, 'destroy'])->middleware('can:setup.leave-types.manage')->name('leave-types.destroy');
         Route::patch('leave-types/{leaveType}/restore', [LeaveTypeController::class, 'restore'])->middleware('can:setup.leave-types.manage')->name('leave-types.restore');
         Route::delete('leave-types/{leaveType}/force', [LeaveTypeController::class, 'forceDelete'])->middleware('can:setup.leave-types.manage')->name('leave-types.force-delete');
+
+        // Payroll configuration — the allowance & deduction types the payroll
+        // engine reads. Addressed by hashid; restore / force take it as a string.
+        Route::get('payroll', [PayrollSetupController::class, 'index'])->middleware('can:setup.payroll.view')->name('payroll.index');
+
+        Route::post('payroll/allowance-types', [AllowanceTypeController::class, 'store'])->middleware('can:setup.payroll.manage')->name('payroll.allowance-types.store');
+        Route::post('payroll/allowance-types/{allowanceType}', [AllowanceTypeController::class, 'update'])->middleware('can:setup.payroll.manage')->name('payroll.allowance-types.update');
+        Route::delete('payroll/allowance-types/{allowanceType}', [AllowanceTypeController::class, 'destroy'])->middleware('can:setup.payroll.manage')->name('payroll.allowance-types.destroy');
+        Route::patch('payroll/allowance-types/{allowanceType}/restore', [AllowanceTypeController::class, 'restore'])->middleware('can:setup.payroll.manage')->name('payroll.allowance-types.restore');
+        Route::delete('payroll/allowance-types/{allowanceType}/force', [AllowanceTypeController::class, 'forceDelete'])->middleware('can:setup.payroll.manage')->name('payroll.allowance-types.force-delete');
+
+        Route::post('payroll/deduction-types', [DeductionTypeController::class, 'store'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.store');
+        Route::post('payroll/deduction-types/{deductionType}', [DeductionTypeController::class, 'update'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.update');
+        Route::delete('payroll/deduction-types/{deductionType}', [DeductionTypeController::class, 'destroy'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.destroy');
+        Route::patch('payroll/deduction-types/{deductionType}/restore', [DeductionTypeController::class, 'restore'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.restore');
+        Route::delete('payroll/deduction-types/{deductionType}/force', [DeductionTypeController::class, 'forceDelete'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.force-delete');
     });
