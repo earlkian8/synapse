@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
 import {
     CATEGORY_LABELS,
     FREQUENCY_SUFFIX,
@@ -82,6 +83,7 @@ type Tab =
     | 'benefits'
     | 'performance'
     | 'training'
+    | 'awards'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -92,6 +94,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'benefits', label: 'Benefits' },
     { value: 'performance', label: 'Performance' },
     { value: 'training', label: 'Training' },
+    { value: 'awards', label: 'Awards' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -248,6 +251,7 @@ export function EmployeeDetailSheet({
                         <PerformanceTab e={detail} />
                     )}
                     {tab === 'training' && detail && <TrainingTab e={detail} />}
+                    {tab === 'awards' && detail && <AwardsTab e={detail} />}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -818,6 +822,66 @@ function TrainingTab({ e }: { e: EmployeeDetail }) {
             </ul>
         </div>
     );
+}
+
+// ── Awards ───────────────────────────────────────────────────────────────────
+
+function AwardsTab({ e }: { e: EmployeeDetail }) {
+    if (e.awards.length === 0) {
+        return <EmptyState icon={Award} text="No recognitions yet." />;
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Recognitions received. Give or manage these from the Awards &
+                Recognition module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.awards.map((award) => (
+                    <li
+                        key={award.id}
+                        className="flex items-start gap-3 px-3 py-2.5"
+                    >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                            <Award className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {award.award_type && (
+                                    <AwardTypeBadge
+                                        name={award.award_type.name}
+                                        color={award.award_type.color}
+                                    />
+                                )}
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                    {formatAwardDate(award.awarded_on)}
+                                </span>
+                            </div>
+                            {award.reason && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {award.reason}
+                                </p>
+                            )}
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/** Format an ISO date (YYYY-MM-DD) as "Jun 16, 2026". */
+function formatAwardDate(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────

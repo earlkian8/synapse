@@ -111,6 +111,17 @@ export type EmployeeTraining = {
     } | null;
 };
 
+/** A read-only summary of one of the employee's recognitions. */
+export type EmployeeAwardSummary = {
+    id: number;
+    awarded_on: string | null;
+    reason: string | null;
+    award_type: {
+        name: string;
+        color: string | null;
+    } | null;
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -172,6 +183,7 @@ export type EmployeeDetail = ManagedEmployee & {
     benefit_enrollments: EmployeeBenefit[];
     performance_evaluations: EmployeePerformanceEvaluation[];
     training_enrollments: EmployeeTraining[];
+    awards: EmployeeAwardSummary[];
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

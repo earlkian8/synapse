@@ -259,6 +259,16 @@ class Employee extends Model
         return $this->hasMany(TrainingEnrollment::class);
     }
 
+    /**
+     * Recognitions this employee has received.
+     *
+     * @return HasMany<EmployeeAward, $this>
+     */
+    public function awards(): HasMany
+    {
+        return $this->hasMany(EmployeeAward::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**

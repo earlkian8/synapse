@@ -121,7 +121,12 @@ const workforceNavItems: GatedNavItem[] = [
         icon: GraduationCap,
         permission: 'training.view',
     },
-    { title: 'Awards & Recognition', href: '/awards', icon: Award },
+    {
+        title: 'Awards & Recognition',
+        href: '/awards',
+        icon: Award,
+        permission: 'awards.view',
+    },
     { title: 'Events & Meetings', href: '/events', icon: CalendarClock },
 ];
 
@@ -181,7 +186,12 @@ const companySetupNavItems: GatedNavItem[] = [
         icon: CalendarRange,
         permission: 'setup.leave-types.view',
     },
-    { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
+    {
+        title: 'Award Types',
+        href: '/setup/award-types',
+        icon: Trophy,
+        permission: 'setup.award-types.view',
+    },
     {
         title: 'KPI & Evaluation Criteria',
         href: '/setup/kpi',

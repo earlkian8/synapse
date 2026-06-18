@@ -134,6 +134,20 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'awards' => $this->whenLoaded('awards', fn () => $this->awards
+                ->sortByDesc('awarded_on')
+                ->map(fn ($award): array => [
+                    'id' => $award->id,
+                    'awarded_on' => $award->awarded_on?->toDateString(),
+                    'reason' => $award->reason,
+                    'award_type' => $award->relationLoaded('awardType') && $award->awardType ? [
+                        'name' => $award->awardType->name,
+                        'color' => $award->awardType->color,
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),
