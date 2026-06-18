@@ -7,6 +7,7 @@ import {
     Coins,
     FileText,
     Gauge,
+    GraduationCap,
     HeartHandshake,
     Pencil,
     Plus,
@@ -43,6 +44,9 @@ import {
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import { formatScore, scoreTone } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
+import { EnrollmentStatusBadge as TrainingStatusBadge } from '@/features/training/components/training-status-badge';
+import { formatScore as formatTrainingScore } from '@/features/training/constants';
+import { trainingRoutes } from '@/features/training/routes';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
@@ -77,6 +81,7 @@ type Tab =
     | 'compensation'
     | 'benefits'
     | 'performance'
+    | 'training'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -86,6 +91,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'compensation', label: 'Compensation' },
     { value: 'benefits', label: 'Benefits' },
     { value: 'performance', label: 'Performance' },
+    { value: 'training', label: 'Training' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -241,6 +247,7 @@ export function EmployeeDetailSheet({
                     {tab === 'performance' && detail && (
                         <PerformanceTab e={detail} />
                     )}
+                    {tab === 'training' && detail && <TrainingTab e={detail} />}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -745,6 +752,69 @@ function PerformanceTab({ e }: { e: EmployeeDetail }) {
                         </Link>
                     </li>
                 ))}
+            </ul>
+        </div>
+    );
+}
+
+// ── Training ─────────────────────────────────────────────────────────────────
+
+function TrainingTab({ e }: { e: EmployeeDetail }) {
+    if (e.training_enrollments.length === 0) {
+        return (
+            <EmptyState
+                icon={GraduationCap}
+                text="Not enrolled in any training programs."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Training enrollments. Manage these from the Training &
+                Development module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.training_enrollments.map((t, i) => {
+                    const row = (
+                        <>
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                                <GraduationCap className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {t.program?.name ?? 'Unknown program'}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {t.program?.provider ?? 'In-house'}
+                                    {t.score !== null
+                                        ? ` · ${formatTrainingScore(t.score)}`
+                                        : ''}
+                                </p>
+                            </div>
+                            <TrainingStatusBadge status={t.status} />
+                        </>
+                    );
+
+                    return t.program ? (
+                        <li key={`${t.program.hashid}-${i}`}>
+                            <Link
+                                href={trainingRoutes.show(t.program.hashid)}
+                                className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                            >
+                                {row}
+                            </Link>
+                        </li>
+                    ) : (
+                        <li
+                            key={`unknown-${i}`}
+                            className="flex items-center gap-3 px-3 py-2.5"
+                        >
+                            {row}
+                        </li>
+                    );
+                })}
             </ul>
         </div>
     );
