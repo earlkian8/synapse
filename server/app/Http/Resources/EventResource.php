@@ -37,7 +37,12 @@ class EventResource extends JsonResource
             'attendees_count' => (int) ($this->attendees_count ?? 0),
             'attending_count' => (int) ($this->attending_count ?? 0),
 
-            'attendees' => EventAttendeeResource::collection($this->whenLoaded('attendees')),
+            // Resolved to a plain array (not a bare resource collection) so Inertia
+            // does not re-wrap it in a `data` key when serializing this nested prop.
+            'attendees' => $this->whenLoaded(
+                'attendees',
+                fn () => EventAttendeeResource::collection($this->attendees)->resolve($request),
+            ),
         ];
     }
 }

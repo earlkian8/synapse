@@ -54,7 +54,12 @@ class PerformanceEvaluationResource extends JsonResource
                 'name' => trim("{$this->evaluator->first_name} {$this->evaluator->last_name}"),
             ] : null),
 
-            'scores' => PerformanceScoreResource::collection($this->whenLoaded('scores')),
+            // Resolved to a plain array (not a bare resource collection) so Inertia
+            // does not re-wrap it in a `data` key when serializing this nested prop.
+            'scores' => $this->whenLoaded(
+                'scores',
+                fn () => PerformanceScoreResource::collection($this->scores)->resolve($request),
+            ),
         ];
     }
 }
