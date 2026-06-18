@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     Award,
     Briefcase,
@@ -6,6 +6,7 @@ import {
     Clock,
     Coins,
     FileText,
+    Gauge,
     HeartHandshake,
     Pencil,
     Plus,
@@ -39,6 +40,9 @@ import {
     STATUS_STYLES,
     formatPeso,
 } from '@/features/benefits/constants';
+import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
+import { formatScore, scoreTone } from '@/features/performance/constants';
+import { performanceRoutes } from '@/features/performance/routes';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
@@ -72,6 +76,7 @@ type Tab =
     | 'profile'
     | 'compensation'
     | 'benefits'
+    | 'performance'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -80,6 +85,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'profile', label: 'Profile' },
     { value: 'compensation', label: 'Compensation' },
     { value: 'benefits', label: 'Benefits' },
+    { value: 'performance', label: 'Performance' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -232,6 +238,9 @@ export function EmployeeDetailSheet({
                         />
                     )}
                     {tab === 'benefits' && detail && <BenefitsTab e={detail} />}
+                    {tab === 'performance' && detail && (
+                        <PerformanceTab e={detail} />
+                    )}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -684,6 +693,56 @@ function BenefitsTab({ e }: { e: EmployeeDetail }) {
                         >
                             {STATUS_LABELS[b.status]}
                         </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+// ── Performance ──────────────────────────────────────────────────────────────
+
+function PerformanceTab({ e }: { e: EmployeeDetail }) {
+    if (e.performance_evaluations.length === 0) {
+        return (
+            <EmptyState icon={Gauge} text="No performance evaluations yet." />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Performance evaluations. Conduct or review these from the
+                Performance Management module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.performance_evaluations.map((evaluation) => (
+                    <li key={evaluation.hashid}>
+                        <Link
+                            href={performanceRoutes.show(evaluation.hashid)}
+                            className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                        >
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                                <Gauge className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {evaluation.period?.name ?? 'Evaluation'}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    <span
+                                        className={cn(
+                                            'font-semibold tabular-nums',
+                                            scoreTone(evaluation.overall_score),
+                                        )}
+                                    >
+                                        {formatScore(evaluation.overall_score)}
+                                    </span>{' '}
+                                    / 5.00
+                                </p>
+                            </div>
+                            <EvaluationStatusBadge status={evaluation.status} />
+                        </Link>
                     </li>
                 ))}
             </ul>

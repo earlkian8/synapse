@@ -70,6 +70,7 @@ class EmployeeController extends Controller
             'promotions.fromPosition', 'promotions.toPosition',
             'allowances.allowanceType', 'recurringDeductions.deductionType',
             'benefitEnrollments.plan',
+            'performanceEvaluations.period:id,name,start_date,end_date',
         ])->loadCount(['documents', 'certifications']);
 
         return (new EmployeeResource($employee))->additional([

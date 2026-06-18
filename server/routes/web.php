@@ -31,4 +31,5 @@ require __DIR__.'/leave.php';
 require __DIR__.'/attendance.php';
 require __DIR__.'/payroll.php';
 require __DIR__.'/benefits.php';
+require __DIR__.'/performance.php';
 require __DIR__.'/setup.php';

@@ -86,6 +86,19 @@ export type EmployeeBenefit = {
     } | null;
 };
 
+/** A read-only summary of one of the employee's performance evaluations. */
+export type EmployeePerformanceEvaluation = {
+    hashid: string;
+    status: 'draft' | 'submitted' | 'acknowledged';
+    overall_score: number | null;
+    submitted_at: string | null;
+    period: {
+        name: string;
+        start_date: string | null;
+        end_date: string | null;
+    } | null;
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -145,6 +158,7 @@ export type EmployeeDetail = ManagedEmployee & {
     allowances: EmployeeAllowance[];
     recurring_deductions: EmployeeDeduction[];
     benefit_enrollments: EmployeeBenefit[];
+    performance_evaluations: EmployeePerformanceEvaluation[];
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

@@ -103,6 +103,22 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'performance_evaluations' => $this->whenLoaded('performanceEvaluations', fn () => $this->performanceEvaluations
+                ->sortByDesc('id')
+                ->map(fn ($evaluation): array => [
+                    'hashid' => $evaluation->hashid,
+                    'status' => $evaluation->status,
+                    'overall_score' => $evaluation->overall_score === null ? null : (float) $evaluation->overall_score,
+                    'submitted_at' => $evaluation->submitted_at?->toDateString(),
+                    'period' => $evaluation->relationLoaded('period') && $evaluation->period ? [
+                        'name' => $evaluation->period->name,
+                        'start_date' => $evaluation->period->start_date?->toDateString(),
+                        'end_date' => $evaluation->period->end_date?->toDateString(),
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),
