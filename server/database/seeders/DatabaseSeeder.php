@@ -60,5 +60,8 @@ class DatabaseSeeder extends Seeder
 
         // Benefits (plan catalogue + employee enrollments).
         $this->call(BenefitSeeder::class);
+
+        // Performance (KPI criteria + review cycles + scored evaluations).
+        $this->call(PerformanceSeeder::class);
     }
 }

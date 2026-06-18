@@ -239,6 +239,16 @@ class Employee extends Model
         return $this->hasMany(AttendancePunch::class);
     }
 
+    /**
+     * This employee's performance evaluations (one per review period).
+     *
+     * @return HasMany<PerformanceEvaluation, $this>
+     */
+    public function performanceEvaluations(): HasMany
+    {
+        return $this->hasMany(PerformanceEvaluation::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**

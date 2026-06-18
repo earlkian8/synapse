@@ -4,6 +4,9 @@ use App\Http\Controllers\Setup\AllowanceTypeController;
 use App\Http\Controllers\Setup\BenefitPlanController;
 use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
+use App\Http\Controllers\Setup\EvaluationPeriodController;
+use App\Http\Controllers\Setup\KpiCriterionController;
+use App\Http\Controllers\Setup\KpiSetupController;
 use App\Http\Controllers\Setup\LeaveTypeController;
 use App\Http\Controllers\Setup\PayrollSetupController;
 use App\Http\Controllers\Setup\PositionController;
@@ -68,4 +71,21 @@ Route::middleware(['auth', 'verified'])
         Route::delete('benefits/{benefitPlan}', [BenefitPlanController::class, 'destroy'])->middleware('can:setup.benefits.manage')->name('benefits.destroy');
         Route::patch('benefits/{benefitPlan}/restore', [BenefitPlanController::class, 'restore'])->middleware('can:setup.benefits.manage')->name('benefits.restore');
         Route::delete('benefits/{benefitPlan}/force', [BenefitPlanController::class, 'forceDelete'])->middleware('can:setup.benefits.manage')->name('benefits.force-delete');
+
+        // KPI & Evaluation Criteria — the weighted criteria and review periods the
+        // Performance Management module evaluates against. Both addressed by hashid;
+        // restore / force take it as a string.
+        Route::get('kpi', [KpiSetupController::class, 'index'])->middleware('can:setup.kpi.view')->name('kpi.index');
+
+        Route::post('kpi/criteria', [KpiCriterionController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.store');
+        Route::post('kpi/criteria/{kpiCriterion}', [KpiCriterionController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.update');
+        Route::delete('kpi/criteria/{kpiCriterion}', [KpiCriterionController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.destroy');
+        Route::patch('kpi/criteria/{kpiCriterion}/restore', [KpiCriterionController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.restore');
+        Route::delete('kpi/criteria/{kpiCriterion}/force', [KpiCriterionController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.force-delete');
+
+        Route::post('kpi/periods', [EvaluationPeriodController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.periods.store');
+        Route::post('kpi/periods/{evaluationPeriod}', [EvaluationPeriodController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.periods.update');
+        Route::delete('kpi/periods/{evaluationPeriod}', [EvaluationPeriodController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.periods.destroy');
+        Route::patch('kpi/periods/{evaluationPeriod}/restore', [EvaluationPeriodController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.periods.restore');
+        Route::delete('kpi/periods/{evaluationPeriod}/force', [EvaluationPeriodController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.periods.force-delete');
     });

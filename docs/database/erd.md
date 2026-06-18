@@ -243,6 +243,10 @@ erDiagram
 > `COMPANY_PROFILE`, `HOLIDAY`, `LEAVE_TYPE`, `AWARD_TYPE`, `KPI_CRITERION`,
 > `EVALUATION_PERIOD`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `EMAIL_TEMPLATE` are
 > standalone config tables referenced by the operational modules below.
+>
+> **Built:** `LEAVE_TYPE`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, and now `KPI_CRITERION`
+> + `EVALUATION_PERIOD` (managed at `/setup/kpi` — see
+> [Performance](../modules/performance.md)).
 
 ---
 
@@ -635,6 +639,16 @@ erDiagram
 
 Primary ML feature sources (KPI scores, training participation).
 
+**Built (Performance)** — `kpi_criteria` + `evaluation_periods` (Company-Setup config,
+ERD §2) and `performance_evaluations` + `performance_scores`. Evaluations score an
+employee against the weighted criteria within a period; the **`overall_score` is
+derived** (weighted average, `App\Support\Performance\PerformanceScorer`) through a
+`draft → submitted → acknowledged` lifecycle, and each score line **snapshots** the
+criterion's label + weight so archiving a criterion never alters a past appraisal
+(added `acknowledged_at`). See [Performance](../modules/performance.md),
+[performance tables](../database/performance-tables.md) and
+[ADR 0012](../decisions/0012-performance-management.md). **Training** is not yet built.
+
 ```mermaid
 erDiagram
     EMPLOYEE ||--o{ PERFORMANCE_EVALUATION : evaluated
@@ -863,7 +877,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), Performance, Training, Awards, Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), Training, Awards, Events.
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
