@@ -38,7 +38,12 @@ class TrainingProgramResource extends JsonResource
             'seats_remaining' => $capacity === null ? null : max(0, $capacity - $active),
             'is_full' => $capacity !== null && $active >= $capacity,
 
-            'enrollments' => TrainingEnrollmentResource::collection($this->whenLoaded('enrollments')),
+            // Resolved to a plain array (not a bare resource collection) so Inertia
+            // does not re-wrap it in a `data` key when serializing this nested prop.
+            'enrollments' => $this->whenLoaded(
+                'enrollments',
+                fn () => TrainingEnrollmentResource::collection($this->enrollments)->resolve($request),
+            ),
         ];
     }
 }

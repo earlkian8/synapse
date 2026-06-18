@@ -127,7 +127,12 @@ const workforceNavItems: GatedNavItem[] = [
         icon: Award,
         permission: 'awards.view',
     },
-    { title: 'Events & Meetings', href: '/events', icon: CalendarClock },
+    {
+        title: 'Events & Meetings',
+        href: '/events',
+        icon: CalendarClock,
+        permission: 'events.view',
+    },
 ];
 
 const offboardingNavItems: NavItem[] = [

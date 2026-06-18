@@ -125,6 +125,7 @@ class OrganizationProvisioner
                     'performance.view', 'performance.manage',
                     'training.view', 'training.manage',
                     'awards.view', 'awards.manage',
+                    'events.view', 'events.manage',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
                     'setup.payroll.view', 'setup.payroll.manage',

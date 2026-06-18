@@ -122,6 +122,19 @@ export type EmployeeAwardSummary = {
     } | null;
 };
 
+/** A read-only summary of one of the employee's event invitations. */
+export type EmployeeEventSummary = {
+    id: number;
+    response: 'invited' | 'accepted' | 'declined' | 'tentative';
+    event: {
+        hashid: string;
+        title: string;
+        type: 'event' | 'meeting';
+        starts_at: string | null;
+        status: 'upcoming' | 'ongoing' | 'past';
+    };
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -184,6 +197,7 @@ export type EmployeeDetail = ManagedEmployee & {
     performance_evaluations: EmployeePerformanceEvaluation[];
     training_enrollments: EmployeeTraining[];
     awards: EmployeeAwardSummary[];
+    events: EmployeeEventSummary[];
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

@@ -269,6 +269,16 @@ class Employee extends Model
         return $this->hasMany(EmployeeAward::class);
     }
 
+    /**
+     * This employee's invitations to events / meetings.
+     *
+     * @return HasMany<EventAttendee, $this>
+     */
+    public function eventAttendances(): HasMany
+    {
+        return $this->hasMany(EventAttendee::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**

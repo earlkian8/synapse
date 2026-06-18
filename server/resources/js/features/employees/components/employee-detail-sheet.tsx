@@ -3,6 +3,7 @@ import {
     Award,
     Briefcase,
     Building2,
+    CalendarClock,
     Clock,
     Coins,
     FileText,
@@ -42,6 +43,9 @@ import {
     STATUS_STYLES,
     formatPeso,
 } from '@/features/benefits/constants';
+import { ResponseBadge } from '@/features/events/components/event-status-badge';
+import { formatDateTime as formatEventDate } from '@/features/events/constants';
+import { eventRoutes } from '@/features/events/routes';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import { formatScore, scoreTone } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
@@ -84,6 +88,7 @@ type Tab =
     | 'performance'
     | 'training'
     | 'awards'
+    | 'events'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -95,6 +100,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'performance', label: 'Performance' },
     { value: 'training', label: 'Training' },
     { value: 'awards', label: 'Awards' },
+    { value: 'events', label: 'Events' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -252,6 +258,7 @@ export function EmployeeDetailSheet({
                     )}
                     {tab === 'training' && detail && <TrainingTab e={detail} />}
                     {tab === 'awards' && detail && <AwardsTab e={detail} />}
+                    {tab === 'events' && detail && <EventsTab e={detail} />}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -882,6 +889,51 @@ function formatAwardDate(iso: string | null): string {
         day: 'numeric',
         year: 'numeric',
     });
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+function EventsTab({ e }: { e: EmployeeDetail }) {
+    if (e.events.length === 0) {
+        return (
+            <EmptyState
+                icon={CalendarClock}
+                text="Not invited to any events yet."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Events and meetings this employee is invited to. Manage these
+                from the Events & Meetings module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.events.map((invite) => (
+                    <li key={invite.id}>
+                        <Link
+                            href={eventRoutes.show(invite.event.hashid)}
+                            className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                        >
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                                <CalendarClock className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {invite.event.title}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {formatEventDate(invite.event.starts_at)}
+                                </p>
+                            </div>
+                            <ResponseBadge response={invite.response} />
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────

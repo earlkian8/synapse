@@ -77,6 +77,10 @@ class PermissionRegistry
             'awards.view' => 'View awards & recognition',
             'awards.manage' => 'Give, edit & remove recognitions',
         ],
+        'Events & Meetings' => [
+            'events.view' => 'View events & meetings',
+            'events.manage' => 'Schedule events, invite attendees & track responses',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
