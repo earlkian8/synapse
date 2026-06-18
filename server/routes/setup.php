@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Setup\AllowanceTypeController;
+use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\BenefitPlanController;
 use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
@@ -88,4 +89,13 @@ Route::middleware(['auth', 'verified'])
         Route::delete('kpi/periods/{evaluationPeriod}', [EvaluationPeriodController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.periods.destroy');
         Route::patch('kpi/periods/{evaluationPeriod}/restore', [EvaluationPeriodController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.periods.restore');
         Route::delete('kpi/periods/{evaluationPeriod}/force', [EvaluationPeriodController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.periods.force-delete');
+
+        // Award Types — the catalogue of recognitions the Awards & Recognition
+        // module gives out. Addressed by hashid; restore / force take it as a string.
+        Route::get('award-types', [AwardTypeController::class, 'index'])->middleware('can:setup.award-types.view')->name('award-types.index');
+        Route::post('award-types', [AwardTypeController::class, 'store'])->middleware('can:setup.award-types.manage')->name('award-types.store');
+        Route::post('award-types/{awardType}', [AwardTypeController::class, 'update'])->middleware('can:setup.award-types.manage')->name('award-types.update');
+        Route::delete('award-types/{awardType}', [AwardTypeController::class, 'destroy'])->middleware('can:setup.award-types.manage')->name('award-types.destroy');
+        Route::patch('award-types/{awardType}/restore', [AwardTypeController::class, 'restore'])->middleware('can:setup.award-types.manage')->name('award-types.restore');
+        Route::delete('award-types/{awardType}/force', [AwardTypeController::class, 'forceDelete'])->middleware('can:setup.award-types.manage')->name('award-types.force-delete');
     });

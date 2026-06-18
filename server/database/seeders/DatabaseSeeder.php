@@ -66,5 +66,8 @@ class DatabaseSeeder extends Seeder
 
         // Training (programs across the lifecycle + employee enrollments).
         $this->call(TrainingSeeder::class);
+
+        // Awards (recognition types + a spread of employee awards).
+        $this->call(AwardSeeder::class);
     }
 }

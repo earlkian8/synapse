@@ -33,4 +33,5 @@ require __DIR__.'/payroll.php';
 require __DIR__.'/benefits.php';
 require __DIR__.'/performance.php';
 require __DIR__.'/training.php';
+require __DIR__.'/awards.php';
 require __DIR__.'/setup.php';

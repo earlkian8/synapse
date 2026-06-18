@@ -73,6 +73,10 @@ class PermissionRegistry
             'training.view' => 'View training programs & enrollments',
             'training.manage' => 'Manage programs, enroll employees & grade',
         ],
+        'Awards & Recognition' => [
+            'awards.view' => 'View awards & recognition',
+            'awards.manage' => 'Give, edit & remove recognitions',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
@@ -84,6 +88,8 @@ class PermissionRegistry
             'setup.benefits.manage' => 'Manage benefits configuration',
             'setup.kpi.view' => 'View KPI & evaluation criteria',
             'setup.kpi.manage' => 'Manage KPI & evaluation criteria',
+            'setup.award-types.view' => 'View award types',
+            'setup.award-types.manage' => 'Manage award types',
         ],
         'User Management' => [
             'users.view' => 'View users',

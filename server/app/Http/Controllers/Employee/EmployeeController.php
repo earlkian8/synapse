@@ -72,6 +72,7 @@ class EmployeeController extends Controller
             'benefitEnrollments.plan',
             'performanceEvaluations.period:id,name,start_date,end_date',
             'trainingEnrollments.program:id,name,provider,start_date,end_date',
+            'awards.awardType:id,name,color',
         ])->loadCount(['documents', 'certifications']);
 
         return (new EmployeeResource($employee))->additional([
