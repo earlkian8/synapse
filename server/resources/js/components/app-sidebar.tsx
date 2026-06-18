@@ -102,6 +102,7 @@ const workforceNavItems: GatedNavItem[] = [
         title: 'Benefits Administration',
         href: '/benefits',
         icon: HeartHandshake,
+        permission: 'benefits.view',
     },
     { title: 'Performance Management', href: '/performance', icon: Gauge },
     { title: 'Training & Development', href: '/training', icon: GraduationCap },
@@ -172,6 +173,12 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/payroll',
         icon: Settings,
         permission: 'setup.payroll.view',
+    },
+    {
+        title: 'Benefits Configuration',
+        href: '/setup/benefits',
+        icon: HeartHandshake,
+        permission: 'setup.benefits.view',
     },
     {
         title: 'Email & Notifications',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Payroll\UpdatePayslipRequest;
 use App\Models\Payslip;
 use App\Support\ActivityLogger;
+use App\Support\Payroll\BenefitContributionGenerator;
 use App\Support\Payroll\PayrollCalculator;
 use App\Support\Payroll\PayrollProcessor;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +23,10 @@ use Inertia\Inertia;
  */
 class PayslipController extends Controller
 {
-    public function __construct(private readonly PayrollProcessor $processor) {}
+    public function __construct(
+        private readonly PayrollProcessor $processor,
+        private readonly BenefitContributionGenerator $contributions,
+    ) {}
 
     /**
      * Replace a payslip's manual lines and recompute its totals.
@@ -74,6 +78,9 @@ class PayslipController extends Controller
             ]);
         });
 
+        // Keep statutory contributions in step with the edited deduction lines.
+        $this->contributions->generate($payslip->period);
+
         ActivityLogger::log(
             event: 'updated',
             description: "Adjusted payslip for {$payslip->employee?->full_name}",
@@ -100,6 +107,7 @@ class PayslipController extends Controller
         $name = $payslip->employee?->full_name;
 
         $this->processor->buildFor($payslip->period, $payslip->employee);
+        $this->contributions->generate($payslip->period);
 
         ActivityLogger::log(
             event: 'updated',

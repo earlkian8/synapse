@@ -6,6 +6,7 @@ import {
     Clock,
     Coins,
     FileText,
+    HeartHandshake,
     Pencil,
     Plus,
     Trash2,
@@ -31,6 +32,13 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import {
+    CATEGORY_LABELS,
+    FREQUENCY_SUFFIX,
+    STATUS_LABELS,
+    STATUS_STYLES,
+    formatPeso,
+} from '@/features/benefits/constants';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
@@ -63,6 +71,7 @@ type Props = {
 type Tab =
     | 'profile'
     | 'compensation'
+    | 'benefits'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -70,6 +79,7 @@ type Tab =
 const TABS: { value: Tab; label: string }[] = [
     { value: 'profile', label: 'Profile' },
     { value: 'compensation', label: 'Compensation' },
+    { value: 'benefits', label: 'Benefits' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -221,6 +231,7 @@ export function EmployeeDetailSheet({
                             onChanged={load}
                         />
                     )}
+                    {tab === 'benefits' && detail && <BenefitsTab e={detail} />}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -618,6 +629,65 @@ function PayItemSection({
                 </div>
             )}
         </section>
+    );
+}
+
+// ── Benefits ─────────────────────────────────────────────────────────────────
+
+function BenefitsTab({ e }: { e: EmployeeDetail }) {
+    const categoryLabels = CATEGORY_LABELS as Record<string, string>;
+    const freqSuffix = FREQUENCY_SUFFIX as Record<string, string>;
+
+    if (e.benefit_enrollments.length === 0) {
+        return (
+            <EmptyState
+                icon={HeartHandshake}
+                text="Not enrolled in any benefit plans."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Benefit-plan enrollments. Enroll or change these from the
+                Benefits module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.benefit_enrollments.map((b) => (
+                    <li
+                        key={b.id}
+                        className="flex items-center gap-3 px-3 py-2.5"
+                    >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                            <HeartHandshake className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                                {b.plan?.name ?? 'Unknown plan'}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                                {b.plan
+                                    ? (categoryLabels[b.plan.category] ??
+                                      b.plan.category)
+                                    : ''}
+                                {b.plan && b.plan.employee_cost > 0
+                                    ? ` · ${formatPeso(b.plan.employee_cost)}${freqSuffix[b.plan.frequency] ?? ''}`
+                                    : ' · employer-paid'}
+                            </p>
+                        </div>
+                        <span
+                            className={cn(
+                                'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                                STATUS_STYLES[b.status],
+                            )}
+                        >
+                            {STATUS_LABELS[b.status]}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }
 

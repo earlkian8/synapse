@@ -71,6 +71,21 @@ export type EmployeeDeduction = {
 /** A Company-Setup allowance / deduction type, for the Compensation pickers. */
 export type PayItemType = { id: number; name: string };
 
+/** A read-only summary of one of the employee's benefit-plan enrollments. */
+export type EmployeeBenefit = {
+    id: number;
+    status: 'active' | 'pending' | 'waived' | 'terminated';
+    reference_no: string | null;
+    plan: {
+        name: string;
+        category: string;
+        provider: string | null;
+        employee_cost: number;
+        employer_cost: number;
+        frequency: string;
+    } | null;
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -129,6 +144,7 @@ export type EmployeeDetail = ManagedEmployee & {
     promotions: EmployeePromotion[];
     allowances: EmployeeAllowance[];
     recurring_deductions: EmployeeDeduction[];
+    benefit_enrollments: EmployeeBenefit[];
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

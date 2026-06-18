@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Setup\AllowanceTypeController;
+use App\Http\Controllers\Setup\BenefitPlanController;
 use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\LeaveTypeController;
@@ -57,4 +58,14 @@ Route::middleware(['auth', 'verified'])
         Route::delete('payroll/deduction-types/{deductionType}', [DeductionTypeController::class, 'destroy'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.destroy');
         Route::patch('payroll/deduction-types/{deductionType}/restore', [DeductionTypeController::class, 'restore'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.restore');
         Route::delete('payroll/deduction-types/{deductionType}/force', [DeductionTypeController::class, 'forceDelete'])->middleware('can:setup.payroll.manage')->name('payroll.deduction-types.force-delete');
+
+        // Benefits configuration — the catalogue of benefit plans the Benefits
+        // module enrolls employees into. Addressed by hashid; restore / force take
+        // it as a string.
+        Route::get('benefits', [BenefitPlanController::class, 'index'])->middleware('can:setup.benefits.view')->name('benefits.index');
+        Route::post('benefits', [BenefitPlanController::class, 'store'])->middleware('can:setup.benefits.manage')->name('benefits.store');
+        Route::post('benefits/{benefitPlan}', [BenefitPlanController::class, 'update'])->middleware('can:setup.benefits.manage')->name('benefits.update');
+        Route::delete('benefits/{benefitPlan}', [BenefitPlanController::class, 'destroy'])->middleware('can:setup.benefits.manage')->name('benefits.destroy');
+        Route::patch('benefits/{benefitPlan}/restore', [BenefitPlanController::class, 'restore'])->middleware('can:setup.benefits.manage')->name('benefits.restore');
+        Route::delete('benefits/{benefitPlan}/force', [BenefitPlanController::class, 'forceDelete'])->middleware('can:setup.benefits.manage')->name('benefits.force-delete');
     });

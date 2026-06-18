@@ -9,6 +9,7 @@ use App\Models\AllowanceType;
 use App\Models\DeductionType;
 use App\Models\PayrollPeriod;
 use App\Support\ActivityLogger;
+use App\Support\Payroll\BenefitContributionGenerator;
 use App\Support\Payroll\PayrollProcessor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,10 @@ use Inertia\Response;
  */
 class PayrollController extends Controller
 {
-    public function __construct(private readonly PayrollProcessor $processor) {}
+    public function __construct(
+        private readonly PayrollProcessor $processor,
+        private readonly BenefitContributionGenerator $contributions,
+    ) {}
 
     /**
      * The payroll runs overview: KPI summary + a card per pay period.
@@ -91,6 +95,7 @@ class PayrollController extends Controller
         ]);
 
         $count = $this->processor->process($period);
+        $this->contributions->generate($period);
         $period->update(['status' => 'processing']);
 
         ActivityLogger::log(
@@ -117,6 +122,7 @@ class PayrollController extends Controller
         }
 
         $count = $this->processor->process($payrollPeriod);
+        $this->contributions->generate($payrollPeriod);
         $payrollPeriod->update(['status' => 'processing', 'processed_by' => $request->user()->id]);
 
         ActivityLogger::log(
