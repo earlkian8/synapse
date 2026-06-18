@@ -39,6 +39,7 @@ commit history rather than repeating them.
 - [Performance Management](./modules/performance.md) — weighted KPI evaluations across review periods, with a derived overall score.
 - [Training & Development](./modules/training.md) — training programs with a derived lifecycle + scored employee enrollments.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
+- [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -61,6 +62,7 @@ commit history rather than repeating them.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.
 - [awards tables](./database/awards-tables.md) — award types (catalogue) + employee awards (recognition feed).
+- [events tables](./database/events-tables.md) — events (derived status) + event attendees (invitee roster).
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -77,6 +79,7 @@ commit history rather than repeating them.
 - [0012 — Performance Management: weighted KPI evaluations with a derived overall score](./decisions/0012-performance-management.md)
 - [0013 — Training & Development: in-module programs with a derived lifecycle](./decisions/0013-training-and-development.md)
 - [0014 — Awards & Recognition: a recognition feed over a typed catalogue](./decisions/0014-awards-and-recognition.md)
+- [0015 — Events & Meetings: scheduled events with an invitee roster](./decisions/0015-events-and-meetings.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

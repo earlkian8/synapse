@@ -148,6 +148,23 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'events' => $this->whenLoaded('eventAttendances', fn () => $this->eventAttendances
+                ->filter(fn ($attendance): bool => $attendance->relationLoaded('event') && $attendance->event !== null)
+                ->sortByDesc(fn ($attendance) => $attendance->event->starts_at)
+                ->map(fn ($attendance): array => [
+                    'id' => $attendance->id,
+                    'response' => $attendance->response,
+                    'event' => [
+                        'hashid' => $attendance->event->hashid,
+                        'title' => $attendance->event->title,
+                        'type' => $attendance->event->type,
+                        'starts_at' => $attendance->event->starts_at?->toIso8601String(),
+                        'status' => $attendance->event->status(),
+                    ],
+                ])
+                ->values()
+                ->all()),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),

@@ -714,8 +714,15 @@ erDiagram
 award's type relation is loaded `withTrashed` so archived types still render on past
 awards. See [Awards](../modules/awards.md),
 [awards tables](../database/awards-tables.md) and
-[ADR 0014](../decisions/0014-awards-and-recognition.md). **Events** and **Offboarding**
-are not yet built.
+[ADR 0014](../decisions/0014-awards-and-recognition.md).
+
+**Built (Events)** — `events` + `event_attendees`. Events are created in-module (no
+Company-Setup config); an event's lifecycle status (`upcoming → ongoing → past`) is
+**derived from its date-time window**, not stored, and inviting an employee with a
+linked account notifies them and stamps `notified_at` (added soft-deletes; `ends_at`
+is nullable for a point-in-time entry). See [Events](../modules/events.md),
+[events tables](../database/events-tables.md) and
+[ADR 0015](../decisions/0015-events-and-meetings.md). **Offboarding** is not yet built.
 
 ```mermaid
 erDiagram
@@ -895,7 +902,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), Events.
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), **Events ✓** (see [Events](../modules/events.md)).
 4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
