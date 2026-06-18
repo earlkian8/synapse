@@ -99,6 +99,18 @@ export type EmployeePerformanceEvaluation = {
     } | null;
 };
 
+/** A read-only summary of one of the employee's training enrollments. */
+export type EmployeeTraining = {
+    status: 'enrolled' | 'completed' | 'dropped';
+    score: number | null;
+    program: {
+        hashid: string;
+        name: string;
+        provider: string | null;
+        status: 'upcoming' | 'ongoing' | 'completed';
+    } | null;
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -159,6 +171,7 @@ export type EmployeeDetail = ManagedEmployee & {
     recurring_deductions: EmployeeDeduction[];
     benefit_enrollments: EmployeeBenefit[];
     performance_evaluations: EmployeePerformanceEvaluation[];
+    training_enrollments: EmployeeTraining[];
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

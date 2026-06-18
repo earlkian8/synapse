@@ -119,6 +119,21 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'training_enrollments' => $this->whenLoaded('trainingEnrollments', fn () => $this->trainingEnrollments
+                ->sortByDesc('id')
+                ->map(fn ($enrollment): array => [
+                    'status' => $enrollment->status,
+                    'score' => $enrollment->score === null ? null : (float) $enrollment->score,
+                    'program' => $enrollment->relationLoaded('program') && $enrollment->program ? [
+                        'hashid' => $enrollment->program->hashid,
+                        'name' => $enrollment->program->name,
+                        'provider' => $enrollment->program->provider,
+                        'status' => $enrollment->program->status(),
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),

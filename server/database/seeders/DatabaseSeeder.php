@@ -63,5 +63,8 @@ class DatabaseSeeder extends Seeder
 
         // Performance (KPI criteria + review cycles + scored evaluations).
         $this->call(PerformanceSeeder::class);
+
+        // Training (programs across the lifecycle + employee enrollments).
+        $this->call(TrainingSeeder::class);
     }
 }

@@ -69,6 +69,10 @@ class PermissionRegistry
             'performance.view' => 'View performance evaluations',
             'performance.manage' => 'Open, score, submit & acknowledge evaluations',
         ],
+        'Training & Development' => [
+            'training.view' => 'View training programs & enrollments',
+            'training.manage' => 'Manage programs, enroll employees & grade',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',

@@ -115,7 +115,12 @@ const workforceNavItems: GatedNavItem[] = [
         icon: Gauge,
         permission: 'performance.view',
     },
-    { title: 'Training & Development', href: '/training', icon: GraduationCap },
+    {
+        title: 'Training & Development',
+        href: '/training',
+        icon: GraduationCap,
+        permission: 'training.view',
+    },
     { title: 'Awards & Recognition', href: '/awards', icon: Award },
     { title: 'Events & Meetings', href: '/events', icon: CalendarClock },
 ];
