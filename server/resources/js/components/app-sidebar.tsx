@@ -78,19 +78,19 @@ const workforceNavItems: GatedNavItem[] = [
         icon: Users,
         permission: 'employees.view',
     },
-    { title: 'Departments', href: '/departments', icon: Building2 },
+    // { title: 'Departments', href: '/departments', icon: Building2 },
     {
         title: 'Attendance',
         href: '/attendance',
         icon: CalendarCheck,
         permission: 'attendance.view',
     },
-    {
-        title: 'My Attendance',
-        href: '/attendance/me',
-        icon: Clock,
-        permission: 'attendance.clock',
-    },
+    // {
+    //     title: 'My Attendance',
+    //     href: '/attendance/me',
+    //     icon: Clock,
+    //     permission: 'attendance.clock',
+    // },
     {
         title: 'Leave Management',
         href: '/leave',

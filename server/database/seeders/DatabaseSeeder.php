@@ -33,6 +33,7 @@ class DatabaseSeeder extends Seeder
                 'last_name' => 'User',
                 'password' => Hash::make('password'),
                 'is_active' => true,
+                'email_verified_at' => now(),
             ],
         );
 
