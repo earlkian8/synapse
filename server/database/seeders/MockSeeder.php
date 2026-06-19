@@ -63,6 +63,7 @@ class MockSeeder extends Seeder
         // The remaining operational / talent modules, in dependency order. Each is
         // idempotent and tenant-aware, and now sees the full roster.
         $this->call([
+            HolidaySeeder::class,          // PH statutory holiday calendar
             RecruitmentSeeder::class,      // postings, applicants, applications, interviews
             OnboardingSeeder::class,       // programs + in-flight cases
             LeaveSeeder::class,            // leave types + balances + requests

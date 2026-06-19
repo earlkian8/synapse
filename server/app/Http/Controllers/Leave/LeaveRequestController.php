@@ -14,6 +14,7 @@ use App\Queries\LeaveBalanceService;
 use App\Queries\LeaveRequestsIndexQuery;
 use App\Queries\LeaveStatistics;
 use App\Support\ActivityLogger;
+use App\Support\HolidayCalendar;
 use App\Support\LeaveCalculator;
 use App\Support\Notifier;
 use Illuminate\Http\RedirectResponse;
@@ -76,7 +77,8 @@ class LeaveRequestController extends Controller
     {
         $range = $request->dateRange();
         $type = LeaveType::findOrFail($request->integer('leave_type_id'));
-        $days = LeaveCalculator::chargeableDays($range['start'], $range['end'], $range['isHalfDay']);
+        $holidays = HolidayCalendar::datesInRange($range['start'], $range['end']);
+        $days = LeaveCalculator::chargeableDays($range['start'], $range['end'], $range['isHalfDay'], $holidays);
 
         if ($days <= 0) {
             return $this->respond('That date range has no working days.', 'warning');
@@ -127,7 +129,8 @@ class LeaveRequestController extends Controller
         }
 
         $range = $request->dateRange();
-        $days = LeaveCalculator::chargeableDays($range['start'], $range['end'], $range['isHalfDay']);
+        $holidays = HolidayCalendar::datesInRange($range['start'], $range['end']);
+        $days = LeaveCalculator::chargeableDays($range['start'], $range['end'], $range['isHalfDay'], $holidays);
 
         if ($days <= 0) {
             return $this->respond('That date range has no working days.', 'warning');

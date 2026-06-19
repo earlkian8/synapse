@@ -192,6 +192,7 @@ const companySetupNavItems: GatedNavItem[] = [
         title: 'Work Schedule & Holidays',
         href: '/setup/schedule',
         icon: CalendarClock,
+        permission: 'setup.schedule.view',
     },
     {
         title: 'Leave Types',

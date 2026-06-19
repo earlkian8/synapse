@@ -10,6 +10,7 @@ use App\Models\LeaveType;
 use App\Models\User;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
+use App\Support\HolidayCalendar;
 use App\Support\LeaveCalculator;
 use App\Support\Notifier;
 use Illuminate\Support\Carbon;
@@ -191,7 +192,8 @@ class LeaveModule extends Module
             return ToolResult::error('Validated the leave request', "{$type->name} does not allow half-day leave.");
         }
 
-        $days = LeaveCalculator::chargeableDays($start, $end, $isHalfDay);
+        $holidays = HolidayCalendar::datesInRange($start, $end);
+        $days = LeaveCalculator::chargeableDays($start, $end, $isHalfDay, $holidays);
 
         if ($days <= 0) {
             return ToolResult::error('Computed the leave duration', 'That date range has no working days.');

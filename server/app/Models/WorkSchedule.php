@@ -3,15 +3,23 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasHashid;
 use Database\Factories\WorkScheduleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * A work pattern (shift) employees are assigned to: its hours, working days,
+ * lateness grace and required hours. Configured under Company Setup → Work
+ * Schedule & Holidays and read by Attendance. Archived rather than hard-deleted
+ * so assigned employees keep a valid schedule.
+ */
 class WorkSchedule extends Model
 {
     /** @use HasFactory<WorkScheduleFactory> */
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, HasFactory, HasHashid, SoftDeletes;
 
     protected $fillable = [
         'organization_id',

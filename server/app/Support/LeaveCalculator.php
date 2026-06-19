@@ -7,10 +7,10 @@ use Carbon\CarbonInterface;
 /**
  * Works out how many **working days** a leave request consumes.
  *
- * Weekends (Sat/Sun) are excluded; a single-day request may be a half day (0.5).
- * Public holidays are not modelled yet — there is no holiday calendar in the
- * system — so they currently count as working days. When a holiday calendar lands
- * (Company Setup → Work Schedule & Holidays), this is the one place to teach.
+ * Weekends (Sat/Sun) are excluded, as are any **non-working holiday** dates passed
+ * in (resolved by {@see HolidayCalendar} from Company Setup → Work Schedule &
+ * Holidays). A single-day request may be a half day (0.5). This stays a pure date
+ * utility — callers supply the holiday set so it is trivially testable.
  *
  * Accepts any {@see CarbonInterface}, so it is agnostic to the app's
  * mutable/immutable date setting.
@@ -18,9 +18,12 @@ use Carbon\CarbonInterface;
 class LeaveCalculator
 {
     /**
-     * Count the working (Mon–Fri) days in an inclusive date range.
+     * Count the working (Mon–Fri, excluding the given holiday dates) days in an
+     * inclusive range.
+     *
+     * @param  list<string>  $holidays  Non-working dates as "Y-m-d".
      */
-    public static function workingDays(CarbonInterface $start, CarbonInterface $end): int
+    public static function workingDays(CarbonInterface $start, CarbonInterface $end, array $holidays = []): int
     {
         if ($end->lt($start)) {
             return 0;
@@ -31,7 +34,7 @@ class LeaveCalculator
         $last = $end->copy()->startOfDay();
 
         while ($cursor->lte($last)) {
-            if (! $cursor->isWeekend()) {
+            if (! $cursor->isWeekend() && ! in_array($cursor->toDateString(), $holidays, true)) {
                 $days++;
             }
 
@@ -43,15 +46,19 @@ class LeaveCalculator
     }
 
     /**
-     * The chargeable days for a request: half a day when it is a single half-day,
-     * otherwise the working days in the range.
+     * The chargeable days for a request: half a day when it is a single half-day
+     * (and that day is a working day), otherwise the working days in the range.
+     *
+     * @param  list<string>  $holidays  Non-working dates as "Y-m-d".
      */
-    public static function chargeableDays(CarbonInterface $start, CarbonInterface $end, bool $isHalfDay): float
+    public static function chargeableDays(CarbonInterface $start, CarbonInterface $end, bool $isHalfDay, array $holidays = []): float
     {
         if ($isHalfDay && $start->isSameDay($end)) {
-            return $start->isWeekend() ? 0.0 : 0.5;
+            $offDay = $start->isWeekend() || in_array($start->toDateString(), $holidays, true);
+
+            return $offDay ? 0.0 : 0.5;
         }
 
-        return (float) self::workingDays($start, $end);
+        return (float) self::workingDays($start, $end, $holidays);
     }
 }

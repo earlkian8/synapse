@@ -48,8 +48,9 @@ list). Balances are a **list with chips**, not a wide employee×type matrix.
   cancel / destroy), `Leave\LeaveBalanceController` (index / store), and
   `Setup\LeaveTypeController` (index / store / update / destroy=archive / restore /
   forceDelete).
-- `LeaveCalculator` (support) computes chargeable **working days** (Mon–Fri; a single
-  day may be a 0.5 half day). Holidays are not modelled yet.
+- `LeaveCalculator` (support) computes chargeable **working days** (Mon–Fri, **excluding
+  non-working holidays** supplied by `HolidayCalendar`; a single day may be a 0.5 half day).
+  See [Work Schedule & Holidays](./work-schedule-holidays.md).
 - `LeaveBalanceService` (query) composes balances: entitlement (stored row or type
   default) minus **used** (approved) with **pending** alongside, via grouped aggregates.
   `LeaveRequestsIndexQuery` filters the inbox; `LeaveStatistics` powers the cards.
