@@ -86,6 +86,8 @@ class PermissionRegistry
             'offboarding.manage' => 'Start exits, manage clearance & finalize',
         ],
         'Company Setup' => [
+            'setup.company.view' => 'View company profile',
+            'setup.company.manage' => 'Manage company profile',
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',

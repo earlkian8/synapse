@@ -248,6 +248,11 @@ erDiagram
 > `EVALUATION_PERIOD` (managed at `/setup/kpi` — see
 > [Performance](../modules/performance.md)), and `AWARD_TYPE` (managed at
 > `/setup/award-types` — see [Awards](../modules/awards.md)).
+>
+> **`COMPANY_PROFILE` is the `organizations` row itself** — not a separate table. Its
+> fields (`legal_name`, `logo`, `email`, `phone`, `address`, `tin`, `*_employer_no`) live
+> on `organizations` and are edited at `/setup/company` (ADR 0005 — the tenant doubles as
+> the company profile). See [Company Profile](../modules/company-profile.md).
 
 ---
 

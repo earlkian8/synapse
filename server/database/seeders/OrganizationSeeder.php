@@ -30,6 +30,10 @@ class OrganizationSeeder extends Seeder
             $tenancy->set($organization);
         }
 
+        // 0. Company profile — flesh out the tenant's own identity / statutory
+        // details so the Company Profile screen isn't empty. Only when unset.
+        $this->seedCompanyProfile($tenancy->organization());
+
         // 1. Departments.
         $departments = collect([
             ['name' => 'Human Resources', 'code' => 'HR'],
@@ -128,6 +132,31 @@ class OrganizationSeeder extends Seeder
         Employee::whereNull('photo')->get()->each(
             fn (Employee $employee) => $employee->update(['photo' => $this->portrait($employee)]),
         );
+    }
+
+    /**
+     * Flesh out the tenant's company profile (legal name, contact, statutory
+     * employer numbers) when it has not been set yet. Idempotent — keyed on the
+     * legal name being empty, so a profile edited in-app is never overwritten.
+     */
+    private function seedCompanyProfile(?Organization $organization): void
+    {
+        if (! $organization || $organization->legal_name !== null) {
+            return;
+        }
+
+        $organization->update([
+            'legal_name' => $organization->name === 'SYNAPSE Demo Co'
+                ? 'Synapse Demo Company, Inc.'
+                : $organization->name,
+            'email' => 'hello@synapse.example',
+            'phone' => '+63 2 8123 4567',
+            'address' => '12F Cyber One Tower, 11th Avenue, Bonifacio Global City, Taguig, Metro Manila, 1634',
+            'tin' => '009-123-456-000',
+            'sss_employer_no' => '03-9123456-7',
+            'philhealth_employer_no' => '00-012345678-9',
+            'pagibig_employer_no' => '1234-5678-9012',
+        ]);
     }
 
     /**
