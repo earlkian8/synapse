@@ -7,11 +7,14 @@ use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\EvaluationPeriodController;
+use App\Http\Controllers\Setup\HolidayController;
 use App\Http\Controllers\Setup\KpiCriterionController;
 use App\Http\Controllers\Setup\KpiSetupController;
 use App\Http\Controllers\Setup\LeaveTypeController;
 use App\Http\Controllers\Setup\PayrollSetupController;
 use App\Http\Controllers\Setup\PositionController;
+use App\Http\Controllers\Setup\ScheduleSetupController;
+use App\Http\Controllers\Setup\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +32,23 @@ Route::middleware(['auth', 'verified'])
         // statutory employer numbers (the tenant doubles as the company profile).
         Route::get('company', [CompanyProfileController::class, 'edit'])->middleware('can:setup.company.view')->name('company.edit');
         Route::post('company', [CompanyProfileController::class, 'update'])->middleware('can:setup.company.manage')->name('company.update');
+
+        // Work Schedule & Holidays — the shifts employees follow (read by
+        // Attendance) and the holiday calendar (read by Leave). Both addressed by
+        // hashid; restore / force-delete take the hashid as a string.
+        Route::get('schedule', [ScheduleSetupController::class, 'index'])->middleware('can:setup.schedule.view')->name('schedule.index');
+
+        Route::post('schedule/work-schedules', [WorkScheduleController::class, 'store'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.store');
+        Route::post('schedule/work-schedules/{workSchedule}', [WorkScheduleController::class, 'update'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.update');
+        Route::delete('schedule/work-schedules/{workSchedule}', [WorkScheduleController::class, 'destroy'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.destroy');
+        Route::patch('schedule/work-schedules/{workSchedule}/restore', [WorkScheduleController::class, 'restore'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.restore');
+        Route::delete('schedule/work-schedules/{workSchedule}/force', [WorkScheduleController::class, 'forceDelete'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.force-delete');
+
+        Route::post('schedule/holidays', [HolidayController::class, 'store'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.store');
+        Route::post('schedule/holidays/{holiday}', [HolidayController::class, 'update'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.update');
+        Route::delete('schedule/holidays/{holiday}', [HolidayController::class, 'destroy'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.destroy');
+        Route::patch('schedule/holidays/{holiday}/restore', [HolidayController::class, 'restore'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.restore');
+        Route::delete('schedule/holidays/{holiday}/force', [HolidayController::class, 'forceDelete'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.force-delete');
 
         // Departments (org structure).
         Route::get('departments', [DepartmentController::class, 'index'])->middleware('can:setup.departments.view')->name('departments.index');

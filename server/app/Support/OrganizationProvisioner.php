@@ -128,6 +128,7 @@ class OrganizationProvisioner
                     'events.view', 'events.manage',
                     'offboarding.view', 'offboarding.manage',
                     'setup.company.view', 'setup.company.manage',
+                    'setup.schedule.view', 'setup.schedule.manage',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
                     'setup.payroll.view', 'setup.payroll.manage',

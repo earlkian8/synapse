@@ -42,6 +42,7 @@ commit history rather than repeating them.
 - [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
 - [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
 - [Company Profile (Company Setup)](./modules/company-profile.md) — the tenant's own identity, contact details, logo & statutory employer numbers.
+- [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.

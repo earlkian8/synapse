@@ -100,7 +100,9 @@ class Employee extends Model
      */
     public function workSchedule(): BelongsTo
     {
-        return $this->belongsTo(WorkSchedule::class);
+        // withTrashed so an employee on an archived schedule still resolves it
+        // (attendance computation and the detail view depend on it).
+        return $this->belongsTo(WorkSchedule::class)->withTrashed();
     }
 
     /**

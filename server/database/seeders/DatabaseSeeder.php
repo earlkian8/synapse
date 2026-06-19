@@ -44,6 +44,9 @@ class DatabaseSeeder extends Seeder
         // Organisation foundation (departments, positions, schedules) + employees.
         $this->call(OrganizationSeeder::class);
 
+        // Holiday calendar (PH statutory holidays) — read by Leave.
+        $this->call(HolidaySeeder::class);
+
         // Recruitment pipeline (postings, applicants, applications, interviews).
         $this->call(RecruitmentSeeder::class);
 

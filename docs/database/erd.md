@@ -253,6 +253,11 @@ erDiagram
 > fields (`legal_name`, `logo`, `email`, `phone`, `address`, `tin`, `*_employer_no`) live
 > on `organizations` and are edited at `/setup/company` (ADR 0005 — the tenant doubles as
 > the company profile). See [Company Profile](../modules/company-profile.md).
+>
+> **Built:** `WORK_SCHEDULE` + `HOLIDAY` (managed together at `/setup/schedule`; `holidays`
+> is new, `work_schedules` gained soft deletes + a management UI, and a non-working holiday
+> is no longer charged as a leave day) — see
+> [Work Schedule & Holidays](../modules/work-schedule-holidays.md).
 
 ---
 

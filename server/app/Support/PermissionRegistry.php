@@ -88,6 +88,8 @@ class PermissionRegistry
         'Company Setup' => [
             'setup.company.view' => 'View company profile',
             'setup.company.manage' => 'Manage company profile',
+            'setup.schedule.view' => 'View work schedules & holidays',
+            'setup.schedule.manage' => 'Manage work schedules & holidays',
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',
