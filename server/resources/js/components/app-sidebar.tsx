@@ -176,7 +176,12 @@ const assistantNavItems: NavItem[] = [
 ];
 
 const companySetupNavItems: GatedNavItem[] = [
-    { title: 'Company Profile', href: '/setup/company', icon: Building },
+    {
+        title: 'Company Profile',
+        href: '/setup/company',
+        icon: Building,
+        permission: 'setup.company.view',
+    },
     {
         title: 'Departments',
         href: '/setup/departments',

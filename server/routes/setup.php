@@ -3,6 +3,7 @@
 use App\Http\Controllers\Setup\AllowanceTypeController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\BenefitPlanController;
+use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DeductionTypeController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\EvaluationPeriodController;
@@ -24,6 +25,11 @@ Route::middleware(['auth', 'verified'])
     ->prefix('setup')
     ->name('setup.')
     ->group(function () {
+        // Company Profile — the organisation's own identity, contact details and
+        // statutory employer numbers (the tenant doubles as the company profile).
+        Route::get('company', [CompanyProfileController::class, 'edit'])->middleware('can:setup.company.view')->name('company.edit');
+        Route::post('company', [CompanyProfileController::class, 'update'])->middleware('can:setup.company.manage')->name('company.update');
+
         // Departments (org structure).
         Route::get('departments', [DepartmentController::class, 'index'])->middleware('can:setup.departments.view')->name('departments.index');
         Route::post('departments', [DepartmentController::class, 'store'])->middleware('can:setup.departments.manage')->name('departments.store');

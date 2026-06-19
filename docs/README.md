@@ -41,6 +41,7 @@ commit history rather than repeating them.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
 - [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
 - [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
+- [Company Profile (Company Setup)](./modules/company-profile.md) — the tenant's own identity, contact details, logo & statutory employer numbers.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
