@@ -3,7 +3,6 @@ import {
     Award,
     BarChart3,
     Bell,
-    Bot,
     BriefcaseBusiness,
     Building,
     CalendarCheck,
@@ -11,11 +10,9 @@ import {
     CalendarDays,
     CalendarRange,
     DatabaseBackup,
-    FileScan,
     Gauge,
     GraduationCap,
     HeartHandshake,
-    LayoutDashboard,
     LayoutGrid,
     LineChart,
     Mail,
@@ -34,7 +31,7 @@ import {
     Users,
     Wallet,
 } from 'lucide-react';
-import AppLogo from '@/components/app-logo';
+import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -144,11 +141,6 @@ const offboardingNavItems: GatedNavItem[] = [
 
 const analyticsNavItems: NavItem[] = [
     {
-        title: 'Workforce Dashboard',
-        href: '/analytics/workforce',
-        icon: LayoutDashboard,
-    },
-    {
         title: 'Attrition Predictions',
         href: '/analytics/attrition',
         icon: TrendingDown,
@@ -164,15 +156,6 @@ const analyticsNavItems: NavItem[] = [
         icon: Medal,
     },
     { title: 'Reports', href: '/reports', icon: BarChart3 },
-];
-
-const assistantNavItems: NavItem[] = [
-    { title: 'HR Assistant', href: '/assistant', icon: Bot },
-    {
-        title: 'Document Processor',
-        href: '/assistant/documents',
-        icon: FileScan,
-    },
 ];
 
 const companySetupNavItems: GatedNavItem[] = [
@@ -293,15 +276,20 @@ export function AppSidebar() {
 
     const visibleCompanySetupNavItems = companySetupNavItems.filter(isVisible);
 
+    // The brand links to the company profile when the user may view it, else home.
+    const brandHref = can('setup.company.view')
+        ? '/setup/company'
+        : dashboard();
+
     return (
         <Sidebar collapsible="icon" variant="inset">
-            {/* ── Logo / Brand ── */}
+            {/* ── Company brand ── */}
             <SidebarHeader className="border-b border-sidebar-border pb-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
-                                <AppLogo />
+                            <Link href={brandHref} prefetch>
+                                <CompanyLogo />
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -334,20 +322,6 @@ export function AppSidebar() {
                 <NavMain
                     label="Analytics & AI"
                     items={analyticsNavItems}
-                    badge={
-                        <Badge
-                            variant="outline"
-                            className="ml-auto h-4 rounded-full border-[#0ABFBF]/40 bg-[#0ABFBF]/10 px-1.5 py-0 text-[9px] font-semibold tracking-wider text-[#0ABFBF] group-data-[collapsible=icon]:hidden"
-                        >
-                            AI
-                        </Badge>
-                    }
-                />
-
-                {/* Assistant */}
-                <NavMain
-                    label="Assistant"
-                    items={assistantNavItems}
                     badge={
                         <Badge
                             variant="outline"
