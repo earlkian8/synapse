@@ -2,21 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\ActivityLog;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Position;
-use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkSchedule;
-use App\Notifications\SystemNotification;
 use App\Support\OrganizationProvisioner;
 use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Mock data for **every module**, scoped to one account's organisation.
@@ -24,9 +20,10 @@ use Illuminate\Support\Str;
  * Stands up (or reuses) the target user + their tenant, makes them Super Admin,
  * then runs every module seeder within that tenant — Company Setup, Employees,
  * Recruitment, Onboarding, Leave, Attendance, Payroll, Benefits, Performance,
- * Training, Awards and Events — and tops it off with the System surfaces the module
- * seeders don't touch: extra Users, an Activity-Log trail and in-app
- * Notifications.
+ * Training, Awards and Events — plus the per-employee profile records
+ * ({@see EmployeeProfileSeeder}: documents, certifications, promotions) and the
+ * System surfaces ({@see SystemSeeder}: extra Users, an Activity-Log trail and
+ * in-app Notifications) the operational module seeders don't touch.
  *
  * Idempotent and standalone — run on its own, it does not touch the demo tenant:
  *
@@ -55,9 +52,6 @@ class MockSeeder extends Seeder
         $superAdmin = OrganizationProvisioner::provisionRoles($organization);
         $user->roles()->syncWithoutDetaching([$superAdmin->id]);
 
-        // System — a few more accounts so User Management has a roster.
-        $this->seedUsers();
-
         // Org foundation first (departments, positions, schedules, a starter team).
         $this->call(OrganizationSeeder::class);
 
@@ -69,21 +63,19 @@ class MockSeeder extends Seeder
         // The remaining operational / talent modules, in dependency order. Each is
         // idempotent and tenant-aware, and now sees the full roster.
         $this->call([
-            RecruitmentSeeder::class,    // postings, applicants, applications, interviews
-            OnboardingSeeder::class,     // programs + in-flight cases
-            LeaveSeeder::class,          // leave types + balances + requests
-            AttendanceSeeder::class,     // punches + daily records
-            PayrollSeeder::class,        // statutory config + runs + payslips
-            BenefitSeeder::class,        // plans + enrollments + contributions
-            PerformanceSeeder::class,    // KPI criteria + periods + evaluations
-            TrainingSeeder::class,       // programs + enrollments
-            AwardSeeder::class,          // award types + recognitions
-            EventSeeder::class,          // events / meetings + attendees
+            RecruitmentSeeder::class,      // postings, applicants, applications, interviews
+            OnboardingSeeder::class,       // programs + in-flight cases
+            LeaveSeeder::class,            // leave types + balances + requests
+            AttendanceSeeder::class,       // punches + daily records
+            PayrollSeeder::class,          // statutory config + runs + payslips
+            BenefitSeeder::class,          // plans + enrollments + contributions
+            PerformanceSeeder::class,      // KPI criteria + periods + evaluations
+            TrainingSeeder::class,         // programs + enrollments
+            AwardSeeder::class,            // award types + recognitions
+            EventSeeder::class,            // events / meetings + attendees
+            EmployeeProfileSeeder::class,  // documents, certifications, promotions
+            SystemSeeder::class,           // extra users, activity logs, notifications
         ]);
-
-        // System — Activity Logs + Notifications (the module seeders don't write these).
-        $this->seedActivityLogs($user);
-        $this->seedNotifications($user);
     }
 
     /**
@@ -155,116 +147,5 @@ class MockSeeder extends Seeder
             $bucket = $employee->gender === 'female' ? 'women' : 'men';
             $employee->update(['photo' => "https://randomuser.me/api/portraits/{$bucket}/".($employee->id % 100).'.jpg']);
         });
-    }
-
-    /**
-     * A small roster of additional accounts (one HR Manager, two Staff) so the
-     * User Management + Roles surfaces have data. Idempotent.
-     */
-    private function seedUsers(): void
-    {
-        $accounts = [
-            ['email' => 'mock.hr@synapse.test', 'first' => 'Hannah', 'last' => 'Reyes', 'role' => 'hr-manager'],
-            ['email' => 'mock.staff1@synapse.test', 'first' => 'Sam', 'last' => 'Cruz', 'role' => 'staff'],
-            ['email' => 'mock.staff2@synapse.test', 'first' => 'Jamie', 'last' => 'Lim', 'role' => 'staff'],
-        ];
-
-        foreach ($accounts as $account) {
-            $user = User::firstOrCreate(
-                ['email' => $account['email']],
-                [
-                    'first_name' => $account['first'],
-                    'last_name' => $account['last'],
-                    'password' => Hash::make('password'),
-                    'is_active' => true,
-                    'email_verified_at' => now(),
-                ],
-            );
-
-            $role = Role::where('name', $account['role'])->first();
-
-            if ($role) {
-                $user->roles()->syncWithoutDetaching([$role->id]);
-            }
-        }
-    }
-
-    /**
-     * A believable activity trail across the modules, attributed to the target
-     * user. Only seeded when the tenant has no logs yet (so a real account's
-     * history is never padded).
-     */
-    private function seedActivityLogs(User $user): void
-    {
-        if (ActivityLog::count() > 0) {
-            return;
-        }
-
-        $entries = [
-            ['employees', 'created', 'Created employee "Maria Santos"', 'Maria Santos'],
-            ['recruitment', 'created', 'Posted a job opening "Software Engineer"', 'Software Engineer'],
-            ['leave', 'approved', 'Approved a leave request', 'Leave request'],
-            ['payroll', 'processed', 'Processed a payroll run', 'Payroll run'],
-            ['benefits', 'created', 'Enrolled an employee in Maxicare HMO – Standard', 'Maxicare HMO – Standard'],
-            ['performance', 'submitted', 'Submitted a performance evaluation', 'Performance evaluation'],
-            ['training', 'created', 'Created training program "Leadership Essentials"', 'Leadership Essentials'],
-            ['awards', 'created', 'Recognised an employee — Employee of the Month', 'Employee of the Month'],
-            ['company-setup', 'updated', 'Updated company setup configuration', 'Company Setup'],
-        ];
-
-        foreach ($entries as $i => [$logName, $event, $description, $subjectLabel]) {
-            $log = ActivityLog::create([
-                'log_name' => $logName,
-                'event' => $event,
-                'description' => $description,
-                'causer_id' => $user->id,
-                'subject_label' => $subjectLabel,
-                'ip_address' => '127.0.0.1',
-                'user_agent' => 'MockSeeder',
-            ]);
-
-            // Stagger the trail (created_at is not mass-assignable, so set it directly).
-            $log->forceFill([
-                'created_at' => now()->subDays($i),
-                'updated_at' => now()->subDays($i),
-            ])->save();
-        }
-    }
-
-    /**
-     * A handful of in-app notifications for the target user, in the same shape a
-     * {@see SystemNotification} stores (so the bell + page render them). Written
-     * directly to skip the mail / web-push channels. Only when the user has none.
-     */
-    private function seedNotifications(User $user): void
-    {
-        if ($user->notifications()->count() > 0) {
-            return;
-        }
-
-        $items = [
-            ['Welcome to SYNAPSE', 'Your workspace is ready — explore the modules from the sidebar.', '/dashboard', 'info', 'general', false],
-            ['Payroll run finalized', 'The latest payroll run has been processed and is ready for review.', '/payroll', 'success', 'payroll', false],
-            ['Leave request pending', 'A leave request is awaiting your approval.', '/leave', 'warning', 'leave', false],
-            ['New recognition given', 'An Employee of the Month award was recorded.', '/awards', 'success', 'awards', true],
-        ];
-
-        foreach ($items as $i => [$title, $body, $url, $level, $category, $read]) {
-            $user->notifications()->create([
-                'id' => (string) Str::uuid(),
-                'type' => SystemNotification::class,
-                'data' => [
-                    'title' => $title,
-                    'body' => $body,
-                    'url' => $url,
-                    'level' => $level,
-                    'category' => $category,
-                    'actor' => null,
-                ],
-                'read_at' => $read ? now() : null,
-                'created_at' => now()->subHours($i * 6),
-                'updated_at' => now()->subHours($i * 6),
-            ]);
-        }
     }
 }

@@ -72,5 +72,13 @@ class DatabaseSeeder extends Seeder
 
         // Events & Meetings (a spread across the lifecycle + invitees).
         $this->call(EventSeeder::class);
+
+        // Per-employee profile records (documents, certifications, promotions)
+        // that the operational module seeders above don't produce.
+        $this->call(EmployeeProfileSeeder::class);
+
+        // System surfaces (extra login accounts, an activity-log trail, in-app
+        // notifications) so User Management, Activity Logs and the bell have data.
+        $this->call(SystemSeeder::class);
     }
 }
