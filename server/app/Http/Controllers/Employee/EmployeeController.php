@@ -74,6 +74,7 @@ class EmployeeController extends Controller
             'trainingEnrollments.program:id,name,provider,start_date,end_date',
             'awards.awardType:id,name,color',
             'eventAttendances.event:id,title,type,starts_at,ends_at',
+            'offboardingCase.clearanceItems:id,offboarding_case_id,status,sort_order',
         ])->loadCount(['documents', 'certifications']);
 
         return (new EmployeeResource($employee))->additional([

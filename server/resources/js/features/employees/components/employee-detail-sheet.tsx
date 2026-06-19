@@ -14,6 +14,7 @@ import {
     Plus,
     Trash2,
     Upload,
+    UserRoundMinus,
     Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -46,6 +47,10 @@ import {
 import { ResponseBadge } from '@/features/events/components/event-status-badge';
 import { formatDateTime as formatEventDate } from '@/features/events/constants';
 import { eventRoutes } from '@/features/events/routes';
+import { CaseStatusBadge as OffboardingStatusBadge } from '@/features/offboarding/components/case-status-badge';
+import { TypeBadge as OffboardingTypeBadge } from '@/features/offboarding/components/type-badge';
+import { formatDate as formatOffboardingDate } from '@/features/offboarding/constants';
+import { offboardingRoutes } from '@/features/offboarding/routes';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import { formatScore, scoreTone } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
@@ -89,6 +94,7 @@ type Tab =
     | 'training'
     | 'awards'
     | 'events'
+    | 'offboarding'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -101,6 +107,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'training', label: 'Training' },
     { value: 'awards', label: 'Awards' },
     { value: 'events', label: 'Events' },
+    { value: 'offboarding', label: 'Offboarding' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -259,6 +266,9 @@ export function EmployeeDetailSheet({
                     {tab === 'training' && detail && <TrainingTab e={detail} />}
                     {tab === 'awards' && detail && <AwardsTab e={detail} />}
                     {tab === 'events' && detail && <EventsTab e={detail} />}
+                    {tab === 'offboarding' && detail && (
+                        <OffboardingTab e={detail} />
+                    )}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
                             e={detail}
@@ -932,6 +942,70 @@ function EventsTab({ e }: { e: EmployeeDetail }) {
                     </li>
                 ))}
             </ul>
+        </div>
+    );
+}
+
+// ── Offboarding ──────────────────────────────────────────────────────────────
+
+function OffboardingTab({ e }: { e: EmployeeDetail }) {
+    const o = e.offboarding;
+
+    if (!o) {
+        return (
+            <EmptyState
+                icon={UserRoundMinus}
+                text="No offboarding on record."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                The employee's exit case. Manage it from the Offboarding module.
+            </p>
+            <Link
+                href={offboardingRoutes.show(o.hashid)}
+                className="block rounded-lg border border-border p-3 transition-colors hover:bg-muted/50"
+            >
+                <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                            <UserRoundMinus className="size-4" />
+                        </span>
+                        <OffboardingTypeBadge type={o.type} />
+                    </span>
+                    <OffboardingStatusBadge status={o.status} />
+                </div>
+                <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground tabular-nums">
+                            {o.clearance.cleared}/{o.clearance.total} cleared
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                            {o.clearance.percent}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                            className={cn(
+                                'h-full rounded-full',
+                                o.clearance.percent >= 100
+                                    ? 'bg-emerald-500'
+                                    : 'bg-[#0ABFBF]',
+                            )}
+                            style={{ width: `${o.clearance.percent}%` }}
+                        />
+                    </div>
+                </div>
+                {o.last_working_day && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                        Last working day{' '}
+                        {formatOffboardingDate(o.last_working_day)}
+                    </p>
+                )}
+            </Link>
         </div>
     );
 }

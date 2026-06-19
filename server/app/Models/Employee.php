@@ -200,6 +200,16 @@ class Employee extends Model
     }
 
     /**
+     * This employee's offboarding (exit) journey, if one has been started.
+     *
+     * @return HasOne<OffboardingCase, $this>
+     */
+    public function offboardingCase(): HasOne
+    {
+        return $this->hasOne(OffboardingCase::class);
+    }
+
+    /**
      * This employee's filed leave requests.
      *
      * @return HasMany<LeaveRequest, $this>

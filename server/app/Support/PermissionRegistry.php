@@ -81,6 +81,10 @@ class PermissionRegistry
             'events.view' => 'View events & meetings',
             'events.manage' => 'Schedule events, invite attendees & track responses',
         ],
+        'Offboarding' => [
+            'offboarding.view' => 'View offboarding & clearance',
+            'offboarding.manage' => 'Start exits, manage clearance & finalize',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',

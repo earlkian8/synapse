@@ -722,7 +722,17 @@ Company-Setup config); an event's lifecycle status (`upcoming → ongoing → pa
 linked account notifies them and stamps `notified_at` (added soft-deletes; `ends_at`
 is nullable for a point-in-time entry). See [Events](../modules/events.md),
 [events tables](../database/events-tables.md) and
-[ADR 0015](../decisions/0015-events-and-meetings.md). **Offboarding** is not yet built.
+[ADR 0015](../decisions/0015-events-and-meetings.md).
+
+**Built (Offboarding)** — `offboarding_cases` + `clearance_items`. Mirrors Onboarding
+(a per-employee case + a checklist), but the checklist is a **clearance grouped by
+responsible department** and the case-level `clearance_status` is **derived** from the
+items (`pending → in_progress → cleared`), not stored. A deliberate lifecycle
+(`initiated → clearance → completed`, plus `cancelled`); completing the exit
+**transitions the employee's `employment_status`** (added `completed_at`; `remarks` +
+`sort_order` on items). See [Offboarding](../modules/offboarding.md),
+[offboarding tables](../database/offboarding-tables.md) and
+[ADR 0016](../decisions/0016-offboarding-and-clearance.md).
 
 ```mermaid
 erDiagram
@@ -903,7 +913,7 @@ erDiagram
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
 3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), **Events ✓** (see [Events](../modules/events.md)).
-4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
+4. **Talent**: Recruitment ✓, Onboarding ✓, **Offboarding ✓** (see [Offboarding](../modules/offboarding.md)).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
 7. **Assistant**: LLM conversations, function-calling, document processor.

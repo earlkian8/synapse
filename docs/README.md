@@ -40,6 +40,7 @@ commit history rather than repeating them.
 - [Training & Development](./modules/training.md) — training programs with a derived lifecycle + scored employee enrollments.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
 - [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
+- [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -80,6 +81,7 @@ commit history rather than repeating them.
 - [0013 — Training & Development: in-module programs with a derived lifecycle](./decisions/0013-training-and-development.md)
 - [0014 — Awards & Recognition: a recognition feed over a typed catalogue](./decisions/0014-awards-and-recognition.md)
 - [0015 — Events & Meetings: scheduled events with an invitee roster](./decisions/0015-events-and-meetings.md)
+- [0016 — Offboarding: structured exits with a clearance checklist](./decisions/0016-offboarding-and-clearance.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
