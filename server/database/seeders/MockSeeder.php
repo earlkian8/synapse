@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Hash;
  * Stands up (or reuses) the target user + their tenant, makes them Super Admin,
  * then runs every module seeder within that tenant — Company Setup, Employees,
  * Recruitment, Onboarding, Leave, Attendance, Payroll, Benefits, Performance,
- * Training, Awards and Events — plus the per-employee profile records
+ * Training, Awards, Events and Offboarding — plus the per-employee profile records
  * ({@see EmployeeProfileSeeder}: documents, certifications, promotions) and the
  * System surfaces ({@see SystemSeeder}: extra Users, an Activity-Log trail and
  * in-app Notifications) the operational module seeders don't touch.
@@ -73,6 +73,7 @@ class MockSeeder extends Seeder
             TrainingSeeder::class,         // programs + enrollments
             AwardSeeder::class,            // award types + recognitions
             EventSeeder::class,            // events / meetings + attendees
+            OffboardingSeeder::class,      // exits + clearance checklists
             EmployeeProfileSeeder::class,  // documents, certifications, promotions
             SystemSeeder::class,           // extra users, activity logs, notifications
         ]);

@@ -6,12 +6,10 @@ import {
     Bot,
     BriefcaseBusiness,
     Building,
-    Building2,
     CalendarCheck,
     CalendarClock,
     CalendarDays,
     CalendarRange,
-    Clock,
     DatabaseBackup,
     FileScan,
     Gauge,
@@ -135,8 +133,13 @@ const workforceNavItems: GatedNavItem[] = [
     },
 ];
 
-const offboardingNavItems: NavItem[] = [
-    { title: 'Offboarding', href: '/offboarding', icon: UserRoundMinus },
+const offboardingNavItems: GatedNavItem[] = [
+    {
+        title: 'Offboarding',
+        href: '/offboarding',
+        icon: UserRoundMinus,
+        permission: 'offboarding.view',
+    },
 ];
 
 const analyticsNavItems: NavItem[] = [
@@ -280,6 +283,8 @@ export function AppSidebar() {
 
     const visibleTalentNavItems = talentNavItems.filter(isVisible);
 
+    const visibleOffboardingNavItems = offboardingNavItems.filter(isVisible);
+
     const visibleCompanySetupNavItems = companySetupNavItems.filter(isVisible);
 
     return (
@@ -312,7 +317,12 @@ export function AppSidebar() {
                 <NavMain label="Workforce" items={visibleWorkforceNavItems} />
 
                 {/* Offboarding */}
-                <NavMain label="Offboarding" items={offboardingNavItems} />
+                {visibleOffboardingNavItems.length > 0 && (
+                    <NavMain
+                        label="Offboarding"
+                        items={visibleOffboardingNavItems}
+                    />
+                )}
 
                 {/* Analytics & AI */}
                 <NavMain

@@ -74,6 +74,9 @@ class DatabaseSeeder extends Seeder
         // Events & Meetings (a spread across the lifecycle + invitees).
         $this->call(EventSeeder::class);
 
+        // Offboarding (exits across the lifecycle + clearance checklists).
+        $this->call(OffboardingSeeder::class);
+
         // Per-employee profile records (documents, certifications, promotions)
         // that the operational module seeders above don't produce.
         $this->call(EmployeeProfileSeeder::class);

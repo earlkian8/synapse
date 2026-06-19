@@ -135,6 +135,15 @@ export type EmployeeEventSummary = {
     };
 };
 
+/** A read-only summary of the employee's offboarding (exit), if any. */
+export type EmployeeOffboardingSummary = {
+    hashid: string;
+    type: 'resignation' | 'termination' | 'retirement' | 'end_of_contract';
+    status: 'initiated' | 'clearance' | 'completed' | 'cancelled';
+    last_working_day: string | null;
+    clearance: { total: number; cleared: number; percent: number };
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -198,6 +207,7 @@ export type EmployeeDetail = ManagedEmployee & {
     training_enrollments: EmployeeTraining[];
     awards: EmployeeAwardSummary[];
     events: EmployeeEventSummary[];
+    offboarding: EmployeeOffboardingSummary | null;
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

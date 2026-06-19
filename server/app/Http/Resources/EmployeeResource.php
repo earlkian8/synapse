@@ -165,6 +165,30 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'offboarding' => $this->whenLoaded('offboardingCase', function () {
+                $case = $this->offboardingCase;
+
+                if (! $case) {
+                    return null;
+                }
+
+                $items = $case->relationLoaded('clearanceItems') ? $case->clearanceItems : collect();
+                $total = $items->count();
+                $cleared = $items->where('status', 'cleared')->count();
+
+                return [
+                    'hashid' => $case->hashid,
+                    'type' => $case->type,
+                    'status' => $case->status,
+                    'last_working_day' => $case->last_working_day?->toDateString(),
+                    'clearance' => [
+                        'total' => $total,
+                        'cleared' => $cleared,
+                        'percent' => $total > 0 ? (int) round(($cleared / $total) * 100) : 0,
+                    ],
+                ];
+            }),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),
