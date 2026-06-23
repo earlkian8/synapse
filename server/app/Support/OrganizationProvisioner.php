@@ -123,6 +123,7 @@ class OrganizationProvisioner
                     'payroll.view', 'payroll.process', 'payroll.release', 'payroll.adjust',
                     'benefits.view', 'benefits.manage',
                     'performance.view', 'performance.manage',
+                    'analytics.promotion.view', 'analytics.promotion.manage',
                     'setup.departments.view', 'setup.departments.manage',
                     'setup.leave-types.view', 'setup.leave-types.manage',
                     'setup.payroll.view', 'setup.payroll.manage',

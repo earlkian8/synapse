@@ -124,7 +124,7 @@ const offboardingNavItems: NavItem[] = [
     { title: 'Offboarding', href: '/offboarding', icon: UserRoundMinus },
 ];
 
-const analyticsNavItems: NavItem[] = [
+const analyticsNavItems: GatedNavItem[] = [
     {
         title: 'Workforce Dashboard',
         href: '/analytics/workforce',
@@ -144,6 +144,7 @@ const analyticsNavItems: NavItem[] = [
         title: 'Promotion Readiness',
         href: '/analytics/promotion-readiness',
         icon: Medal,
+        permission: 'analytics.promotion.view',
     },
     { title: 'Reports', href: '/reports', icon: BarChart3 },
 ];
@@ -260,6 +261,8 @@ export function AppSidebar() {
 
     const visibleTalentNavItems = talentNavItems.filter(isVisible);
 
+    const visibleAnalyticsNavItems = analyticsNavItems.filter(isVisible);
+
     const visibleCompanySetupNavItems = companySetupNavItems.filter(isVisible);
 
     return (
@@ -297,7 +300,7 @@ export function AppSidebar() {
                 {/* Analytics & AI */}
                 <NavMain
                     label="Analytics & AI"
-                    items={analyticsNavItems}
+                    items={visibleAnalyticsNavItems}
                     badge={
                         <Badge
                             variant="outline"

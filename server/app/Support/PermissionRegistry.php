@@ -69,6 +69,10 @@ class PermissionRegistry
             'performance.view' => 'View performance evaluations',
             'performance.manage' => 'Open, score, submit & acknowledge evaluations',
         ],
+        'Predictive Analytics' => [
+            'analytics.promotion.view' => 'View promotion readiness',
+            'analytics.promotion.manage' => 'Run promotion-readiness assessments',
+        ],
         'Company Setup' => [
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',

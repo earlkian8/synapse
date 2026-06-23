@@ -249,6 +249,16 @@ class Employee extends Model
         return $this->hasMany(PerformanceEvaluation::class);
     }
 
+    /**
+     * This employee's promotion-readiness scores (one per assessment run).
+     *
+     * @return HasMany<PromotionReadinessScore, $this>
+     */
+    public function promotionReadinessScores(): HasMany
+    {
+        return $this->hasMany(PromotionReadinessScore::class);
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**
