@@ -1,0 +1,27 @@
+# Synapse HR ERP — ML models (attrition / performance / promotion)
+# Target interpreter: CPython 3.14 (created with `py -3.14 -m venv .venv`)
+#
+# Lower bounds are the first releases shipping cp314 wheels, so a clean
+# `pip install -r requirements.txt` never has to compile from source on 3.14.
+# Gradient boosting is provided by scikit-learn's built-in HistGradientBoosting,
+# so there is intentionally no xgboost/lightgbm dependency (their cp314 wheels
+# still lag) and no native build toolchain is required.
+
+# --- core scientific stack ---
+numpy>=2.3,<3
+pandas>=2.3,<3
+scipy>=1.16,<2
+
+# --- modelling / metrics ---
+scikit-learn>=1.7,<2
+joblib>=1.4            # model + preprocessing-pipeline persistence
+
+# --- visualisation (EDA + evaluation plots) ---
+matplotlib>=3.10,<4
+seaborn>=0.13,<0.14
+
+# --- notebook runtime ---
+jupyterlab>=4.3
+notebook>=7.3
+ipykernel>=6.29
+nbconvert>=7.16        # headless execution of the notebooks (CI / re-runs)

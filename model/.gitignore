@@ -1,0 +1,21 @@
+# --- datasets (large / tracked out of band) ---
+employee_attrition_dataset_10000.csv
+employee_attrition_dataset.csv
+employee_promotion_prediction.csv
+employee_promotion_prediction.xlsx
+
+# --- virtual environment (lives inside model/) ---
+.venv/
+
+# --- generated at runtime ---
+logs/
+artifacts/
+
+# --- private / internal docs ---
+MODEL-JUSTIFICATION.md
+
+# --- notebook / python cruft ---
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+xlsx
