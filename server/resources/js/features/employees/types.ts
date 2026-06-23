@@ -99,6 +99,51 @@ export type EmployeePerformanceEvaluation = {
     } | null;
 };
 
+/** A read-only summary of one of the employee's training enrollments. */
+export type EmployeeTraining = {
+    status: 'enrolled' | 'completed' | 'dropped';
+    score: number | null;
+    program: {
+        hashid: string;
+        name: string;
+        provider: string | null;
+        status: 'upcoming' | 'ongoing' | 'completed';
+    } | null;
+};
+
+/** A read-only summary of one of the employee's recognitions. */
+export type EmployeeAwardSummary = {
+    id: number;
+    awarded_on: string | null;
+    reason: string | null;
+    award_type: {
+        name: string;
+        color: string | null;
+    } | null;
+};
+
+/** A read-only summary of one of the employee's event invitations. */
+export type EmployeeEventSummary = {
+    id: number;
+    response: 'invited' | 'accepted' | 'declined' | 'tentative';
+    event: {
+        hashid: string;
+        title: string;
+        type: 'event' | 'meeting';
+        starts_at: string | null;
+        status: 'upcoming' | 'ongoing' | 'past';
+    };
+};
+
+/** A read-only summary of the employee's offboarding (exit), if any. */
+export type EmployeeOffboardingSummary = {
+    hashid: string;
+    type: 'resignation' | 'termination' | 'retirement' | 'end_of_contract';
+    status: 'initiated' | 'clearance' | 'completed' | 'cancelled';
+    last_working_day: string | null;
+    clearance: { total: number; cleared: number; percent: number };
+};
+
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
@@ -159,6 +204,10 @@ export type EmployeeDetail = ManagedEmployee & {
     recurring_deductions: EmployeeDeduction[];
     benefit_enrollments: EmployeeBenefit[];
     performance_evaluations: EmployeePerformanceEvaluation[];
+    training_enrollments: EmployeeTraining[];
+    awards: EmployeeAwardSummary[];
+    events: EmployeeEventSummary[];
+    offboarding: EmployeeOffboardingSummary | null;
 };
 
 /** Top-level extras returned alongside `data` by the employee show endpoint. */

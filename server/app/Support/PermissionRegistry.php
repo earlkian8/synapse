@@ -73,7 +73,27 @@ class PermissionRegistry
             'analytics.promotion.view' => 'View promotion readiness',
             'analytics.promotion.manage' => 'Run promotion-readiness assessments',
         ],
+        'Training & Development' => [
+            'training.view' => 'View training programs & enrollments',
+            'training.manage' => 'Manage programs, enroll employees & grade',
+        ],
+        'Awards & Recognition' => [
+            'awards.view' => 'View awards & recognition',
+            'awards.manage' => 'Give, edit & remove recognitions',
+        ],
+        'Events & Meetings' => [
+            'events.view' => 'View events & meetings',
+            'events.manage' => 'Schedule events, invite attendees & track responses',
+        ],
+        'Offboarding' => [
+            'offboarding.view' => 'View offboarding & clearance',
+            'offboarding.manage' => 'Start exits, manage clearance & finalize',
+        ],
         'Company Setup' => [
+            'setup.company.view' => 'View company profile',
+            'setup.company.manage' => 'Manage company profile',
+            'setup.schedule.view' => 'View work schedules & holidays',
+            'setup.schedule.manage' => 'Manage work schedules & holidays',
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',
@@ -84,6 +104,8 @@ class PermissionRegistry
             'setup.benefits.manage' => 'Manage benefits configuration',
             'setup.kpi.view' => 'View KPI & evaluation criteria',
             'setup.kpi.manage' => 'Manage KPI & evaluation criteria',
+            'setup.award-types.view' => 'View award types',
+            'setup.award-types.manage' => 'Manage award types',
         ],
         'User Management' => [
             'users.view' => 'View users',

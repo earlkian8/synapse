@@ -244,9 +244,20 @@ erDiagram
 > `EVALUATION_PERIOD`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `EMAIL_TEMPLATE` are
 > standalone config tables referenced by the operational modules below.
 >
-> **Built:** `LEAVE_TYPE`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, and now `KPI_CRITERION`
-> + `EVALUATION_PERIOD` (managed at `/setup/kpi` — see
-> [Performance](../modules/performance.md)).
+> **Built:** `LEAVE_TYPE`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `KPI_CRITERION` +
+> `EVALUATION_PERIOD` (managed at `/setup/kpi` — see
+> [Performance](../modules/performance.md)), and `AWARD_TYPE` (managed at
+> `/setup/award-types` — see [Awards](../modules/awards.md)).
+>
+> **`COMPANY_PROFILE` is the `organizations` row itself** — not a separate table. Its
+> fields (`legal_name`, `logo`, `email`, `phone`, `address`, `tin`, `*_employer_no`) live
+> on `organizations` and are edited at `/setup/company` (ADR 0005 — the tenant doubles as
+> the company profile). See [Company Profile](../modules/company-profile.md).
+>
+> **Built:** `WORK_SCHEDULE` + `HOLIDAY` (managed together at `/setup/schedule`; `holidays`
+> is new, `work_schedules` gained soft deletes + a management UI, and a non-working holiday
+> is no longer charged as a leave day) — see
+> [Work Schedule & Holidays](../modules/work-schedule-holidays.md).
 
 ---
 
@@ -647,7 +658,16 @@ derived** (weighted average, `App\Support\Performance\PerformanceScorer`) throug
 criterion's label + weight so archiving a criterion never alters a past appraisal
 (added `acknowledged_at`). See [Performance](../modules/performance.md),
 [performance tables](../database/performance-tables.md) and
-[ADR 0012](../decisions/0012-performance-management.md). **Training** is not yet built.
+[ADR 0012](../decisions/0012-performance-management.md).
+
+**Built (Training)** — `training_programs` + `training_enrollments`. Programs are
+created in-module (no Company-Setup config); a program's lifecycle status
+(`upcoming → ongoing → completed`) is **derived from its date window**, not stored, and
+enrollments carry a status, a completion score and a server-managed `completed_at`
+(`end_date` / `capacity` are nullable for open-ended / uncapped programs; added
+`remarks`). See [Training](../modules/training.md),
+[training tables](../database/training-tables.md) and
+[ADR 0013](../decisions/0013-training-and-development.md).
 
 ```mermaid
 erDiagram
@@ -698,6 +718,31 @@ erDiagram
 ---
 
 ## 9. Awards, Events & Offboarding
+
+**Built (Awards)** — `award_types` (Company-Setup catalogue, ERD §2; added a `color`
++ `is_active`) and `employee_awards`. Recognitions are a flat feed at `/awards`; an
+award's type relation is loaded `withTrashed` so archived types still render on past
+awards. See [Awards](../modules/awards.md),
+[awards tables](../database/awards-tables.md) and
+[ADR 0014](../decisions/0014-awards-and-recognition.md).
+
+**Built (Events)** — `events` + `event_attendees`. Events are created in-module (no
+Company-Setup config); an event's lifecycle status (`upcoming → ongoing → past`) is
+**derived from its date-time window**, not stored, and inviting an employee with a
+linked account notifies them and stamps `notified_at` (added soft-deletes; `ends_at`
+is nullable for a point-in-time entry). See [Events](../modules/events.md),
+[events tables](../database/events-tables.md) and
+[ADR 0015](../decisions/0015-events-and-meetings.md).
+
+**Built (Offboarding)** — `offboarding_cases` + `clearance_items`. Mirrors Onboarding
+(a per-employee case + a checklist), but the checklist is a **clearance grouped by
+responsible department** and the case-level `clearance_status` is **derived** from the
+items (`pending → in_progress → cleared`), not stored. A deliberate lifecycle
+(`initiated → clearance → completed`, plus `cancelled`); completing the exit
+**transitions the employee's `employment_status`** (added `completed_at`; `remarks` +
+`sort_order` on items). See [Offboarding](../modules/offboarding.md),
+[offboarding tables](../database/offboarding-tables.md) and
+[ADR 0016](../decisions/0016-offboarding-and-clearance.md).
 
 ```mermaid
 erDiagram
@@ -877,8 +922,8 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), Training, Awards, Events.
-4. **Talent**: Recruitment ✓, Onboarding ✓; **Offboarding** (next).
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), **Events ✓** (see [Events](../modules/events.md)).
+4. **Talent**: Recruitment ✓, Onboarding ✓, **Offboarding ✓** (see [Offboarding](../modules/offboarding.md)).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.
 7. **Assistant**: LLM conversations, function-calling, document processor.

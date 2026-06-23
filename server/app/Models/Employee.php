@@ -100,7 +100,9 @@ class Employee extends Model
      */
     public function workSchedule(): BelongsTo
     {
-        return $this->belongsTo(WorkSchedule::class);
+        // withTrashed so an employee on an archived schedule still resolves it
+        // (attendance computation and the detail view depend on it).
+        return $this->belongsTo(WorkSchedule::class)->withTrashed();
     }
 
     /**
@@ -200,6 +202,16 @@ class Employee extends Model
     }
 
     /**
+     * This employee's offboarding (exit) journey, if one has been started.
+     *
+     * @return HasOne<OffboardingCase, $this>
+     */
+    public function offboardingCase(): HasOne
+    {
+        return $this->hasOne(OffboardingCase::class);
+    }
+
+    /**
      * This employee's filed leave requests.
      *
      * @return HasMany<LeaveRequest, $this>
@@ -257,6 +269,36 @@ class Employee extends Model
     public function promotionReadinessScores(): HasMany
     {
         return $this->hasMany(PromotionReadinessScore::class);
+    }
+
+    /**
+     * This employee's training-program enrollments.
+     *
+     * @return HasMany<TrainingEnrollment, $this>
+     */
+    public function trainingEnrollments(): HasMany
+    {
+        return $this->hasMany(TrainingEnrollment::class);
+    }
+
+    /**
+     * Recognitions this employee has received.
+     *
+     * @return HasMany<EmployeeAward, $this>
+     */
+    public function awards(): HasMany
+    {
+        return $this->hasMany(EmployeeAward::class);
+    }
+
+    /**
+     * This employee's invitations to events / meetings.
+     *
+     * @return HasMany<EventAttendee, $this>
+     */
+    public function eventAttendances(): HasMany
+    {
+        return $this->hasMany(EventAttendee::class);
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

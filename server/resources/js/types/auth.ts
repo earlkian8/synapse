@@ -22,6 +22,8 @@ export type User = {
 export type Organization = {
     id: number;
     name: string;
+    logo_url: string | null;
+    initials: string;
 };
 
 export type Auth = {

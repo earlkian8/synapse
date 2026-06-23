@@ -3,15 +3,18 @@ import {
     Award,
     Briefcase,
     Building2,
+    CalendarClock,
     Clock,
     Coins,
     FileText,
     Gauge,
+    GraduationCap,
     HeartHandshake,
     Pencil,
     Plus,
     Trash2,
     Upload,
+    UserRoundMinus,
     Wallet,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -33,6 +36,7 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
 import {
     CATEGORY_LABELS,
     FREQUENCY_SUFFIX,
@@ -40,9 +44,19 @@ import {
     STATUS_STYLES,
     formatPeso,
 } from '@/features/benefits/constants';
+import { ResponseBadge } from '@/features/events/components/event-status-badge';
+import { formatDateTime as formatEventDate } from '@/features/events/constants';
+import { eventRoutes } from '@/features/events/routes';
+import { CaseStatusBadge as OffboardingStatusBadge } from '@/features/offboarding/components/case-status-badge';
+import { TypeBadge as OffboardingTypeBadge } from '@/features/offboarding/components/type-badge';
+import { formatDate as formatOffboardingDate } from '@/features/offboarding/constants';
+import { offboardingRoutes } from '@/features/offboarding/routes';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import { formatScore, scoreTone } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
+import { EnrollmentStatusBadge as TrainingStatusBadge } from '@/features/training/components/training-status-badge';
+import { formatScore as formatTrainingScore } from '@/features/training/constants';
+import { trainingRoutes } from '@/features/training/routes';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
@@ -77,6 +91,10 @@ type Tab =
     | 'compensation'
     | 'benefits'
     | 'performance'
+    | 'training'
+    | 'awards'
+    | 'events'
+    | 'offboarding'
     | 'documents'
     | 'certifications'
     | 'history';
@@ -86,6 +104,10 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'compensation', label: 'Compensation' },
     { value: 'benefits', label: 'Benefits' },
     { value: 'performance', label: 'Performance' },
+    { value: 'training', label: 'Training' },
+    { value: 'awards', label: 'Awards' },
+    { value: 'events', label: 'Events' },
+    { value: 'offboarding', label: 'Offboarding' },
     { value: 'documents', label: 'Documents' },
     { value: 'certifications', label: 'Certifications' },
     { value: 'history', label: 'History' },
@@ -240,6 +262,12 @@ export function EmployeeDetailSheet({
                     {tab === 'benefits' && detail && <BenefitsTab e={detail} />}
                     {tab === 'performance' && detail && (
                         <PerformanceTab e={detail} />
+                    )}
+                    {tab === 'training' && detail && <TrainingTab e={detail} />}
+                    {tab === 'awards' && detail && <AwardsTab e={detail} />}
+                    {tab === 'events' && detail && <EventsTab e={detail} />}
+                    {tab === 'offboarding' && detail && (
+                        <OffboardingTab e={detail} />
                     )}
                     {tab === 'documents' && detail && (
                         <DocumentsTab
@@ -746,6 +774,238 @@ function PerformanceTab({ e }: { e: EmployeeDetail }) {
                     </li>
                 ))}
             </ul>
+        </div>
+    );
+}
+
+// ── Training ─────────────────────────────────────────────────────────────────
+
+function TrainingTab({ e }: { e: EmployeeDetail }) {
+    if (e.training_enrollments.length === 0) {
+        return (
+            <EmptyState
+                icon={GraduationCap}
+                text="Not enrolled in any training programs."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Training enrollments. Manage these from the Training &
+                Development module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.training_enrollments.map((t, i) => {
+                    const row = (
+                        <>
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                                <GraduationCap className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {t.program?.name ?? 'Unknown program'}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {t.program?.provider ?? 'In-house'}
+                                    {t.score !== null
+                                        ? ` · ${formatTrainingScore(t.score)}`
+                                        : ''}
+                                </p>
+                            </div>
+                            <TrainingStatusBadge status={t.status} />
+                        </>
+                    );
+
+                    return t.program ? (
+                        <li key={`${t.program.hashid}-${i}`}>
+                            <Link
+                                href={trainingRoutes.show(t.program.hashid)}
+                                className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                            >
+                                {row}
+                            </Link>
+                        </li>
+                    ) : (
+                        <li
+                            key={`unknown-${i}`}
+                            className="flex items-center gap-3 px-3 py-2.5"
+                        >
+                            {row}
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+// ── Awards ───────────────────────────────────────────────────────────────────
+
+function AwardsTab({ e }: { e: EmployeeDetail }) {
+    if (e.awards.length === 0) {
+        return <EmptyState icon={Award} text="No recognitions yet." />;
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Recognitions received. Give or manage these from the Awards &
+                Recognition module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.awards.map((award) => (
+                    <li
+                        key={award.id}
+                        className="flex items-start gap-3 px-3 py-2.5"
+                    >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                            <Award className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {award.award_type && (
+                                    <AwardTypeBadge
+                                        name={award.award_type.name}
+                                        color={award.award_type.color}
+                                    />
+                                )}
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                    {formatAwardDate(award.awarded_on)}
+                                </span>
+                            </div>
+                            {award.reason && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {award.reason}
+                                </p>
+                            )}
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+/** Format an ISO date (YYYY-MM-DD) as "Jun 16, 2026". */
+function formatAwardDate(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+function EventsTab({ e }: { e: EmployeeDetail }) {
+    if (e.events.length === 0) {
+        return (
+            <EmptyState
+                icon={CalendarClock}
+                text="Not invited to any events yet."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                Events and meetings this employee is invited to. Manage these
+                from the Events & Meetings module.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {e.events.map((invite) => (
+                    <li key={invite.id}>
+                        <Link
+                            href={eventRoutes.show(invite.event.hashid)}
+                            className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                        >
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                                <CalendarClock className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {invite.event.title}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {formatEventDate(invite.event.starts_at)}
+                                </p>
+                            </div>
+                            <ResponseBadge response={invite.response} />
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+// ── Offboarding ──────────────────────────────────────────────────────────────
+
+function OffboardingTab({ e }: { e: EmployeeDetail }) {
+    const o = e.offboarding;
+
+    if (!o) {
+        return (
+            <EmptyState
+                icon={UserRoundMinus}
+                text="No offboarding on record."
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+                The employee's exit case. Manage it from the Offboarding module.
+            </p>
+            <Link
+                href={offboardingRoutes.show(o.hashid)}
+                className="block rounded-lg border border-border p-3 transition-colors hover:bg-muted/50"
+            >
+                <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                            <UserRoundMinus className="size-4" />
+                        </span>
+                        <OffboardingTypeBadge type={o.type} />
+                    </span>
+                    <OffboardingStatusBadge status={o.status} />
+                </div>
+                <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground tabular-nums">
+                            {o.clearance.cleared}/{o.clearance.total} cleared
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                            {o.clearance.percent}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                            className={cn(
+                                'h-full rounded-full',
+                                o.clearance.percent >= 100
+                                    ? 'bg-emerald-500'
+                                    : 'bg-[#0ABFBF]',
+                            )}
+                            style={{ width: `${o.clearance.percent}%` }}
+                        />
+                    </div>
+                </div>
+                {o.last_working_day && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                        Last working day{' '}
+                        {formatOffboardingDate(o.last_working_day)}
+                    </p>
+                )}
+            </Link>
         </div>
     );
 }

@@ -79,7 +79,9 @@ Departments sit in Company Setup.
   - Balance figures are computed per view. The queries are grouped aggregates and the
     balances page is capped (200 employees); a very large org would want pagination or a
     materialised summary.
-  - **Holidays are not deducted** yet, so a range spanning a public holiday over-charges
-    by those days until a holiday calendar exists.
+  - ~~**Holidays are not deducted** yet, so a range spanning a public holiday over-charges
+    by those days until a holiday calendar exists.~~ **Resolved** — the
+    [Work Schedule & Holidays](../modules/work-schedule-holidays.md) calendar lands; via
+    `HolidayCalendar`, `LeaveCalculator` now skips non-working holidays.
   - A request is attributed to the **year of its start date**; leave that straddles a
     year boundary counts wholly against the start year (acceptable; revisit if needed).

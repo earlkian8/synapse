@@ -33,6 +33,7 @@ class DatabaseSeeder extends Seeder
                 'last_name' => 'User',
                 'password' => Hash::make('password'),
                 'is_active' => true,
+                'email_verified_at' => now(),
             ],
         );
 
@@ -42,6 +43,9 @@ class DatabaseSeeder extends Seeder
 
         // Organisation foundation (departments, positions, schedules) + employees.
         $this->call(OrganizationSeeder::class);
+
+        // Holiday calendar (PH statutory holidays) — read by Leave.
+        $this->call(HolidaySeeder::class);
 
         // Recruitment pipeline (postings, applicants, applications, interviews).
         $this->call(RecruitmentSeeder::class);
@@ -63,5 +67,25 @@ class DatabaseSeeder extends Seeder
 
         // Performance (KPI criteria + review cycles + scored evaluations).
         $this->call(PerformanceSeeder::class);
+
+        // Training (programs across the lifecycle + employee enrollments).
+        $this->call(TrainingSeeder::class);
+
+        // Awards (recognition types + a spread of employee awards).
+        $this->call(AwardSeeder::class);
+
+        // Events & Meetings (a spread across the lifecycle + invitees).
+        $this->call(EventSeeder::class);
+
+        // Offboarding (exits across the lifecycle + clearance checklists).
+        $this->call(OffboardingSeeder::class);
+
+        // Per-employee profile records (documents, certifications, promotions)
+        // that the operational module seeders above don't produce.
+        $this->call(EmployeeProfileSeeder::class);
+
+        // System surfaces (extra login accounts, an activity-log trail, in-app
+        // notifications) so User Management, Activity Logs and the bell have data.
+        $this->call(SystemSeeder::class);
     }
 }

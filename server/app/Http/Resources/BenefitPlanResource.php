@@ -41,7 +41,12 @@ class BenefitPlanResource extends JsonResource
             'enrollments_count' => (int) ($this->enrollments_count ?? 0),
             'active_count' => (int) ($this->active_enrollments_count ?? 0),
 
-            'enrollments' => BenefitEnrollmentResource::collection($this->whenLoaded('enrollments')),
+            // Resolved to a plain array (not a bare resource collection) so Inertia
+            // does not re-wrap it in a `data` key when serializing this nested prop.
+            'enrollments' => $this->whenLoaded(
+                'enrollments',
+                fn () => BenefitEnrollmentResource::collection($this->enrollments)->resolve($request),
+            ),
         ];
     }
 }

@@ -3,21 +3,16 @@ import {
     Award,
     BarChart3,
     Bell,
-    Bot,
     BriefcaseBusiness,
     Building,
-    Building2,
     CalendarCheck,
     CalendarClock,
     CalendarDays,
     CalendarRange,
-    Clock,
     DatabaseBackup,
-    FileScan,
     Gauge,
     GraduationCap,
     HeartHandshake,
-    LayoutDashboard,
     LayoutGrid,
     LineChart,
     Mail,
@@ -36,7 +31,7 @@ import {
     Users,
     Wallet,
 } from 'lucide-react';
-import AppLogo from '@/components/app-logo';
+import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -78,19 +73,19 @@ const workforceNavItems: GatedNavItem[] = [
         icon: Users,
         permission: 'employees.view',
     },
-    { title: 'Departments', href: '/departments', icon: Building2 },
+    // { title: 'Departments', href: '/departments', icon: Building2 },
     {
         title: 'Attendance',
         href: '/attendance',
         icon: CalendarCheck,
         permission: 'attendance.view',
     },
-    {
-        title: 'My Attendance',
-        href: '/attendance/me',
-        icon: Clock,
-        permission: 'attendance.clock',
-    },
+    // {
+    //     title: 'My Attendance',
+    //     href: '/attendance/me',
+    //     icon: Clock,
+    //     permission: 'attendance.clock',
+    // },
     {
         title: 'Leave Management',
         href: '/leave',
@@ -115,21 +110,36 @@ const workforceNavItems: GatedNavItem[] = [
         icon: Gauge,
         permission: 'performance.view',
     },
-    { title: 'Training & Development', href: '/training', icon: GraduationCap },
-    { title: 'Awards & Recognition', href: '/awards', icon: Award },
-    { title: 'Events & Meetings', href: '/events', icon: CalendarClock },
+    {
+        title: 'Training & Development',
+        href: '/training',
+        icon: GraduationCap,
+        permission: 'training.view',
+    },
+    {
+        title: 'Awards & Recognition',
+        href: '/awards',
+        icon: Award,
+        permission: 'awards.view',
+    },
+    {
+        title: 'Events & Meetings',
+        href: '/events',
+        icon: CalendarClock,
+        permission: 'events.view',
+    },
 ];
 
-const offboardingNavItems: NavItem[] = [
-    { title: 'Offboarding', href: '/offboarding', icon: UserRoundMinus },
+const offboardingNavItems: GatedNavItem[] = [
+    {
+        title: 'Offboarding',
+        href: '/offboarding',
+        icon: UserRoundMinus,
+        permission: 'offboarding.view',
+    },
 ];
 
 const analyticsNavItems: GatedNavItem[] = [
-    {
-        title: 'Workforce Dashboard',
-        href: '/analytics/workforce',
-        icon: LayoutDashboard,
-    },
     {
         title: 'Attrition Predictions',
         href: '/analytics/attrition',
@@ -149,17 +159,13 @@ const analyticsNavItems: GatedNavItem[] = [
     { title: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
-const assistantNavItems: NavItem[] = [
-    { title: 'HR Assistant', href: '/assistant', icon: Bot },
-    {
-        title: 'Document Processor',
-        href: '/assistant/documents',
-        icon: FileScan,
-    },
-];
-
 const companySetupNavItems: GatedNavItem[] = [
-    { title: 'Company Profile', href: '/setup/company', icon: Building },
+    {
+        title: 'Company Profile',
+        href: '/setup/company',
+        icon: Building,
+        permission: 'setup.company.view',
+    },
     {
         title: 'Departments',
         href: '/setup/departments',
@@ -170,6 +176,7 @@ const companySetupNavItems: GatedNavItem[] = [
         title: 'Work Schedule & Holidays',
         href: '/setup/schedule',
         icon: CalendarClock,
+        permission: 'setup.schedule.view',
     },
     {
         title: 'Leave Types',
@@ -177,7 +184,12 @@ const companySetupNavItems: GatedNavItem[] = [
         icon: CalendarRange,
         permission: 'setup.leave-types.view',
     },
-    { title: 'Award Types', href: '/setup/award-types', icon: Trophy },
+    {
+        title: 'Award Types',
+        href: '/setup/award-types',
+        icon: Trophy,
+        permission: 'setup.award-types.view',
+    },
     {
         title: 'KPI & Evaluation Criteria',
         href: '/setup/kpi',
@@ -263,17 +275,24 @@ export function AppSidebar() {
 
     const visibleAnalyticsNavItems = analyticsNavItems.filter(isVisible);
 
+    const visibleOffboardingNavItems = offboardingNavItems.filter(isVisible);
+
     const visibleCompanySetupNavItems = companySetupNavItems.filter(isVisible);
+
+    // The brand links to the company profile when the user may view it, else home.
+    const brandHref = can('setup.company.view')
+        ? '/setup/company'
+        : dashboard();
 
     return (
         <Sidebar collapsible="icon" variant="inset">
-            {/* ── Logo / Brand ── */}
+            {/* ── Company brand ── */}
             <SidebarHeader className="border-b border-sidebar-border pb-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
-                                <AppLogo />
+                            <Link href={brandHref} prefetch>
+                                <CompanyLogo />
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -295,26 +314,17 @@ export function AppSidebar() {
                 <NavMain label="Workforce" items={visibleWorkforceNavItems} />
 
                 {/* Offboarding */}
-                <NavMain label="Offboarding" items={offboardingNavItems} />
+                {visibleOffboardingNavItems.length > 0 && (
+                    <NavMain
+                        label="Offboarding"
+                        items={visibleOffboardingNavItems}
+                    />
+                )}
 
                 {/* Analytics & AI */}
                 <NavMain
                     label="Analytics & AI"
                     items={visibleAnalyticsNavItems}
-                    badge={
-                        <Badge
-                            variant="outline"
-                            className="ml-auto h-4 rounded-full border-[#0ABFBF]/40 bg-[#0ABFBF]/10 px-1.5 py-0 text-[9px] font-semibold tracking-wider text-[#0ABFBF] group-data-[collapsible=icon]:hidden"
-                        >
-                            AI
-                        </Badge>
-                    }
-                />
-
-                {/* Assistant */}
-                <NavMain
-                    label="Assistant"
-                    items={assistantNavItems}
                     badge={
                         <Badge
                             variant="outline"

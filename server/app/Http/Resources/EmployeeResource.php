@@ -119,6 +119,76 @@ class EmployeeResource extends JsonResource
                 ->values()
                 ->all()),
 
+            'training_enrollments' => $this->whenLoaded('trainingEnrollments', fn () => $this->trainingEnrollments
+                ->sortByDesc('id')
+                ->map(fn ($enrollment): array => [
+                    'status' => $enrollment->status,
+                    'score' => $enrollment->score === null ? null : (float) $enrollment->score,
+                    'program' => $enrollment->relationLoaded('program') && $enrollment->program ? [
+                        'hashid' => $enrollment->program->hashid,
+                        'name' => $enrollment->program->name,
+                        'provider' => $enrollment->program->provider,
+                        'status' => $enrollment->program->status(),
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
+
+            'awards' => $this->whenLoaded('awards', fn () => $this->awards
+                ->sortByDesc('awarded_on')
+                ->map(fn ($award): array => [
+                    'id' => $award->id,
+                    'awarded_on' => $award->awarded_on?->toDateString(),
+                    'reason' => $award->reason,
+                    'award_type' => $award->relationLoaded('awardType') && $award->awardType ? [
+                        'name' => $award->awardType->name,
+                        'color' => $award->awardType->color,
+                    ] : null,
+                ])
+                ->values()
+                ->all()),
+
+            'events' => $this->whenLoaded('eventAttendances', fn () => $this->eventAttendances
+                ->filter(fn ($attendance): bool => $attendance->relationLoaded('event') && $attendance->event !== null)
+                ->sortByDesc(fn ($attendance) => $attendance->event->starts_at)
+                ->map(fn ($attendance): array => [
+                    'id' => $attendance->id,
+                    'response' => $attendance->response,
+                    'event' => [
+                        'hashid' => $attendance->event->hashid,
+                        'title' => $attendance->event->title,
+                        'type' => $attendance->event->type,
+                        'starts_at' => $attendance->event->starts_at?->toIso8601String(),
+                        'status' => $attendance->event->status(),
+                    ],
+                ])
+                ->values()
+                ->all()),
+
+            'offboarding' => $this->whenLoaded('offboardingCase', function () {
+                $case = $this->offboardingCase;
+
+                if (! $case) {
+                    return null;
+                }
+
+                $items = $case->relationLoaded('clearanceItems') ? $case->clearanceItems : collect();
+                $total = $items->count();
+                $cleared = $items->where('status', 'cleared')->count();
+
+                return [
+                    'hashid' => $case->hashid,
+                    'type' => $case->type,
+                    'status' => $case->status,
+                    'last_working_day' => $case->last_working_day?->toDateString(),
+                    'clearance' => [
+                        'total' => $total,
+                        'cleared' => $cleared,
+                        'percent' => $total > 0 ? (int) round(($cleared / $total) * 100) : 0,
+                    ],
+                ];
+            }),
+
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_at' => $this->updated_at?->toIso8601String(),
