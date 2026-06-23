@@ -123,6 +123,7 @@ class OrganizationProvisioner
                     'payroll.view', 'payroll.process', 'payroll.release', 'payroll.adjust',
                     'benefits.view', 'benefits.manage',
                     'performance.view', 'performance.manage',
+                    'analytics.promotion.view', 'analytics.promotion.manage',
                     'training.view', 'training.manage',
                     'awards.view', 'awards.manage',
                     'events.view', 'events.manage',

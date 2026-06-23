@@ -10,6 +10,7 @@ use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\OnboardingModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Support\Ai\GeminiClient;
+use App\Support\Ml\MlClient;
 use App\Support\PermissionRegistry;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
@@ -37,6 +38,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
             apiKey: config('services.gemini.key'),
             model: config('services.gemini.model'),
+        ));
+
+        // The ML inference client backing the Predictive Analytics surfaces.
+        $this->app->singleton(MlClient::class, fn (): MlClient => new MlClient(
+            baseUrl: config('services.ml.url'),
+            timeout: config('services.ml.timeout'),
         ));
 
         // The agentic assistant and the HR modules it can act on. Each module is
