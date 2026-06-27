@@ -806,6 +806,23 @@ erDiagram
 Written by the FastAPI ML service, read by the dashboard. Each row is one
 prediction snapshot (kept historically so trends can be charted).
 
+**Built (Promotion Readiness)** — a standalone **FastAPI inference service**
+(`model/api`) the Laravel app calls server-side (`App\Support\Ml\MlClient`), plus
+`promotion_readiness_runs` + `promotion_readiness_scores` (a header-plus-lines
+batch). Scores are model-derived, never entered; the service is optional (graceful
+degradation when offline). See [Promotion Readiness](../modules/promotion-readiness.md)
+and [ADR 0017](../decisions/0017-predictive-analytics-and-ml-inference.md).
+
+**Built (Performance Forecast)** — `performance_forecast_runs` +
+`performance_forecasts`, the second surface on the same service. Maps the ERD's
+`predicted_rating` / `confidence` / `features` / `target_period_id` onto the proven
+header-plus-lines shape (recording the model as a `model_version` string in place of
+`ml_model_id`, as Promotion Readiness does). The regressor's lack of factor
+contributions is covered by a Laravel-derived **band** + **confidence** (data
+coverage) and a **rating trajectory**. See
+[Performance Forecast](../modules/performance-forecast.md) and
+[ADR 0018](../decisions/0018-performance-forecasting.md).
+
 ```mermaid
 erDiagram
     EMPLOYEE ||--o{ ATTRITION_PREDICTION : scored
