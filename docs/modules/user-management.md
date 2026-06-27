@@ -13,12 +13,13 @@ acting administrator is protected from locking themselves out.
 
 | Area | Capabilities |
 | --- | --- |
-| **Listing** | Server-side search, status filter, column sorting, pagination (10–100 / page). |
+| **Listing** | Server-side search, status filter, **role filter**, column sorting, pagination (10–100 / page). |
 | **Stats** | Live headline cards: total, active, inactive, unverified, new-this-month, archived. |
 | **Create / Edit** | Slide-over form with sectioned layout, inline validation, **profile photo upload** (preview + remove), optional password (invite-later flow) + secure password generator. A **confirmation email** is sent on create and whenever the email changes. |
+| **Import** | **CSV bulk-create** with a downloadable template, per-row validation, in-file de-duplication, optional role-by-name, and an inline result + downloadable **error report**. |
 | **View** | Read-only profile drawer (contact, security, activity). |
 | **Per-row actions** | View, edit, activate/deactivate, reset password, archive, restore, delete permanently. |
-| **Bulk actions** | Activate, deactivate, archive (active scope); restore, delete (archived scope). |
+| **Bulk actions** | Activate, deactivate, archive, **assign role** (active scope); restore, delete (archived scope). |
 | **Lifecycle** | Soft-delete **archive** → **restore** → **permanent delete**. |
 | **Security signals** | Email-verified indicator, two-factor (2FA) badge, password-set state. |
 | **Export** | CSV download honouring the **currently applied filters**. |
@@ -37,6 +38,8 @@ middleware `['auth', 'verified']` and name prefix `system.users.*`.
 | GET | `/system/users` | `index` | `UserController@index` | Listing page (Inertia). |
 | POST | `/system/users` | `store` | `UserController@store` | Create a user. |
 | GET | `/system/users/export` | `export` | `UserExportController` | CSV of filtered users. |
+| GET | `/system/users/import/template` | `import.template` | `UserImportController@template` | Download the CSV import template. |
+| POST | `/system/users/import` | `import.store` | `UserImportController@store` | Bulk-create from CSV (JSON result). |
 | POST | `/system/users/bulk` | `bulk` | `UserBulkActionController` | Batch action over IDs. |
 | PATCH | `/system/users/{user}` | `update` | `UserController@update` | Update a user. |
 | POST | `/system/users/{user}/resend-verification` | `resend-verification` | `UserController@resendVerification` | Resend the email-confirmation link. |
@@ -62,18 +65,21 @@ server/app/
 │   │   ├── UserController.php            # index, store, update, destroy, restore, forceDelete
 │   │   ├── UserStatusController.php      # activate / deactivate
 │   │   ├── UserPasswordController.php    # admin password reset
-│   │   ├── UserBulkActionController.php  # invokable: bulk activate/deactivate/archive/restore/delete
+│   │   ├── UserBulkActionController.php  # invokable: bulk activate/deactivate/archive/restore/delete/assign-role
+│   │   ├── UserImportController.php       # template download + CSV bulk-create (JSON result)
 │   │   └── UserExportController.php      # invokable: streamed CSV
 │   ├── Requests/UserManagement/
 │   │   ├── StoreUserRequest.php
 │   │   ├── UpdateUserRequest.php          # unique email/employee_id ignore current
-│   │   ├── BulkUserActionRequest.php      # action ∈ ACTIONS, ids[] required
+│   │   ├── BulkUserActionRequest.php      # action ∈ ACTIONS, ids[] required, role_id for assign-role
+│   │   ├── ImportUsersRequest.php         # the uploaded .csv (≤2 MB)
 │   │   └── UpdateUserPasswordRequest.php
 │   └── Resources/
 │       └── UserResource.php               # single serialization contract for the frontend
 ├── Queries/
-│   ├── UsersIndexQuery.php                # filter + sort + paginate from the Request
+│   ├── UsersIndexQuery.php                # filter (status/role/search) + sort + paginate
 │   └── UserStatistics.php                 # stat-card aggregates
+├── Support/UserImporter.php               # canonical CSV → users op (validate, dedupe, create)
 └── Models/User.php                        # SoftDeletes, full_name accessor, scopeSearch
 ```
 
@@ -83,15 +89,31 @@ server/app/
 
 1. Applies the **status** scope (`active`, `inactive`, `unverified`, `archived`, or `all`).
    `archived` switches the query to `onlyTrashed()`.
-2. Applies **search** via the `User::scopeSearch()` model scope — a case-insensitive
+2. Applies the **role** filter (`whereHas('roles', …)` on a validated role id; an
+   unknown/stale id is ignored).
+3. Applies **search** via the `User::scopeSearch()` model scope — a case-insensitive
    `col ILIKE %term%` across `first_name, middle_name, last_name, suffix, email,
    employee_id, phone_number` (Postgres' native `ILIKE`, falling back to `LIKE` on
    SQLite — whose `LIKE` is already case-insensitive — so the test suite stays portable).
-3. Applies a whitelisted **sort** column + direction, with `id desc` as a stable tiebreaker.
-4. Paginates with `withQueryString()` so filters survive page changes.
+4. Applies a whitelisted **sort** column + direction, with `id desc` as a stable tiebreaker.
+5. Paginates with `withQueryString()` so filters survive page changes.
 
 Allowed values are centralised as constants on `UsersIndexQuery`
 (`SORTABLE`, `STATUSES`, `PER_PAGE`) and reused by the controller and export.
+
+### CSV import
+
+`UserImporter` (`app/Support/`) is the canonical "CSV → users" operation, mirroring the
+single-create flow per row but **resilient**: it reads the upload (BOM- and
+case-tolerant headers), validates each row with the same rules as `StoreUserRequest`,
+catches **in-file** duplicate emails (not just already-persisted ones), resolves an
+optional `role` column by machine **name or label** (only when the actor holds
+`roles.assign`), then creates each user unverified, assigns the role, and best-effort
+sends the verification email + welcome notification. One bad row never aborts the rest;
+every rejected row is returned with its reason. Passwords are **never** imported, and the
+file is capped at `UserImporter::MAX_ROWS` (200) to bound the synchronous request.
+`UserImportController@store` returns the result as JSON so the dialog shows an inline
+report without a navigation; a single summary entry is written to the activity log.
 
 ### Serialization contract
 
@@ -129,16 +151,18 @@ Feature-folder convention — everything the module owns lives under
 server/resources/js/
 ├── pages/system/users/index.tsx           # Inertia page: state orchestration only
 └── features/users/
-    ├── types.ts                            # ManagedUser, UserStats, Paginated<T>, …
+    ├── types.ts                            # ManagedUser, UserStats, Paginated<T>, ImportResult, …
     ├── routes.ts                           # endpoint map
-    ├── constants.ts                        # STATUS_FILTERS, PER_PAGE_OPTIONS, DEFAULT_FILTERS
+    ├── api.ts                              # CSRF fetch helper for the JSON import endpoint
+    ├── constants.ts                        # STATUS_FILTERS, PER_PAGE_OPTIONS, DEFAULT_FILTERS, ALL_ROLES
     ├── hooks/use-users-filters.ts          # pushes query-string state via Inertia partial reloads
     └── components/
         ├── users-stats.tsx                 # stat cards
-        ├── users-toolbar.tsx               # debounced search, status filter, export, add
+        ├── users-toolbar.tsx               # debounced search, status + role filters, import, export, add
         ├── users-table.tsx                 # sortable headers, selection, empty state
         ├── user-row-actions.tsx            # per-row dropdown
-        ├── bulk-actions-bar.tsx            # appears when rows are selected
+        ├── bulk-actions-bar.tsx            # appears when rows are selected (incl. assign-role)
+        ├── import-users-dialog.tsx         # CSV upload, template, inline result + error report
         ├── users-pagination.tsx            # page window + per-page
         ├── user-form-sheet.tsx             # create / edit slide-over
         ├── user-detail-sheet.tsx           # read-only profile drawer
@@ -165,6 +189,7 @@ is cleared (render-phase, not via effect) whenever the result-set signature chan
 | --- | --- | --- |
 | `search` | free text | — |
 | `status` | `all`, `active`, `inactive`, `unverified`, `archived` | `all` |
+| `role` | a role id (validated) | — |
 | `sort` | `first_name`, `last_name`, `email`, `employee_id`, `last_login_at`, `created_at` | `created_at` |
 | `direction` | `asc`, `desc` | `desc` |
 | `per_page` | `10`, `15`, `25`, `50`, `100` | `10` |
@@ -240,10 +265,10 @@ Run: `php artisan test --filter=UserManagement` / `--filter=UserModel`.
 
 ## 7. Extending the module
 
-- **Roles & permissions:** add a `role` relationship + a `role` filter in
-  `UsersIndexQuery`, a column in `users-table.tsx`, and a select in the form sheet.
-  Gate the controllers with a policy.
-- **Departments:** same pattern — relationship, filter, column, form field.
+- **Roles & permissions:** the `role` **filter** (`UsersIndexQuery::role`) and a **bulk
+  assign-role** action now ship; a logical next step is a roles **column** in
+  `users-table.tsx` and richer per-user role management in the form sheet.
+- **Departments:** same pattern as the role filter — relationship, filter, column, form field.
 - **Invitations:** the schema already allows a null password (`has_password`),
   so an "invite" flow can create the account and email a set-password link.
 - **Audit log:** the Activity Logs module can subscribe to user model events.

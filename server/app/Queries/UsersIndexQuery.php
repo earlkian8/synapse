@@ -2,6 +2,7 @@
 
 namespace App\Queries;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,6 +51,7 @@ class UsersIndexQuery
     public function build(Request $request): Builder
     {
         $status = $this->status($request);
+        $role = $this->role($request);
         [$sort, $direction] = $this->sort($request);
 
         return User::query()
@@ -58,9 +60,28 @@ class UsersIndexQuery
             ->when($status === 'active', fn (Builder $query) => $query->where('is_active', true))
             ->when($status === 'inactive', fn (Builder $query) => $query->where('is_active', false))
             ->when($status === 'unverified', fn (Builder $query) => $query->whereNull('email_verified_at'))
+            ->when($role !== null, fn (Builder $query) => $query->whereHas(
+                'roles',
+                fn (Builder $roles) => $roles->where('roles.id', $role),
+            ))
             ->search($request->string('search')->toString())
             ->orderBy($sort, $direction)
             ->orderBy('id', 'desc');
+    }
+
+    /**
+     * The role id the index is filtered by, or null for "all roles". Validated
+     * against the tenant's roles so a stale/foreign id is ignored.
+     */
+    public function role(Request $request): ?int
+    {
+        $role = $request->integer('role');
+
+        if ($role <= 0) {
+            return null;
+        }
+
+        return Role::whereKey($role)->exists() ? $role : null;
     }
 
     public function status(Request $request): string

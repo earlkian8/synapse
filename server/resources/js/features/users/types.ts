@@ -47,6 +47,7 @@ export type SortDirection = 'asc' | 'desc';
 export type UsersFilters = {
     search: string;
     status: string;
+    role: number | null;
     sort: string;
     direction: SortDirection;
     per_page: number;
@@ -94,6 +95,7 @@ export type UserPermissions = {
 export type UsersPageProps = {
     users: Paginated<ManagedUser>;
     stats: UserStats;
+    roles: UserRole[];
     assignableRoles: UserRole[];
     can: UserPermissions;
     filters: UsersFilters;
@@ -104,4 +106,21 @@ export type BulkAction =
     | 'deactivate'
     | 'archive'
     | 'restore'
-    | 'delete';
+    | 'delete'
+    | 'assign-role';
+
+/** One rejected row in a CSV import. */
+export type ImportRowError = {
+    row: number;
+    email: string | null;
+    messages: string[];
+};
+
+/** The result returned by the user-import endpoint. */
+export type ImportResult = {
+    created: number;
+    failed: number;
+    total: number;
+    verification_failed: number;
+    errors: ImportRowError[];
+};

@@ -30,12 +30,15 @@ class UserController extends Controller
 
         $canAssignRoles = $request->user()->can('roles.assign');
 
+        // Every role, ordered consistently — used for the role filter (any viewer)
+        // and the bulk "assign role" picker / create-edit form (assigners only).
+        $roles = Role::orderByDesc('is_system')->orderBy('label')->get(['id', 'name', 'label']);
+
         return Inertia::render('system/users/index', [
             'users' => UserResource::collection($query->paginate($request)),
             'stats' => $statistics->toArray(),
-            'assignableRoles' => $canAssignRoles
-                ? Role::orderByDesc('is_system')->orderBy('label')->get(['id', 'name', 'label'])
-                : [],
+            'roles' => $roles,
+            'assignableRoles' => $canAssignRoles ? $roles : [],
             'can' => [
                 'create' => $request->user()->can('users.create'),
                 'update' => $request->user()->can('users.update'),
@@ -50,6 +53,7 @@ class UserController extends Controller
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'status' => $query->status($request),
+                'role' => $query->role($request),
                 'sort' => $sort,
                 'direction' => $direction,
                 'per_page' => $query->perPage($request),

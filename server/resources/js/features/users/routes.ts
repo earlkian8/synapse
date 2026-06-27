@@ -7,6 +7,8 @@ export const userRoutes = {
     store: '/system/users',
     bulk: '/system/users/bulk',
     export: '/system/users/export',
+    importTemplate: '/system/users/import/template',
+    import: '/system/users/import',
     update: (id: number) => `/system/users/${id}`,
     resendVerification: (id: number) =>
         `/system/users/${id}/resend-verification`,

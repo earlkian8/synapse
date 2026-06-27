@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import { BulkActionsBar } from '@/features/users/components/bulk-actions-bar';
 import { ConfirmDialog } from '@/features/users/components/confirm-dialog';
+import { ImportUsersDialog } from '@/features/users/components/import-users-dialog';
 import { ResetPasswordDialog } from '@/features/users/components/reset-password-dialog';
 import { UserDetailSheet } from '@/features/users/components/user-detail-sheet';
 import { UserFormSheet } from '@/features/users/components/user-form-sheet';
@@ -29,12 +30,18 @@ type ConfirmConfig = {
 };
 
 export default function UsersIndex() {
-    const { users, stats, filters, auth, assignableRoles, can } = usePage<
-        UsersPageProps & { auth: Auth }
-    >().props;
+    const { users, stats, filters, auth, roles, assignableRoles, can } =
+        usePage<UsersPageProps & { auth: Auth }>().props;
     const currentUserId = auth.user.id;
-    const { setSearch, setStatus, setPerPage, setPage, toggleSort, reset } =
-        useUsersFilters(filters);
+    const {
+        setSearch,
+        setStatus,
+        setRole,
+        setPerPage,
+        setPage,
+        toggleSort,
+        reset,
+    } = useUsersFilters(filters);
 
     const [selected, setSelected] = useState<number[]>([]);
     const [formUser, setFormUser] = useState<ManagedUser | null>(null);
@@ -45,6 +52,7 @@ export default function UsersIndex() {
     const [passwordOpen, setPasswordOpen] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     const rows = users.data;
@@ -53,6 +61,7 @@ export default function UsersIndex() {
             [
                 filters.search,
                 filters.status,
+                filters.role,
                 filters.sort,
                 filters.direction,
                 filters.per_page,
@@ -189,6 +198,21 @@ export default function UsersIndex() {
         );
     };
 
+    const assignRole = (roleId: number) => {
+        router.post(
+            userRoutes.bulk,
+            { action: 'assign-role', ids: selected, role_id: roleId },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => {
+                    setProcessing(false);
+                    setSelected([]);
+                },
+            },
+        );
+    };
+
     const handleBulk = (action: BulkAction) => {
         const count = selected.length;
         const noun = count === 1 ? 'user' : 'users';
@@ -247,12 +271,15 @@ export default function UsersIndex() {
                 <div className="flex flex-col gap-4">
                     <UsersToolbar
                         filters={filters}
+                        roles={roles}
                         canCreate={can.create}
                         canExport={can.export}
                         onSearch={setSearch}
                         onStatus={setStatus}
+                        onRole={setRole}
                         onReset={reset}
                         onCreate={openCreate}
+                        onImport={() => setImportOpen(true)}
                     />
 
                     {selected.length > 0 && (
@@ -260,7 +287,9 @@ export default function UsersIndex() {
                             count={selected.length}
                             scope={filters.status}
                             can={can}
+                            roles={assignableRoles}
                             onAction={handleBulk}
+                            onAssignRole={assignRole}
                             onClear={() => setSelected([])}
                         />
                     )}
@@ -313,6 +342,8 @@ export default function UsersIndex() {
                 open={passwordOpen}
                 onOpenChange={setPasswordOpen}
             />
+
+            <ImportUsersDialog open={importOpen} onOpenChange={setImportOpen} />
 
             {confirm && (
                 <ConfirmDialog
