@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { removeEnrollment } from '@/features/training/api';
 import { EnrollDialog } from '@/features/training/components/enroll-dialog';
 import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';

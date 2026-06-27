@@ -12,14 +12,12 @@ import {
     DatabaseBackup,
     Gauge,
     GraduationCap,
-    HeartHandshake,
     LayoutGrid,
     LineChart,
     Mail,
     Medal,
     Network,
     ScrollText,
-    Settings,
     ShieldCheck,
     Target,
     Trash2,
@@ -29,7 +27,6 @@ import {
     UserRoundCheck,
     UserRoundMinus,
     Users,
-    Wallet,
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
@@ -91,18 +88,6 @@ const workforceNavItems: GatedNavItem[] = [
         href: '/leave',
         icon: CalendarDays,
         permission: 'leave.view',
-    },
-    {
-        title: 'Payroll',
-        href: '/payroll',
-        icon: Wallet,
-        permission: 'payroll.view',
-    },
-    {
-        title: 'Benefits Administration',
-        href: '/benefits',
-        icon: HeartHandshake,
-        permission: 'benefits.view',
     },
     {
         title: 'Performance Management',
@@ -196,18 +181,6 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/kpi',
         icon: Target,
         permission: 'setup.kpi.view',
-    },
-    {
-        title: 'Payroll Configuration',
-        href: '/setup/payroll',
-        icon: Settings,
-        permission: 'setup.payroll.view',
-    },
-    {
-        title: 'Benefits Configuration',
-        href: '/setup/benefits',
-        icon: HeartHandshake,
-        permission: 'setup.benefits.view',
     },
     {
         title: 'Email & Notifications',

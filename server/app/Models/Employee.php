@@ -150,48 +150,6 @@ class Employee extends Model
     }
 
     /**
-     * This employee's recurring allowances (drive payslip earning lines).
-     *
-     * @return HasMany<EmployeeAllowance, $this>
-     */
-    public function allowances(): HasMany
-    {
-        return $this->hasMany(EmployeeAllowance::class);
-    }
-
-    /**
-     * This employee's recurring deductions, e.g. loans (drive payslip deduction
-     * lines on top of the mandatory statutory ones).
-     *
-     * @return HasMany<EmployeeDeduction, $this>
-     */
-    public function recurringDeductions(): HasMany
-    {
-        return $this->hasMany(EmployeeDeduction::class);
-    }
-
-    /**
-     * This employee's benefit-plan enrollments (HMO, insurance, …).
-     *
-     * @return HasMany<BenefitEnrollment, $this>
-     */
-    public function benefitEnrollments(): HasMany
-    {
-        return $this->hasMany(BenefitEnrollment::class);
-    }
-
-    /**
-     * This employee's statutory contributions (SSS / PhilHealth / Pag-IBIG),
-     * derived from processed payroll runs.
-     *
-     * @return HasMany<BenefitContribution, $this>
-     */
-    public function benefitContributions(): HasMany
-    {
-        return $this->hasMany(BenefitContribution::class);
-    }
-
-    /**
      * This employee's onboarding journey, if one has been started.
      *
      * @return HasOne<OnboardingCase, $this>

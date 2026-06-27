@@ -1,6 +1,7 @@
 import { Head, usePage } from '@inertiajs/react';
 import { Award, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +21,6 @@ import type {
     AwardsIndexPageProps,
     EmployeeAward,
 } from '@/features/awards/types';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 
 export default function AwardsIndex() {
     const { awards, types, employees, stats, can } =

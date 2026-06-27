@@ -55,16 +55,6 @@ class PermissionRegistry
             'attendance.manage' => 'Manual entry, corrections & approvals',
             'attendance.clock' => 'Clock in / out (self-service)',
         ],
-        'Payroll' => [
-            'payroll.view' => 'View payroll runs & payslips',
-            'payroll.process' => 'Create & process payroll runs',
-            'payroll.release' => 'Finalize, release payslips & mark paid',
-            'payroll.adjust' => 'Adjust payslips & per-employee pay items',
-        ],
-        'Benefits' => [
-            'benefits.view' => 'View benefit plans & enrollments',
-            'benefits.manage' => 'Enroll employees & manage enrollments',
-        ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
             'performance.manage' => 'Open, score, submit & acknowledge evaluations',
@@ -100,10 +90,6 @@ class PermissionRegistry
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',
             'setup.leave-types.manage' => 'Manage leave types',
-            'setup.payroll.view' => 'View payroll configuration',
-            'setup.payroll.manage' => 'Manage payroll configuration',
-            'setup.benefits.view' => 'View benefits configuration',
-            'setup.benefits.manage' => 'Manage benefits configuration',
             'setup.kpi.view' => 'View KPI & evaluation criteria',
             'setup.kpi.manage' => 'Manage KPI & evaluation criteria',
             'setup.award-types.view' => 'View award types',

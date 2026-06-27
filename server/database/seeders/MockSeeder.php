@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Hash;
  *
  * Stands up (or reuses) the target user + their tenant, makes them Super Admin,
  * then runs every module seeder within that tenant — Company Setup, Employees,
- * Recruitment, Onboarding, Leave, Attendance, Payroll, Benefits, Performance,
+ * Recruitment, Onboarding, Leave, Attendance, Performance,
  * Training, Awards, Events and Offboarding — plus the per-employee profile records
  * ({@see EmployeeProfileSeeder}: documents, certifications, promotions) and the
  * System surfaces ({@see SystemSeeder}: extra Users, an Activity-Log trail and
@@ -68,8 +68,6 @@ class MockSeeder extends Seeder
             OnboardingSeeder::class,       // programs + in-flight cases
             LeaveSeeder::class,            // leave types + balances + requests
             AttendanceSeeder::class,       // punches + daily records
-            PayrollSeeder::class,          // statutory config + runs + payslips
-            BenefitSeeder::class,          // plans + enrollments + contributions
             PerformanceSeeder::class,      // KPI criteria + periods + evaluations
             TrainingSeeder::class,         // programs + enrollments
             AwardSeeder::class,            // award types + recognitions

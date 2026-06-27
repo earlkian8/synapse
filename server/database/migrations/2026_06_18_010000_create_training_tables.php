@@ -17,8 +17,8 @@ return new class extends Migration
      *    status (enrolled / completed / dropped), an optional completion score and
      *    timestamp, and optional remarks.
      *
-     * Created in-module (there is no Company-Setup config for training, unlike
-     * benefits/payroll). `end_date` and `capacity` are nullable — an open-ended or
+     * Created in-module (there is no Company-Setup config for training).
+     * `end_date` and `capacity` are nullable — an open-ended or
      * uncapped program is allowed.
      */
     public function up(): void

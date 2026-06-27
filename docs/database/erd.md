@@ -244,10 +244,12 @@ erDiagram
 > `EVALUATION_PERIOD`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `EMAIL_TEMPLATE` are
 > standalone config tables referenced by the operational modules below.
 >
-> **Built:** `LEAVE_TYPE`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `KPI_CRITERION` +
+> **Built:** `LEAVE_TYPE`, `KPI_CRITERION` +
 > `EVALUATION_PERIOD` (managed at `/setup/kpi` — see
 > [Performance](../modules/performance.md)), and `AWARD_TYPE` (managed at
 > `/setup/award-types` — see [Awards](../modules/awards.md)).
+> **`ALLOWANCE_TYPE` / `DEDUCTION_TYPE` were removed** with Payroll — see
+> [ADR 0019](../decisions/0019-remove-payroll-and-benefits.md).
 >
 > **`COMPANY_PROFILE` is the `organizations` row itself** — not a separate table. Its
 > fields (`legal_name`, `logo`, `email`, `phone`, `address`, `tin`, `*_employer_no`) live
@@ -544,21 +546,15 @@ erDiagram
 
 ## 7. Payroll & Benefits
 
-**Built (Payroll)** — `payroll_periods`, `payslips`, `payslip_earnings`,
-`payslip_deductions`, plus the §2 config tables `allowance_types` / `deduction_types`.
-Payslips are computed from salaries + attendance, then refined by recurring
-**per-employee pay items** (`employee_allowances` / `employee_deductions`, ERD §3)
-and optional **manual line edits** (`payslips.is_adjusted`) — see
-[Payroll](../modules/payroll.md) and [payroll tables](../database/payroll-tables.md).
-
-**Built (Benefits)** — two complementary halves: `benefit_plans` (Company-Setup
-catalogue) + `benefit_enrollments` (employee ↔ plan) for **program administration**
-(HMO, insurance, retirement, wellness), and `benefit_contributions` for **statutory
-remittance** — one row per employee per run per government benefit (SSS / PhilHealth
-/ Pag-IBIG) carrying the employee **and employer** shares, derived from the run's
-statutory payslip deductions. See [Benefits](../modules/benefits.md),
-[benefits tables](../database/benefits-tables.md) and
-[ADR 0011](../decisions/0011-benefits-administration.md).
+> **Removed (2026-06-27).** The Payroll and Benefits modules were taken out as out of
+> scope for HR management — see [ADR 0019](../decisions/0019-remove-payroll-and-benefits.md).
+> All of `payroll_periods`, `payslips`, `payslip_earnings`, `payslip_deductions`,
+> `allowance_types`, `deduction_types`, `employee_allowances`, `employee_deductions`,
+> `benefit_plans`, `benefit_enrollments` and `benefit_contributions` and their code/UI
+> are gone. The employee's own compensation fields (`employees.basic_salary`, bank
+> details, government-ID numbers) **stay** on the employee record (§3) as HR master data
+> and feed the ML `salary` feature. The original proposed shape is kept below for
+> reference only.
 
 ```mermaid
 erDiagram
@@ -939,7 +935,7 @@ erDiagram
 
 1. **System**: User Management ✓, Activity Logs ✓ → **Roles & Permissions** (next in System).
 2. **Foundation**: Company Profile, **Departments**, Positions, Work Schedules → **Employees** (+ the User↔Employee link).
-3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, **Payroll ✓** (see [Payroll](../modules/payroll.md)), **Benefits ✓** (see [Benefits](../modules/benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), **Events ✓** (see [Events](../modules/events.md)).
+3. **Operational** (generate ML features): **Leave ✓** (see [Leave](../modules/leave.md)), **Attendance/DTR ✓**, ~~Payroll~~ / ~~Benefits~~ (removed — [ADR 0019](../decisions/0019-remove-payroll-and-benefits.md)), **Performance ✓** (see [Performance](../modules/performance.md)), **Training ✓** (see [Training](../modules/training.md)), **Awards ✓** (see [Awards](../modules/awards.md)), **Events ✓** (see [Events](../modules/events.md)).
 4. **Talent**: Recruitment ✓, Onboarding ✓, **Offboarding ✓** (see [Offboarding](../modules/offboarding.md)).
 5. **Company Setup**: Departments & positions ✓ (org structure — see [Departments](../modules/departments.md)), **Leave Types ✓**; the rest of the config layer follows.
 6. **Intelligence**: FastAPI ML service → prediction tables → Analytics dashboard.

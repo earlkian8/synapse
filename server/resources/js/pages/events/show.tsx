@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,7 +41,6 @@ import type {
     EventAttendee,
     EventShowPageProps,
 } from '@/features/events/types';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 export default function EventShow() {

@@ -1,10 +1,8 @@
 <?php
 
-use App\Http\Controllers\Employee\EmployeeAllowanceController;
 use App\Http\Controllers\Employee\EmployeeBulkActionController;
 use App\Http\Controllers\Employee\EmployeeCertificationController;
 use App\Http\Controllers\Employee\EmployeeController;
-use App\Http\Controllers\Employee\EmployeeDeductionController;
 use App\Http\Controllers\Employee\EmployeeDocumentController;
 use App\Http\Controllers\Employee\EmployeeExportController;
 use App\Http\Controllers\Employee\EmployeeStatusController;
@@ -36,12 +34,4 @@ Route::middleware(['auth', 'verified'])
         Route::delete('{employee}/documents/{document}', [EmployeeDocumentController::class, 'destroy'])->middleware('can:employees.manage-documents')->name('documents.destroy');
         Route::post('{employee}/certifications', [EmployeeCertificationController::class, 'store'])->middleware('can:employees.manage-documents')->name('certifications.store');
         Route::delete('{employee}/certifications/{certification}', [EmployeeCertificationController::class, 'destroy'])->middleware('can:employees.manage-documents')->name('certifications.destroy');
-
-        // Recurring per-employee pay items (drive payslips) — gated by payroll.adjust.
-        Route::post('{employee}/allowances', [EmployeeAllowanceController::class, 'store'])->middleware('can:payroll.adjust')->name('allowances.store');
-        Route::patch('{employee}/allowances/{allowance}', [EmployeeAllowanceController::class, 'update'])->middleware('can:payroll.adjust')->name('allowances.update');
-        Route::delete('{employee}/allowances/{allowance}', [EmployeeAllowanceController::class, 'destroy'])->middleware('can:payroll.adjust')->name('allowances.destroy');
-        Route::post('{employee}/deductions', [EmployeeDeductionController::class, 'store'])->middleware('can:payroll.adjust')->name('deductions.store');
-        Route::patch('{employee}/deductions/{deduction}', [EmployeeDeductionController::class, 'update'])->middleware('can:payroll.adjust')->name('deductions.update');
-        Route::delete('{employee}/deductions/{deduction}', [EmployeeDeductionController::class, 'destroy'])->middleware('can:payroll.adjust')->name('deductions.destroy');
     });

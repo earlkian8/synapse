@@ -7,10 +7,10 @@ import {
     Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import {
     acknowledgeEvaluation,
     deleteEvaluation,

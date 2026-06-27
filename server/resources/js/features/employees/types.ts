@@ -50,42 +50,6 @@ export type EmployeePromotion = {
     reason: string | null;
 };
 
-/** A recurring per-employee allowance (drives a payslip earning line). */
-export type EmployeeAllowance = {
-    id: number;
-    allowance_type_id: number | null;
-    name: string | null;
-    amount: number;
-    is_active: boolean;
-};
-
-/** A recurring per-employee deduction, e.g. a loan (drives a deduction line). */
-export type EmployeeDeduction = {
-    id: number;
-    deduction_type_id: number | null;
-    name: string | null;
-    amount: number;
-    is_active: boolean;
-};
-
-/** A Company-Setup allowance / deduction type, for the Compensation pickers. */
-export type PayItemType = { id: number; name: string };
-
-/** A read-only summary of one of the employee's benefit-plan enrollments. */
-export type EmployeeBenefit = {
-    id: number;
-    status: 'active' | 'pending' | 'waived' | 'terminated';
-    reference_no: string | null;
-    plan: {
-        name: string;
-        category: string;
-        provider: string | null;
-        employee_cost: number;
-        employer_cost: number;
-        frequency: string;
-    } | null;
-};
-
 /** A read-only summary of one of the employee's performance evaluations. */
 export type EmployeePerformanceEvaluation = {
     hashid: string;
@@ -200,9 +164,6 @@ export type EmployeeDetail = ManagedEmployee & {
     documents: EmployeeDocument[];
     certifications: EmployeeCertification[];
     promotions: EmployeePromotion[];
-    allowances: EmployeeAllowance[];
-    recurring_deductions: EmployeeDeduction[];
-    benefit_enrollments: EmployeeBenefit[];
     performance_evaluations: EmployeePerformanceEvaluation[];
     training_enrollments: EmployeeTraining[];
     awards: EmployeeAwardSummary[];
@@ -213,9 +174,6 @@ export type EmployeeDetail = ManagedEmployee & {
 /** Top-level extras returned alongside `data` by the employee show endpoint. */
 export type EmployeeDetailResponse = {
     data: EmployeeDetail;
-    allowance_types: PayItemType[];
-    deduction_types: PayItemType[];
-    can_adjust_payroll: boolean;
 };
 
 export type EmployeeStats = {
