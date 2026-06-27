@@ -7,6 +7,7 @@ use App\Models\Applicant;
 use App\Models\Employee;
 use App\Models\JobApplication;
 use App\Models\User;
+use App\Notifications\EmployeeCredentialsNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -24,9 +25,11 @@ class ApplicantHirer
      * file, seeds onboarding, marks the application hired and fills the posting
      * when its openings are met. Returns the new employee.
      *
+     * @param  bool  $sendCredentials  Email the new hire their temporary password.
+     *
      * @throws RuntimeException when the application has already been hired.
      */
-    public static function hire(JobApplication $application, User $actor): Employee
+    public static function hire(JobApplication $application, User $actor, bool $sendCredentials = true): Employee
     {
         $application->loadMissing(['applicant', 'jobPosting']);
 
@@ -36,8 +39,9 @@ class ApplicantHirer
 
         $applicant = $application->applicant;
         $posting = $application->jobPosting;
+        $temporaryPassword = null;
 
-        $employee = DB::transaction(function () use ($application, $applicant, $posting, $actor): Employee {
+        $employee = DB::transaction(function () use ($application, $applicant, $posting, $actor, &$temporaryPassword): Employee {
             $employee = new Employee([
                 'employee_no' => self::nextEmployeeNo(),
                 'first_name' => $applicant->first_name,
@@ -57,6 +61,10 @@ class ApplicantHirer
             // Seed the new hire's onboarding from the best-matching program.
             OnboardingProvisioner::start($employee);
 
+            // Provision the login account they'll use on the mobile app; the
+            // temporary password is captured for the welcome email below.
+            [, $temporaryPassword] = EmployeeAccountProvisioner::provision($employee);
+
             $application->update([
                 'stage' => 'hired',
                 'hired_employee_id' => $employee->id,
@@ -72,6 +80,16 @@ class ApplicantHirer
 
             return $employee;
         });
+
+        // Email the credentials after commit so nothing is sent on a rollback,
+        // and only when a brand-new account (and password) was just created.
+        if ($sendCredentials && $temporaryPassword !== null && $employee->user) {
+            $employee->user->notify(new EmployeeCredentialsNotification(
+                email: $employee->email,
+                temporaryPassword: $temporaryPassword,
+                organizationName: $posting->organization?->name ?? config('app.name', 'SYNAPSE'),
+            ));
+        }
 
         ActivityLogger::log(
             event: 'created',

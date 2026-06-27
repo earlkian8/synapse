@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ActivityLog;
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Role;
 use App\Models\User;
@@ -54,9 +55,38 @@ class SystemSeeder extends Seeder
 
         $this->seedUsers();
 
+        // Link the demo login accounts to employee records so the mobile app
+        // (self-service DTR, leave, awards, profile) is demoable on first sign-in.
+        $this->linkEmployeeAccounts();
+
         if ($primaryUser) {
             $this->seedActivityLogs($primaryUser);
             $this->seedNotifications($primaryUser);
+        }
+    }
+
+    /**
+     * Give the seeded login accounts a linked Employee so they resolve a self
+     * record in the mobile API. `dev@synapse.com` (Super Admin) and the two Staff
+     * accounts each adopt a distinct still-unlinked employee. Idempotent: an
+     * account that already has an employee is left alone.
+     */
+    private function linkEmployeeAccounts(): void
+    {
+        $emails = ['dev@synapse.com', 'mock.staff1@synapse.test', 'mock.staff2@synapse.test'];
+
+        foreach ($emails as $email) {
+            $user = User::where('email', $email)->first();
+
+            if (! $user || $user->employee()->exists()) {
+                continue;
+            }
+
+            $employee = Employee::whereNull('user_id')->orderBy('id')->first();
+
+            if ($employee) {
+                $employee->forceFill(['user_id' => $user->id])->save();
+            }
         }
     }
 

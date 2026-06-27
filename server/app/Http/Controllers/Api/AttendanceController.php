@@ -99,6 +99,46 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Aggregate metrics over a date range (defaults to the current month): status
+     * counts and summed minutes, for the Attendance tab's summary card.
+     */
+    public function summary(Request $request): JsonResponse
+    {
+        $employee = $this->employee($request);
+
+        $from = $request->filled('from') ? $request->date('from') : Carbon::today()->startOfMonth();
+        $to = $request->filled('to') ? $request->date('to') : Carbon::today()->endOfMonth();
+
+        $records = AttendanceRecord::query()
+            ->where('employee_id', $employee->id)
+            ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
+            ->get([
+                'status', 'worked_minutes', 'break_minutes',
+                'late_minutes', 'undertime_minutes', 'overtime_minutes',
+            ]);
+
+        $statuses = array_fill_keys(AttendanceRecord::STATUSES, 0);
+
+        foreach ($records as $record) {
+            if (array_key_exists($record->status, $statuses)) {
+                $statuses[$record->status]++;
+            }
+        }
+
+        return response()->json([
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'days_recorded' => $records->count(),
+            'status_counts' => $statuses,
+            'worked_minutes' => (int) $records->sum('worked_minutes'),
+            'break_minutes' => (int) $records->sum('break_minutes'),
+            'late_minutes' => (int) $records->sum('late_minutes'),
+            'undertime_minutes' => (int) $records->sum('undertime_minutes'),
+            'overtime_minutes' => (int) $records->sum('overtime_minutes'),
+        ]);
+    }
+
+    /**
      * Resolve the token user's Employee, or 403 if the account is unlinked.
      */
     private function employee(Request $request): Employee

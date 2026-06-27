@@ -17,6 +17,8 @@ type Props = {
     confirmLabel: string;
     destructive?: boolean;
     processing?: boolean;
+    /** Optional extra controls rendered between the description and the actions. */
+    extra?: React.ReactNode;
     onConfirm: () => void;
 };
 
@@ -28,6 +30,7 @@ export function ConfirmDialog({
     confirmLabel,
     destructive = false,
     processing = false,
+    extra,
     onConfirm,
 }: Props) {
     return (
@@ -41,6 +44,7 @@ export function ConfirmDialog({
                         </div>
                     </DialogDescription>
                 </DialogHeader>
+                {extra}
                 <DialogFooter>
                     <Button
                         variant="outline"

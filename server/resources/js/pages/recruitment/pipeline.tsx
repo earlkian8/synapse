@@ -1,8 +1,10 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, LayoutGrid, List, Plus, Users2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AddCandidateSheet } from '@/features/recruitment/components/add-candidate-sheet';
 import { ApplicationDetailSheet } from '@/features/recruitment/components/application-detail-sheet';
@@ -27,6 +29,8 @@ type ConfirmConfig = {
     description: ReactNode;
     confirmLabel: string;
     destructive?: boolean;
+    /** Tags the hire action so its credential-email toggle can be rendered. */
+    kind?: 'hire';
     run: () => void;
 };
 
@@ -42,6 +46,16 @@ export default function RecruitmentPipeline() {
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    // Whether hiring should email the new hire their login credentials. A ref
+    // mirrors the state so the hire request reads the live value, not the value
+    // captured when the confirm dialog was opened.
+    const [sendCredentials, setSendCredentials] = useState(true);
+    const sendCredentialsRef = useRef(true);
+    const toggleSendCredentials = (value: boolean) => {
+        sendCredentialsRef.current = value;
+        setSendCredentials(value);
+    };
 
     const stageCounts = useMemo(() => {
         const counts: Record<Stage, number> = {
@@ -94,19 +108,22 @@ export default function RecruitmentPipeline() {
             { preserveScroll: true },
         );
 
-    const hire = (application: Application) =>
+    const hire = (application: Application) => {
+        toggleSendCredentials(true);
         askConfirm({
             title: `Hire ${application.applicant?.full_name}?`,
             description:
-                'This creates an employee record from the applicant and this posting, copies their résumé into the 201 file, and marks the application hired.',
+                'This creates an employee record from the applicant and this posting, provisions their mobile-app login, copies their résumé into the 201 file, and marks the application hired.',
             confirmLabel: 'Hire & create employee',
+            kind: 'hire',
             run: () =>
                 router.post(
                     recruitmentRoutes.applicationHire(application.id),
-                    {},
+                    { send_credentials: sendCredentialsRef.current },
                     withProcessing,
                 ),
         });
+    };
 
     const reject = (application: Application) =>
         askConfirm({
@@ -250,6 +267,29 @@ export default function RecruitmentPipeline() {
                     confirmLabel={confirm.confirmLabel}
                     destructive={confirm.destructive}
                     processing={processing}
+                    extra={
+                        confirm.kind === 'hire' ? (
+                            <label className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+                                <Checkbox
+                                    checked={sendCredentials}
+                                    onCheckedChange={(value) =>
+                                        toggleSendCredentials(value === true)
+                                    }
+                                    className="mt-0.5"
+                                />
+                                <span className="space-y-0.5">
+                                    <Label className="cursor-pointer">
+                                        Email login credentials to the new hire
+                                    </Label>
+                                    <span className="block text-xs text-muted-foreground">
+                                        Sends their email and a temporary
+                                        password so they can sign in to the
+                                        SYNAPSE app.
+                                    </span>
+                                </span>
+                            </label>
+                        ) : undefined
+                    }
                     onConfirm={confirm.run}
                 />
             )}

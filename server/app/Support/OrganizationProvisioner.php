@@ -146,8 +146,10 @@ class OrganizationProvisioner
                 'description' => 'Baseline access for regular employees.',
                 'is_system' => false,
                 'permissions' => [
-                    // Self-service: clock in/out from web or the mobile app.
+                    // Self-service from web or the mobile app: clock in/out and
+                    // file/cancel their own leave.
                     'attendance.clock',
+                    'leave.request',
                 ],
             ],
         ];
