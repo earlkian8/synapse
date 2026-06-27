@@ -124,6 +124,7 @@ class OrganizationProvisioner
                     'benefits.view', 'benefits.manage',
                     'performance.view', 'performance.manage',
                     'analytics.promotion.view', 'analytics.promotion.manage',
+                    'analytics.performance.view', 'analytics.performance.manage',
                     'training.view', 'training.manage',
                     'awards.view', 'awards.manage',
                     'events.view', 'events.manage',

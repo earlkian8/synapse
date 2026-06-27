@@ -72,6 +72,8 @@ class PermissionRegistry
         'Predictive Analytics' => [
             'analytics.promotion.view' => 'View promotion readiness',
             'analytics.promotion.manage' => 'Run promotion-readiness assessments',
+            'analytics.performance.view' => 'View performance forecast',
+            'analytics.performance.manage' => 'Run performance forecasts',
         ],
         'Training & Development' => [
             'training.view' => 'View training programs & enrollments',

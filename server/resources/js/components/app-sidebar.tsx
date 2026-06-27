@@ -149,6 +149,7 @@ const analyticsNavItems: GatedNavItem[] = [
         title: 'Performance Forecast',
         href: '/analytics/performance-forecast',
         icon: LineChart,
+        permission: 'analytics.performance.view',
     },
     {
         title: 'Promotion Readiness',
