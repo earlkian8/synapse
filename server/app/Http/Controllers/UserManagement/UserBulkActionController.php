@@ -4,6 +4,7 @@ namespace App\Http\Controllers\UserManagement;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\BulkUserActionRequest;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
@@ -39,6 +40,7 @@ class UserBulkActionController extends Controller
             'archive' => User::whereIn('id', $ids)->delete(),
             'restore' => User::onlyTrashed()->whereIn('id', $ids)->restore(),
             'delete' => User::withTrashed()->whereIn('id', $ids)->forceDelete(),
+            'assign-role' => $this->assignRole($ids->all(), (int) $request->validated('role_id')),
         };
 
         ActivityLogger::log(
@@ -57,6 +59,31 @@ class UserBulkActionController extends Controller
     }
 
     /**
+     * Attach a role to each of the given users without disturbing the roles they
+     * already hold, then forget any cached permissions so access reflects the
+     * change immediately. Returns how many users gained the role.
+     *
+     * @param  list<int>  $ids
+     */
+    private function assignRole(array $ids, int $roleId): int
+    {
+        $role = Role::findOrFail($roleId);
+        $affected = 0;
+
+        User::whereIn('id', $ids)->with('roles:id')->each(function (User $user) use ($role, &$affected) {
+            if ($user->roles->contains($role->id)) {
+                return;
+            }
+
+            $user->roles()->syncWithoutDetaching([$role->id]);
+            $user->forgetCachedPermissions();
+            $affected++;
+        });
+
+        return $affected;
+    }
+
+    /**
      * Map a bulk action to the permission it requires.
      */
     private function permissionFor(string $action): string
@@ -66,6 +93,7 @@ class UserBulkActionController extends Controller
             'archive' => 'users.delete',
             'restore' => 'users.restore',
             'delete' => 'users.force-delete',
+            'assign-role' => 'roles.assign',
         };
     }
 
@@ -80,6 +108,7 @@ class UserBulkActionController extends Controller
             'archive' => 'archived',
             'restore' => 'restored',
             'delete' => 'deleted',
+            'assign-role' => 'updated',
         };
     }
 
@@ -96,6 +125,9 @@ class UserBulkActionController extends Controller
             'archive' => "{$count} {$noun} archived.",
             'restore' => "{$count} {$noun} restored.",
             'delete' => "{$count} {$noun} permanently deleted.",
+            'assign-role' => $count === 0
+                ? 'Selected users already have that role.'
+                : "Role assigned to {$count} {$noun}.",
         };
     }
 }

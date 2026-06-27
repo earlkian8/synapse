@@ -13,6 +13,7 @@ use App\Http\Controllers\System\TrashController;
 use App\Http\Controllers\UserManagement\UserBulkActionController;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Http\Controllers\UserManagement\UserExportController;
+use App\Http\Controllers\UserManagement\UserImportController;
 use App\Http\Controllers\UserManagement\UserPasswordController;
 use App\Http\Controllers\UserManagement\UserStatusController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,8 @@ Route::middleware(['auth', 'verified'])
             Route::get('/', [UserController::class, 'index'])->middleware('can:users.view')->name('index');
             Route::post('/', [UserController::class, 'store'])->middleware('can:users.create')->name('store');
             Route::get('export', UserExportController::class)->middleware('can:users.export')->name('export');
+            Route::get('import/template', [UserImportController::class, 'template'])->middleware('can:users.create')->name('import.template');
+            Route::post('import', [UserImportController::class, 'store'])->middleware('can:users.create')->name('import.store');
             Route::post('bulk', UserBulkActionController::class)->middleware('can:users.view')->name('bulk');
             Route::patch('{user}', [UserController::class, 'update'])->middleware('can:users.update')->name('update');
             Route::post('{user}/resend-verification', [UserController::class, 'resendVerification'])->middleware('can:users.update')->name('resend-verification');

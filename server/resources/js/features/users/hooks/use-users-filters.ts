@@ -24,6 +24,10 @@ export function useUsersFilters(filters: UsersFilters) {
                 query.status = next.status;
             }
 
+            if (next.role) {
+                query.role = next.role;
+            }
+
             if (next.sort && next.sort !== DEFAULT_FILTERS.sort) {
                 query.sort = next.sort;
             }
@@ -64,6 +68,11 @@ export function useUsersFilters(filters: UsersFilters) {
         [apply],
     );
 
+    const setRole = useCallback(
+        (role: number | null) => apply({ role, page: 1 }),
+        [apply],
+    );
+
     const setPerPage = useCallback(
         (per_page: number) => apply({ per_page, page: 1 }),
         [apply],
@@ -93,6 +102,7 @@ export function useUsersFilters(filters: UsersFilters) {
     return {
         setSearch,
         setStatus,
+        setRole,
         setPerPage,
         setPage,
         toggleSort,

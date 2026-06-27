@@ -1,4 +1,4 @@
-import { Download, Plus, RotateCcw, Search, X } from 'lucide-react';
+import { Download, Plus, RotateCcw, Search, Upload, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,28 +9,34 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { STATUS_FILTERS } from '../constants';
+import { ALL_ROLES, STATUS_FILTERS } from '../constants';
 import { userRoutes } from '../routes';
-import type { UsersFilters } from '../types';
+import type { UserRole, UsersFilters } from '../types';
 
 type Props = {
     filters: UsersFilters;
+    roles: UserRole[];
     canCreate: boolean;
     canExport: boolean;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
+    onRole: (value: number | null) => void;
     onReset: () => void;
     onCreate: () => void;
+    onImport: () => void;
 };
 
 export function UsersToolbar({
     filters,
+    roles,
     canCreate,
     canExport,
     onSearch,
     onStatus,
+    onRole,
     onReset,
     onCreate,
+    onImport,
 }: Props) {
     const [term, setTerm] = useState(filters.search);
     const [syncedSearch, setSyncedSearch] = useState(filters.search);
@@ -54,7 +60,10 @@ export function UsersToolbar({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [term]);
 
-    const hasActiveFilters = filters.search !== '' || filters.status !== 'all';
+    const hasActiveFilters =
+        filters.search !== '' ||
+        filters.status !== 'all' ||
+        filters.role !== null;
 
     const exportUrl = `${userRoutes.export}${
         typeof window !== 'undefined' ? window.location.search : ''
@@ -100,6 +109,33 @@ export function UsersToolbar({
                     </SelectContent>
                 </Select>
 
+                {roles.length > 0 && (
+                    <Select
+                        value={filters.role ? String(filters.role) : ALL_ROLES}
+                        onValueChange={(value) =>
+                            onRole(value === ALL_ROLES ? null : Number(value))
+                        }
+                    >
+                        <SelectTrigger
+                            className="w-[160px]"
+                            aria-label="Filter by role"
+                        >
+                            <SelectValue placeholder="Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ALL_ROLES}>All roles</SelectItem>
+                            {roles.map((role) => (
+                                <SelectItem
+                                    key={role.id}
+                                    value={String(role.id)}
+                                >
+                                    {role.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+
                 {hasActiveFilters && (
                     <Button
                         variant="ghost"
@@ -120,6 +156,12 @@ export function UsersToolbar({
                             <Download className="size-4" />
                             Export
                         </a>
+                    </Button>
+                )}
+                {canCreate && (
+                    <Button variant="outline" size="sm" onClick={onImport}>
+                        <Upload className="size-4" />
+                        Import
                     </Button>
                 )}
                 {canCreate && (

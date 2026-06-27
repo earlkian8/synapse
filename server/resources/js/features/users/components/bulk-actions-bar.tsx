@@ -3,17 +3,28 @@ import {
     ArchiveRestore,
     CheckCircle2,
     PauseCircle,
+    ShieldCheck,
     Trash2,
     X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { BulkAction, UserPermissions } from '../types';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { BulkAction, UserPermissions, UserRole } from '../types';
 
 type Props = {
     count: number;
     scope: string;
     can: UserPermissions;
+    roles: UserRole[];
     onAction: (action: BulkAction) => void;
+    onAssignRole: (roleId: number) => void;
     onClear: () => void;
 };
 
@@ -21,7 +32,9 @@ export function BulkActionsBar({
     count,
     scope,
     can,
+    roles,
     onAction,
+    onAssignRole,
     onClear,
 }: Props) {
     const isArchivedScope = scope === 'archived';
@@ -82,6 +95,31 @@ export function BulkActionsBar({
                                 Deactivate
                             </Button>
                         </>
+                    )}
+                    {can.assignRoles && roles.length > 0 && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                    <ShieldCheck className="size-4" />
+                                    Assign role
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                                <DropdownMenuLabel>
+                                    Add a role to {count}{' '}
+                                    {count === 1 ? 'user' : 'users'}
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {roles.map((role) => (
+                                    <DropdownMenuItem
+                                        key={role.id}
+                                        onSelect={() => onAssignRole(role.id)}
+                                    >
+                                        {role.label}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )}
                     {can.delete && (
                         <Button
