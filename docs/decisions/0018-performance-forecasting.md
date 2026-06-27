@@ -31,9 +31,14 @@ it predicts a *future evaluation period*, which the ERD captures as
 `performance_forecast_runs` (header) + `performance_forecasts` (lines), a thin
 `PerformanceForecastController` + `…RunController`, two API resources, two routes
 under `/analytics`, and a canonical `App\Support\Ml\PerformanceForecaster`
-(gather → map → score → persist), all mirroring Promotion Readiness. The Python
-service and `MlClient` are **unchanged** — the regressor path already returns the
-predicted value as `score`.
+(gather → map → score → persist), all mirroring Promotion Readiness. `MlClient` is
+**unchanged**. The Python service needed **one latent bug fix**: its `contributions()`
+explanation path hard-coded the final pipeline step name `"clf"`, which only the
+classifiers use (the performance regressor's step is `"reg"`), so it `KeyError`-ed
+before the `hasattr(…, "coef_")` guard could return "no factors". This branch had
+never been exercised (Promotion Readiness only used the classifier). Fixed by taking
+the final estimator positionally (`pipeline.steps[-1][1]`) — classifiers still
+explain; the regressor correctly returns no factors.
 
 **2. Reuse `PromotionFeatureMapper` for feature mapping.** The promotion and
 performance models were trained on the **same dataset** and share a feature space,

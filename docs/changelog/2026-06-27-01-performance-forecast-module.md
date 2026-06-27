@@ -53,8 +53,12 @@ service) and wires the existing sidebar placeholder. See
   `analytics.performance.view` / `analytics.performance.manage` added to
   `PermissionRegistry` (Predictive Analytics group); built-in HR Manager granted
   both in `OrganizationProvisioner`.
-- **Inference service / `MlClient`: unchanged** — the `performance` regressor path
-  already returns the predicted value as `score`.
+- **Inference service** (`model/api/registry.py`): one latent bug fix — the
+  `contributions()` explanation path hard-coded the final pipeline step name `"clf"`
+  (only the classifiers use it; the performance regressor's step is `"reg"`), so it
+  `KeyError`-ed before its `hasattr(…, "coef_")` guard. Now takes the final estimator
+  positionally (`steps[-1][1]`): classifiers still return factors, the regressor
+  returns none. `MlClient` is unchanged.
 
 ## Frontend
 
@@ -75,7 +79,12 @@ service) and wires the existing sidebar placeholder. See
   applied on Postgres; a tinker run with a **stubbed `MlClient`** confirmed the
   forecaster scores all active employees, picks the next non-closed period, derives
   bands (counts reconcile) + confidence, snapshots features + history, and that
-  deleting a run cascades its lines. Pest was **not** run locally (no `pdo_sqlite`).
+  deleting a run cascades its lines. The **live** service then surfaced the
+  `contributions()` step-name bug above (the stub had masked it); after the fix,
+  `/predict/performance` returns the predicted rating with no factors, and the
+  promotion classifier still returns its factors (regression-checked). Pest was
+  **not** run locally (no `pdo_sqlite`). The running uvicorn process must be
+  restarted to pick up the `registry.py` fix.
 - Out of scope this cut: scheduled re-forecasting, writing a forecast back onto the
   employee/evaluation, an assistant capability, and per-feature attribution for the
   regressor (the trajectory + grounded-input panel stand in) — matching the

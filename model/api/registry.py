@@ -178,7 +178,10 @@ class Registry:
     def contributions(self, name: str, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
         """Per-instance logit contributions for a linear model (else None)."""
         model = self.get(name)
-        clf = model.pipeline.named_steps["clf"]
+        # The final estimator, whatever its step is named ("clf" for the
+        # classifiers, "reg" for the performance regressor). Only linear models
+        # expose coef_; everything else (e.g. gradient boosting) returns None.
+        clf = model.pipeline.steps[-1][1]
         if not hasattr(clf, "coef_"):
             return [None] * len(feature_dicts)
 
