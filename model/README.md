@@ -6,7 +6,7 @@ task uses a deliberately chosen algorithm (rationale in the git-ignored
 
 | # | Notebook | Algorithm | Task | Target | Dataset |
 |---|----------|-----------|------|--------|---------|
-| 1 | `notebooks/01_attrition_model.ipynb` | **Random Forest** | Attrition risk scoring + high-risk flags | `Attrition` | `employee_attrition_dataset_10000.csv` |
+| 1 | `notebooks/01_attrition_model.ipynb` | **Random Forest** | Attrition risk scoring + high-risk flags | `Attrition` | `attrition-v2.csv` |
 | 2 | `notebooks/02_performance_model.ipynb` | **Gradient Boosting** | Performance forecasting (40–100) | `performance_score` | `employee_promotion_prediction.csv` |
 | 3 | `notebooks/03_promotion_model.ipynb` | **Logistic Regression** | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
 
@@ -78,13 +78,23 @@ The notebooks are generated from a single reviewable definition so they stay con
 
 ## Notes on the data
 
-- **Attrition** and **promotion** targets are **imbalanced** (~20% and ~10% positive). Both
+- **Attrition** and **promotion** targets are **imbalanced** (~16% and ~10% positive). Both
   classifiers use `class_weight="balanced"` and are evaluated with ROC-AUC / PR-AUC rather
   than accuracy, plus a decision-threshold sweep tuned for recall on the minority class.
 - **Leakage guards:** the promotion model drops `salary_increase_percent` (a raise is part
   of a promotion). The performance model drops the `promoted` outcome and keeps historical
   performance as legitimate predictors.
-- The bundled `employee_attrition_dataset_10000.csv` appears to be **synthetic with little
-  learnable signal** — its target is close to random, so the model scores ROC-AUC ≈ 0.5.
-  The pipeline is correct; swap in a real dataset with the same columns to get a useful
-  model. The promotion/performance dataset carries genuine signal.
+- **Attrition** trains on `attrition-v2.csv` (IBM HR Analytics Employee Attrition — 1,470
+  rows, ~16% leave), a genuinely-labelled dataset replacing the earlier bundled synthetic set
+  (whose target was close to random, ROC-AUC ≈ 0.5). To keep the model **deployable inside the
+  Synapse ERP**, it is trained on **only the 17 columns the ERP can actually supply at
+  inference time** (`Age, Department, JobRole, JobLevel, MonthlyIncome, OverTime,
+  PerformanceRating, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
+  YearsWithCurrManager, TotalWorkingYears, TrainingTimesLastYear, Education, EducationField,
+  NumCompaniesWorked, DistanceFromHome`). Pay-rate/equity/travel columns, the survey-only
+  satisfaction scores, the protected attributes `Gender`/`MaritalStatus` (fairness), and the
+  constant book-keeping columns are deliberately excluded. This ERP-servable model scores
+  **test ROC-AUC ≈ 0.74** (vs ≈ 0.80 for the full 30-column set) — the accuracy traded for a
+  model whose input contract matches live ERP data. The exact contract (columns, levels, tuned
+  threshold, tier cut-points) is written to `artifacts/attrition/feature_contract.json` and
+  consumed by the Laravel serving layer.

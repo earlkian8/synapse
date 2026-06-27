@@ -60,6 +60,8 @@ class PermissionRegistry
             'performance.manage' => 'Open, score, submit & acknowledge evaluations',
         ],
         'Predictive Analytics' => [
+            'analytics.attrition.view' => 'View attrition risk',
+            'analytics.attrition.manage' => 'Run attrition-risk assessments',
             'analytics.promotion.view' => 'View promotion readiness',
             'analytics.promotion.manage' => 'Run promotion-readiness assessments',
             'analytics.performance.view' => 'View performance forecast',
