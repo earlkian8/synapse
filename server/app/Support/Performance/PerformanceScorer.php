@@ -3,15 +3,13 @@
 namespace App\Support\Performance;
 
 use App\Models\PerformanceScore;
-use App\Support\Payroll\PayrollCalculator;
 use Illuminate\Support\Collection;
 
 /**
  * The single source of truth for the performance-scoring contract: ratings sit on
  * a 1–5 scale, and an evaluation's overall score is the weighted average of its
  * scored criteria. Pure math — given the score lines it returns the overall;
- * controllers reuse it rather than re-deriving the formula (mirrors how
- * {@see PayrollCalculator} owns the payslip totals).
+ * controllers reuse it rather than re-deriving the formula.
  */
 class PerformanceScorer
 {

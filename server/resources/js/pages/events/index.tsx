@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { EventCard } from '@/features/events/components/event-card';
 import { EventFormSheet } from '@/features/events/components/event-form-sheet';
@@ -19,7 +20,6 @@ import type {
     EventItem,
     EventStatus,
 } from '@/features/events/types';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 type ConfirmConfig = {

@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { ProgramCard } from '@/features/training/components/program-card';
 import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
 import { TrainingStatsCards } from '@/features/training/components/training-stats';

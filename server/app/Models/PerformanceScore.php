@@ -10,8 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One line of a {@see PerformanceEvaluation}: the rating (1–5) given on a single
  * {@see KpiCriterion}, with the weight it carries. The criterion's name and
  * weight are snapshot here (`label` / `weight`) so an archived criterion still
- * renders and the evaluation's weighting stays stable — mirroring how payslip
- * lines snapshot their label.
+ * renders and the evaluation's weighting stays stable.
  */
 class PerformanceScore extends Model
 {

@@ -101,8 +101,6 @@ class SystemSeeder extends Seeder
             ['employees', 'created', 'Created employee "Maria Santos"', 'Maria Santos'],
             ['recruitment', 'created', 'Posted a job opening "Software Engineer"', 'Software Engineer'],
             ['leave', 'approved', 'Approved a leave request', 'Leave request'],
-            ['payroll', 'processed', 'Processed a payroll run', 'Payroll run'],
-            ['benefits', 'created', 'Enrolled an employee in Maxicare HMO – Standard', 'Maxicare HMO – Standard'],
             ['performance', 'submitted', 'Submitted a performance evaluation', 'Performance evaluation'],
             ['training', 'created', 'Created training program "Leadership Essentials"', 'Leadership Essentials'],
             ['awards', 'created', 'Recognised an employee — Employee of the Month', 'Employee of the Month'],
@@ -143,7 +141,6 @@ class SystemSeeder extends Seeder
 
         $items = [
             ['Welcome to SYNAPSE', 'Your workspace is ready — explore the modules from the sidebar.', '/dashboard', 'info', 'general', false],
-            ['Payroll run finalized', 'The latest payroll run has been processed and is ready for review.', '/payroll', 'success', 'payroll', false],
             ['Leave request pending', 'A leave request is awaiting your approval.', '/leave', 'warning', 'leave', false],
             ['New recognition given', 'An Employee of the Month award was recorded.', '/awards', 'success', 'awards', true],
         ];

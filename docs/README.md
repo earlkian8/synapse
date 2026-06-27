@@ -8,7 +8,7 @@ commit history rather than repeating them.
 
 | Folder | Purpose | Naming |
 | --- | --- | --- |
-| [`modules/`](./modules) | One document per functional module (User Management, Payroll, Recruitment, …). Describes features, routes, backend + frontend architecture, and how to extend it. | `kebab-case.md`, named after the module (`user-management.md`). |
+| [`modules/`](./modules) | One document per functional module (User Management, Recruitment, Performance, …). Describes features, routes, backend + frontend architecture, and how to extend it. | `kebab-case.md`, named after the module (`user-management.md`). |
 | [`database/`](./database) | Schema references for important tables — columns, constraints, and the migrations that shaped them. | `kebab-case.md`, named after the table (`users-table.md`). |
 | [`decisions/`](./decisions) | Architecture Decision Records (ADRs). Each captures **one** significant decision: the context, the choice, and the trade-offs. | `NNNN-short-title.md`, zero-padded sequential (`0001-…`). |
 | [`changelog/`](./changelog) | Per-change notes — what shipped in a meaningful set of work, file-by-file, for reviewers and future readers. | `YYYY-MM-DD-NN-short-title.md`, where `NN` is a two-digit sequence within the day so entries sort chronologically. |
@@ -34,8 +34,6 @@ commit history rather than repeating them.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [Leave Management](./modules/leave.md) — time off: approval inbox, derived balances, leave types.
 - [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules; mobile token API.
-- [Payroll](./modules/payroll.md) — pay runs & payslips from salary + attendance; per-employee pay items + manual editing.
-- [Benefits Administration](./modules/benefits.md) — benefit plans (HMO, insurance, retirement, wellness) + employee enrollments.
 - [Performance Management](./modules/performance.md) — weighted KPI evaluations across review periods, with a derived overall score.
 - [Training & Development](./modules/training.md) — training programs with a derived lifecycle + scored employee enrollments.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
@@ -60,8 +58,6 @@ commit history rather than repeating them.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
 - [attendance tables](./database/attendance-tables.md) — punch events, daily records, import batches.
-- [payroll tables](./database/payroll-tables.md) — periods, payslips, earning/deduction lines, allowance/deduction types.
-- [benefits tables](./database/benefits-tables.md) — benefit plans (catalogue) + employee enrollments.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.
 - [awards tables](./database/awards-tables.md) — award types (catalogue) + employee awards (recognition feed).
@@ -78,12 +74,15 @@ commit history rather than repeating them.
 - [0008 — Company Setup: managing the org structure (departments & positions)](./decisions/0008-company-setup-org-structure.md)
 - [0009 — Leave management: an approval workflow with derived balances](./decisions/0009-leave-management.md)
 - [0010 — Attendance (DTR): a punch-event model and a token API for mobile](./decisions/0010-attendance-and-mobile-api.md)
-- [0011 — Benefits Administration: plans + enrollments, not a contribution snapshot](./decisions/0011-benefits-administration.md)
+- [0011 — Benefits Administration: plans + enrollments (superseded by 0019)](./decisions/0011-benefits-administration.md)
 - [0012 — Performance Management: weighted KPI evaluations with a derived overall score](./decisions/0012-performance-management.md)
 - [0013 — Training & Development: in-module programs with a derived lifecycle](./decisions/0013-training-and-development.md)
 - [0014 — Awards & Recognition: a recognition feed over a typed catalogue](./decisions/0014-awards-and-recognition.md)
 - [0015 — Events & Meetings: scheduled events with an invitee roster](./decisions/0015-events-and-meetings.md)
 - [0016 — Offboarding: structured exits with a clearance checklist](./decisions/0016-offboarding-and-clearance.md)
+- [0017 — Predictive Analytics: an external ML inference service (Promotion Readiness)](./decisions/0017-predictive-analytics-and-ml-inference.md)
+- [0018 — Performance Forecast: the second analytics surface on the shared ML service](./decisions/0018-performance-forecasting.md)
+- [0019 — Remove the Payroll and Benefits modules (out of HR-management scope)](./decisions/0019-remove-payroll-and-benefits.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

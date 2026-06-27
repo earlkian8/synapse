@@ -260,7 +260,9 @@ function FormBody({
                                     onClick={() => fileInput.current?.click()}
                                 >
                                     <Upload className="size-4" />
-                                    {photoPreview ? 'Change photo' : 'Upload photo'}
+                                    {photoPreview
+                                        ? 'Change photo'
+                                        : 'Upload photo'}
                                 </Button>
                                 {photoPreview && (
                                     <Button

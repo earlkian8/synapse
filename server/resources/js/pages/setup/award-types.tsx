@@ -2,13 +2,13 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { AwardTypeFormSheet } from '@/features/award-types-config/components/award-type-form-sheet';
 import { awardTypesConfigRoutes } from '@/features/award-types-config/routes';
 import type { AwardTypeSetupPageProps } from '@/features/award-types-config/types';
 import { DEFAULT_AWARD_COLOR } from '@/features/awards/constants';
 import type { AwardType } from '@/features/awards/types';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 type ConfirmConfig = {

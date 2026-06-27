@@ -21,8 +21,8 @@ return new class extends Migration
      *    evaluator, the derived overall score, a status lifecycle (draft →
      *    submitted → acknowledged), and remarks. One per employee per period.
      *  - **performance_scores** — the per-criterion breakdown a score is built
-     *    from. Each line snapshots the criterion's label + weight (mirroring the
-     *    payslip line pattern) so an archived criterion never corrupts a submitted
+     *    from. Each line snapshots the criterion's label + weight so an archived
+     *    criterion never corrupts a submitted
      *    evaluation; the overall score is derived from these (see
      *    App\Support\Performance\PerformanceScorer).
      *

@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { HolidayFormSheet } from '@/features/schedule-config/components/holiday-form-sheet';
 import { HolidayTypeBadge } from '@/features/schedule-config/components/holiday-type-badge';
 import { WorkScheduleFormSheet } from '@/features/schedule-config/components/work-schedule-form-sheet';

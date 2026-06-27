@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { CriterionFormSheet } from '@/features/kpi-config/components/criterion-form-sheet';
 import { PeriodFormSheet } from '@/features/kpi-config/components/period-form-sheet';
@@ -18,7 +19,6 @@ import type {
     KpiCriterion,
     KpiSetupPageProps,
 } from '@/features/kpi-config/types';
-import { ConfirmDialog } from '@/features/payroll/components/confirm-dialog';
 import { PeriodStatusBadge } from '@/features/performance/components/status-badge';
 import { formatDate } from '@/features/performance/constants';
 import type { EvaluationPeriodOption } from '@/features/performance/types';
