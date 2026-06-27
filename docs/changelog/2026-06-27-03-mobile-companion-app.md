@@ -15,8 +15,12 @@ web brand. See [ADR 0020](../decisions/0020-mobile-companion-app.md) and the
 - **Five product-quality surfaces + Home.** DTR clock (live clock, GPS + optional
   selfie, state-driven Time-In/Break/Time-Out), attendance calendar with a metrics
   summary, leave balances/filing/history with cancel, profile (masked IDs), and
-  awards — with skeletons, empty states, pull-to-refresh, toasts, haptics, and
-  light/dark themes.
+  awards — with skeletons, empty states, pull-to-refresh, toasts, fade animations,
+  and light/dark themes.
+- **Reset password from the employee directory.** A **Reset password** row action
+  in the Employees module opens a right-side confirmation drawer that rotates the
+  employee's app password (provisioning the account first if they never had one)
+  and emails the new credentials.
 
 ## Backend
 
@@ -36,6 +40,10 @@ web brand. See [ADR 0020](../decisions/0020-mobile-companion-app.md) and the
   the caller and computes days server-side.
 - **Seeding** links `dev@synapse.com` and the `mock.staff*` accounts to employee
   records so the app is demoable on first sign-in (needs `migrate:fresh --seed`).
+- **`EmployeeAccountProvisioner::resetPassword()`** + `EmployeeAccountController`
+  (`POST employees/{employee}/reset-password`, `can:employees.update`) rotate an
+  employee's password (or provision the account first) and re-send
+  `EmployeeCredentialsNotification`.
 
 ## Frontend (mobile)
 

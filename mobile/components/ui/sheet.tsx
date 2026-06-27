@@ -1,5 +1,5 @@
 import { Modal, Pressable, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/text';
@@ -25,8 +25,8 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
         </Animated.View>
 
         <Animated.View
-          entering={SlideInDown.springify().damping(20)}
-          exiting={SlideOutDown.duration(200)}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(150)}
           style={{
             backgroundColor: colors.background,
             borderTopLeftRadius: radius.xl,

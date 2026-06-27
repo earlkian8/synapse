@@ -7,7 +7,7 @@ import {
   ScrollView,
   View,
 } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,7 @@ export default function LoginScreen() {
             contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
             keyboardShouldPersistTaps="handled"
           >
-            <Animated.View entering={FadeInDown.duration(500)} style={{ alignItems: 'center', marginBottom: 36 }}>
+            <Animated.View entering={FadeIn.duration(500)} style={{ alignItems: 'center', marginBottom: 36 }}>
               <View
                 style={{
                   width: 72,
@@ -84,7 +84,7 @@ export default function LoginScreen() {
             </Animated.View>
 
             <Animated.View
-              entering={FadeInUp.duration(500).delay(150)}
+              entering={FadeIn.duration(500).delay(150)}
               style={{
                 backgroundColor: palette.white,
                 borderRadius: 24,

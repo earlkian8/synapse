@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/text';
@@ -45,8 +45,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <Animated.View
             key={toast.id}
-            entering={FadeInUp.springify().damping(18)}
-            exiting={FadeOutUp.duration(200)}
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(200)}
             style={[styles.toast, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Ionicons name={ICONS[toast.type]} size={20} color={COLORS[toast.type]} />

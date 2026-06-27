@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { RefreshControl, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -69,7 +69,7 @@ export default function AwardsScreen() {
             {awards.map((award, index) => {
               const tint = award.award_type?.color ?? '#F59E0B';
               return (
-                <Animated.View key={award.id} entering={FadeInDown.duration(320).delay(index * 50)}>
+                <Animated.View key={award.id} entering={FadeIn.duration(320).delay(index * 50)}>
                   <Card style={{ gap: spacing.md }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                       <View

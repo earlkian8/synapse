@@ -17,6 +17,12 @@ and synchronous, so it works under `MAIL_MAILER=log` with no SMTP. The `staff`
 role grants `attendance.clock` and `leave.request`; all read endpoints are
 self-scoped and need no further permission.
 
+HR can re-issue access later from the **Employees** module: the **Reset
+password** row action (`POST employees/{employee}/reset-password`,
+`can:employees.update`) opens a right-side confirmation drawer that rotates the
+password via `EmployeeAccountProvisioner::resetPassword()` — provisioning the
+account first if the employee never had one — and re-sends the credentials email.
+
 ## Surfaces
 
 - **Home** — greeting, today's clock state, quick actions, leave-balance

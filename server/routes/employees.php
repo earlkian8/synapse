@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Employee\EmployeeAccountController;
 use App\Http\Controllers\Employee\EmployeeBulkActionController;
 use App\Http\Controllers\Employee\EmployeeCertificationController;
 use App\Http\Controllers\Employee\EmployeeController;
@@ -26,6 +27,7 @@ Route::middleware(['auth', 'verified'])
         Route::post('{employee}', [EmployeeController::class, 'update'])->middleware('can:employees.update')->name('update');
         Route::delete('{employee}', [EmployeeController::class, 'destroy'])->middleware('can:employees.delete')->name('destroy');
         Route::patch('{employee}/status', [EmployeeStatusController::class, 'update'])->middleware('can:employees.update')->name('status');
+        Route::post('{employee}/reset-password', [EmployeeAccountController::class, 'resetPassword'])->middleware('can:employees.update')->name('reset-password');
         Route::patch('{employee}/restore', [EmployeeController::class, 'restore'])->middleware('can:employees.restore')->name('restore');
         Route::delete('{employee}/force', [EmployeeController::class, 'forceDelete'])->middleware('can:employees.force-delete')->name('force-delete');
 

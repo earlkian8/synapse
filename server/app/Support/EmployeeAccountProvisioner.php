@@ -73,4 +73,37 @@ class EmployeeAccountProvisioner
 
         return [$user, $password];
     }
+
+    /**
+     * Reset (or first-time provision) the employee's login password, returning the
+     * account and a fresh plain-text temporary password to hand back to them.
+     *
+     * Ensures the account exists first (provisioning one for an employee who never
+     * had it), then rotates the password. Returns `[null, null]` when the employee
+     * has no email to sign in with.
+     *
+     * @return array{0: ?User, 1: ?string}
+     */
+    public static function resetPassword(Employee $employee): array
+    {
+        [$user, $password] = self::provision($employee);
+
+        if (! $user) {
+            return [null, null];
+        }
+
+        // A just-provisioned account already carries a fresh password.
+        if ($password !== null) {
+            return [$user, $password];
+        }
+
+        $password = Str::password(12, symbols: false);
+
+        $user->forceFill([
+            'password' => Hash::make($password),
+            'password_changed_at' => null,
+        ])->save();
+
+        return [$user, $password];
+    }
 }

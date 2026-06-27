@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -143,7 +143,7 @@ export default function RequestsScreen() {
               {filtered.map((request, index) => {
                 const meta = leaveMeta(request.status);
                 return (
-                  <Animated.View key={request.id} entering={FadeInDown.duration(300).delay(index * 40)}>
+                  <Animated.View key={request.id} entering={FadeIn.duration(300).delay(index * 40)}>
                     <Card
                       onPress={() => router.push({ pathname: '/leave/[id]', params: { id: String(request.id) } })}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}

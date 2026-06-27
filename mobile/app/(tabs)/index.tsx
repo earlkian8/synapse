@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
@@ -98,7 +98,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Today hero */}
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <Animated.View entering={FadeIn.duration(400)}>
           <Card
             elevated
             onPress={() => router.push('/(tabs)/clock')}

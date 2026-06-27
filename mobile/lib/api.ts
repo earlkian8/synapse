@@ -1,8 +1,9 @@
 /**
- * The single HTTP client for the SYNAPSE API. Resolves the base URL (env override
- * → app.json `extra.apiUrl` → localhost), injects the Bearer token, and turns
- * Laravel responses into typed data or a structured {@link ApiError} (so the UI
- * can surface field-level 422 validation messages inline).
+ * The single HTTP client for the SYNAPSE API. The base URL comes from
+ * `EXPO_PUBLIC_API_URL` in `mobile/.env` (see `.env.example`) — the one place to
+ * change it — falling back to `app.json` `extra.apiUrl` and then localhost. It
+ * injects the Bearer token and turns Laravel responses into typed data or a
+ * structured {@link ApiError} (so the UI can surface 422 validation messages).
  */
 import Constants from 'expo-constants';
 

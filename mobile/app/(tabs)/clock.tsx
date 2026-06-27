@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { Button } from '@/components/ui/button';
@@ -113,7 +113,7 @@ export default function ClockScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Live clock hero */}
-        <Animated.View entering={FadeInDown.duration(400)}>
+        <Animated.View entering={FadeIn.duration(400)}>
           <Card elevated style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
             <AppText style={{ fontSize: 52, fontWeight: '800', letterSpacing: 1, color: colors.text, fontVariant: ['tabular-nums'] }}>
               {formatTime(now.toISOString())}
@@ -243,7 +243,7 @@ export default function ClockScreen() {
       {/* Success burst */}
       {justPunched && (
         <Animated.View
-          entering={ZoomIn}
+          entering={FadeIn.duration(200)}
           pointerEvents="none"
           style={{
             position: 'absolute',
