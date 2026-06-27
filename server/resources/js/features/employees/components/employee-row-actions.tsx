@@ -1,6 +1,7 @@
 import {
     ArchiveRestore,
     Eye,
+    KeyRound,
     MoreHorizontal,
     Pencil,
     Trash2,
@@ -21,6 +22,7 @@ type Props = {
     can: EmployeePermissions;
     onView: (employee: ManagedEmployee) => void;
     onEdit: (employee: ManagedEmployee) => void;
+    onResetPassword: (employee: ManagedEmployee) => void;
     onArchive: (employee: ManagedEmployee) => void;
     onRestore: (employee: ManagedEmployee) => void;
     onDelete: (employee: ManagedEmployee) => void;
@@ -31,6 +33,7 @@ export function EmployeeRowActions({
     can,
     onView,
     onEdit,
+    onResetPassword,
     onArchive,
     onRestore,
     onDelete,
@@ -64,6 +67,14 @@ export function EmployeeRowActions({
                             <DropdownMenuItem onSelect={() => onEdit(employee)}>
                                 <Pencil className="size-4" />
                                 Edit
+                            </DropdownMenuItem>
+                        )}
+                        {can.update && (
+                            <DropdownMenuItem
+                                onSelect={() => onResetPassword(employee)}
+                            >
+                                <KeyRound className="size-4" />
+                                Reset password
                             </DropdownMenuItem>
                         )}
                         {can.delete && (

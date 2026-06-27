@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeBulkActionsBar } from '@/features/employees/components/employee-bulk-actions-bar';
 import { EmployeeDetailSheet } from '@/features/employees/components/employee-detail-sheet';
 import { EmployeeFormSheet } from '@/features/employees/components/employee-form-sheet';
+import { EmployeeResetPasswordSheet } from '@/features/employees/components/employee-reset-password-sheet';
 import { EmployeesPagination } from '@/features/employees/components/employees-pagination';
 import { EmployeesStats } from '@/features/employees/components/employees-stats';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
@@ -48,6 +49,11 @@ export default function EmployeesIndex() {
     const [detailEmployee, setDetailEmployee] =
         useState<ManagedEmployee | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
+    const [resetEmployee, setResetEmployee] = useState<ManagedEmployee | null>(
+        null,
+    );
+    const [resetOpen, setResetOpen] = useState(false);
+    const [resetProcessing, setResetProcessing] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -122,6 +128,30 @@ export default function EmployeesIndex() {
     const openView = (employee: ManagedEmployee) => {
         setDetailEmployee(employee);
         setDetailOpen(true);
+    };
+
+    const openResetPassword = (employee: ManagedEmployee) => {
+        setResetEmployee(employee);
+        setResetOpen(true);
+    };
+
+    const submitResetPassword = () => {
+        if (!resetEmployee) {
+            return;
+        }
+
+        router.post(
+            employeeRoutes.resetPassword(resetEmployee.id),
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setResetProcessing(true),
+                onFinish: () => {
+                    setResetProcessing(false);
+                    setResetOpen(false);
+                },
+            },
+        );
     };
 
     const archive = (employee: ManagedEmployee) =>
@@ -258,6 +288,7 @@ export default function EmployeesIndex() {
                         onToggleRow={toggleRow}
                         onView={openView}
                         onEdit={openEdit}
+                        onResetPassword={openResetPassword}
                         onArchive={archive}
                         onRestore={restore}
                         onDelete={remove}
@@ -286,6 +317,14 @@ export default function EmployeesIndex() {
                 canManageDocuments={can.manageDocuments}
                 onOpenChange={setDetailOpen}
                 onEdit={openEdit}
+            />
+
+            <EmployeeResetPasswordSheet
+                employee={resetEmployee}
+                open={resetOpen}
+                processing={resetProcessing}
+                onOpenChange={setResetOpen}
+                onConfirm={submitResetPassword}
             />
 
             {confirm && (

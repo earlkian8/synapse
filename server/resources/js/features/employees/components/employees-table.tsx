@@ -22,6 +22,7 @@ import { EmployeeStatusBadge } from './employee-status-badge';
 type RowHandlers = {
     onView: (employee: ManagedEmployee) => void;
     onEdit: (employee: ManagedEmployee) => void;
+    onResetPassword: (employee: ManagedEmployee) => void;
     onArchive: (employee: ManagedEmployee) => void;
     onRestore: (employee: ManagedEmployee) => void;
     onDelete: (employee: ManagedEmployee) => void;

@@ -11,6 +11,7 @@ export const employeeRoutes = {
     update: (id: number) => `/employees/${id}`,
     destroy: (id: number) => `/employees/${id}`,
     status: (id: number) => `/employees/${id}/status`,
+    resetPassword: (id: number) => `/employees/${id}/reset-password`,
     restore: (id: number) => `/employees/${id}/restore`,
     forceDelete: (id: number) => `/employees/${id}/force`,
     documents: (id: number) => `/employees/${id}/documents`,
