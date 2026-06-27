@@ -19,3 +19,4 @@ MODEL-JUSTIFICATION.md
 __pycache__/
 *.pyc
 xlsx
+attrition-v2.csv

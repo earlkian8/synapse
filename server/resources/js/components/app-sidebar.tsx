@@ -126,9 +126,10 @@ const offboardingNavItems: GatedNavItem[] = [
 
 const analyticsNavItems: GatedNavItem[] = [
     {
-        title: 'Attrition Predictions',
+        title: 'Attrition Risk',
         href: '/analytics/attrition',
         icon: TrendingDown,
+        permission: 'analytics.attrition.view',
     },
     {
         title: 'Performance Forecast',

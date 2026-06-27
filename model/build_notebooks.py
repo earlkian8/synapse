@@ -95,16 +95,36 @@ def build_attrition() -> nbf.NotebookNode:
 # 01 · Attrition Risk Prediction — Random Forest
 
 **Goal** — generate an **attrition risk score** for every employee and flag the high-risk
-ones for early HR intervention. The model learns from attendance patterns (`Absenteeism`,
-`Average_Hours_Worked_Per_Week`), overtime (`Overtime`), performance trends
-(`Performance_Rating`, `Job_Involvement`) and tenure (`Years_at_Company`,
-`Years_Since_Last_Promotion`).
+ones for early HR intervention. The model learns from overtime (`OverTime`), satisfaction
+(`JobSatisfaction`, `EnvironmentSatisfaction`, `RelationshipSatisfaction`), tenure
+(`YearsAtCompany`, `YearsSinceLastPromotion`, `TotalWorkingYears`), compensation
+(`MonthlyIncome`, `StockOptionLevel`) and role/travel context. This dataset has **no
+absence-count feature** — the pipeline is column-agnostic, so it simply trains on the
+columns present.
 
 **Algorithm — Random Forest** (`RandomForestClassifier`). Chosen for its robustness to the
 mixed, noisy, weakly-correlated HR features here, its insensitivity to feature scaling/outliers,
 and the out-of-the-box feature-importance it gives HR. Rationale + citations in
-`../MODEL-JUSTIFICATION.md`. Binary classification on
-`employee_attrition_dataset_10000.csv` (~10k rows, ~20% leave).
+`../MODEL-JUSTIFICATION.md`. Binary classification on `attrition-v2.csv` (IBM HR Analytics
+Employee Attrition, 1,470 rows, ~16% leave) — a genuinely-labelled dataset replacing the
+near-random synthetic set used previously.
+
+**ERP-servable feature set (deliberate).** We train on **only the columns the Synapse ERP can
+actually supply at inference time**, so the model's input contract matches live ERP data. That
+means we *exclude*:
+- pay-rate / equity columns the ERP doesn't track (`DailyRate`, `MonthlyRate`, `HourlyRate`,
+  `PercentSalaryHike`, `StockOptionLevel`),
+- `BusinessTravel` (not tracked),
+- the survey-only satisfaction scores (`JobSatisfaction`, `EnvironmentSatisfaction`,
+  `RelationshipSatisfaction`, `JobInvolvement`, `WorkLifeBalance`) — Synapse runs no engagement survey,
+- the **protected attributes** `Gender` and `MaritalStatus` — they must not drive an attrition
+  flag (adverse-impact / fairness), consistent with the fairness stance in `MODEL-JUSTIFICATION.md`,
+- the three constant book-keeping columns (`EmployeeCount`, `Over18`, `StandardHours`) and the
+  `EmployeeNumber` id.
+
+This costs a little accuracy versus the full 30-column model (test ROC-AUC ≈ 0.80 → ≈ 0.74) in
+exchange for a model that is **fully servable by the ERP and fairness-defensible** — the right
+trade for production. The pipeline is column-agnostic, so the kept set is the single source of truth.
 
 Everything is logged to `logs/attrition*.log`; artifacts (model, metrics, plots, scored
 roster) under `artifacts/attrition/`.
@@ -114,7 +134,8 @@ roster) under `artifacts/attrition/`.
 
     cells.append(md("## 1 · Load data"))
     cells.append(code("""
-df = run.load_csv("employee_attrition_dataset_10000.csv")
+# encoding="utf-8-sig" strips the BOM the source CSV carries on its first header.
+df = run.load_csv("attrition-v2.csv", encoding="utf-8-sig")
 print(df.shape)
 df.head()
 """))
@@ -129,7 +150,18 @@ df.describe(include="all").T
     cells.append(md("## 2 · Target & exploratory analysis"))
     cells.append(code("""
 TARGET = "Attrition"
-ID_COL = "Employee_ID"
+
+# ---- ERP-servable feature set -------------------------------------------------------
+# The model is trained on ONLY these columns so its input contract == what the Synapse
+# ERP can produce at inference time (see the markdown above for what is excluded and why).
+# This list is the single source of truth for the model's features.
+FEATURES = [
+    "Age", "Department", "JobRole", "JobLevel", "MonthlyIncome", "OverTime",
+    "PerformanceRating", "YearsAtCompany", "YearsInCurrentRole",
+    "YearsSinceLastPromotion", "YearsWithCurrManager", "TotalWorkingYears",
+    "TrainingTimesLastYear", "Education", "EducationField",
+    "NumCompaniesWorked", "DistanceFromHome",
+]
 
 y = (df[TARGET].astype(str).str.strip().str.lower() == "yes").astype(int)
 rate = y.mean()
@@ -144,7 +176,7 @@ run.save_fig(fig, "01_class_balance"); plt.show()
     cells.append(code("""
 # Attrition rate across the drivers the model is meant to read.
 fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-for ax, col in zip(axes, ["Overtime", "Job_Satisfaction", "Department"]):
+for ax, col in zip(axes, ["OverTime", "JobSatisfaction", "Department"]):
     rates = df.assign(_y=y).groupby(col)["_y"].mean().sort_values(ascending=False)
     log.info("attrition rate by %s:\\n%s", col, rates.to_string())
     rates.plot(kind="bar", ax=ax, color="#c44e52")
@@ -153,7 +185,7 @@ for ax, col in zip(axes, ["Overtime", "Job_Satisfaction", "Department"]):
 fig.tight_layout(); run.save_fig(fig, "02_attrition_by_driver"); plt.show()
 """))
     cells.append(code("""
-num_df = df.drop(columns=[ID_COL, TARGET]).select_dtypes("number").assign(_attr=y)
+num_df = df[FEATURES].select_dtypes("number").assign(_attr=y)
 corr = num_df.corr()["_attr"].drop("_attr").sort_values()
 log.info("numeric correlation with attrition:\\n%s", corr.to_string())
 
@@ -168,11 +200,11 @@ run.save_fig(fig, "03_numeric_correlation"); plt.show()
 
 A `ColumnTransformer` median-imputes + scales numerics and mode-imputes + one-hot-encodes
 categoricals. (Random Forests don't need scaling, but a single shared recipe keeps the three
-notebooks consistent and harmless here.) Stratified split preserves the ~20% leave rate.
+notebooks consistent and harmless here.) Stratified split preserves the ~16% leave rate.
 """))
     cells.append(code(PREPROCESS_IMPORTS + """
-X = df.drop(columns=[TARGET, ID_COL])
-numeric_cols, categorical_cols = sm.split_feature_types(df.drop(columns=[ID_COL]), target=TARGET)
+X = df[FEATURES]
+numeric_cols, categorical_cols = sm.split_feature_types(df[FEATURES + [TARGET]], target=TARGET)
 log.info("numeric=%d %s", len(numeric_cols), numeric_cols)
 log.info("categorical=%d %s", len(categorical_cols), categorical_cols)
 """ + PREPROCESS_DEF + """
@@ -295,7 +327,14 @@ run.checkpoint_df(scored.reset_index(names="row_id"), "scored_test_roster")
 high_risk[["risk_score", "risk_tier", "actual_attrition"]]
 """))
 
-    cells.append(md("## 8 · Persist model & metrics"))
+    cells.append(md("""
+## 8 · Persist model, metrics & serving contract
+
+Besides the fitted pipeline and headline metrics we write a **`feature_contract.json`** — the
+exact ordered feature columns, the categorical levels seen in training, the tuned decision
+threshold and the risk-tier cut-points. The Laravel serving layer (`MlClient` + the attrition
+feature mapper) reads this so the ERP feeds the model exactly what it was trained on.
+"""))
     cells.append(code("""
 run.save_model(model, "attrition_model")
 run.save_metrics({
@@ -309,8 +348,23 @@ run.save_metrics({
     "positive_rate": float(rate),
     "high_risk_count": int((scored["risk_tier"] == "High").sum()),
     "n_train": int(len(X_train)), "n_test": int(len(X_test)),
+    "n_features": len(FEATURES),
 })
-run.finish(summary=f"RandomForest: test ROC-AUC={roc:.3f}, PR-AUC={pr_auc:.3f}, tuned thr={best_thr:.2f}")
+
+# Serving contract — the source of truth for what the ERP must send at inference time.
+contract = {
+    "target": TARGET,
+    "feature_columns": list(FEATURES),
+    "numeric_columns": list(numeric_cols),
+    "categorical_columns": list(categorical_cols),
+    "categorical_levels": {c: sorted(map(str, df[c].dropna().unique())) for c in categorical_cols},
+    "tuned_threshold": best_thr,
+    "risk_tier_bins": {"low_max": 0.33, "medium_max": 0.66},
+    "positive_rate": float(rate),
+}
+run.save_metrics(contract, name="feature_contract")
+log.info("serving contract written · %d features", len(FEATURES))
+run.finish(summary=f"RandomForest (ERP-servable {len(FEATURES)} feats): test ROC-AUC={roc:.3f}, PR-AUC={pr_auc:.3f}, tuned thr={best_thr:.2f}")
 """))
 
     nb.cells = cells

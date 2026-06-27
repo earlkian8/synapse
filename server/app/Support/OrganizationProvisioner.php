@@ -121,6 +121,7 @@ class OrganizationProvisioner
                     'leave.view', 'leave.request', 'leave.manage',
                     'attendance.view', 'attendance.manage', 'attendance.clock',
                     'performance.view', 'performance.manage',
+                    'analytics.attrition.view', 'analytics.attrition.manage',
                     'analytics.promotion.view', 'analytics.promotion.manage',
                     'analytics.performance.view', 'analytics.performance.manage',
                     'training.view', 'training.manage',
