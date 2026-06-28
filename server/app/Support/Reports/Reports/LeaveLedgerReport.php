@@ -123,6 +123,14 @@ class LeaveLedgerReport implements Report
         ];
     }
 
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->donut('By status', $rows->groupBy('status')->map->count()->all()),
+            $this->barsFromCounts('Days by type', $rows->groupBy('type')->map(fn (Collection $group): int => (int) round($group->sum('days')))->all()),
+        ];
+    }
+
     /**
      * @return array<string, string>
      */

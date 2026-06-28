@@ -115,4 +115,23 @@ class HeadcountSummaryReport implements Report
             ['label' => 'On leave', 'value' => number_format((int) $rows->sum('on_leave'))],
         ];
     }
+
+    public function charts(Collection $rows, array $params): array
+    {
+        $departmentBars = $rows
+            ->filter(fn (array $row): bool => $row['headcount'] > 0)
+            ->map(fn (array $row): array => ['label' => $row['department'], 'value' => $row['headcount']])
+            ->values()
+            ->all();
+
+        return [
+            $this->bars('Headcount by department', $departmentBars),
+            $this->donut('By employment type', [
+                'Regular' => (int) $rows->sum('regular'),
+                'Probationary' => (int) $rows->sum('probationary'),
+                'Contractual' => (int) $rows->sum('contractual'),
+                'Part-time' => (int) $rows->sum('part_time'),
+            ]),
+        ];
+    }
 }

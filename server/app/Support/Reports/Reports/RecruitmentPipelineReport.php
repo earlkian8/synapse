@@ -115,6 +115,14 @@ class RecruitmentPipelineReport implements Report
         ];
     }
 
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->barsFromCounts('Applications by stage', $rows->groupBy('stage')->map->count()->all()),
+            $this->barsFromCounts('By source', $rows->groupBy('source')->map->count()->all()),
+        ];
+    }
+
     /**
      * @return array<string, string>
      */

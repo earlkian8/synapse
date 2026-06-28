@@ -119,4 +119,65 @@ trait BuildsReport
     {
         return [['label' => 'Total rows', 'value' => number_format($rows->count())]];
     }
+
+    /**
+     * Default: a table-only report draws no charts. Override to add decision views.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  array<string, mixed>  $params
+     * @return list<array<string, mixed>>
+     */
+    public function charts(Collection $rows, array $params): array
+    {
+        return [];
+    }
+
+    /**
+     * A donut chart spec from a label=>count map (zero slices dropped).
+     *
+     * @param  array<string, int|float>  $counts
+     * @return array<string, mixed>
+     */
+    protected function donut(string $title, array $counts): array
+    {
+        $segments = [];
+
+        foreach ($counts as $label => $value) {
+            if ($value > 0) {
+                $segments[] = ['label' => $label, 'value' => (int) $value];
+            }
+        }
+
+        return ['type' => 'donut', 'title' => $title, 'segments' => $segments];
+    }
+
+    /**
+     * A horizontal-bar chart spec from a list of label/value pairs.
+     *
+     * @param  list<array{label: string, value: int|float}>  $bars
+     * @return array<string, mixed>
+     */
+    protected function bars(string $title, array $bars): array
+    {
+        return ['type' => 'bars', 'title' => $title, 'bars' => $bars];
+    }
+
+    /**
+     * A bar chart from a label=>count map (zero bars dropped).
+     *
+     * @param  array<string, int|float>  $counts
+     * @return array<string, mixed>
+     */
+    protected function barsFromCounts(string $title, array $counts): array
+    {
+        $bars = [];
+
+        foreach ($counts as $label => $value) {
+            if ($value > 0) {
+                $bars[] = ['label' => (string) $label, 'value' => (int) $value];
+            }
+        }
+
+        return $this->bars($title, $bars);
+    }
 }

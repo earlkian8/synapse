@@ -123,4 +123,12 @@ class EmployeeMasterlistReport implements Report
             ['label' => 'Active', 'value' => number_format($active)],
         ];
     }
+
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->donut('By status', $rows->groupBy('employment_status')->map->count()->all()),
+            $this->donut('By employment type', $rows->groupBy('employment_type')->map->count()->all()),
+        ];
+    }
 }

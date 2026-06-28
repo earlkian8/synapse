@@ -128,4 +128,15 @@ class WorkforceMovementReport implements Report
             ['label' => 'Net change', 'value' => sprintf('%+d', $hires - $exits)],
         ];
     }
+
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->donut('Movement mix', [
+                'Hired' => $rows->where('event', 'Hired')->count(),
+                'Separated' => $rows->where('event', 'Separated')->count(),
+            ]),
+            $this->barsFromCounts('By department', $rows->groupBy('department')->map->count()->all()),
+        ];
+    }
 }

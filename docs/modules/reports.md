@@ -1,69 +1,81 @@
 # Reports
 
-The Reports module (`/reports`) is the system's **auditing surface**: parameterised,
-exportable views over the active organisation's records, for reconciliation and
-compliance. It adds **no new data** — every report reads the same tenant-scoped models
+The Reports module (`/reports`) is a **decision-support analytics workspace** under
+Analytics & AI. It turns the data spread across modules into views that answer the
+questions a manager actually has — *what's happening?*, *what changed?* and *why?* —
+with charts, machine-learning signals and an on-demand LLM narrative, all exportable
+for auditing. It adds **no new data**: every report reads the same tenant-scoped models
 the rest of the app does (through the global `OrganizationScope`) and reuses the
-canonical query classes where one already exists, so a report's figures match their
-source module exactly.
+canonical query classes, so a report's figures match their source module exactly.
 
-## Design: one contract, many reports, one runner
+## One workspace, one contract
 
-A report is a single class implementing `App\Support\Reports\Report`. That one class
-owns its filters, its columns, and the exact rows behind them, which is what guarantees
-the on-screen table, the totals, and the CSV export can never disagree — they all come
-from the same `rows()` call.
+The whole module is one page: a report rail on the left, the selected report rendered
+inline on the right. Switching reports and changing filters are **partial Inertia
+visits** (`only: ['active']`) — the rail never reloads and the URL stays a reproducible
+snapshot of the view. There is no separate "report page" to navigate to.
+
+A report is a single class implementing `App\Support\Reports\Report`. It owns its
+filters, columns, rows, **charts** and summary — one source feeding the inline table,
+the totals, the charts, the CSV export *and* the LLM digest, so they can never disagree.
 
 | Piece | File | Role |
 | --- | --- | --- |
-| `Report` (interface) | `app/Support/Reports/Report.php` | The contract: `key/name/group/permission/filters/columns/rows/summary`. |
-| `BuildsReport` (trait) | `app/Support/Reports/Concerns/BuildsReport.php` | Shared filter scaffolding (department/select/date-range/month/search) + a default summary. |
-| `ReportRegistry` | `app/Support/Reports/ReportRegistry.php` | The catalogue; resolves reports via the container and filters them to the viewer's permissions. |
-| Reports | `app/Support/Reports/Reports/*` | One class per report. |
-| `ReportController` | `app/Http/Controllers/Report/ReportController.php` | Hub, runner (`show`) and CSV `export`. |
-
-`rows()` returns **display-ready scalars** (dates formatted, enums labelled). That single
-shape feeds both the paginated table and the export, so a download is always faithful to
-what the auditor saw on screen.
+| `Report` (interface) | `app/Support/Reports/Report.php` | The contract, incl. `charts()`. |
+| `BuildsReport` (trait) | `app/Support/Reports/Concerns/BuildsReport.php` | Filter scaffolding + `donut()` / `bars()` chart helpers. |
+| `ReportRegistry` | `app/Support/Reports/ReportRegistry.php` | Catalogue; filters to the viewer's permissions. |
+| `MlSignals` | `app/Support/Reports/MlSignals.php` | Decision signals from the **persisted** ML runs. |
+| `ReportInsights` | `app/Support/Reports/ReportInsights.php` | The LLM decision-support generator. |
+| `ReportController` | `app/Http/Controllers/Report/ReportController.php` | Workspace, CSV `export`, AI `insights`. |
 
 ### The reports
 
-| Report | Group | Permission | Reuses |
-| --- | --- | --- | --- |
-| Employee Masterlist | Workforce | `employees.view` | `Employee` + `scopeSearch` |
-| Headcount Summary | Workforce | `employees.view` | `Employee` / `Department` |
-| Workforce Movement | Workforce | `employees.view` | `Employee` hires + completed `OffboardingCase` exits |
-| Attendance Summary | Attendance | `attendance.view` | `AttendanceMonthlyReport` (the canonical monthly report) |
-| Leave Ledger | Leave | `leave.view` | `LeaveRequest` |
-| Recruitment Pipeline | Recruitment | `recruitment.view` | `JobApplication` |
-| Audit Trail | System | `activity-logs.view` | `ActivityLog` (date-bounded, capped) |
+Employee Masterlist · Headcount Summary · Workforce Movement (Workforce) · Attendance
+Summary (Attendance) · Leave Ledger (Leave) · Recruitment Pipeline (Recruitment) ·
+Audit Trail (System). Each is gated on an existing module `*.view` permission.
+
+## Decision support
+
+Three layers turn a table into a decision:
+
+1. **Charts** — each report's `charts(rows, params)` returns donut/bar specs derived from
+   the *whole* result set (not the page on screen); the runner draws them with the same
+   hand-rolled SVG primitives as the dashboard.
+2. **ML signals** (`MlSignals`) — for workforce/attendance reports, the latest **persisted**
+   attrition, promotion-readiness and performance-forecast run summaries ride along as
+   chips linking to their analytics surfaces. Reading the stored runs (not the live
+   inference service) keeps signals available even when the model API is offline.
+3. **AI insights** (`ReportInsights` → `GeminiClient`) — on demand, the LLM is handed a
+   compact digest (totals, chart aggregates, ML signals, a row sample — never the full
+   table) and answers in strict JSON: a headline, *what's happening*, *what changed*,
+   *why* (leaning on the ML signals), and 2–4 recommended actions. One model call per
+   request; quota/overload degrade to a friendly, retryable message rather than an error.
 
 ## Request flow
 
-1. **Hub** (`GET /reports`) lists only the reports the user may run (`ReportRegistry::forUser`).
-2. **Runner** (`GET /reports/{report}`) resolves the report, **re-authorises** against its
-   own permission (404 unknown, 403 forbidden), normalises the query string into the
-   report's declared filters (invalid dates fall back to defaults; a backwards range is
-   re-ordered), runs `rows()`, computes the summary over the **whole** set, then paginates
-   the slice for display.
-3. **Export** (`GET /reports/{report}/export`) runs the *same* report with the *same*
-   normalised params and streams the full result set as CSV — carrying the active filters
-   in the query string, so the file matches the screen.
+1. **Workspace** (`GET /reports`, optionally `?report=`) lists the reports the user may
+   run and renders the active one inline: charts + signals over the whole set, a
+   paginated slice for the table.
+2. **Insights** (`POST /reports/{report}/insights`) re-resolves and **re-authorises** the
+   report, re-runs it from the same filters server-side (never trusting client numbers),
+   and returns the LLM result as JSON. The panel is remounted per report+filters, so a
+   stale narrative is never shown against changed figures.
+3. **Export** (`GET /reports/{report}/export`) streams the full result set as CSV,
+   carrying the active filters so the file matches the screen.
 
-Filters are declarative, so the runner UI (`resources/js/pages/reports/show.tsx` +
-`features/reports/`) renders any report without bespoke code: selects, a date range, a
-month picker and a debounced search, each patching the URL and re-fetching. Every control
-is reflected in the URL, so a report view is a shareable, reproducible snapshot.
+Filters are declarative, so the runner renders any report without bespoke code, and every
+control patches the URL and re-fetches.
 
 ## Adding a report
 
 1. Create a class under `app/Support/Reports/Reports/` implementing `Report` (use
-   `BuildsReport` for the common filters). Reuse an existing `*Statistics` / query class
-   if the figures already live somewhere — don't recompute them.
-2. Register it in `ReportRegistry::REPORTS` (order = hub order).
-3. Point `permission()` at an existing module permission; the hub, the route guard and the
-   sidebar gate all follow from it. If the new report's permission isn't already in the
-   sidebar's Reports `permissionAny`, add it there too.
+   `BuildsReport`). Reuse an existing `*Statistics`/query class for the figures; add
+   `charts()` for its decision views.
+2. Register it in `ReportRegistry::REPORTS`.
+3. Point `permission()` at an existing module permission; the rail, route guard and
+   sidebar gate follow from it. Add the permission to the sidebar's Reports `permissionAny`
+   if it's new. ML signals attach automatically for the `Workforce`/`Attendance` groups
+   (see `MlSignals::SIGNAL_GROUPS`).
 
-Nothing else is needed — the runner, pagination, CSV export and print all work off the
-contract.
+The charts, CSV export, print and AI insights all work off the contract — nothing else
+is needed.

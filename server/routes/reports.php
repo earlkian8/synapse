@@ -13,6 +13,6 @@ Route::middleware(['auth', 'verified'])
     ->name('reports.')
     ->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::post('{report}/insights', [ReportController::class, 'insights'])->name('insights');
         Route::get('{report}/export', [ReportController::class, 'export'])->name('export');
-        Route::get('{report}', [ReportController::class, 'show'])->name('show');
     });

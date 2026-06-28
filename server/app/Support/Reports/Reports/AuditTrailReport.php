@@ -95,4 +95,12 @@ class AuditTrailReport implements Report
             ['label' => 'People', 'value' => number_format($rows->pluck('causer')->unique()->count())],
         ];
     }
+
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->barsFromCounts('By event', $rows->groupBy('event')->map->count()->sortDesc()->take(8)->all()),
+            $this->barsFromCounts('Most active', $rows->groupBy('causer')->map->count()->sortDesc()->take(6)->all()),
+        ];
+    }
 }

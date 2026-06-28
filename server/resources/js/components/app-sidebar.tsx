@@ -144,6 +144,19 @@ const analyticsNavItems: GatedNavItem[] = [
         icon: Medal,
         permission: 'analytics.promotion.view',
     },
+    {
+        title: 'Reports',
+        href: '/reports',
+        icon: BarChart3,
+        // Visible to anyone who can run at least one report.
+        permissionAny: [
+            'employees.view',
+            'attendance.view',
+            'leave.view',
+            'recruitment.view',
+            'activity-logs.view',
+        ],
+    },
 ];
 
 const companySetupNavItems: GatedNavItem[] = [
@@ -214,19 +227,6 @@ const systemNavItems: GatedNavItem[] = [
         href: '/system/activity-logs',
         icon: ScrollText,
         permission: 'activity-logs.view',
-    },
-    {
-        title: 'Reports',
-        href: '/reports',
-        icon: BarChart3,
-        // Visible to anyone who can run at least one report.
-        permissionAny: [
-            'employees.view',
-            'attendance.view',
-            'leave.view',
-            'recruitment.view',
-            'activity-logs.view',
-        ],
     },
     {
         title: 'Trash Bin',

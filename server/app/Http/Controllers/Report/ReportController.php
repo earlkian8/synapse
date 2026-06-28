@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Report;
 
 use App\Http\Controllers\Controller;
+use App\Support\Reports\MlSignals;
 use App\Support\Reports\Report;
+use App\Support\Reports\ReportInsights;
 use App\Support\Reports\ReportRegistry;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -13,23 +16,29 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * Drives every report through one runner: the hub, a parameterised view, and a CSV
- * export. Each request is resolved against {@see ReportRegistry} and re-authorised
- * against the report's own permission. Filters are normalised from the query string
- * before they reach a report, so a report only ever sees clean, validated params — and
- * the export runs the *same* report with the *same* params as the screen, so the file
- * always matches what was viewed.
+ * Drives the Reports analytics workspace: one page that lists every report the user
+ * may run and renders the selected one inline — its decision-making charts, ML
+ * signals, totals and table. The same report+filters resolution backs three surfaces
+ * so they can never drift: the inline view, the CSV export, and the on-demand LLM
+ * insights (which re-run server-side, never trusting the client's numbers).
  */
 class ReportController extends Controller
 {
     private const PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-    public function __construct(private readonly ReportRegistry $registry) {}
+    public function __construct(
+        private readonly ReportRegistry $registry,
+        private readonly MlSignals $signals,
+        private readonly ReportInsights $insights,
+    ) {}
 
-    /** The report hub: every report the user may run, grouped by section. */
+    /** The workspace: the report catalogue plus the active report rendered inline. */
     public function index(Request $request): Response
     {
-        $reports = $this->registry->forUser($request->user())
+        $user = $request->user();
+        $available = $this->registry->forUser($user);
+
+        $list = $available
             ->map(fn (Report $report): array => [
                 'key' => $report->key(),
                 'name' => $report->name(),
@@ -38,47 +47,38 @@ class ReportController extends Controller
             ])
             ->values();
 
-        return Inertia::render('reports/index', ['reports' => $reports]);
+        if ($available->isEmpty()) {
+            return Inertia::render('reports/index', ['reports' => [], 'active' => null]);
+        }
+
+        // The chosen report (?report=) when accessible, else the first one.
+        $requested = $request->query('report');
+        $report = ($requested ? $available->first(fn (Report $r): bool => $r->key() === $requested) : null)
+            ?? $available->first();
+
+        return Inertia::render('reports/index', [
+            'reports' => $list,
+            'active' => $this->run($request, $report),
+        ]);
     }
 
-    /** Run a report for the current filters and return a paginated page of rows. */
-    public function show(Request $request, string $report): Response
+    /** Generate (on demand) the LLM decision-support narrative for a report run. */
+    public function insights(Request $request, string $report): JsonResponse
     {
         $instance = $this->resolve($request, $report);
         $params = $this->normalize($request, $instance);
 
         $rows = $instance->rows($params);
-        $summary = $instance->summary($rows, $params);
 
-        $perPage = $this->perPage($request);
-        $total = $rows->count();
-        $lastPage = max(1, (int) ceil($total / $perPage));
-        $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
-
-        $slice = $rows->forPage($page, $perPage)->values();
-        $from = $total === 0 ? 0 : (($page - 1) * $perPage) + 1;
-        $to = $total === 0 ? 0 : $from + $slice->count() - 1;
-
-        return Inertia::render('reports/show', [
-            'report' => [
-                'key' => $instance->key(),
-                'name' => $instance->name(),
-                'description' => $instance->description(),
-                'group' => $instance->group(),
-                'filters' => $instance->filters(),
-                'columns' => $instance->columns(),
-            ],
-            'applied' => $params,
-            'rows' => $slice,
-            'summary' => $summary,
-            'meta' => [
-                'current_page' => $page,
-                'last_page' => $lastPage,
-                'per_page' => $perPage,
-                'from' => $from,
-                'to' => $to,
-                'total' => $total,
-            ],
+        return response()->json([
+            'insights' => $this->insights->generate(
+                $instance,
+                $rows,
+                $instance->summary($rows, $params),
+                $instance->charts($rows, $params),
+                $this->signals->forGroup($instance->group()),
+                $params,
+            ),
         ]);
     }
 
@@ -107,6 +107,54 @@ class ReportController extends Controller
 
             fclose($handle);
         }, 200, $headers);
+    }
+
+    /**
+     * Run a report for the current request and assemble its full inline payload —
+     * charts and signals over the whole set, a paginated slice for the table.
+     *
+     * @return array<string, mixed>
+     */
+    private function run(Request $request, Report $report): array
+    {
+        $params = $this->normalize($request, $report);
+
+        $rows = $report->rows($params);
+        $summary = $report->summary($rows, $params);
+        $charts = $report->charts($rows, $params);
+        $signals = $this->signals->forGroup($report->group());
+
+        $perPage = $this->perPage($request);
+        $total = $rows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
+
+        $slice = $rows->forPage($page, $perPage)->values();
+        $from = $total === 0 ? 0 : (($page - 1) * $perPage) + 1;
+        $to = $total === 0 ? 0 : $from + $slice->count() - 1;
+
+        return [
+            'key' => $report->key(),
+            'name' => $report->name(),
+            'description' => $report->description(),
+            'group' => $report->group(),
+            'filters' => $report->filters(),
+            'columns' => $report->columns(),
+            'applied' => $params,
+            'rows' => $slice,
+            'summary' => $summary,
+            'charts' => $charts,
+            'signals' => $signals,
+            'ai_enabled' => $this->insights->enabled(),
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'from' => $from,
+                'to' => $to,
+                'total' => $total,
+            ],
+        ];
     }
 
     /** Resolve a report by slug, enforcing existence and the report's own permission. */

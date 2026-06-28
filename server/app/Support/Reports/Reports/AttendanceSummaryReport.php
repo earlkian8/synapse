@@ -101,4 +101,15 @@ class AttendanceSummaryReport implements Report
             ['label' => 'Avg. rate', 'value' => $avgRate],
         ];
     }
+
+    public function charts(Collection $rows, array $params): array
+    {
+        return [
+            $this->donut('Attendance mix', [
+                'Present' => (int) $rows->sum('present_days'),
+                'Late' => (int) $rows->sum('late_count'),
+                'Absent' => (int) $rows->sum('absent_count'),
+            ]),
+        ];
+    }
 }

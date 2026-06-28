@@ -63,6 +63,18 @@ interface Report
     public function rows(array $params): Collection;
 
     /**
+     * Decision-making visualisations derived from the *whole* result set (not the
+     * page on screen). Each is a spec the runner renders as a hand-drawn chart:
+     * `['type' => 'donut'|'bars', 'title' => string, 'segments'|'bars' => [{label,value}]]`.
+     * Return an empty array for a table-only report.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  array<string, mixed>  $params
+     * @return list<array<string, mixed>>
+     */
+    public function charts(Collection $rows, array $params): array;
+
+    /**
      * The summary line shown beneath the table (and footed on the export): labelled
      * totals/aggregates computed over the *entire* result set, not the current page.
      *
