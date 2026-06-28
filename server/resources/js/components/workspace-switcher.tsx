@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Building2, Check, ChevronsUpDown } from 'lucide-react';
+import { Building2, Check, ChevronsUpDown, LayoutGrid } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -8,12 +8,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-    SidebarMenuButton,
-    useSidebar,
-} from '@/components/ui/sidebar';
-import { usePermissions } from '@/hooks/use-permissions';
+import { SidebarMenuButton, useSidebar } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { Organization } from '@/types/auth';
 
 /**
@@ -68,7 +65,13 @@ export function WorkspaceSwitcher() {
             <DropdownMenuContent
                 className="w-(--radix-dropdown-menu-trigger-width) min-w-60 rounded-lg"
                 align="start"
-                side={isMobile ? 'bottom' : state === 'collapsed' ? 'right' : 'bottom'}
+                side={
+                    isMobile
+                        ? 'bottom'
+                        : state === 'collapsed'
+                          ? 'right'
+                          : 'bottom'
+                }
             >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                     Switch workspace
@@ -80,12 +83,26 @@ export function WorkspaceSwitcher() {
                         className="gap-2"
                     >
                         <OrgMark organization={organization} size="sm" />
-                        <span className="flex-1 truncate">{organization.name}</span>
+                        <span className="flex-1 truncate">
+                            {organization.name}
+                        </span>
                         {organization.id === active?.id && (
                             <Check className="size-4 text-[#0ABFBF]" />
                         )}
                     </DropdownMenuItem>
                 ))}
+
+                {organizations.length > 1 && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild className="gap-2">
+                            <Link href="/workspaces">
+                                <LayoutGrid className="size-4" />
+                                <span>Browse all workspaces</span>
+                            </Link>
+                        </DropdownMenuItem>
+                    </>
+                )}
 
                 {can('setup.company.view') && (
                     <>

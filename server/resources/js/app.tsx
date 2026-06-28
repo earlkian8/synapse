@@ -14,6 +14,10 @@ createInertiaApp({
         switch (true) {
             case name === 'welcome':
                 return null;
+            // The workspace picker is pre-workspace chrome — it brings its own
+            // full-screen layout rather than the app shell.
+            case name === 'workspaces':
+                return null;
             case name.startsWith('careers/'):
                 return null;
             case name.startsWith('auth/'):

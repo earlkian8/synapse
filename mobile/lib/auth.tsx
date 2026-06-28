@@ -37,9 +37,17 @@ type AuthValue = {
   organization: AuthOrganization | null;
   /** Every organisation the identity belongs to. */
   organizations: AuthOrganization[];
+  /**
+   * Whether the user has settled on a workspace this session. False right after a
+   * fresh login when the identity belongs to more than one company — the gate that
+   * sends them through the workspace picker before the app shell.
+   */
+  hasEnteredWorkspace: boolean;
   login: (email: string, password: string) => Promise<void>;
   /** Switch the active company — fetches a token bound to it, no re-auth. */
   switchTo: (organizationId: number) => Promise<void>;
+  /** Commit to a workspace from the picker (switches only if it isn't the active one). */
+  enterWorkspace: (organizationId: number) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -50,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Returning (restored) sessions skip the picker; a fresh multi-company login flips
+  // this off so the root navigator routes through it.
+  const [hasEnteredWorkspace, setHasEnteredWorkspace] = useState(true);
 
   // The api client reads the token through this ref so we can point requests at a
   // token synchronously (e.g. while validating on boot).
@@ -86,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(stored);
           setUser(me);
           setActiveWorkspaceId(me.organization ? String(me.organization.id) : null);
+          // A restored session already has a bound workspace — don't re-prompt.
+          setHasEnteredWorkspace(true);
         }
       } catch {
         // Token invalid/expired or server unreachable — drop to signed-out.
@@ -108,6 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await apply(result.token, result.user);
+      // More than one company? Send them through the picker before the app shell.
+      setHasEnteredWorkspace((result.user.organizations?.length ?? 0) <= 1);
     },
     [apply],
   );
@@ -119,8 +134,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await apply(result.token, result.user);
+      setHasEnteredWorkspace(true);
     },
     [apply],
+  );
+
+  const enterWorkspace = useCallback(
+    async (organizationId: number) => {
+      // Already the active company — nothing to switch, just open it.
+      if (organizationId === user?.organization?.id) {
+        setHasEnteredWorkspace(true);
+        return;
+      }
+
+      await switchTo(organizationId);
+    },
+    [switchTo, user],
   );
 
   const logout = useCallback(async () => {
@@ -131,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await apply(null, null);
+    setHasEnteredWorkspace(true);
   }, [apply]);
 
   const refresh = useCallback(async () => {
@@ -147,12 +177,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       organization: user?.organization ?? null,
       organizations: user?.organizations ?? ([] as AuthOrganization[]),
+      hasEnteredWorkspace,
       login,
       switchTo,
+      enterWorkspace,
       logout,
       refresh,
     }),
-    [isLoading, token, user, login, switchTo, logout, refresh],
+    [isLoading, token, user, hasEnteredWorkspace, login, switchTo, enterWorkspace, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

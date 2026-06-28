@@ -33,7 +33,7 @@ export default function RootLayout() {
  * state, and keeps the native splash up until the stored session is restored.
  */
 function RootNavigator() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, hasEnteredWorkspace, organizations } = useAuth();
   const { scheme, colors } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -46,13 +46,18 @@ function RootNavigator() {
     void SplashScreen.hideAsync();
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onPicker = segments[0] === 'select-workspace';
+    // A fresh login by someone in several companies must pick one first.
+    const needsChoice = isAuthenticated && !hasEnteredWorkspace && organizations.length > 1;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
+    } else if (needsChoice && !onPicker) {
+      router.replace('/select-workspace');
+    } else if (isAuthenticated && !needsChoice && (inAuthGroup || onPicker)) {
       router.replace('/(tabs)');
     }
-  }, [isLoading, isAuthenticated, segments, router]);
+  }, [isLoading, isAuthenticated, hasEnteredWorkspace, organizations.length, segments, router]);
 
   return (
     <>
@@ -66,6 +71,7 @@ function RootNavigator() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
+        <Stack.Screen name="select-workspace" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/[id]" />

@@ -38,6 +38,26 @@ organisation is shared to the front-end as `auth.organization`, with the full li
 `auth.organizations` for the **workspace switcher** in the sidebar header; switching
 posts to `organization.switch` (web) or `POST /api/auth/switch` (mobile).
 
+## Choosing a workspace after login
+
+Because an identity can belong to several companies, sign-in lands on a **workspace
+picker** rather than dropping straight into one — the "pick a project" pattern people
+know from Supabase or Vercel.
+
+- **Web:** Fortify's `home` is `/workspaces` (`WorkspaceController@index`). A user with
+  a **single** membership has nothing to choose, so the controller forwards them to the
+  dashboard; everyone else gets the picker (`resources/js/pages/workspaces.tsx`, a
+  full-screen page with no app shell). Each card shows the company, the user's role
+  there, and the headcount — computed per organisation via `Tenancy::runFor()`, since
+  roles and employees are tenant-scoped. Picking a workspace posts to
+  `organization.switch` (same endpoint as the sidebar switcher) and redirects to the
+  dashboard. The sidebar switcher links back here as "Browse all workspaces".
+- **Mobile:** a fresh multi-company login routes to `app/select-workspace.tsx` before
+  the tab shell (the `hasEnteredWorkspace` gate in `lib/auth.tsx`, enforced by the root
+  navigator). Single-company logins and restored sessions skip it. Picking a workspace
+  calls `enterWorkspace()`, which switches the token only when a different company is
+  chosen.
+
 ## Registration provisions a tenant
 
 `CreateNewUser` (Fortify) wraps registration in a transaction:

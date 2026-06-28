@@ -73,7 +73,9 @@ return [
     |
     */
 
-    'home' => '/dashboard',
+    // Land on the workspace picker after sign-in; it forwards single-company users
+    // straight to their dashboard (see App\Http\Controllers\WorkspaceController).
+    'home' => '/workspaces',
 
     /*
     |--------------------------------------------------------------------------
