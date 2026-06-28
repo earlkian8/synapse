@@ -16,10 +16,19 @@ export type AuthEmployee = {
   schedule: Schedule | null;
 };
 
+/** The tenant (company) an account belongs to — one per account (ADR 0005). */
+export type AuthOrganization = {
+  id: number;
+  name: string;
+  logo: string | null;
+  initials: string;
+};
+
 export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  organization: AuthOrganization | null;
   employee: AuthEmployee | null;
   can_clock: boolean;
 };

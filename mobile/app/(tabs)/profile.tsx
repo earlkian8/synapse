@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -11,6 +12,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
 import { profileApi } from '@/features/profile/api';
+import { CompanyLogo, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { formatDate, humanize } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/use-query';
@@ -20,8 +22,9 @@ import type { Profile } from '@/types/api';
 
 export default function ProfileScreen() {
   const { colors, spacing, mode, setMode } = useTheme();
-  const { logout } = useAuth();
+  const { signOut, organization, sessions } = useAuth();
   const router = useRouter();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const { data, loading, refreshing, refresh } = useQuery<{ data: Profile }>(() => profileApi.show(), []);
   const profile = data?.data ?? null;
@@ -87,6 +90,32 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
             </Card>
 
+            {/* Workspace — which company this account belongs to, and a way to switch */}
+            {organization && (
+              <View style={{ gap: spacing.sm }}>
+                <AppText variant="overline" muted>
+                  Workspace
+                </AppText>
+                <Card
+                  onPress={() => setSwitcherOpen(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+                >
+                  <CompanyLogo uri={organization.logo} initials={organization.initials} active />
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="label" numberOfLines={1}>
+                      {organization.name}
+                    </AppText>
+                    <AppText variant="caption" muted>
+                      {sessions.length > 1
+                        ? `Tap to switch · ${sessions.length} companies`
+                        : 'Tap to add another company'}
+                    </AppText>
+                  </View>
+                  <Ionicons name="swap-horizontal" size={20} color={colors.accent} />
+                </Card>
+              </View>
+            )}
+
             <Section title="Personal">
               <InfoRow label="Birth date" value={formatDate(profile.birth_date)} />
               <InfoRow label="Gender" value={humanize(profile.gender)} />
@@ -132,12 +161,14 @@ export default function ProfileScreen() {
         </View>
 
         <Button
-          label="Sign out"
+          label={sessions.length > 1 ? `Sign out of ${organization?.name ?? 'this company'}` : 'Sign out'}
           variant="outline"
-          onPress={logout}
+          onPress={() => void signOut()}
           icon={<Ionicons name="log-out-outline" size={20} color={colors.text} />}
         />
       </ScrollView>
+
+      <WorkspaceSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </Screen>
   );
 }

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -12,6 +13,7 @@ import { AppText } from '@/components/ui/text';
 import { attendanceApi } from '@/features/attendance/api';
 import { awardsApi } from '@/features/awards/api';
 import { leaveApi } from '@/features/leave/api';
+import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatLongDate, formatMinutes, formatTime } from '@/lib/format';
 import { attendanceMeta } from '@/lib/status';
@@ -37,6 +39,7 @@ export default function HomeScreen() {
   const { colors, spacing } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const { data, loading, refreshing, refresh } = useQuery<HomeData>(async () => {
     const [today, balances, awards, pending] = await Promise.all([
@@ -66,6 +69,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
       >
+        {/* Active company — tap to switch workspaces */}
+        <View style={{ flexDirection: 'row' }}>
+          <WorkspaceChip onPress={() => setSwitcherOpen(true)} />
+        </View>
+
         {/* Greeting */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <Avatar uri={user?.employee?.photo} initials={firstName.slice(0, 2)} size={52} ring />
@@ -243,6 +251,8 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      <WorkspaceSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </Screen>
   );
 }

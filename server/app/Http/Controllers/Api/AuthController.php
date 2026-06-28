@@ -71,11 +71,21 @@ class AuthController extends Controller
     private function userPayload(User $user): array
     {
         $employee = $user->employee()->with('workSchedule')->first();
+        $organization = $user->organization;
 
         return [
             'id' => $user->id,
             'name' => trim("{$user->first_name} {$user->last_name}"),
             'email' => $user->email,
+            // The tenant this account belongs to. One user maps to exactly one
+            // organisation (ADR 0005); the mobile app labels each saved workspace
+            // with it so an employee of two companies can tell them apart.
+            'organization' => $organization ? [
+                'id' => $organization->id,
+                'name' => $organization->name,
+                'logo' => $organization->logo_url,
+                'initials' => $organization->initials(),
+            ] : null,
             'employee' => $employee ? [
                 'id' => $employee->id,
                 'full_name' => $employee->full_name,

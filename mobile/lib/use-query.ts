@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+
+import { getActiveWorkspaceId, subscribeActiveWorkspace } from '@/lib/active-workspace';
 
 type QueryState<T> = {
   data: T | null;
@@ -42,10 +44,14 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = []): Qu
     deps,
   );
 
+  // Re-run when the caller's deps change or the active workspace is switched, so
+  // every screen reloads against the newly-active company's tenant context.
+  const activeWorkspace = useSyncExternalStore(subscribeActiveWorkspace, getActiveWorkspaceId, getActiveWorkspaceId);
+
   useEffect(() => {
     setLoading(true);
     void run('initial');
-  }, [run]);
+  }, [run, activeWorkspace]);
 
   return {
     data,
