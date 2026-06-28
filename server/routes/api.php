@@ -15,7 +15,12 @@ use Illuminate\Support\Facades\Route;
 | token's user (see bootstrap/app.php).
 */
 
-Route::post('auth/login', [AuthController::class, 'login'])->name('api.auth.login');
+// Brute-force protection: the web login is throttled by Fortify; this token
+// endpoint is public too, so cap attempts (per email+IP, see RouteServiceProvider
+// / FortifyServiceProvider 'login' limiter) the same way.
+Route::post('auth/login', [AuthController::class, 'login'])
+    ->middleware('throttle:login')
+    ->name('api.auth.login');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
