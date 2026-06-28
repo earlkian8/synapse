@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
-import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { Badge } from '@/components/ui/badge';
 import {
     Sidebar,
@@ -41,6 +40,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { usePermissions } from '@/hooks/use-permissions';
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
@@ -144,7 +144,6 @@ const analyticsNavItems: GatedNavItem[] = [
         icon: Medal,
         permission: 'analytics.promotion.view',
     },
-    { title: 'Reports', href: '/reports', icon: BarChart3 },
 ];
 
 const companySetupNavItems: GatedNavItem[] = [
@@ -215,6 +214,19 @@ const systemNavItems: GatedNavItem[] = [
         href: '/system/activity-logs',
         icon: ScrollText,
         permission: 'activity-logs.view',
+    },
+    {
+        title: 'Reports',
+        href: '/reports',
+        icon: BarChart3,
+        // Visible to anyone who can run at least one report.
+        permissionAny: [
+            'employees.view',
+            'attendance.view',
+            'leave.view',
+            'recruitment.view',
+            'activity-logs.view',
+        ],
     },
     {
         title: 'Trash Bin',

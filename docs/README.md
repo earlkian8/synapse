@@ -29,6 +29,7 @@ commit history rather than repeating them.
 
 ### Modules
 - [Dashboard](./modules/dashboard.md) — the home overview: permission-aware KPIs, hand-drawn charts, an action queue & activity feed.
+- [Reports](./modules/reports.md) — auditing surface: parameterised, exportable reports over each module, via one registry-backed runner.
 - [Multi-tenancy](./modules/multi-tenancy.md) — organisation isolation, current-tenant resolution, registration provisioning.
 - [Recruitment](./modules/recruitment.md) — ATS: job postings, candidate pool, hiring pipeline, interviews, hire → employee bridge.
 - [Onboarding](./modules/onboarding.md) — template-driven checklists carrying each new hire from day one to productive.
