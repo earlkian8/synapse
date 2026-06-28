@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
@@ -18,7 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // with a single membership). See WorkspaceController.
     Route::get('workspaces', [WorkspaceController::class, 'index'])->name('workspaces');
 
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // The floating agentic assistant. Open to any authenticated user; the agent
     // exposes only the HR modules the user is permitted to use. Conversations are
