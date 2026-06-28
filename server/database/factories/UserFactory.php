@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -27,7 +28,6 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'organization_id' => fn () => app(Tenancy::class)->id() ?? Organization::factory(),
             'first_name' => fake()->firstName(),
             'middle_name' => fake()->optional()->lastName(),
             'last_name' => fake()->lastName(),
@@ -46,6 +46,24 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ];
+    }
+
+    /**
+     * Make every factory-built identity a member of the bound tenant (or a fresh
+     * organisation when none is bound), mirroring the old single-org default so
+     * existing tests and seeders keep producing users that resolve a workspace.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            if ($user->memberships()->exists()) {
+                return;
+            }
+
+            $organization = app(Tenancy::class)->organization() ?? Organization::factory()->create();
+
+            OrganizationProvisioner::addMember($organization, $user, default: true);
+        });
     }
 
     /**

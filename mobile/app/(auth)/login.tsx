@@ -19,7 +19,7 @@ import { useAuth } from '@/lib/auth';
 import { palette } from '@/theme/tokens';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { login } = useAuth();
   const toast = useToast();
 
   const [email, setEmail] = useState('');
@@ -33,7 +33,7 @@ export default function LoginScreen() {
     setSubmitting(true);
 
     try {
-      await signIn(email.trim(), password);
+      await login(email.trim(), password);
       // The root navigator redirects into the app on success.
     } catch (error) {
       if (error instanceof ApiError) {

@@ -23,21 +23,18 @@ password** row action (`POST employees/{employee}/reset-password`,
 password via `EmployeeAccountProvisioner::resetPassword()` — provisioning the
 account first if the employee never had one — and re-sends the credentials email.
 
-## Multiple companies (workspaces)
+## Multiple companies
 
-A person employed by more than one company has one account per company (one user ⇒
-one organisation, ADR 0005, necessarily with a different email each). The app keeps
-**every account signed in at once** and switches between them in a tap — see
-[ADR 0022](../decisions/0022-mobile-multi-workspace-sessions.md). Each session is an
-independent Sanctum token (which already binds one tenant), so there is no backend
-M:N: `lib/sessions.ts` persists the sessions (tokens in SecureStore, profiles in
-AsyncStorage) and `lib/auth.tsx` exposes `signIn` (add + activate), `switchTo`
-(instant, no re-auth) and `signOut(id?)`. The **workspace switcher** (company chip
-on Home, Workspace card on Profile) renders companies as rounded squares — distinct
-from circular person avatars — with the active one ringed in teal; **Add a company**
-(`app/add-account.tsx`) signs in to another workspace. Switching republishes the
-active id (`lib/active-workspace.ts`) so every `useQuery` screen refetches against
-the new company's tenant context.
+A person employed by more than one company signs in **once** — a user is a single
+identity that can belong to many organisations ([ADR 0023](../decisions/0023-identity-and-organization-membership.md)).
+`login` / `me` return the active `organization` plus the full `organizations` list;
+`switchTo(organizationId)` calls `POST /api/auth/switch`, which mints a fresh Sanctum
+token **bound to the chosen company** (and revokes the old one), and `lib/auth.tsx`
+swaps it in — no re-entering credentials. The **workspace switcher** (company chip on
+Home, Workspace card on Profile) lists the identity's organisations, rendering
+companies as rounded squares — distinct from circular person avatars — with the active
+one ringed in teal. Switching republishes the active id (`lib/active-workspace.ts`) so
+every `useQuery` screen refetches against the new company's tenant context.
 
 ## Surfaces
 
@@ -84,10 +81,10 @@ require approval — identical to the web `LeaveRequestController`.
 ## Conventions
 
 - `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing).
-- `lib/auth.tsx` — multi-workspace sessions: `signIn` / `switchTo` / `signOut` /
-  `refresh`, restored and revalidated on boot. `lib/sessions.ts` persists them
-  (tokens in SecureStore, profiles in AsyncStorage); `lib/active-workspace.ts`
-  republishes the active id so `lib/use-query.ts` refetches on a switch.
+- `lib/auth.tsx` — one identity, one org-bound token in SecureStore, re-hydrated from
+  `/me` on boot. `login` / `switchTo` / `logout` / `refresh`; `switchTo` swaps in a
+  token bound to the chosen company. `lib/active-workspace.ts` republishes the active
+  org id so `lib/use-query.ts` refetches on a switch.
 - `theme/` — design tokens (navy `#0F2044`, teal `#0ABFBF`, shared status colours),
   light + dark.
 - `components/ui/` — the shared kit (Button, Card, Pill, Input, Sheet, Toast, …).

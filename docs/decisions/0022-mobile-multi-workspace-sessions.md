@@ -1,7 +1,11 @@
 # 0022 — Mobile multi-workspace sessions (employees of more than one company)
 
-- **Status:** Accepted
+- **Status:** Superseded by [0023 — Identity vs employment](./0023-identity-and-organization-membership.md)
 - **Date:** 2026-06-28
+- **Note:** This stored several *independent accounts* on the device (a stop-gap for the
+  one-user-one-org constraint). ADR 0023 replaced it with a single identity that belongs
+  to many organisations; the mobile switcher now lists memberships and switches via a
+  server-issued org-bound token, not separate logins.
 - **Related:** [0005 — Multi-tenancy](./0005-multi-tenancy.md),
   [0010 — Attendance & mobile API](./0010-attendance-and-mobile-api.md),
   [0020 — Mobile companion app](./0020-mobile-companion-app.md),

@@ -12,6 +12,8 @@ use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
 use App\Support\ActivityLogger;
 use App\Support\Notifier;
+use App\Support\OrganizationProvisioner;
+use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -66,6 +68,42 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request): RedirectResponse
     {
+        $organization = app(Tenancy::class)->organization();
+
+        // Users are global identities now (ADR 0023): if the email already belongs to
+        // someone (they work for another company), link that identity into this
+        // organisation instead of creating a duplicate account.
+        $existing = User::where('email', $request->validated('email'))->first();
+
+        if ($existing !== null) {
+            if ($existing->isMemberOf($organization)) {
+                return $this->respond('That email already belongs to a user in this organisation.', 'error');
+            }
+
+            OrganizationProvisioner::addMember($organization, $existing);
+            $this->syncRoles($request, $existing);
+
+            Notifier::toUser(
+                $existing,
+                "You've been added to {$organization->name}",
+                "Your SYNAPSE account now has access to {$organization->name}. Switch to it from the account menu.",
+                url: '/dashboard',
+                level: 'success',
+                category: 'account',
+                actor: $request->user(),
+            );
+
+            ActivityLogger::log(
+                event: 'created',
+                description: "Added existing user {$existing->full_name} to the organisation",
+                subject: $existing,
+                logName: 'user_management',
+                subjectLabel: $existing->full_name,
+            );
+
+            return $this->respond("{$existing->email} already had an account and was added to this organisation.");
+        }
+
         $user = new User(Arr::except($request->validated(), [
             'password', 'photo', 'roles',
         ]));
@@ -80,6 +118,9 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // The new identity's first (and so default) membership is this organisation.
+        OrganizationProvisioner::addMember($organization, $user, default: true);
 
         $this->syncRoles($request, $user);
 
@@ -227,7 +268,7 @@ class UserController extends Controller
      */
     public function restore(int $user): RedirectResponse
     {
-        $model = User::onlyTrashed()->findOrFail($user);
+        $model = User::onlyTrashed()->inCurrentOrganization()->findOrFail($user);
         $model->restore();
 
         ActivityLogger::log(
@@ -246,7 +287,7 @@ class UserController extends Controller
      */
     public function forceDelete(Request $request, int $user): RedirectResponse
     {
-        $model = User::withTrashed()->findOrFail($user);
+        $model = User::withTrashed()->inCurrentOrganization()->findOrFail($user);
 
         if ($model->is($request->user())) {
             return $this->respond('You cannot delete your own account.', 'error');
@@ -283,7 +324,30 @@ class UserController extends Controller
             return [];
         }
 
-        return $user->roles()->sync($request->validated('roles') ?? []);
+        // Roles are organisation-scoped and `role_user` is global, so a plain sync()
+        // would wipe the user's roles in their *other* organisations. Reconcile only
+        // within the active organisation's roles (which also blocks attaching a
+        // foreign org's role id from a tampered payload).
+        $orgRoleIds = Role::pluck('id');
+        $selected = collect($request->validated('roles') ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->intersect($orgRoleIds);
+        $current = $user->roles()->whereIn('roles.id', $orgRoleIds)->pluck('roles.id');
+
+        $detach = $current->diff($selected);
+        $attach = $selected->diff($current);
+
+        if ($detach->isNotEmpty()) {
+            $user->roles()->detach($detach->all());
+        }
+
+        if ($attach->isNotEmpty()) {
+            $user->roles()->attach($attach->all());
+        }
+
+        $user->forgetCachedPermissions();
+
+        return ['attached' => $attach->values()->all(), 'detached' => $detach->values()->all()];
     }
 
     /**

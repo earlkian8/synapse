@@ -22,7 +22,7 @@ import type { Profile } from '@/types/api';
 
 export default function ProfileScreen() {
   const { colors, spacing, mode, setMode } = useTheme();
-  const { signOut, organization, sessions } = useAuth();
+  const { logout, organization, organizations } = useAuth();
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
@@ -106,12 +106,14 @@ export default function ProfileScreen() {
                       {organization.name}
                     </AppText>
                     <AppText variant="caption" muted>
-                      {sessions.length > 1
-                        ? `Tap to switch · ${sessions.length} companies`
-                        : 'Tap to add another company'}
+                      {organizations.length > 1
+                        ? `Tap to switch · ${organizations.length} companies`
+                        : 'Your only company'}
                     </AppText>
                   </View>
-                  <Ionicons name="swap-horizontal" size={20} color={colors.accent} />
+                  {organizations.length > 1 && (
+                    <Ionicons name="swap-horizontal" size={20} color={colors.accent} />
+                  )}
                 </Card>
               </View>
             )}
@@ -161,9 +163,9 @@ export default function ProfileScreen() {
         </View>
 
         <Button
-          label={sessions.length > 1 ? `Sign out of ${organization?.name ?? 'this company'}` : 'Sign out'}
+          label="Sign out"
           variant="outline"
-          onPress={() => void signOut()}
+          onPress={() => void logout()}
           icon={<Ionicons name="log-out-outline" size={20} color={colors.text} />}
         />
       </ScrollView>

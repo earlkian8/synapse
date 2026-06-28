@@ -65,10 +65,15 @@ test('registration provisions an organisation owned by the registrant', function
     $org = Organization::where('name', 'Globex')->first();
     expect($org)->not->toBeNull();
 
-    $user = User::withoutGlobalScopes()->where('email', 'hank@globex.test')->first();
+    // The registrant is a global identity who becomes a member — and owner — of the
+    // organisation they created (ADR 0023).
+    $user = User::where('email', 'hank@globex.test')->first();
     expect($user)->not->toBeNull()
-        ->and($user->organization_id)->toBe($org->id)
-        ->and($user->isSuperAdmin())->toBeTrue();
+        ->and($user->isMemberOf($org))->toBeTrue();
+
+    app(Tenancy::class)->runFor($org, function () use ($user) {
+        expect($user->fresh()->isSuperAdmin())->toBeTrue();
+    });
 
     // Every new tenant gets the full built-in role set.
     expect(Role::withoutGlobalScopes()->where('organization_id', $org->id)->count())->toBe(4);

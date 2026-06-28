@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Organization;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
@@ -47,6 +48,27 @@ class OrganizationProvisioner
         }
 
         return $superAdmin;
+    }
+
+    /**
+     * Add a user to an organisation (idempotent), recording the membership that
+     * lets them act in that tenant (ADR 0023). `$default` marks the org a fresh
+     * login should land in — used for the first organisation a user joins.
+     */
+    public static function addMember(Organization $organization, User $user, bool $default = false): void
+    {
+        if ($user->isMemberOf($organization)) {
+            if ($default) {
+                $user->memberships()->updateExistingPivot($organization->id, ['is_default' => true]);
+            }
+
+            return;
+        }
+
+        $user->memberships()->attach($organization->id, [
+            'is_default' => $default,
+            'joined_at' => now(),
+        ]);
     }
 
     /**

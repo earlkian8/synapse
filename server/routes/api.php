@@ -20,6 +20,8 @@ Route::post('auth/login', [AuthController::class, 'login'])->name('api.auth.logi
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
     Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
+    // Switch the active organisation (employees of more than one company).
+    Route::post('auth/switch', [AuthController::class, 'switch'])->name('api.auth.switch');
 
     // Self-service Daily Time Record.
     Route::get('attendance/today', [AttendanceController::class, 'today'])->name('api.attendance.today');

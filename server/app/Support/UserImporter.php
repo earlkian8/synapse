@@ -9,7 +9,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 /**
  * Bulk-creates user accounts from an uploaded CSV, the canonical operation behind
@@ -127,7 +126,9 @@ class UserImporter
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'suffix' => ['nullable', 'string', 'max:32'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
+            // No global uniqueness: an existing identity is linked into this org
+            // (see createUser). Only a duplicate *within this org* is rejected.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
             'phone_number' => ['nullable', 'string', 'max:32'],
             'employee_id' => ['nullable', 'string', 'max:255'],
         ], [], [
@@ -140,9 +141,20 @@ class UserImporter
 
         $email = Str::lower($data['email']);
 
-        // In-file duplicate (the DB unique rule only catches already-persisted ones).
+        // In-file duplicate (caught before the per-row create).
         if ($email !== '' && isset($seenEmails[$email])) {
             $messages->push('The email is duplicated earlier in this file.');
+        }
+
+        // Already a member of this organisation (the identity may exist in others).
+        $orgId = app(Tenancy::class)->id();
+
+        if ($email !== '' && $orgId !== null) {
+            $existing = User::where('email', $email)->first();
+
+            if ($existing !== null && $existing->isMemberOf($orgId)) {
+                $messages->push('A user with this email is already in this organisation.');
+            }
         }
 
         // Role column: only meaningful when the importer may assign roles.
@@ -162,18 +174,29 @@ class UserImporter
      */
     private function createUser(array $data, ?string $email, User $actor, bool $canAssignRoles, $roleLookup): bool
     {
-        $user = new User([
-            'first_name' => $data['first_name'],
-            'middle_name' => $data['middle_name'] ?: null,
-            'last_name' => $data['last_name'],
-            'suffix' => $data['suffix'] ?: null,
-            'email' => $email,
-            'phone_number' => $data['phone_number'] ?: null,
-            'employee_id' => $data['employee_id'] ?: null,
-            'is_active' => $this->parseBool($data['is_active'], true),
-        ]);
+        $organization = app(Tenancy::class)->organization();
 
-        $user->save();
+        // Reuse an existing identity (someone who works for another company) by
+        // adding them to this organisation, or create a new one.
+        $user = User::where('email', $email)->first();
+        $isExisting = $user !== null;
+
+        if (! $isExisting) {
+            $user = new User([
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'] ?: null,
+                'last_name' => $data['last_name'],
+                'suffix' => $data['suffix'] ?: null,
+                'email' => $email,
+                'phone_number' => $data['phone_number'] ?: null,
+                'employee_id' => $data['employee_id'] ?: null,
+                'is_active' => $this->parseBool($data['is_active'], true),
+            ]);
+
+            $user->save();
+        }
+
+        OrganizationProvisioner::addMember($organization, $user, default: ! $isExisting);
 
         if ($data['role'] !== '' && $canAssignRoles) {
             $role = $roleLookup->get(Str::lower($data['role']));
@@ -181,6 +204,22 @@ class UserImporter
             if ($role) {
                 $user->roles()->syncWithoutDetaching([$role->id]);
             }
+        }
+
+        // An existing identity already has a verified address and password; only a
+        // freshly created account needs to verify and gets the welcome email.
+        if ($isExisting) {
+            Notifier::toUser(
+                $user,
+                "You've been added to {$organization->name}",
+                "Your SYNAPSE account now has access to {$organization->name}.",
+                url: '/dashboard',
+                level: 'success',
+                category: 'account',
+                actor: $actor,
+            );
+
+            return true;
         }
 
         $sent = $this->sendVerification($user);

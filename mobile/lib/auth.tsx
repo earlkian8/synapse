@@ -1,14 +1,16 @@
 /**
- * Auth state for the app — now multi-workspace. A person employed by more than
- * one company has one account per company (ADR 0005), so we keep every signed-in
- * session and let the user switch between them instantly without re-authenticating.
+ * Auth state for the app.
  *
- * Sessions live in {@link sessions} (tokens in SecureStore, profiles in
- * AsyncStorage). The active session's token is what the {@link api} client sends;
- * switching workspaces just re-points that token and swaps the visible user. On
- * boot we restore the saved sessions (migrating any pre-multi-account token) and
- * revalidate the active one against `/me`.
+ * A user is a single identity (one login) that can belong to several companies
+ * (ADR 0023). The Sanctum token in SecureStore is bound to one **active**
+ * organisation; switching companies asks the server for a fresh token bound to the
+ * chosen org (`/auth/switch`) and swaps it in — no re-entering credentials. The
+ * signed-in user carries both the active `organization` and the full list of
+ * `organizations` the switcher offers.
+ *
+ * On boot we restore the token and re-hydrate from `/me`.
  */
+import * as SecureStore from 'expo-secure-store';
 import {
   createContext,
   useCallback,
@@ -21,123 +23,83 @@ import {
 } from 'react';
 
 import { setActiveWorkspaceId } from '@/lib/active-workspace';
-import { ApiError, api, setTokenProvider } from '@/lib/api';
-import {
-  readSessions,
-  sessionId,
-  takeLegacyToken,
-  writeSessions,
-  type Session,
-} from '@/lib/sessions';
+import { api, setTokenProvider } from '@/lib/api';
 import type { AuthOrganization, AuthUser } from '@/types/api';
 
+const TOKEN_KEY = 'synapse.token';
+
 type AuthValue = {
-  /** True until saved sessions have been restored and the active one validated. */
+  /** True until the stored token has been restored and (if present) validated. */
   isLoading: boolean;
   isAuthenticated: boolean;
-  /** The active workspace's user, or null when signed out. */
   user: AuthUser | null;
-  /** The active workspace's organisation (company). */
+  /** The active organisation (company) this session is scoped to. */
   organization: AuthOrganization | null;
-  /** Every signed-in workspace, in the order they were added. */
-  sessions: Session[];
-  activeId: string | null;
-  /** Authenticate a new (or re-authenticate an existing) workspace and make it active. */
-  signIn: (email: string, password: string) => Promise<void>;
-  /** Switch the active workspace — no network round-trip, no re-entry of credentials. */
-  switchTo: (id: string) => Promise<void>;
-  /** Sign out one workspace (defaults to the active one), falling back to another if any remain. */
-  signOut: (id?: string) => Promise<void>;
-  /** Re-pull the active workspace's profile from the server. */
+  /** Every organisation the identity belongs to. */
+  organizations: AuthOrganization[];
+  login: (email: string, password: string) => Promise<void>;
+  /** Switch the active company — fetches a token bound to it, no re-auth. */
+  switchTo: (organizationId: number) => Promise<void>;
+  logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // The api client reads the active token through this ref. Keeping it in a ref
-  // (rather than only in state) lets us point requests at a specific token
-  // synchronously — needed when validating one session mid-boot or mid-switch.
+  // The api client reads the token through this ref so we can point requests at a
+  // token synchronously (e.g. while validating on boot).
   const tokenRef = useRef<string | null>(null);
-  // A live mirror of sessions so async handlers never act on a stale closure.
-  const sessionsRef = useRef<Session[]>([]);
 
   useEffect(() => {
     setTokenProvider(() => tokenRef.current);
   }, []);
 
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
+  // Apply a new session (or clear it), persisting the token and publishing the
+  // active workspace so tenant-scoped queries refetch.
+  const apply = useCallback(async (nextToken: string | null, nextUser: AuthUser | null) => {
+    tokenRef.current = nextToken;
+    setToken(nextToken);
+    setUser(nextUser);
+    setActiveWorkspaceId(nextUser?.organization ? String(nextUser.organization.id) : null);
 
-  // Publish the active workspace so tenant-scoped queries refetch on a switch.
-  useEffect(() => {
-    setActiveWorkspaceId(activeId);
-  }, [activeId]);
-
-  const apply = useCallback(async (next: Session[], nextActive: string | null) => {
-    setSessions(next);
-    setActiveId(nextActive);
-    tokenRef.current = next.find((s) => s.id === nextActive)?.token ?? null;
-    await writeSessions(next, nextActive);
+    if (nextToken) {
+      await SecureStore.setItemAsync(TOKEN_KEY, nextToken);
+    } else {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+    }
   }, []);
 
-  // Restore saved sessions on first mount (and migrate a legacy single token).
+  // On first mount, restore any stored session.
   useEffect(() => {
     (async () => {
       try {
-        let { sessions: restored, activeId: restoredActive } = await readSessions();
+        const stored = await SecureStore.getItemAsync(TOKEN_KEY);
 
-        const legacy = await takeLegacyToken();
-
-        if (legacy && restored.length === 0) {
-          tokenRef.current = legacy;
-          const { user } = await api.get<{ user: AuthUser }>('/me');
-          const session: Session = { id: sessionId(user), token: legacy, user };
-          restored = [session];
-          restoredActive = session.id;
-          await writeSessions(restored, restoredActive);
-        }
-
-        setSessions(restored);
-        setActiveId(restoredActive);
-        sessionsRef.current = restored;
-        tokenRef.current = restored.find((s) => s.id === restoredActive)?.token ?? null;
-
-        // Revalidate the active workspace; drop it if the token was revoked.
-        if (tokenRef.current) {
-          try {
-            const { user } = await api.get<{ user: AuthUser }>('/me');
-            const next = restored.map((s) => (s.id === restoredActive ? { ...s, user } : s));
-            setSessions(next);
-            sessionsRef.current = next;
-            await writeSessions(next, restoredActive);
-          } catch (error) {
-            if (error instanceof ApiError && error.status === 401) {
-              const next = restored.filter((s) => s.id !== restoredActive);
-              const nextActive = next[0]?.id ?? null;
-              setSessions(next);
-              setActiveId(nextActive);
-              sessionsRef.current = next;
-              tokenRef.current = next.find((s) => s.id === nextActive)?.token ?? null;
-              await writeSessions(next, nextActive);
-            }
-          }
+        if (stored) {
+          tokenRef.current = stored;
+          const { user: me } = await api.get<{ user: AuthUser }>('/me');
+          setToken(stored);
+          setUser(me);
+          setActiveWorkspaceId(me.organization ? String(me.organization.id) : null);
         }
       } catch {
-        // Storage unreadable — start signed out rather than wedging the app.
+        // Token invalid/expired or server unreachable — drop to signed-out.
+        await SecureStore.deleteItemAsync(TOKEN_KEY);
         tokenRef.current = null;
+        setToken(null);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
     })();
   }, []);
 
-  const signIn = useCallback(
+  const login = useCallback(
     async (email: string, password: string) => {
       const result = await api.post<{ token: string; user: AuthUser }>('/auth/login', {
         email,
@@ -145,91 +107,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         device_name: 'SYNAPSE Mobile',
       });
 
-      const session: Session = { id: sessionId(result.user), token: result.token, user: result.user };
-      // Re-authenticating an already-saved workspace replaces it (the old token stays
-      // valid server-side but is now orphaned; revoking it would need its plaintext).
-      const next = [...sessionsRef.current.filter((s) => s.id !== session.id), session];
-
-      await apply(next, session.id);
+      await apply(result.token, result.user);
     },
     [apply],
   );
 
   const switchTo = useCallback(
-    async (id: string) => {
-      const target = sessionsRef.current.find((s) => s.id === id);
-      if (!target || id === activeId) return;
+    async (organizationId: number) => {
+      const result = await api.post<{ token: string; user: AuthUser }>('/auth/switch', {
+        organization_id: organizationId,
+      });
 
-      setActiveId(id);
-      tokenRef.current = target.token;
-      await writeSessions(sessionsRef.current, id);
-
-      // Freshen the switched-in profile in the background; ignore transient failures.
-      try {
-        const { user } = await api.get<{ user: AuthUser }>('/me');
-        const next = sessionsRef.current.map((s) => (s.id === id ? { ...s, user } : s));
-        setSessions(next);
-        sessionsRef.current = next;
-        await writeSessions(next, id);
-      } catch {
-        // Keep the cached profile; a later refresh will catch up.
-      }
+      await apply(result.token, result.user);
     },
-    [activeId],
+    [apply],
   );
 
-  const signOut = useCallback(
-    async (id?: string) => {
-      const targetId = id ?? activeId;
-      if (!targetId) return;
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Best effort — clear the local session regardless.
+    }
 
-      const target = sessionsRef.current.find((s) => s.id === targetId);
-
-      // Revoke that workspace's token server-side, using it for this one request.
-      if (target) {
-        const previous = tokenRef.current;
-        tokenRef.current = target.token;
-        try {
-          await api.post('/auth/logout');
-        } catch {
-          // Best effort — clear locally regardless.
-        }
-        tokenRef.current = previous;
-      }
-
-      const next = sessionsRef.current.filter((s) => s.id !== targetId);
-      const nextActive = targetId === activeId ? next[0]?.id ?? null : activeId;
-
-      await apply(next, nextActive);
-    },
-    [activeId, apply],
-  );
+    await apply(null, null);
+  }, [apply]);
 
   const refresh = useCallback(async () => {
-    if (!activeId) return;
-    const { user } = await api.get<{ user: AuthUser }>('/me');
-    const next = sessionsRef.current.map((s) => (s.id === activeId ? { ...s, user } : s));
-    setSessions(next);
-    sessionsRef.current = next;
-    await writeSessions(next, activeId);
-  }, [activeId]);
-
-  const activeSession = sessions.find((s) => s.id === activeId) ?? null;
+    if (!tokenRef.current) return;
+    const { user: me } = await api.get<{ user: AuthUser }>('/me');
+    setUser(me);
+    setActiveWorkspaceId(me.organization ? String(me.organization.id) : null);
+  }, []);
 
   const value = useMemo<AuthValue>(
     () => ({
       isLoading,
-      isAuthenticated: activeSession !== null,
-      user: activeSession?.user ?? null,
-      organization: activeSession?.user.organization ?? null,
-      sessions,
-      activeId,
-      signIn,
+      isAuthenticated: token !== null && user !== null,
+      user,
+      organization: user?.organization ?? null,
+      organizations: user?.organizations ?? ([] as AuthOrganization[]),
+      login,
       switchTo,
-      signOut,
+      logout,
       refresh,
     }),
-    [isLoading, activeSession, sessions, activeId, signIn, switchTo, signOut, refresh],
+    [isLoading, token, user, login, switchTo, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

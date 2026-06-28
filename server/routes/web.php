@@ -2,9 +2,15 @@
 
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
+use App\Http\Controllers\OrganizationSwitchController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Switch the active organisation (employees / admins of more than one company).
+// Only `auth` — switching must work regardless of the new org's verification state.
+Route::middleware('auth')->post('organization/switch', [OrganizationSwitchController::class, 'update'])
+    ->name('organization.switch');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

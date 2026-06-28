@@ -7,6 +7,7 @@ use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
@@ -45,13 +46,16 @@ class Organization extends Model
     protected $appends = ['logo_url'];
 
     /**
-     * Users (accounts) that belong to this organisation.
+     * Identities that are members of this organisation (ADR 0023). A user belongs
+     * to many organisations through the `organization_user` pivot.
      *
-     * @return HasMany<User, $this>
+     * @return BelongsToMany<User, $this>
      */
-    public function users(): HasMany
+    public function members(): BelongsToMany
     {
-        return $this->hasMany(User::class);
+        return $this->belongsToMany(User::class, 'organization_user')
+            ->withPivot(['is_default', 'joined_at'])
+            ->withTimestamps();
     }
 
     /**

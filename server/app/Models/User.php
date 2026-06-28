@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Tenancy;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,7 +24,6 @@ use Laravel\Sanctum\HasApiTokens;
 use NotificationChannels\WebPush\HasPushSubscriptions;
 
 #[Fillable([
-    'organization_id',
     'first_name',
     'middle_name',
     'last_name',
@@ -44,7 +43,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use BelongsToOrganization, HasApiTokens, HasFactory, HasPushSubscriptions, Notifiable, PasskeyAuthenticatable, SoftDeletes, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, HasPushSubscriptions, Notifiable, PasskeyAuthenticatable, SoftDeletes, TwoFactorAuthenticatable;
 
     /**
      * Memoised set of the user's effective permission names.
@@ -54,11 +53,100 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     /**
      * Roles assigned to this user.
      *
+     * Roles are organisation-scoped, so when a tenant is bound this relation only
+     * surfaces the roles the user holds in the *active* organisation (ADR 0023).
+     *
      * @return BelongsToMany<Role, $this>
      */
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class);
+    }
+
+    /**
+     * The organisations this identity belongs to (its memberships). A user is a
+     * member of an organisation iff a row exists here; `is_default` marks the org a
+     * fresh login lands in. See ADR 0023.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function memberships(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_user')
+            ->withPivot(['is_default', 'joined_at'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Whether this identity may act in the given organisation.
+     */
+    public function isMemberOf(Organization|int $organization): bool
+    {
+        $id = $organization instanceof Organization ? $organization->id : $organization;
+
+        return $this->memberships()->where('organizations.id', $id)->exists();
+    }
+
+    /**
+     * The organisation a fresh login should land in: the one flagged default, else
+     * the earliest membership. Null when the identity has no memberships yet.
+     */
+    public function defaultOrganization(): ?Organization
+    {
+        return $this->memberships()
+            ->orderByDesc('organization_user.is_default')
+            ->orderBy('organization_user.id')
+            ->first();
+    }
+
+    /**
+     * Scope to identities that are members of the given organisation.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeInOrganization(Builder $query, Organization|int $organization): void
+    {
+        $id = $organization instanceof Organization ? $organization->id : $organization;
+
+        $query->whereHas('memberships', fn (Builder $q) => $q->where('organizations.id', $id));
+    }
+
+    /**
+     * Scope to members of the currently-bound tenant. A no-op when none is bound
+     * (console/login), mirroring how tenant-owned models behave.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeInCurrentOrganization(Builder $query): void
+    {
+        $tenancy = app(Tenancy::class);
+
+        if ($tenancy->check()) {
+            $query->inOrganization($tenancy->id());
+        }
+    }
+
+    /**
+     * Constrain implicit route-model binding to members of the active tenant.
+     *
+     * Users are global identities (ADR 0023), so without this an admin could reach
+     * an account from another organisation by id. Wraps the default query (so
+     * `withTrashed()` route bindings still work) with a membership filter.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null)
+    {
+        $query = parent::resolveRouteBindingQuery($query, $value, $field);
+
+        $tenancy = app(Tenancy::class);
+
+        if ($tenancy->check()) {
+            $query->whereHas('memberships', fn (Builder $q) => $q->where('organizations.id', $tenancy->id()));
+        }
+
+        return $query;
     }
 
     /**

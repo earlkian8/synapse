@@ -77,6 +77,8 @@ class CompanyProfileController extends Controller
      */
     private function organization(): Organization
     {
-        return $this->tenancy->organization() ?? Organization::findOrFail(request()->user()->organization_id);
+        // The active tenant is bound by SetCurrentOrganization for every authed
+        // request; fall back to the caller's default membership just in case.
+        return $this->tenancy->organization() ?? request()->user()->defaultOrganization() ?? abort(403);
     }
 }

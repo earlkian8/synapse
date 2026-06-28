@@ -1,5 +1,10 @@
 # Mobile multi-workspace sessions
 
+> **Superseded the same day** by
+> [one identity, many organisations](./2026-06-28-04-identity-and-organization-membership.md)
+> (ADR 0023). This entry stored several *independent accounts* on the device; the
+> final design is a single identity that belongs to many companies. Kept for history.
+
 Lets an employee of **more than one company** use SYNAPSE Mobile for all of them:
 keep several accounts signed in at once and switch between companies in a tap — no
 signing out, no re-typing credentials. Each company is still a separate account in

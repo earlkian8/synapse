@@ -67,7 +67,6 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="add-account" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/[id]" />
         <Stack.Screen name="attendance/[date]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

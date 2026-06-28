@@ -44,8 +44,9 @@ class CreateNewUser implements CreatesNewUsers
 
             app(Tenancy::class)->set($organization);
 
+            // The registrant is a global identity (ADR 0023) who becomes the first
+            // member — and owner (Super Admin) — of the organisation they just created.
             $user = User::create([
-                'organization_id' => $organization->id,
                 'first_name' => $input['first_name'],
                 'middle_name' => $input['middle_name'] ?? null,
                 'last_name' => $input['last_name'],
@@ -53,6 +54,8 @@ class CreateNewUser implements CreatesNewUsers
                 'password' => $input['password'],
                 'is_active' => true,
             ]);
+
+            OrganizationProvisioner::addMember($organization, $user, default: true);
 
             $user->roles()->attach($superAdmin->id);
 

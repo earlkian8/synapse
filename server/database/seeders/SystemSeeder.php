@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\SystemNotification;
+use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -96,6 +97,8 @@ class SystemSeeder extends Seeder
      */
     private function seedUsers(): void
     {
+        $organization = app(Tenancy::class)->organization();
+
         foreach (self::ACCOUNTS as $account) {
             $user = User::firstOrCreate(
                 ['email' => $account['email']],
@@ -107,6 +110,9 @@ class SystemSeeder extends Seeder
                     'email_verified_at' => now(),
                 ],
             );
+
+            // Make them a member of this tenant (their first membership is default).
+            OrganizationProvisioner::addMember($organization, $user, default: ! $user->memberships()->exists());
 
             $role = Role::where('name', $account['role'])->first();
 

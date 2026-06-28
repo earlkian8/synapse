@@ -13,13 +13,14 @@ class UserStatistics
      */
     public function toArray(): array
     {
+        // Scoped to the active tenant's members — users are global identities now.
         return [
-            'total' => User::count(),
-            'active' => User::where('is_active', true)->count(),
-            'inactive' => User::where('is_active', false)->count(),
-            'unverified' => User::whereNull('email_verified_at')->count(),
-            'new_this_month' => User::where('created_at', '>=', now()->startOfMonth())->count(),
-            'archived' => User::onlyTrashed()->count(),
+            'total' => User::query()->inCurrentOrganization()->count(),
+            'active' => User::query()->inCurrentOrganization()->where('is_active', true)->count(),
+            'inactive' => User::query()->inCurrentOrganization()->where('is_active', false)->count(),
+            'unverified' => User::query()->inCurrentOrganization()->whereNull('email_verified_at')->count(),
+            'new_this_month' => User::query()->inCurrentOrganization()->where('created_at', '>=', now()->startOfMonth())->count(),
+            'archived' => User::query()->inCurrentOrganization()->onlyTrashed()->count(),
         ];
     }
 }

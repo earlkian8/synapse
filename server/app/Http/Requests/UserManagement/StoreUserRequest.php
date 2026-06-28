@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\UserManagement;
 
-use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -21,7 +20,10 @@ class StoreUserRequest extends FormRequest
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'suffix' => ['nullable', 'string', 'max:32'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
+            // No global uniqueness: an existing identity (someone who works for
+            // another company) is linked into this organisation by the controller.
+            // Adding the same email twice to one org is rejected there too.
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
             'phone_number' => ['nullable', 'string', 'max:32'],
             'is_active' => ['required', 'boolean'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],

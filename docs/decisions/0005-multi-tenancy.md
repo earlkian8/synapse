@@ -40,7 +40,11 @@ table. One organisation is created per registration.
 - **One user belongs to one organisation.** `users.organization_id` is non-null;
   `users.email` stays globally unique, so login resolves a user → their organisation
   with no tenant hint. A person in two organisations would need two accounts — an
-  accepted limitation for now.
+  accepted limitation for now. **(Superseded by
+  [ADR 0023](./0023-identity-and-organization-membership.md): identity is now decoupled
+  from tenant via an `organization_user` membership table; one user can belong to many
+  organisations and switch the active one. The rest of this ADR — row-level
+  `organization_id` isolation, the scope, the trait — still stands.)**
 - **RBAC is per-organisation.** *Permissions* remain global and code-defined
   (`PermissionRegistry`); *roles* and their grants are scoped to the organisation.
   Registration provisions a fresh built-in role set (Super Admin, Administrator,

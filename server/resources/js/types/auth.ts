@@ -29,6 +29,8 @@ export type Organization = {
 export type Auth = {
     user: User;
     organization: Organization | null;
+    /** Every organisation the identity belongs to, for the workspace switcher. */
+    organizations: Organization[];
     roles: string[];
     permissions: string[];
     is_super_admin: boolean;

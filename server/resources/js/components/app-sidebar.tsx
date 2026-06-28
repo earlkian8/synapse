@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
+import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { Badge } from '@/components/ui/badge';
 import {
     Sidebar,
@@ -261,15 +262,19 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon" variant="inset">
-            {/* ── Company brand ── */}
+            {/* ── Company brand / workspace switcher ── */}
             <SidebarHeader className="border-b border-sidebar-border pb-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href={brandHref} prefetch>
-                                <CompanyLogo />
-                            </Link>
-                        </SidebarMenuButton>
+                        {auth.organizations.length > 1 ? (
+                            <WorkspaceSwitcher />
+                        ) : (
+                            <SidebarMenuButton size="lg" asChild>
+                                <Link href={brandHref} prefetch>
+                                    <CompanyLogo />
+                                </Link>
+                            </SidebarMenuButton>
+                        )}
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>

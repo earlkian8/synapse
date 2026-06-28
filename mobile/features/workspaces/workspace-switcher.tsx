@@ -1,23 +1,25 @@
 /**
- * Workspace switching UI for employees who belong to more than one company.
+ * Workspace switching for employees who belong to more than one company.
  *
- * Each company a person works for is a separate SYNAPSE account (one account ⇒
- * one organisation, ADR 0005). The switcher lists every signed-in account and
- * swaps the active one in a tap — no signing out, no re-typing credentials.
+ * A user is one identity (one login) that can belong to several organisations
+ * (ADR 0023). The switcher lists those organisations and swaps the active one in a
+ * tap — the server issues a token bound to the chosen company; no re-auth.
  *
  * Visual language: companies render as rounded *squares* to set them apart from
- * people, who are always *circles* (avatars) elsewhere in the app. The active
- * workspace is the one ringed and tinted in teal.
+ * people, who are always *circles* (avatars) elsewhere. The active workspace is the
+ * one ringed and tinted in teal.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter, type Href } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { Sheet } from '@/components/ui/sheet';
+import { useToast } from '@/components/ui/toast';
 import { AppText } from '@/components/ui/text';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/theme/theme';
+import type { AuthOrganization } from '@/types/api';
 
 /** A company mark — rounded square with an initials fallback (cf. round avatars for people). */
 export function CompanyLogo({
@@ -58,9 +60,9 @@ export function CompanyLogo({
   );
 }
 
-/** Compact tappable company badge for screen headers; hints at switching when more than one workspace exists. */
+/** Compact tappable company badge for screen headers; hints at switching when more than one organisation exists. */
 export function WorkspaceChip({ onPress }: { onPress: () => void }) {
-  const { organization, sessions } = useAuth();
+  const { organization, organizations } = useAuth();
   const { colors, radius } = useTheme();
 
   if (!organization) return null;
@@ -88,7 +90,7 @@ export function WorkspaceChip({ onPress }: { onPress: () => void }) {
         {organization.name}
       </AppText>
       <Ionicons
-        name={sessions.length > 1 ? 'swap-horizontal' : 'chevron-down'}
+        name={organizations.length > 1 ? 'swap-horizontal' : 'chevron-down'}
         size={14}
         color={colors.textMuted}
       />
@@ -98,31 +100,39 @@ export function WorkspaceChip({ onPress }: { onPress: () => void }) {
 
 /** The full workspace list, as a bottom sheet. */
 export function WorkspaceSwitcher({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { sessions, activeId, switchTo, signOut } = useAuth();
+  const { organization, organizations, switchTo } = useAuth();
   const { colors, spacing, radius } = useTheme();
-  const router = useRouter();
+  const toast = useToast();
+  const [switching, setSwitching] = useState<number | null>(null);
 
-  const onSwitch = (id: string) => {
-    onClose();
-    void switchTo(id);
-  };
+  const onSwitch = async (target: AuthOrganization) => {
+    if (target.id === organization?.id || switching !== null) return;
 
-  const onAdd = () => {
-    onClose();
-    // Cast: expo-router regenerates typed routes for new files when Metro runs.
-    router.push('/add-account' as Href);
+    setSwitching(target.id);
+
+    try {
+      await switchTo(target.id);
+      onClose();
+      toast.show(`Switched to ${target.name}`, 'success');
+    } catch {
+      toast.show('Could not switch company. Try again.', 'error');
+    } finally {
+      setSwitching(null);
+    }
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Your workspaces">
+    <Sheet visible={visible} onClose={onClose} title="Your companies">
       <View style={{ gap: spacing.sm }}>
-        {sessions.map((session) => {
-          const active = session.id === activeId;
-          const org = session.user.organization;
+        {organizations.map((org) => {
+          const active = org.id === organization?.id;
+          const busy = switching === org.id;
 
           return (
-            <View
-              key={session.id}
+            <Pressable
+              key={org.id}
+              onPress={() => onSwitch(org)}
+              disabled={active || switching !== null}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -134,63 +144,20 @@ export function WorkspaceSwitcher({ visible, onClose }: { visible: boolean; onCl
                 backgroundColor: active ? colors.accentSoft : colors.card,
               }}
             >
-              <Pressable
-                onPress={() => onSwitch(session.id)}
-                disabled={active}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-              >
-                <CompanyLogo uri={org?.logo} initials={org?.initials} active={active} />
-                <View style={{ flex: 1 }}>
-                  <AppText variant="label" numberOfLines={1}>
-                    {org?.name ?? 'Company'}
-                  </AppText>
-                  <AppText variant="caption" muted numberOfLines={1}>
-                    {session.user.name} · {session.user.email}
-                  </AppText>
-                </View>
-                {active && <Ionicons name="checkmark-circle" size={22} color={colors.accent} />}
-              </Pressable>
-
-              <Pressable onPress={() => void signOut(session.id)} hitSlop={10} style={{ padding: 4 }}>
-                <Ionicons name="log-out-outline" size={20} color={colors.textFaint} />
-              </Pressable>
-            </View>
+              <CompanyLogo uri={org.logo} initials={org.initials} active={active} />
+              <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
+                {org.name}
+              </AppText>
+              {busy ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : active ? (
+                <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
+              ) : (
+                <Ionicons name="swap-horizontal" size={20} color={colors.textFaint} />
+              )}
+            </Pressable>
           );
         })}
-
-        <Pressable
-          onPress={onAdd}
-          style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-            padding: spacing.md,
-            borderRadius: radius.lg,
-            borderWidth: 1,
-            borderStyle: 'dashed',
-            borderColor: colors.border,
-            opacity: pressed ? 0.85 : 1,
-          })}
-        >
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: radius.md,
-              backgroundColor: colors.cardAlt,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Ionicons name="add" size={24} color={colors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppText variant="label">Add a company</AppText>
-            <AppText variant="caption" muted>
-              Sign in to another company you work for
-            </AppText>
-          </View>
-        </Pressable>
       </View>
     </Sheet>
   );

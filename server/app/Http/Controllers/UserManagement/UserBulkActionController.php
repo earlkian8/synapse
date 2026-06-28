@@ -34,12 +34,14 @@ class UserBulkActionController extends Controller
             return back();
         }
 
+        // Confine every sweep to members of the active tenant — ids come from the
+        // client and users are global identities now (ADR 0023).
         $affected = match ($action) {
-            'activate' => User::whereIn('id', $ids)->update(['is_active' => true]),
-            'deactivate' => User::whereIn('id', $ids)->update(['is_active' => false]),
-            'archive' => User::whereIn('id', $ids)->delete(),
-            'restore' => User::onlyTrashed()->whereIn('id', $ids)->restore(),
-            'delete' => User::withTrashed()->whereIn('id', $ids)->forceDelete(),
+            'activate' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->update(['is_active' => true]),
+            'deactivate' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->update(['is_active' => false]),
+            'archive' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->delete(),
+            'restore' => User::onlyTrashed()->inCurrentOrganization()->whereIn('id', $ids)->restore(),
+            'delete' => User::withTrashed()->inCurrentOrganization()->whereIn('id', $ids)->forceDelete(),
             'assign-role' => $this->assignRole($ids->all(), (int) $request->validated('role_id')),
         };
 
@@ -70,7 +72,7 @@ class UserBulkActionController extends Controller
         $role = Role::findOrFail($roleId);
         $affected = 0;
 
-        User::whereIn('id', $ids)->with('roles:id')->each(function (User $user) use ($role, &$affected) {
+        User::query()->inCurrentOrganization()->whereIn('id', $ids)->with('roles:id')->each(function (User $user) use ($role, &$affected) {
             if ($user->roles->contains($role->id)) {
                 return;
             }

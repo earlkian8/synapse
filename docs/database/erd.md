@@ -46,11 +46,14 @@
    ([ADR 0005](../decisions/0005-multi-tenancy.md)). Every registration creates an
    `organizations` row (the tenant, and also the company profile — there is no separate
    `company_profiles` singleton). Tenant-owned tables carry a non-null `organization_id`
-   and are isolated by a global query scope. One user belongs to one organisation.
-2. **`Employee` is separate from `User`.** `employees.user_id` is a **nullable,
-   unique** FK to `users`. An Employee is the HR record (a DTR-only field worker may
-   have no login); a User is an auth account (an IT admin may not be an employee).
-   *This is the pivotal choice — see Open questions.*
+   and are isolated by a global query scope. A user is a global identity that can belong
+   to **many** organisations via the `organization_user` membership pivot, switching the
+   active one ([ADR 0023](../decisions/0023-identity-and-organization-membership.md)).
+2. **`Employee` is separate from `User`.** `employees.user_id` is a **nullable** FK to
+   `users`, unique **per organisation** (`(organization_id, user_id)`) so one identity can
+   be an employee of several companies — one record each (ADR 0023). An Employee is the HR
+   record (a DTR-only field worker may have no login); a User is an auth account (an IT
+   admin may not be an employee). *This is the pivotal choice — see Open questions.*
 3. **RBAC** uses `roles` + `permissions` + pivots (shape mirrors
    `spatie/laravel-permission` so we can adopt the package later without a schema
    change).

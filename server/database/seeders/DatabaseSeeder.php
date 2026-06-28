@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\OrganizationProvisioner;
@@ -25,7 +26,7 @@ class DatabaseSeeder extends Seeder
         // Bind the tenant so every scoped model below lands in this organisation.
         app(Tenancy::class)->set($organization);
 
-        User::firstOrCreate(
+        $dev = User::firstOrCreate(
             ['email' => 'dev@synapse.com'],
             [
                 'first_name' => 'Test',
@@ -36,6 +37,9 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ],
         );
+
+        // dev@ is a member of (and lands in) this organisation by default (ADR 0023).
+        OrganizationProvisioner::addMember($organization, $dev, default: true);
 
         // Permission catalogue, this organisation's built-in roles, and the
         // Super Admin grant for dev@synapse.com.
@@ -81,5 +85,43 @@ class DatabaseSeeder extends Seeder
         // System surfaces (extra login accounts, an activity-log trail, in-app
         // notifications) so User Management, Activity Logs and the bell have data.
         $this->call(SystemSeeder::class);
+
+        // A second company so the workspace switcher is demoable end-to-end:
+        // dev@synapse.com belongs to both and can switch between them.
+        $this->seedSecondaryTenant($dev, $organization);
+    }
+
+    /**
+     * Stand up a small second tenant that dev@synapse.com also belongs to, so the
+     * one-identity-many-companies switching (ADR 0023) can be demonstrated. Gives it
+     * its own foundation and links the dev account to an employee there too.
+     */
+    private function seedSecondaryTenant(User $dev, Organization $primary): void
+    {
+        if (Organization::where('name', 'SYNAPSE Labs')->exists()) {
+            return;
+        }
+
+        [$labs, $labsSuperAdmin] = OrganizationProvisioner::create('SYNAPSE Labs');
+
+        OrganizationProvisioner::addMember($labs, $dev); // a second, non-default membership
+        $dev->roles()->syncWithoutDetaching([$labsSuperAdmin->id]);
+
+        $tenancy = app(Tenancy::class);
+        $tenancy->set($labs);
+
+        // Foundation (departments, positions, schedules, employees) so switching into
+        // the second company shows a populated workspace rather than an empty one.
+        $this->call(OrganizationSeeder::class);
+
+        // Link dev@ to an employee here too, so the mobile app resolves a self record
+        // in either workspace (one identity → one employee per organisation).
+        $employee = Employee::whereNull('user_id')->orderBy('id')->first();
+
+        if ($employee) {
+            $employee->forceFill(['user_id' => $dev->id])->save();
+        }
+
+        $tenancy->set($primary); // restore the primary tenant for anything after.
     }
 }

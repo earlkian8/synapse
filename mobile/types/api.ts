@@ -28,7 +28,10 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  /** The active organisation this session is scoped to. */
   organization: AuthOrganization | null;
+  /** Every organisation the identity belongs to, for the workspace switcher. */
+  organizations: AuthOrganization[];
   employee: AuthEmployee | null;
   can_clock: boolean;
 };

@@ -55,6 +55,7 @@ class UsersIndexQuery
         [$sort, $direction] = $this->sort($request);
 
         return User::query()
+            ->inCurrentOrganization()
             ->with('roles:id,name,label')
             ->when($status === 'archived', fn (Builder $query) => $query->onlyTrashed())
             ->when($status === 'active', fn (Builder $query) => $query->where('is_active', true))
