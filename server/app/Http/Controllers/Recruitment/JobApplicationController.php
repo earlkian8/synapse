@@ -10,7 +10,9 @@ use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Support\ActivityLogger;
 use App\Support\Notifier;
+use App\Support\Recruitment\ApplicantInsights;
 use App\Support\Recruitment\ApplicantScorer;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -88,6 +90,39 @@ class JobApplicationController extends Controller
         $application->other_applications = $this->otherApplications($application);
 
         return new JobApplicationResource($application);
+    }
+
+    /**
+     * Generate (and persist) LLM decision-support insights for one application —
+     * the model reads the candidate's actual résumé and supporting documents and
+     * returns a grounded read for HR. The result is saved on the application so
+     * reopening the drawer shows it without spending another model call.
+     */
+    public function insights(JobApplication $application, ApplicantScorer $scorer, ApplicantInsights $insights): JsonResponse
+    {
+        $application->load([
+            'applicant.documents',
+            'jobPosting:id,title,description,requirements,min_years_experience,skills',
+            'interviews' => fn ($query) => $query->latest('scheduled_at'),
+        ]);
+
+        $score = $scorer->score($application, $application->jobPosting);
+        $result = $insights->generate($application, $score);
+
+        if ($result['available'] ?? false) {
+            $application->ai_insights = $result;
+            $application->save();
+
+            ActivityLogger::log(
+                event: 'updated',
+                description: "Generated AI insights for {$application->applicant->full_name}",
+                subject: $application->jobPosting,
+                logName: 'recruitment',
+                subjectLabel: $application->applicant->full_name,
+            );
+        }
+
+        return response()->json(['insights' => $result]);
     }
 
     /**

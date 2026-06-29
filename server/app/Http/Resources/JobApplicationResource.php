@@ -32,6 +32,10 @@ class JobApplicationResource extends JsonResource
             'recommendation' => $this->recommendation ?? null,
             'other_applications' => $this->other_applications ?? null,
 
+            // The last LLM-generated candidate insight, persisted on the model so
+            // it shows instantly on reopen. Null until HR first generates it.
+            'ai_insights' => $this->ai_insights ?? null,
+
             'applicant' => $this->whenLoaded('applicant', fn () => $this->applicant ? [
                 'id' => $this->applicant->id,
                 'full_name' => $this->applicant->full_name,

@@ -31,6 +31,7 @@ Route::middleware(['auth', 'verified'])
 
         // Applications (pipeline).
         Route::get('applications/{application}', [JobApplicationController::class, 'show'])->middleware('can:recruitment.view')->name('applications.show');
+        Route::post('applications/{application}/insights', [JobApplicationController::class, 'insights'])->middleware('can:recruitment.view')->name('applications.insights');
         Route::post('applications/{application}', [JobApplicationController::class, 'update'])->middleware('can:recruitment.update')->name('applications.update');
         Route::delete('applications/{application}', [JobApplicationController::class, 'destroy'])->middleware('can:recruitment.manage-pipeline')->name('applications.destroy');
         Route::patch('applications/{application}/stage', [JobApplicationController::class, 'stage'])->middleware('can:recruitment.manage-pipeline')->name('applications.stage');

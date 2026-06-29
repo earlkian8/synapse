@@ -59,6 +59,30 @@ it rather than re-deriving the formula.
   documents, the fit breakdown, interview history, and the candidate's **other
   applications across postings**.
 
+## AI candidate insights
+
+On top of the deterministic fit score, HR can ask an LLM to **read a specific
+candidate** and return decision support grounded in their actual documents.
+`App\Support\Recruitment\ApplicantInsights` (mirroring the Reports module's
+`ReportInsights`) compiles a digest — the candidate's profile, the role and its
+criteria, the rule-based fit breakdown, ratings and interview history — **and
+attaches the real files** (résumé + supporting documents) to Gemini so the model
+reads them. `gemini-2.5-flash` ingests PDFs and images natively, so no parser
+dependency is needed; office files are named in the digest but not uploaded.
+
+- **Privacy.** Government-ID documents are **never** sent to the model, and only
+  model-readable types (PDF, PNG/JPG/WebP) are attached, bounded by a total size
+  budget. The model returns strict JSON: a headline verdict, summary, strengths,
+  concerns, what the documents reveal, sharp interview questions, and a
+  recommendation.
+- **On demand + persisted.** Insights are generated from the candidate drawer's
+  **AI Insights** panel (`POST /recruitment/applications/{application}/insights`,
+  gated `recruitment.view`) and **saved on the application** (`ai_insights` JSON
+  column) so reopening the drawer shows the last read instantly without spending
+  another model call; a **Regenerate** button re-runs it. Generation is
+  activity-logged. Degrades gracefully (retryable) when the key is missing or the
+  service is rate-limited/overloaded — exactly like the Reports insights.
+
 ## Due dates
 
 A published (`open`) posting must carry a **closing date** — the create/edit form
@@ -118,7 +142,8 @@ application detail drawer.
 - An **applicant** is a standalone candidate (not a user or employee); the pool is
   reusable across postings.
 - An **application** is one applicant on one posting (`unique(posting, applicant)`),
-  carrying the pipeline `stage`, a `rating`, and — once hired — `hired_employee_id`.
+  carrying the pipeline `stage`, a `rating`, the last LLM read (`ai_insights` JSON),
+  and — once hired — `hired_employee_id`.
 - An **interview** belongs to an application; scheduling one advances an early-stage
   application to `interview`.
 
@@ -133,7 +158,9 @@ application detail drawer.
   closing date once `open`); resources `JobPostingResource`, `ApplicantResource`,
   `JobApplicationResource`, `InterviewResource`; `JobPostingsIndexQuery` +
   `RecruitmentStatistics`; **`App\Support\Recruitment\ApplicantScorer`** for fit scoring +
-  recommendations; **`App\Console\Commands\CloseExpiredPostings`** (scheduled daily).
+  recommendations; **`App\Support\Recruitment\ApplicantInsights`** for the LLM candidate
+  read (reuses `App\Support\Ai\GeminiClient`); **`App\Console\Commands\CloseExpiredPostings`**
+  (scheduled daily).
 - `routes/recruitment.php` (literal-prefixed routes precede the `{jobPosting}`
   wildcard). Every route is gated by a **Recruitment** permission (8 in the registry).
 - Mutations are activity-logged (`logName: 'recruitment'`); a new application and a
@@ -166,7 +193,9 @@ tabs** (filter both, with counts), the shared **application actions menu** (Move
 Hire / Reject, used by the card and the table), the **fit score** badge + meter
 (`fit-score.tsx`), the **posting deadline** countdown (`posting-deadline.tsx`),
 **application detail sheet** (the full candidate profile + a **decision panel** with the
-recommended next step, the fit breakdown, interviews, other applications, hire, reject),
+recommended next step, the fit breakdown, the **AI Insights** panel
+(`applicant-insights.tsx`, calls the insights endpoint via `features/recruitment/api.ts`),
+interviews, other applications, hire, reject),
 **add candidate sheet**, stage badge, rating stars. The **posting form** has a
 *Screening criteria* section (minimum experience + a skills tag input) and a
 required-when-open closing date. Pages: `pages/recruitment/index.tsx`
@@ -191,3 +220,6 @@ Acquisition → Recruitment** link is gated on `recruitment.view`.
 - `tests/Unit/ApplicantScorerTest.php` — the fit score + recommendation across stages
   (DB-free): strong → offer, brand-new → screen, weak screening → reject, failed
   interview → reject.
+- `tests/Feature/Recruitment/ApplicantInsightsTest.php` — the AI-insights endpoint with
+  Gemini faked: it generates + persists the read and **excludes the government ID** from
+  the documents sent, and degrades gracefully when the key is unconfigured.

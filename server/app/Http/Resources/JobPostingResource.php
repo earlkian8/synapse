@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\JobPosting;
+use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,7 +33,7 @@ class JobPostingResource extends JsonResource
             'days_to_close' => $this->daysToClose(),
             'is_expired' => $this->isExpired(),
             'is_open' => $this->status === 'open',
-            'apply_url' => $this->publicApplyUrl($request),
+            'apply_url' => $this->publicApplyUrl(),
 
             'department' => $this->whenLoaded('department', fn () => $this->department ? [
                 'id' => $this->department->id,
@@ -61,12 +62,13 @@ class JobPostingResource extends JsonResource
     /**
      * The shareable public application URL for this posting.
      *
-     * Built from the current user's organisation slug — every posting in a
-     * recruiter's view belongs to their tenant — so it costs no per-row query.
+     * Built from the active tenant's slug — every posting in a recruiter's view
+     * belongs to the bound organisation (see {@see Tenancy}), which is resolved
+     * once per request, so it costs no per-row query.
      */
-    private function publicApplyUrl(Request $request): ?string
+    private function publicApplyUrl(): ?string
     {
-        $slug = $request->user()?->organization?->slug;
+        $slug = app(Tenancy::class)->organization()?->slug;
 
         return $slug
             ? route('careers.show', ['organization' => $slug, 'jobPosting' => $this->hashid])

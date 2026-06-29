@@ -53,6 +53,7 @@ import type {
     RecruitmentPermissions,
     Stage,
 } from '../types';
+import { ApplicantInsights } from './applicant-insights';
 import { FitMeter } from './fit-score';
 import { RatingStars } from './rating-stars';
 import { StageBadge } from './stage-badge';
@@ -275,6 +276,13 @@ export function ApplicationDetailSheet({
                             <FitMeter fit={current.fit} />
                         </Group>
                     )}
+
+                    {/* AI insights — reads the résumé + documents on demand */}
+                    <ApplicantInsights
+                        key={current.id}
+                        applicationId={current.id}
+                        saved={current.ai_insights ?? null}
+                    />
 
                     {/* Contact */}
                     {applicant && (

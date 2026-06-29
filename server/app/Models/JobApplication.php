@@ -42,6 +42,7 @@ class JobApplication extends Model
             'expected_salary' => 'decimal:2',
             'applied_at' => 'datetime',
             'decided_at' => 'datetime',
+            'ai_insights' => 'array',
         ];
     }
 

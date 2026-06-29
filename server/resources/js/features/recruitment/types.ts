@@ -144,6 +144,32 @@ export type Recommendation = {
     hint: string;
 };
 
+/** The LLM-generated candidate read, available once HR generates it. */
+export type ApplicantInsight = {
+    available: true;
+    headline: string;
+    summary: string;
+    strengths: string[];
+    concerns: string[];
+    document_insights: string;
+    interview_questions: string[];
+    recommendation: string;
+    documents_read: string[];
+    generated_at: string;
+};
+
+/** Why insights couldn't be produced (key missing, quota, parse error). */
+export type ApplicantInsightUnavailable = {
+    available: false;
+    reason: string;
+    retryable: boolean;
+};
+
+/** The insights endpoint's payload: a usable read, or a reason it's unavailable. */
+export type ApplicantInsightResult =
+    | ApplicantInsight
+    | ApplicantInsightUnavailable;
+
 /** One of the candidate's applications to another posting. */
 export type OtherApplication = {
     id: number;
@@ -166,6 +192,7 @@ export type Application = {
     fit_rank: FitRank | null;
     recommendation: Recommendation | null;
     other_applications: OtherApplication[] | null;
+    ai_insights: ApplicantInsight | null;
     applicant: Applicant | null;
     job_posting?: { id: number; title: string } | null;
     hired_employee?: EmployeeRef | null;
