@@ -45,9 +45,29 @@ test('it creates a job posting', function () {
         'employment_type' => 'regular',
         'openings' => 2,
         'status' => 'open',
+        'closing_date' => now()->addMonth()->toDateString(),
     ])->assertSessionHasNoErrors();
 
     expect(JobPosting::where('title', 'Backend Engineer')->exists())->toBeTrue();
+});
+
+test('an open posting requires a closing date', function () {
+    actingAsSuperAdmin();
+
+    $this->post(route('recruitment.store'), [
+        'title' => 'No Deadline',
+        'employment_type' => 'regular',
+        'openings' => 1,
+        'status' => 'open',
+    ])->assertSessionHasErrors('closing_date');
+
+    // A draft may omit it.
+    $this->post(route('recruitment.store'), [
+        'title' => 'Draft Role',
+        'employment_type' => 'regular',
+        'openings' => 1,
+        'status' => 'draft',
+    ])->assertSessionHasNoErrors();
 });
 
 test('it validates required fields when creating a posting', function () {
@@ -66,6 +86,7 @@ test('it updates and deletes a posting', function () {
         'employment_type' => 'contractual',
         'openings' => 1,
         'status' => 'open',
+        'closing_date' => now()->addMonth()->toDateString(),
     ])->assertSessionHasNoErrors();
 
     expect($posting->fresh()->title)->toBe('Renamed Role');

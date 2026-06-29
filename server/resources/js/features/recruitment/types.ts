@@ -44,10 +44,15 @@ export type ManagedPosting = {
     title: string;
     description: string | null;
     requirements: string | null;
+    min_years_experience: number | null;
+    skills: string[];
     employment_type: EmploymentType;
     openings: number;
     status: PostingStatus;
     closing_date: string | null;
+    closes_human: string | null;
+    days_to_close: number | null;
+    is_expired: boolean;
     is_open: boolean;
     apply_url: string | null;
     department: DepartmentRef | null;
@@ -110,6 +115,45 @@ export type EmployeeRef = {
     employee_no: string;
 };
 
+/** A band describing how strong a candidate's fit is. */
+export type FitBand = 'strong' | 'promising' | 'fair' | 'weak';
+
+export type FitBreakdownItem = {
+    key: string;
+    label: string;
+    points: number;
+    max: number;
+    detail: string;
+};
+
+/** The automatic fit score the ApplicantScorer assigns to an application. */
+export type Fit = {
+    value: number;
+    band: FitBand;
+    breakdown: FitBreakdownItem[];
+};
+
+/** A candidate's standing among the still-active applicants for a posting. */
+export type FitRank = { position: number; total: number };
+
+/** The recommended next step surfaced in the decision panel. */
+export type Recommendation = {
+    action: Stage | 'hire' | 'reject' | null;
+    label: string;
+    tone: 'positive' | 'neutral' | 'caution';
+    hint: string;
+};
+
+/** One of the candidate's applications to another posting. */
+export type OtherApplication = {
+    id: number;
+    stage: Stage;
+    rating: number | null;
+    posting: string | null;
+    posting_status: PostingStatus | null;
+    applied_human: string | null;
+};
+
 export type Application = {
     id: number;
     stage: Stage;
@@ -118,6 +162,10 @@ export type Application = {
     cover_note: string | null;
     rejected_reason: string | null;
     is_hired: boolean;
+    fit: Fit | null;
+    fit_rank: FitRank | null;
+    recommendation: Recommendation | null;
+    other_applications: OtherApplication[] | null;
     applicant: Applicant | null;
     job_posting?: { id: number; title: string } | null;
     hired_employee?: EmployeeRef | null;

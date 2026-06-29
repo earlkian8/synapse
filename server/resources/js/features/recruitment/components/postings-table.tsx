@@ -19,6 +19,7 @@ import type {
     PostingsFilters,
     RecruitmentPermissions,
 } from '../types';
+import { PostingDeadline } from './posting-deadline';
 import { PostingRowActions } from './posting-row-actions';
 import { PostingStatusBadge } from './posting-status-badge';
 
@@ -151,8 +152,8 @@ export function PostingsTable({
                             <TableCell>
                                 <PostingStatusBadge status={posting.status} />
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {posting.closing_date ?? '—'}
+                            <TableCell className="text-sm">
+                                <PostingDeadline posting={posting} />
                             </TableCell>
                             <TableCell className="pr-4 text-right">
                                 <PostingRowActions

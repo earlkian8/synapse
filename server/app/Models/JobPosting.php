@@ -23,6 +23,8 @@ class JobPosting extends Model
         'position_id',
         'description',
         'requirements',
+        'min_years_experience',
+        'skills',
         'employment_type',
         'openings',
         'status',
@@ -34,6 +36,8 @@ class JobPosting extends Model
     {
         return [
             'openings' => 'integer',
+            'min_years_experience' => 'integer',
+            'skills' => 'array',
             'closing_date' => 'date',
         ];
     }
@@ -74,7 +78,46 @@ class JobPosting extends Model
         return $this->hasMany(JobApplication::class);
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Whether an open posting has passed its closing date and should no longer
+     * accept applications. Postings without a closing date never expire.
+     */
+    public function isExpired(): bool
+    {
+        return $this->status === 'open'
+            && $this->closing_date !== null
+            && $this->closing_date->endOfDay()->isPast();
+    }
+
+    /**
+     * Whole days until the posting closes (negative once past due), or null when
+     * it has no closing date.
+     */
+    public function daysToClose(): ?int
+    {
+        if ($this->closing_date === null) {
+            return null;
+        }
+
+        return (int) now()->startOfDay()->diffInDays($this->closing_date->startOfDay(), false);
+    }
+
     // ── Scopes ───────────────────────────────────────────────────────────────
+
+    /**
+     * Open postings whose closing date has passed — the ones the auto-close job
+     * (and the careers guard) treat as no longer accepting applications.
+     *
+     * @param  Builder<JobPosting>  $query
+     */
+    public function scopeExpired(Builder $query): void
+    {
+        $query->where('status', 'open')
+            ->whereNotNull('closing_date')
+            ->whereDate('closing_date', '<', now()->toDateString());
+    }
 
     /**
      * Free-text search across the searchable columns.

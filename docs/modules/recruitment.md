@@ -29,8 +29,44 @@ migration, bypass hires), not the default path.
   switch (remembered per browser; **table is the default**), mirroring the postings
   board. **Stage tabs** (All · Applied · Screening · Interview · Offer · Hired ·
   Rejected, each with a count) sit above both views and filter the candidates shown.
-  Both views expose the same per-candidate Move / Hire / Reject menu. Add candidates,
-  move them, schedule interviews, reject, and hire.
+  Candidates are **automatically ranked by a fit score** (see below) — the strongest
+  still-in-the-running candidates lead, each showing its score and rank. Both views
+  expose the same per-candidate Move / Hire / Reject menu and the same fit badge. Add
+  candidates, move them, schedule interviews, reject, and hire. The header shows the
+  posting's **closing-date countdown** and its screening criteria.
+
+## Automatic ranking & decision support
+
+`App\Support\Recruitment\ApplicantScorer` is the single source of truth for the
+recruitment **fit score** and the decision support it powers. It is pure, deterministic
+math: given an application (and its posting's optional criteria) it returns a 0–100 score
+with a transparent breakdown and the **recommended next step** for HR. Controllers reuse
+it rather than re-deriving the formula.
+
+- **Components** (max points, normalised over whatever applies): recruiter rating (30),
+  experience vs the posting's minimum (25), required-skill keyword match (20), interview
+  outcome (15), document completeness (10). When a posting sets no minimum experience or
+  no skills, those components simply don't apply and the score normalises over the rest —
+  so ranking works the moment a candidate applies and sharpens as recruiters rate,
+  interview, and set criteria. Bands: `strong`/`promising`/`fair`/`weak`.
+- **Position-aware criteria.** A posting carries optional `min_years_experience` and a
+  `skills` keyword list; skills are matched against the candidate's headline, notes and
+  cover letter.
+- **Recommendation.** Derived from the stage + fit + interview verdict — *Advance to
+  screening · Schedule an interview · Move to offer · Hire · Consider rejecting* — and
+  surfaced in the candidate drawer's **decision panel** with a one-click action that
+  performs it. The drawer is the **full candidate profile**: contact, profile links, all
+  documents, the fit breakdown, interview history, and the candidate's **other
+  applications across postings**.
+
+## Due dates
+
+A published (`open`) posting must carry a **closing date** — the create/edit form
+requires it once status is `open`, and creating one cannot back-date it. The board,
+pipeline header and careers board show a **countdown** (and an *Expired* flag once past
+due). The careers surface refuses applications to an expired posting on the fly, and the
+daily **`recruitment:close-expired`** command (scheduled in `routes/console.php`) flips
+past-due open postings to `closed` system-wide.
 - **`/careers/{org-slug}`** and **`/careers/{org-slug}/jobs/{posting}`** — the
   **public, unauthenticated careers surface** (see below). Recruiters copy a
   posting's public link from the board row actions ("Copy public link").
@@ -75,8 +111,10 @@ application detail drawer.
 `job_postings`, `applicants`, `job_applications`, `interviews` — see the
 [schema doc](../database/recruitment-tables.md). Highlights:
 
-- A **posting** has a status (`draft → open → closed / filled`) and an `openings`
-  count; it auto-fills when its openings are hired.
+- A **posting** has a status (`draft → open → closed / filled`), an `openings` count, a
+  `closing_date` (required once `open`), and optional screening criteria
+  (`min_years_experience`, `skills`); it auto-fills when its openings are hired and
+  auto-closes when its closing date passes.
 - An **applicant** is a standalone candidate (not a user or employee); the pool is
   reusable across postings.
 - An **application** is one applicant on one posting (`unique(posting, applicant)`),
@@ -91,9 +129,11 @@ application detail drawer.
   `ApplicantController`, `JobApplicationController` (store / show / stage / reject /
   update / destroy), `InterviewController`, **`HireController`** (the bridge), and
   `RecruitmentExportController`.
-- Requests under `app/Http/Requests/Recruitment/`; resources `JobPostingResource`,
-  `ApplicantResource`, `JobApplicationResource`, `InterviewResource`;
-  `JobPostingsIndexQuery` + `RecruitmentStatistics`.
+- Requests under `app/Http/Requests/Recruitment/` (`StoreJobPostingRequest` requires a
+  closing date once `open`); resources `JobPostingResource`, `ApplicantResource`,
+  `JobApplicationResource`, `InterviewResource`; `JobPostingsIndexQuery` +
+  `RecruitmentStatistics`; **`App\Support\Recruitment\ApplicantScorer`** for fit scoring +
+  recommendations; **`App\Console\Commands\CloseExpiredPostings`** (scheduled daily).
 - `routes/recruitment.php` (literal-prefixed routes precede the `{jobPosting}`
   wildcard). Every route is gated by a **Recruitment** permission (8 in the registry).
 - Mutations are activity-logged (`logName: 'recruitment'`); a new application and a
@@ -123,9 +163,13 @@ switch), **table** and **card grid**, row-actions, posting status badge, **posti
 detail sheet** (read-only overview + public link), posting form sheet, pagination;
 and the pipeline pieces — **table** and **card grid** (of candidate cards), **stage
 tabs** (filter both, with counts), the shared **application actions menu** (Move /
-Hire / Reject, used by the card and the table), **application detail sheet** (rating,
-stage moves, interviews, hire, reject), **add candidate sheet**, stage badge, rating
-stars. Pages: `pages/recruitment/index.tsx`
+Hire / Reject, used by the card and the table), the **fit score** badge + meter
+(`fit-score.tsx`), the **posting deadline** countdown (`posting-deadline.tsx`),
+**application detail sheet** (the full candidate profile + a **decision panel** with the
+recommended next step, the fit breakdown, interviews, other applications, hire, reject),
+**add candidate sheet**, stage badge, rating stars. The **posting form** has a
+*Screening criteria* section (minimum experience + a skills tag input) and a
+required-when-open closing date. Pages: `pages/recruitment/index.tsx`
 and `pages/recruitment/pipeline.tsx`. The detail drawer lazy-loads the full
 application (`GET /recruitment/applications/{id}` JSON). The sidebar **Talent
 Acquisition → Recruitment** link is gated on `recruitment.view`.
@@ -139,8 +183,11 @@ Acquisition → Recruitment** link is gated on `recruitment.view`.
 ## Tests
 
 - `tests/Feature/Recruitment/RecruitmentTest.php` — postings CRUD + status + filters,
-  pipeline render, add candidate (new & existing), duplicate guard, stage moves, the
-  hired-stage guard, reject, interview scheduling/result, the **hire bridge** (linked
-  employee + filled posting), the double-hire guard, export, the authorization matrix,
-  and tenant isolation.
+  the **open-posting-needs-a-closing-date** rule, pipeline render, add candidate (new &
+  existing), duplicate guard, stage moves, the hired-stage guard, reject, interview
+  scheduling/result, the **hire bridge** (linked employee + filled posting), the
+  double-hire guard, export, the authorization matrix, and tenant isolation.
 - `tests/Unit/ApplicantModelTest.php` — applicant accessors (DB-free).
+- `tests/Unit/ApplicantScorerTest.php` — the fit score + recommendation across stages
+  (DB-free): strong → offer, brand-new → screen, weak screening → reject, failed
+  interview → reject.

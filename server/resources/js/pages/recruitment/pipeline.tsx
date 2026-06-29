@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog'
 import { PipelineGrid } from '@/features/recruitment/components/pipeline-grid';
 import { PipelineStageTabs } from '@/features/recruitment/components/pipeline-stage-tabs';
 import { PipelineTable } from '@/features/recruitment/components/pipeline-table';
+import { PostingDeadline } from '@/features/recruitment/components/posting-deadline';
 import { PostingStatusBadge } from '@/features/recruitment/components/posting-status-badge';
 import { TYPE_LABELS } from '@/features/recruitment/constants';
 import { usePipelineView } from '@/features/recruitment/hooks/use-pipeline-view';
@@ -167,15 +168,42 @@ export default function RecruitmentPipeline() {
                                 </h1>
                                 <PostingStatusBadge status={posting.status} />
                             </div>
-                            <p className="mt-0.5 text-sm text-muted-foreground">
-                                {posting.department?.name ?? 'No department'} ·{' '}
-                                {TYPE_LABELS[posting.employment_type]} ·{' '}
+                            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                                <span>
+                                    {posting.department?.name ??
+                                        'No department'}{' '}
+                                    · {TYPE_LABELS[posting.employment_type]}
+                                </span>
+                                <span aria-hidden>·</span>
                                 <span className="inline-flex items-center gap-1">
                                     <Users2 className="size-3.5" />
                                     {posting.hired_count ?? 0}/
                                     {posting.openings} hired
                                 </span>
+                                {posting.closing_date && (
+                                    <>
+                                        <span aria-hidden>·</span>
+                                        <PostingDeadline posting={posting} />
+                                    </>
+                                )}
                             </p>
+                            {posting.skills.length > 0 && (
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                    {posting.min_years_experience != null && (
+                                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                            {posting.min_years_experience}+ yrs
+                                        </span>
+                                    )}
+                                    {posting.skills.map((skill) => (
+                                        <span
+                                            key={skill}
+                                            className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+                                        >
+                                            {skill}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 

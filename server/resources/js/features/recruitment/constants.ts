@@ -1,6 +1,7 @@
 import type {
     ApplicantSource,
     EmploymentType,
+    FitBand,
     InterviewMode,
     InterviewResult,
     PostingStatus,
@@ -138,6 +139,41 @@ export const STAGE_STYLES: Record<Stage, string> = {
     hired: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
     rejected:
         'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+};
+
+/** Fit-band labels and colour treatments for the automatic ranking score. */
+export const FIT_BAND_LABELS: Record<FitBand, string> = {
+    strong: 'Strong fit',
+    promising: 'Promising',
+    fair: 'Fair',
+    weak: 'Weak',
+};
+
+export const FIT_BAND_STYLES: Record<FitBand, string> = {
+    strong: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    promising: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    fair: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    weak: 'border-slate-500/30 bg-slate-500/10 text-slate-500 dark:text-slate-400',
+};
+
+/** The progress-meter fill colour per band. */
+export const FIT_BAND_BARS: Record<FitBand, string> = {
+    strong: 'bg-emerald-500',
+    promising: 'bg-sky-500',
+    fair: 'bg-amber-500',
+    weak: 'bg-slate-400',
+};
+
+/** Colour treatment for the decision-panel recommendation, keyed by tone. */
+export const RECOMMENDATION_STYLES: Record<
+    'positive' | 'neutral' | 'caution',
+    string
+> = {
+    positive:
+        'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300',
+    neutral: 'border-sky-500/30 bg-sky-500/5 text-sky-700 dark:text-sky-300',
+    caution:
+        'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300',
 };
 
 export const SOURCE_OPTIONS: { value: ApplicantSource; label: string }[] = [

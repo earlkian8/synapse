@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import type { Application, RecruitmentPermissions, Stage } from '../types';
 import { ApplicationActionsMenu } from './application-actions-menu';
+import { FitBadge } from './fit-score';
 import { RatingStars } from './rating-stars';
 import { StageBadge } from './stage-badge';
 
@@ -29,6 +30,7 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
                 <TableHeader className="bg-muted/40">
                     <TableRow className="hover:bg-transparent">
                         <TableHead>Candidate</TableHead>
+                        <TableHead>Fit</TableHead>
                         <TableHead>Stage</TableHead>
                         <TableHead>Rating</TableHead>
                         <TableHead>Interviews</TableHead>
@@ -39,7 +41,7 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
                 <TableBody>
                     {applications.length === 0 && (
                         <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={6} className="py-16">
+                            <TableCell colSpan={7} className="py-16">
                                 <div className="flex flex-col items-center justify-center gap-2 text-center">
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <Users2 className="size-6 text-muted-foreground" />
@@ -89,6 +91,12 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
                                             </span>
                                         </span>
                                     </button>
+                                </TableCell>
+                                <TableCell>
+                                    <FitBadge
+                                        fit={application.fit}
+                                        rank={application.fit_rank}
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     <StageBadge stage={application.stage} />

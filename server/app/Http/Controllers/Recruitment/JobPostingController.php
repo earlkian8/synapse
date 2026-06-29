@@ -10,14 +10,17 @@ use App\Http\Resources\JobApplicationResource;
 use App\Http\Resources\JobPostingResource;
 use App\Models\Applicant;
 use App\Models\Department;
+use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Position;
 use App\Models\User;
 use App\Queries\JobPostingsIndexQuery;
 use App\Queries\RecruitmentStatistics;
 use App\Support\ActivityLogger;
+use App\Support\Recruitment\ApplicantScorer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -49,7 +52,7 @@ class JobPostingController extends Controller
     /**
      * Display a posting's hiring pipeline (the ATS board).
      */
-    public function show(Request $request, JobPosting $jobPosting): Response
+    public function show(Request $request, JobPosting $jobPosting, ApplicantScorer $scorer): Response
     {
         $jobPosting->load(['department:id,name,code', 'position:id,title', 'postedBy:id,first_name,middle_name,last_name,suffix'])
             ->loadCount([
@@ -59,11 +62,15 @@ class JobPostingController extends Controller
             ]);
 
         $applications = $jobPosting->applications()
-            ->with(['applicant', 'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no'])
+            ->with([
+                'applicant' => fn ($query) => $query->withCount('documents'),
+                'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no',
+                'interviews:id,job_application_id,result',
+            ])
             ->withCount('interviews')
-            ->orderByDesc('rating')
-            ->orderByDesc('applied_at')
             ->get();
+
+        $applications = $this->withFitScores($applications, $jobPosting, $scorer);
 
         return Inertia::render('recruitment/pipeline', [
             'posting' => (new JobPostingResource($jobPosting))->resolve($request),
@@ -71,6 +78,48 @@ class JobPostingController extends Controller
             'options' => $this->pipelineOptions($jobPosting),
             'can' => $this->permissions($request),
         ]);
+    }
+
+    /**
+     * Score each application, rank the active candidates by fit, and return the
+     * collection ordered so the strongest still-in-the-running candidates lead.
+     *
+     * @param  Collection<int, JobApplication>  $applications
+     * @return Collection<int, JobApplication>
+     */
+    private function withFitScores($applications, JobPosting $posting, ApplicantScorer $scorer)
+    {
+        $applications->each(function (JobApplication $application) use ($scorer, $posting): void {
+            $score = $scorer->score($application, $posting);
+            $application->fit = $score;
+            $application->recommendation = $scorer->recommendation($application, $score);
+
+            // The interviews were loaded only to feed the scorer; drop the
+            // relation so the list payload stays lean (interviews_count remains).
+            $application->unsetRelation('interviews');
+        });
+
+        // Rank only the candidates still in the running (a hired/rejected card
+        // keeps its score but is out of contention).
+        $contenders = $applications
+            ->filter(fn (JobApplication $application): bool => $application->isOpen())
+            ->sortByDesc(fn (JobApplication $application): int => $application->fit['value'])
+            ->values();
+
+        $total = $contenders->count();
+        $contenders->each(function (JobApplication $application, int $index) use ($total): void {
+            $application->fit_rank = ['position' => $index + 1, 'total' => $total];
+        });
+
+        // Surface the strongest open candidates first; terminal cards sink below.
+        return $applications
+            ->sortByDesc(fn (JobApplication $application): string => sprintf(
+                '%d-%03d-%011d',
+                $application->isOpen() ? 1 : 0,
+                $application->fit['value'],
+                $application->applied_at?->timestamp ?? 0,
+            ))
+            ->values();
     }
 
     /**

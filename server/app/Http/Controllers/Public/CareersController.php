@@ -50,6 +50,11 @@ class CareersController extends Controller
         $postings = JobPosting::query()
             ->where('organization_id', $organization->id)
             ->where('status', 'open')
+            // Hide roles whose deadline has passed (the auto-close job flips them
+            // to "closed" daily; this keeps the board correct in between runs).
+            ->where(fn ($query) => $query
+                ->whereNull('closing_date')
+                ->orWhereDate('closing_date', '>=', now()->toDateString()))
             ->with(['department:id,name', 'position:id,title'])
             ->latest()
             ->get();
@@ -165,7 +170,9 @@ class CareersController extends Controller
     private function ensureOpenPosting(Organization $organization, JobPosting $jobPosting): void
     {
         abort_unless(
-            $jobPosting->organization_id === $organization->id && $jobPosting->status === 'open',
+            $jobPosting->organization_id === $organization->id
+                && $jobPosting->status === 'open'
+                && ! $jobPosting->isExpired(),
             404,
         );
     }

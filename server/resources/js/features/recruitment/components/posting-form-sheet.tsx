@@ -1,5 +1,6 @@
 import { useForm } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,9 +100,13 @@ function FormBody({
         openings: str(posting?.openings ?? 1),
         status: posting?.status ?? 'open',
         closing_date: posting?.closing_date ?? '',
+        min_years_experience: str(posting?.min_years_experience),
+        skills: posting?.skills ?? [],
         description: posting?.description ?? '',
         requirements: posting?.requirements ?? '',
     });
+
+    const closingRequired = data.status === 'open';
 
     const positions = useMemo(() => {
         const deptId = data.department_id ? Number(data.department_id) : null;
@@ -126,6 +131,7 @@ function FormBody({
                 'department_id',
                 'position_id',
                 'closing_date',
+                'min_years_experience',
                 'description',
                 'requirements',
             ]) {
@@ -135,6 +141,13 @@ function FormBody({
             }
 
             cleaned.openings = Number(payload.openings) || 1;
+            cleaned.min_years_experience =
+                cleaned.min_years_experience === null
+                    ? null
+                    : Number(payload.min_years_experience);
+            cleaned.skills = payload.skills
+                .map((skill) => skill.trim())
+                .filter((skill) => skill.length > 0);
 
             return cleaned;
         });
@@ -226,16 +239,58 @@ function FormBody({
                                 options={POSTING_STATUS_OPTIONS}
                             />
                         </Field>
-                        <Field label="Closing date" error={errors.closing_date}>
+                        <Field
+                            label="Closing date"
+                            required={closingRequired}
+                            error={errors.closing_date}
+                            hint={
+                                closingRequired
+                                    ? 'Applications close on this date.'
+                                    : 'Optional while the posting is a draft.'
+                            }
+                        >
                             <Input
                                 type="date"
                                 value={data.closing_date ?? ''}
                                 onChange={(e) =>
                                     setData('closing_date', e.target.value)
                                 }
+                                required={closingRequired}
                             />
                         </Field>
                     </div>
+                </Section>
+
+                <Section
+                    title="Screening criteria"
+                    subtitle="Optional — sharpens the automatic candidate ranking for this role."
+                >
+                    <Field
+                        label="Minimum experience (years)"
+                        error={errors.min_years_experience}
+                        hint="Candidates at or above this earn full experience marks."
+                    >
+                        <Input
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={data.min_years_experience}
+                            onChange={(e) =>
+                                setData('min_years_experience', e.target.value)
+                            }
+                            placeholder="e.g. 3"
+                        />
+                    </Field>
+                    <Field
+                        label="Required skills"
+                        error={errors['skills'] ?? errors['skills.0']}
+                        hint="Press Enter or comma to add. Matched against the candidate's headline, notes and cover letter."
+                    >
+                        <SkillsInput
+                            value={data.skills}
+                            onChange={(skills) => setData('skills', skills)}
+                        />
+                    </Field>
                 </Section>
 
                 <Section
@@ -309,11 +364,13 @@ function Field({
     label,
     required = false,
     error,
+    hint,
     children,
 }: {
     label: string;
     required?: boolean;
     error?: string;
+    hint?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -323,7 +380,82 @@ function Field({
                 {required && <span className="ml-0.5 text-destructive">*</span>}
             </Label>
             {children}
+            {hint && !error && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
+            )}
             <InputError message={error} className="mt-1.5" />
+        </div>
+    );
+}
+
+/**
+ * A lightweight tag input for the posting's required skills. Enter or comma
+ * commits the current token; Backspace on an empty field removes the last chip.
+ */
+function SkillsInput({
+    value,
+    onChange,
+}: {
+    value: string[];
+    onChange: (skills: string[]) => void;
+}) {
+    const [draft, setDraft] = useState('');
+
+    const add = (raw: string) => {
+        const skill = raw.trim().replace(/,$/, '').trim();
+
+        if (
+            skill &&
+            !value.some((s) => s.toLowerCase() === skill.toLowerCase())
+        ) {
+            onChange([...value, skill]);
+        }
+
+        setDraft('');
+    };
+
+    const remove = (index: number) =>
+        onChange(value.filter((_, i) => i !== index));
+
+    return (
+        <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
+            {value.map((skill, index) => (
+                <span
+                    key={`${skill}-${index}`}
+                    className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium"
+                >
+                    {skill}
+                    <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove ${skill}`}
+                    >
+                        <X className="size-3" />
+                    </button>
+                </span>
+            ))}
+            <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        add(draft);
+                    } else if (
+                        e.key === 'Backspace' &&
+                        draft === '' &&
+                        value.length > 0
+                    ) {
+                        remove(value.length - 1);
+                    }
+                }}
+                onBlur={() => draft && add(draft)}
+                placeholder={
+                    value.length === 0 ? 'e.g. React, SQL, Laravel' : ''
+                }
+                className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
         </div>
     );
 }

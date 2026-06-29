@@ -2,6 +2,7 @@ import { CalendarClock, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { Application, RecruitmentPermissions, Stage } from '../types';
 import { ApplicationActionsMenu } from './application-actions-menu';
+import { FitBadge } from './fit-score';
 import { RatingStars } from './rating-stars';
 
 type Props = {
@@ -38,8 +39,16 @@ export function ApplicationCard({
                     onClick={() => onOpen(application)}
                     className="min-w-0 flex-1 text-left"
                 >
-                    <span className="block truncate text-sm font-medium hover:underline">
-                        {applicant?.full_name ?? 'Unknown applicant'}
+                    <span className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-medium hover:underline">
+                            {applicant?.full_name ?? 'Unknown applicant'}
+                        </span>
+                        {application.fit_rank &&
+                            application.fit_rank.position <= 3 && (
+                                <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                    #{application.fit_rank.position}
+                                </span>
+                            )}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                         {applicant?.headline ?? applicant?.email ?? '—'}
@@ -59,7 +68,10 @@ export function ApplicationCard({
             </div>
 
             <div className="mt-2.5 flex items-center justify-between">
-                <RatingStars value={application.rating} />
+                <div className="flex items-center gap-2">
+                    <FitBadge fit={application.fit} />
+                    <RatingStars value={application.rating} />
+                </div>
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     {(application.interviews_count ?? 0) > 0 && (
                         <span className="inline-flex items-center gap-1">

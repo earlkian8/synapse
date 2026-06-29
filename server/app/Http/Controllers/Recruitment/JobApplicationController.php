@@ -10,6 +10,7 @@ use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Support\ActivityLogger;
 use App\Support\Notifier;
+use App\Support\Recruitment\ApplicantScorer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -68,18 +69,50 @@ class JobApplicationController extends Controller
     }
 
     /**
-     * Return a single application with everything the detail drawer needs.
+     * Return a single application with everything the detail drawer needs — the
+     * full candidate profile, interview history, fit score + recommendation, and
+     * the candidate's other applications across postings.
      */
-    public function show(JobApplication $application): JobApplicationResource
+    public function show(JobApplication $application, ApplicantScorer $scorer): JobApplicationResource
     {
         $application->load([
             'applicant.documents',
-            'jobPosting:id,title',
+            'jobPosting:id,title,min_years_experience,skills',
             'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no',
             'interviews' => fn ($query) => $query->with('interviewer:id,first_name,middle_name,last_name,suffix')->latest('scheduled_at'),
         ]);
 
+        $score = $scorer->score($application, $application->jobPosting);
+        $application->fit = $score;
+        $application->recommendation = $scorer->recommendation($application, $score);
+        $application->other_applications = $this->otherApplications($application);
+
         return new JobApplicationResource($application);
+    }
+
+    /**
+     * The candidate's other applications (different postings) so HR sees the
+     * whole picture without leaving the drawer.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function otherApplications(JobApplication $application): array
+    {
+        return JobApplication::query()
+            ->where('applicant_id', $application->applicant_id)
+            ->whereKeyNot($application->id)
+            ->with('jobPosting:id,title,status')
+            ->latest('applied_at')
+            ->get()
+            ->map(fn (JobApplication $other): array => [
+                'id' => $other->id,
+                'stage' => $other->stage,
+                'rating' => $other->rating,
+                'posting' => $other->jobPosting?->title,
+                'posting_status' => $other->jobPosting?->status,
+                'applied_human' => $other->applied_at?->diffForHumans(),
+            ])
+            ->all();
     }
 
     /**

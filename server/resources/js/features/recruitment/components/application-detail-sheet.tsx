@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import {
+    ArrowRight,
     CalendarPlus,
     FileText,
     Globe,
@@ -8,6 +9,7 @@ import {
     MapPin,
     Paperclip,
     Phone,
+    Sparkles,
     Trash2,
     UserRoundCheck,
     XCircle,
@@ -36,6 +38,7 @@ import {
     MODE_LABELS,
     MODE_OPTIONS,
     MOVABLE_STAGES,
+    RECOMMENDATION_STYLES,
     RESULT_OPTIONS,
     RESULT_STYLES,
     SOURCE_LABELS,
@@ -46,9 +49,11 @@ import type {
     ApplicationDetail,
     InterviewerRef,
     InterviewMode,
+    Recommendation,
     RecruitmentPermissions,
     Stage,
 } from '../types';
+import { FitMeter } from './fit-score';
 import { RatingStars } from './rating-stars';
 import { StageBadge } from './stage-badge';
 
@@ -154,6 +159,20 @@ export function ApplicationDetailSheet({
             onSuccess: () => onOpenChange(false),
         });
 
+    const runRecommendation = (rec: Recommendation) => {
+        if (rec.action === 'hire') {
+            hire();
+        } else if (rec.action === 'reject') {
+            reject('');
+        } else if (rec.action) {
+            move(rec.action);
+        }
+    };
+
+    const canRunRecommendation = (rec: Recommendation) =>
+        rec.action !== null &&
+        (rec.action === 'hire' ? can.hire : can.managePipeline);
+
     const terminal =
         current?.stage === 'hired' || current?.stage === 'rejected';
 
@@ -193,6 +212,70 @@ export function ApplicationDetailSheet({
                 </SheetHeader>
 
                 <div className="space-y-6 px-6 py-5">
+                    {/* Decision support — the recommended next step for HR */}
+                    {current.recommendation && !terminal && (
+                        <div
+                            className={cn(
+                                'rounded-xl border p-4',
+                                RECOMMENDATION_STYLES[
+                                    current.recommendation.tone
+                                ],
+                            )}
+                        >
+                            <div className="flex items-start gap-3">
+                                <Sparkles className="mt-0.5 size-4 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-semibold tracking-wide uppercase opacity-70">
+                                        Recommended next step
+                                    </p>
+                                    <p className="mt-0.5 text-sm font-semibold">
+                                        {current.recommendation.label}
+                                    </p>
+                                    {current.recommendation.hint && (
+                                        <p className="mt-0.5 text-xs opacity-80">
+                                            {current.recommendation.hint}
+                                        </p>
+                                    )}
+                                    {canRunRecommendation(
+                                        current.recommendation,
+                                    ) && (
+                                        <Button
+                                            size="sm"
+                                            variant={
+                                                current.recommendation.tone ===
+                                                'caution'
+                                                    ? 'outline'
+                                                    : 'default'
+                                            }
+                                            className="mt-2.5"
+                                            onClick={() =>
+                                                runRecommendation(
+                                                    current.recommendation!,
+                                                )
+                                            }
+                                        >
+                                            {current.recommendation.label}
+                                            <ArrowRight className="size-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                                {current.fit_rank && (
+                                    <span className="shrink-0 rounded-full bg-background/60 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+                                        Rank #{current.fit_rank.position}/
+                                        {current.fit_rank.total}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Fit score breakdown */}
+                    {current.fit && (
+                        <Group title="Fit score">
+                            <FitMeter fit={current.fit} />
+                        </Group>
+                    )}
+
                     {/* Contact */}
                     {applicant && (
                         <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
@@ -336,6 +419,36 @@ export function ApplicationDetailSheet({
                             />
                         )}
                     </Group>
+
+                    {/* Other applications across postings */}
+                    {detail?.other_applications &&
+                        detail.other_applications.length > 0 && (
+                            <Group title="Other applications">
+                                <ul className="space-y-1.5">
+                                    {detail.other_applications.map((other) => (
+                                        <li
+                                            key={other.id}
+                                            className="flex items-center justify-between gap-2 text-sm"
+                                        >
+                                            <span className="min-w-0 truncate text-muted-foreground">
+                                                {other.posting ??
+                                                    'Unknown role'}
+                                            </span>
+                                            <span className="flex shrink-0 items-center gap-2">
+                                                <StageBadge
+                                                    stage={other.stage}
+                                                />
+                                                {other.applied_human && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {other.applied_human}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </Group>
+                        )}
 
                     {/* Pipeline actions */}
                     {!terminal && can.managePipeline && (

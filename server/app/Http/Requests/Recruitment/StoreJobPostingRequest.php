@@ -12,6 +12,13 @@ class StoreJobPostingRequest extends FormRequest
     public const STATUSES = ['draft', 'open', 'closed', 'filled'];
 
     /**
+     * Whether a new closing date must be today or later. Creating a posting must
+     * not back-date the deadline; editing an existing posting may leave a date
+     * that has already passed untouched (see {@see UpdateJobPostingRequest}).
+     */
+    protected bool $enforceFutureClosing = true;
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -22,10 +29,32 @@ class StoreJobPostingRequest extends FormRequest
             'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
             'description' => ['nullable', 'string', 'max:5000'],
             'requirements' => ['nullable', 'string', 'max:5000'],
+            // Optional, position-aware screening criteria that shape the ranking.
+            'min_years_experience' => ['nullable', 'integer', 'min:0', 'max:50'],
+            'skills' => ['nullable', 'array', 'max:20'],
+            'skills.*' => ['string', 'max:40'],
             'employment_type' => ['required', Rule::in(self::EMPLOYMENT_TYPES)],
             'openings' => ['required', 'integer', 'min:1', 'max:999'],
             'status' => ['required', Rule::in(self::STATUSES)],
-            'closing_date' => ['nullable', 'date'],
+            // A published (open) posting must carry a deadline so candidates and
+            // recruiters both know when applications close.
+            'closing_date' => array_values(array_filter([
+                'nullable',
+                'date',
+                'required_if:status,open',
+                $this->enforceFutureClosing ? 'after_or_equal:today' : null,
+            ])),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'closing_date.required_if' => 'An open posting needs a closing date so applicants know the deadline.',
+            'closing_date.after_or_equal' => 'The closing date cannot be in the past.',
         ];
     }
 }

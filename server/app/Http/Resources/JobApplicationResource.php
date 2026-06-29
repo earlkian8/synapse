@@ -25,6 +25,13 @@ class JobApplicationResource extends JsonResource
             'rejected_reason' => $this->rejected_reason,
             'is_hired' => $this->isHired(),
 
+            // Decision-support signals, attached by the controller via the
+            // ApplicantScorer. Null on payloads that don't compute them.
+            'fit' => $this->fit ?? null,
+            'fit_rank' => $this->fit_rank ?? null,
+            'recommendation' => $this->recommendation ?? null,
+            'other_applications' => $this->other_applications ?? null,
+
             'applicant' => $this->whenLoaded('applicant', fn () => $this->applicant ? [
                 'id' => $this->applicant->id,
                 'full_name' => $this->applicant->full_name,

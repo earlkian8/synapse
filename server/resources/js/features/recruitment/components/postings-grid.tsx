@@ -1,6 +1,7 @@
 import { BriefcaseBusiness, CalendarClock, Users2 } from 'lucide-react';
 import { TYPE_LABELS } from '../constants';
 import type { ManagedPosting, RecruitmentPermissions } from '../types';
+import { PostingDeadline } from './posting-deadline';
 import { PostingRowActions } from './posting-row-actions';
 import { PostingStatusBadge } from './posting-status-badge';
 
@@ -89,9 +90,15 @@ export function PostingsGrid({ postings, can, ...handlers }: Props) {
                             <dt className="text-xs text-muted-foreground">
                                 Closing
                             </dt>
-                            <dd className="mt-0.5 inline-flex items-center gap-1 text-muted-foreground">
-                                <CalendarClock className="size-3.5" />
-                                {posting.closing_date ?? 'Open-ended'}
+                            <dd className="mt-0.5">
+                                {posting.closing_date ? (
+                                    <PostingDeadline posting={posting} />
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                                        <CalendarClock className="size-3.5" />
+                                        Open-ended
+                                    </span>
+                                )}
                             </dd>
                         </div>
                         <div>
