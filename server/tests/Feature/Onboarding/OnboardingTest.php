@@ -195,10 +195,10 @@ test('the programs page renders', function () {
     actingAsSuperAdmin();
     seedProgram();
 
-    $this->get(route('onboarding.programs.index'))
+    $this->get(route('setup.onboarding.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('onboarding/programs')
+            ->component('setup/onboarding')
             ->has('programs', 1)
             ->has('options.departments'));
 });
@@ -206,7 +206,7 @@ test('the programs page renders', function () {
 test('it creates a program with blueprint tasks', function () {
     actingAsSuperAdmin();
 
-    $this->post(route('onboarding.programs.store'), [
+    $this->post(route('setup.onboarding.store'), [
         'name' => 'Sales Onboarding',
         'is_active' => true,
         'tasks' => [
@@ -225,7 +225,7 @@ test('updating a program replaces its tasks and keeps a single default', functio
     $existingDefault = seedProgram();
     $program = OnboardingProgram::factory()->has(OnboardingProgramTask::factory()->count(2), 'tasks')->create();
 
-    $this->post(route('onboarding.programs.update', $program), [
+    $this->post(route('setup.onboarding.update', $program), [
         'name' => $program->name,
         'is_default' => true,
         'is_active' => true,
@@ -243,7 +243,7 @@ test('it deletes a program', function () {
     actingAsSuperAdmin();
     $program = seedProgram();
 
-    $this->delete(route('onboarding.programs.destroy', $program))->assertSessionHasNoErrors();
+    $this->delete(route('setup.onboarding.destroy', $program))->assertSessionHasNoErrors();
     expect(OnboardingProgram::find($program->id))->toBeNull();
 });
 
@@ -295,7 +295,7 @@ test('viewing does not grant managing', function () {
 test('managing programs is gated separately', function () {
     actingAsUserWith(['onboarding.view', 'onboarding.manage']);
 
-    $this->get(route('onboarding.programs.index'))->assertForbidden();
+    $this->get(route('setup.onboarding.index'))->assertForbidden();
 });
 
 test('cases are isolated per organisation', function () {

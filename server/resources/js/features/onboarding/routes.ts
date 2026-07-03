@@ -15,7 +15,8 @@ export const onboardingRoutes = {
     task: (id: number) => `/onboarding/tasks/${id}`,
     taskStatus: (id: number) => `/onboarding/tasks/${id}/status`,
 
-    programs: '/onboarding/programs',
-    programsStore: '/onboarding/programs',
-    program: (hashid: string) => `/onboarding/programs/${hashid}`,
+    // Programs (templates) live under Company Setup — see routes/setup.php.
+    programs: '/setup/onboarding',
+    programsStore: '/setup/onboarding',
+    program: (hashid: string) => `/setup/onboarding/${hashid}`,
 } as const;

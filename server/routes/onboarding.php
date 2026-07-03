@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Onboarding\OnboardingCaseController;
-use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Controllers\Onboarding\OnboardingTaskController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,11 +18,9 @@ Route::middleware(['auth', 'verified'])
         Route::get('/', [OnboardingCaseController::class, 'index'])->middleware('can:onboarding.view')->name('index');
         Route::post('/', [OnboardingCaseController::class, 'store'])->middleware('can:onboarding.manage')->name('store');
 
-        // Programs (templates).
-        Route::get('programs', [OnboardingProgramController::class, 'index'])->middleware('can:onboarding.manage-programs')->name('programs.index');
-        Route::post('programs', [OnboardingProgramController::class, 'store'])->middleware('can:onboarding.manage-programs')->name('programs.store');
-        Route::post('programs/{program}', [OnboardingProgramController::class, 'update'])->middleware('can:onboarding.manage-programs')->name('programs.update');
-        Route::delete('programs/{program}', [OnboardingProgramController::class, 'destroy'])->middleware('can:onboarding.manage-programs')->name('programs.destroy');
+        // Programs (templates) live under Company Setup — see routes/setup.php
+        // (setup.onboarding.*). They configure what every new hire's checklist
+        // is seeded from, so they belong with the other configuration surfaces.
 
         // Checklist tasks (addressed by numeric id, like recruitment sub-resources).
         Route::post('tasks/{task}', [OnboardingTaskController::class, 'update'])->middleware('can:onboarding.manage')->name('tasks.update');

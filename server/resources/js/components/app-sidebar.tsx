@@ -14,6 +14,7 @@ import {
     GraduationCap,
     LayoutGrid,
     LineChart,
+    ListChecks,
     Mail,
     Medal,
     Network,
@@ -195,6 +196,12 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/kpi',
         icon: Target,
         permission: 'setup.kpi.view',
+    },
+    {
+        title: 'Onboarding Programs',
+        href: '/setup/onboarding',
+        icon: ListChecks,
+        permission: 'onboarding.manage-programs',
     },
     {
         title: 'Email & Notifications',

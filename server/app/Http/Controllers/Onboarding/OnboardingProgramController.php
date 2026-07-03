@@ -29,7 +29,7 @@ class OnboardingProgramController extends Controller
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('onboarding/programs', [
+        return Inertia::render('setup/onboarding', [
             'programs' => OnboardingProgramResource::collection($programs)->resolve($request),
             'options' => ['departments' => Department::orderBy('name')->get(['id', 'name'])],
             'can' => ['managePrograms' => $request->user()->can('onboarding.manage-programs')],
