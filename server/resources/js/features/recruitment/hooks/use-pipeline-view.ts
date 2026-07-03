@@ -8,8 +8,10 @@ const ALLOWED: readonly PipelineView[] = ['table', 'grid'];
  * posting's pipeline, persisting the choice across visits.
  */
 export function usePipelineView() {
+    // Keyed `.v2` so the table default takes effect for everyone, retiring any
+    // stale grid preference persisted under the previous key.
     return useStoredView<PipelineView>(
-        'recruitment.pipeline.view',
+        'recruitment.pipeline.view.v2',
         ALLOWED,
         'table',
     );

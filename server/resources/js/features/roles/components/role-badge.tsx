@@ -7,15 +7,15 @@ type Props = {
 };
 
 /**
- * Distinguishes the protected super-admin role, other built-in system roles,
- * and editable custom roles at a glance.
+ * Distinguishes the protected owner role (HR Manager), other built-in system
+ * roles, and editable custom roles at a glance.
  */
 export function RoleBadge({ role }: Props) {
     if (role.is_super_admin) {
         return (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-400">
                 <ShieldCheck className="size-3" />
-                Super Admin
+                Owner
             </span>
         );
     }

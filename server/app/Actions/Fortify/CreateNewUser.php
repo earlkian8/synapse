@@ -40,12 +40,12 @@ class CreateNewUser implements CreatesNewUsers
                 PermissionSyncer::sync();
             }
 
-            [$organization, $superAdmin] = OrganizationProvisioner::create($input['organization_name']);
+            [$organization, $ownerRole] = OrganizationProvisioner::create($input['organization_name']);
 
             app(Tenancy::class)->set($organization);
 
             // The registrant is a global identity (ADR 0023) who becomes the first
-            // member — and owner (Super Admin) — of the organisation they just created.
+            // member — and owner (HR Manager) — of the organisation they just created.
             $user = User::create([
                 'first_name' => $input['first_name'],
                 'middle_name' => $input['middle_name'] ?? null,
@@ -57,7 +57,7 @@ class CreateNewUser implements CreatesNewUsers
 
             OrganizationProvisioner::addMember($organization, $user, default: true);
 
-            $user->roles()->attach($superAdmin->id);
+            $user->roles()->attach($ownerRole->id);
 
             return $user;
         });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Recruitment\InterviewController;
 use App\Http\Controllers\Recruitment\JobApplicationController;
 use App\Http\Controllers\Recruitment\JobPostingController;
 use App\Http\Controllers\Recruitment\JobPostingStatusController;
+use App\Http\Controllers\Recruitment\PipelineExportController;
 use App\Http\Controllers\Recruitment\RecruitmentExportController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,7 +44,9 @@ Route::middleware(['auth', 'verified'])
         Route::post('interviews/{interview}', [InterviewController::class, 'update'])->middleware('can:recruitment.schedule-interviews')->name('interviews.update');
         Route::delete('interviews/{interview}', [InterviewController::class, 'destroy'])->middleware('can:recruitment.schedule-interviews')->name('interviews.destroy');
 
-        // A posting and its pipeline board (wildcard — declared last).
+        // A posting and its pipeline board (wildcard — declared last). The
+        // two-segment export route is matched ahead of the bare wildcard.
+        Route::get('{jobPosting}/export', PipelineExportController::class)->middleware('can:recruitment.export')->name('pipeline.export');
         Route::get('{jobPosting}', [JobPostingController::class, 'show'])->middleware('can:recruitment.view')->name('show');
         Route::post('{jobPosting}', [JobPostingController::class, 'update'])->middleware('can:recruitment.update')->name('update');
         Route::delete('{jobPosting}', [JobPostingController::class, 'destroy'])->middleware('can:recruitment.delete')->name('destroy');

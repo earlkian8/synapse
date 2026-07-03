@@ -25,9 +25,10 @@ use Illuminate\Support\Str;
  */
 class SystemSeeder extends Seeder
 {
-    /** Extra login accounts (one HR Manager, two Staff). */
+    /** Extra login accounts (one HR Manager, one Department Head, two Staff). */
     private const ACCOUNTS = [
         ['email' => 'mock.hr@synapse.test', 'first' => 'Hannah', 'last' => 'Reyes', 'role' => 'hr-manager'],
+        ['email' => 'mock.head@synapse.test', 'first' => 'Diego', 'last' => 'Santos', 'role' => 'department-head'],
         ['email' => 'mock.staff1@synapse.test', 'first' => 'Sam', 'last' => 'Cruz', 'role' => 'staff'],
         ['email' => 'mock.staff2@synapse.test', 'first' => 'Jamie', 'last' => 'Lim', 'role' => 'staff'],
     ];

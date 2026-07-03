@@ -86,8 +86,9 @@ export function RoleDetailSheet({
                         <div className="px-6 py-6">
                             {role.is_super_admin && (
                                 <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300">
-                                    The Super Admin role bypasses every
-                                    permission check and always has full access.
+                                    The HR Manager role is the organisation
+                                    owner: it bypasses every permission check and
+                                    always has full access.
                                 </div>
                             )}
 
