@@ -19,11 +19,18 @@ class KpiCriterion extends Model
 {
     use BelongsToOrganization, HasHashid, SoftDeletes;
 
+    /** The rating-scale kinds a criterion can be measured on. */
+    public const SCALE_TYPES = ['points', 'percentage', 'scale'];
+
     protected $fillable = [
         'organization_id',
         'name',
         'description',
         'weight',
+        'scale_type',
+        'scale_min',
+        'scale_max',
+        'scale_levels',
         'is_active',
     ];
 
@@ -31,7 +38,26 @@ class KpiCriterion extends Model
     {
         return [
             'weight' => 'decimal:2',
+            'scale_min' => 'decimal:2',
+            'scale_max' => 'decimal:2',
+            'scale_levels' => 'array',
             'is_active' => 'boolean',
+        ];
+    }
+
+    /**
+     * The scale fields to snapshot onto a {@see PerformanceScore} when seeding an
+     * evaluation, so the criterion's measurement method stays stable per-appraisal.
+     *
+     * @return array<string, mixed>
+     */
+    public function scaleSnapshot(): array
+    {
+        return [
+            'scale_type' => $this->scale_type,
+            'scale_min' => $this->scale_min,
+            'scale_max' => $this->scale_max,
+            'scale_levels' => $this->scale_levels,
         ];
     }
 

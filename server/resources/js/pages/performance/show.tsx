@@ -17,6 +17,8 @@ import {
     saveEvaluation,
     submitEvaluation,
 } from '@/features/performance/api';
+import { DecisionSupport } from '@/features/performance/components/decision-support';
+import { PerformanceInsights } from '@/features/performance/components/performance-insights';
 import { ScoreRow } from '@/features/performance/components/score-row';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import {
@@ -35,7 +37,8 @@ import type {
 import { cn } from '@/lib/utils';
 
 export default function PerformanceShow() {
-    const { evaluation, can } = usePage<PerformanceShowPageProps>().props;
+    const { evaluation, support, can } =
+        usePage<PerformanceShowPageProps>().props;
     const employee = evaluation.employee;
     const editable = can.manage && evaluation.status === 'draft';
 
@@ -191,13 +194,16 @@ export default function PerformanceShow() {
                     </div>
                 </div>
 
+                {/* Decision support: ML forecast, trajectory, strengths & gaps */}
+                <DecisionSupport support={support} scores={lines} />
+
                 {/* Scorecard */}
                 <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
                     <div className="flex items-center justify-between border-b border-border px-4 py-3">
                         <p className="text-sm font-semibold">KPI scorecard</p>
                         <span className="text-xs text-muted-foreground">
                             {editable
-                                ? 'Rate each criterion from 1 to 5'
+                                ? 'Rate each criterion on its scale'
                                 : `${lines.length} criteria`}
                         </span>
                     </div>
@@ -208,6 +214,10 @@ export default function PerformanceShow() {
                                 label={line.label}
                                 weight={line.weight}
                                 score={line.score}
+                                scaleType={line.scale_type}
+                                scaleMin={line.scale_min}
+                                scaleMax={line.scale_max}
+                                scaleLevels={line.scale_levels}
                                 remarks={line.remarks}
                                 criterionActive={line.criterion_active}
                                 editable={editable}
@@ -237,6 +247,15 @@ export default function PerformanceShow() {
                         </p>
                     )}
                 </div>
+
+                {/* AI coaching insights (LLM) */}
+                {support.ai_available && (
+                    <PerformanceInsights
+                        key={evaluation.hashid}
+                        hashid={evaluation.hashid}
+                        saved={evaluation.ai_insights}
+                    />
+                )}
 
                 {/* Actions */}
                 {can.manage &&

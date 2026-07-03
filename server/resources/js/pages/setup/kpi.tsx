@@ -20,7 +20,7 @@ import type {
     KpiSetupPageProps,
 } from '@/features/kpi-config/types';
 import { PeriodStatusBadge } from '@/features/performance/components/status-badge';
-import { formatDate } from '@/features/performance/constants';
+import { formatDate, scaleDescriptor } from '@/features/performance/constants';
 import type { EvaluationPeriodOption } from '@/features/performance/types';
 import { cn } from '@/lib/utils';
 
@@ -143,6 +143,9 @@ export default function SetupKpi() {
                                     <p className="truncate text-sm font-medium">
                                         {criterion.name}
                                     </p>
+                                    <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                        {scaleDescriptor(criterion)}
+                                    </span>
                                     {!criterion.is_active && (
                                         <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                                             Inactive

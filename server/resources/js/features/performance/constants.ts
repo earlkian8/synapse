@@ -1,14 +1,19 @@
-import type { EvaluationStatus, PeriodStatus } from './types';
+import type {
+    EvaluationStatus,
+    PeriodStatus,
+    ScaleLevel,
+    ScaleType,
+} from './types';
 
-/** The inclusive bounds of the rating scale, mirroring PerformanceScorer. */
+/** The inclusive bounds of the canonical overall scale, mirroring PerformanceScorer. */
 export const RATING_MIN = 1;
 
 export const RATING_MAX = 5;
 
-/** The whole-number rating options offered by the scorecard. */
+/** The whole-number rating options offered by a legacy 1–5 scorecard. */
 export const RATING_VALUES = [1, 2, 3, 4, 5] as const;
 
-/** What each rating on the 1–5 scale means. */
+/** What each rating on the canonical 1–5 scale means (used for the overall). */
 export const RATING_LABELS: Record<number, string> = {
     1: 'Needs Improvement',
     2: 'Below Expectations',
@@ -16,6 +21,73 @@ export const RATING_LABELS: Record<number, string> = {
     4: 'Exceeds Expectations',
     5: 'Outstanding',
 };
+
+/** The minimal shape a scale helper needs from a score line. */
+export type ScaledLine = {
+    score: number | null;
+    scale_type: ScaleType;
+    scale_min: number;
+    scale_max: number;
+    scale_levels: ScaleLevel[] | null;
+};
+
+/** A short human descriptor of a line's rating scale, e.g. "1–5", "0–100%". */
+export function scaleDescriptor(line: {
+    scale_type: ScaleType;
+    scale_min: number;
+    scale_max: number;
+    scale_levels: ScaleLevel[] | null;
+}): string {
+    if (line.scale_type === 'percentage') {
+        return '0–100%';
+    }
+
+    if (line.scale_type === 'scale') {
+        const n = line.scale_levels?.length ?? 0;
+
+        return `${n} levels`;
+    }
+
+    return `${line.scale_min}–${line.scale_max}`;
+}
+
+/** Render a raw line score in its own scale, e.g. "4", "82%", "Proficient". */
+export function formatLineScore(line: ScaledLine): string {
+    if (line.score === null) {
+        return '—';
+    }
+
+    if (line.scale_type === 'percentage') {
+        return `${line.score}%`;
+    }
+
+    if (line.scale_type === 'scale') {
+        const level = line.scale_levels?.find((l) => l.value === line.score);
+
+        return level ? level.label : String(line.score);
+    }
+
+    return String(line.score);
+}
+
+/** A line's raw score as a 0–1 fraction of its own scale (null when unscored). */
+export function scaleFraction(line: {
+    score: number | null;
+    scale_min: number;
+    scale_max: number;
+}): number | null {
+    if (line.score === null) {
+        return null;
+    }
+
+    const span = line.scale_max - line.scale_min;
+
+    if (span <= 0) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(1, (line.score - line.scale_min) / span));
+}
 
 export const EVALUATION_STATUS_LABELS: Record<EvaluationStatus, string> = {
     draft: 'Draft',
@@ -116,9 +188,18 @@ export function formatDate(iso: string | null): string {
     });
 }
 
-/** Weighted average of scored lines on the 1–5 scale (client mirror of the server). */
+/**
+ * Weighted overall on the canonical 1–5 scale (client mirror of PerformanceScorer):
+ * each line is normalised to a 0–1 fraction of its own scale, weighted-averaged,
+ * then projected back onto 1–5. Mixed scales combine coherently.
+ */
 export function computeOverall(
-    lines: { score: number | null; weight: number }[],
+    lines: {
+        score: number | null;
+        weight: number;
+        scale_min: number;
+        scale_max: number;
+    }[],
 ): number | null {
     const scored = lines.filter((line) => line.score !== null);
 
@@ -126,25 +207,25 @@ export function computeOverall(
         return null;
     }
 
+    const fraction = (line: {
+        score: number | null;
+        scale_min: number;
+        scale_max: number;
+    }): number => scaleFraction(line) ?? 0;
+
     const totalWeight = scored.reduce(
         (sum, line) => sum + (line.weight || 0),
         0,
     );
 
-    if (totalWeight <= 0) {
-        return (
-            Math.round(
-                (scored.reduce((sum, line) => sum + (line.score ?? 0), 0) /
-                    scored.length) *
-                    100,
-            ) / 100
-        );
-    }
+    const avgFraction =
+        totalWeight > 0
+            ? scored.reduce(
+                  (sum, line) => sum + fraction(line) * (line.weight || 0),
+                  0,
+              ) / totalWeight
+            : scored.reduce((sum, line) => sum + fraction(line), 0) /
+              scored.length;
 
-    const weighted = scored.reduce(
-        (sum, line) => sum + (line.score ?? 0) * (line.weight || 0),
-        0,
-    );
-
-    return Math.round((weighted / totalWeight) * 100) / 100;
+    return Math.round((1 + avgFraction * 4) * 100) / 100;
 }

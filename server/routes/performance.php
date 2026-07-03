@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Performance\PerformanceController;
 use App\Http\Controllers\Performance\PerformanceEvaluationController;
+use App\Http\Controllers\Performance\PerformanceExportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,10 +16,12 @@ Route::middleware(['auth', 'verified'])
     ->name('performance.')
     ->group(function () {
         Route::get('/', [PerformanceController::class, 'index'])->middleware('can:performance.view')->name('index');
+        Route::get('export', PerformanceExportController::class)->middleware('can:performance.view')->name('export');
         Route::post('/', [PerformanceEvaluationController::class, 'store'])->middleware('can:performance.manage')->name('store');
 
         // A single evaluation and its scorecard.
         Route::get('{evaluation}', [PerformanceController::class, 'show'])->middleware('can:performance.view')->name('show');
+        Route::post('{evaluation}/insights', [PerformanceController::class, 'insights'])->middleware('can:performance.view')->name('insights');
         Route::patch('{evaluation}', [PerformanceEvaluationController::class, 'update'])->middleware('can:performance.manage')->name('update');
         Route::post('{evaluation}/submit', [PerformanceEvaluationController::class, 'submit'])->middleware('can:performance.manage')->name('submit');
         Route::post('{evaluation}/acknowledge', [PerformanceEvaluationController::class, 'acknowledge'])->middleware('can:performance.manage')->name('acknowledge');

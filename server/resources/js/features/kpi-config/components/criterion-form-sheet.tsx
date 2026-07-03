@@ -1,8 +1,16 @@
 import { useForm } from '@inertiajs/react';
+import { Plus, Trash2 } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     Sheet,
     SheetContent,
@@ -14,13 +22,43 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { kpiConfigRoutes } from '../routes';
-import type { KpiCriterion } from '../types';
+import type { KpiCriterion, ScaleLevel, ScaleType } from '../types';
 
 type Props = {
     criterion: KpiCriterion | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
+
+const SCALE_TYPES: { value: ScaleType; label: string; hint: string }[] = [
+    {
+        value: 'points',
+        label: 'Points scale',
+        hint: 'Rate from 1 to a top value (e.g. 1–5 or 1–10).',
+    },
+    {
+        value: 'percentage',
+        label: 'Percentage',
+        hint: 'Score from 0 to 100%.',
+    },
+    {
+        value: 'scale',
+        label: 'Descriptive levels',
+        hint: 'Named ratings (e.g. letter grades, competency bands, pass/fail).',
+    },
+];
+
+function defaultLevels(criterion: KpiCriterion | null): ScaleLevel[] {
+    if (criterion?.scale_type === 'scale' && criterion.scale_levels?.length) {
+        return criterion.scale_levels;
+    }
+
+    return [
+        { label: 'Does not meet', value: 1 },
+        { label: 'Meets', value: 2 },
+        { label: 'Exceeds', value: 3 },
+    ];
+}
 
 export function CriterionFormSheet({ criterion, open, onOpenChange }: Props) {
     const isEditing = Boolean(criterion);
@@ -37,7 +75,7 @@ export function CriterionFormSheet({ criterion, open, onOpenChange }: Props) {
                     </SheetTitle>
                     <SheetDescription>
                         A weighted dimension evaluations score employees
-                        against.
+                        against, on the rating scale you choose.
                     </SheetDescription>
                 </SheetHeader>
 
@@ -65,6 +103,9 @@ function FormBody({
         name: criterion?.name ?? '',
         description: criterion?.description ?? '',
         weight: criterion?.weight ?? 0,
+        scale_type: (criterion?.scale_type ?? 'points') as ScaleType,
+        scale_max: criterion?.scale_type === 'points' ? criterion.scale_max : 5,
+        scale_levels: defaultLevels(criterion),
         is_active: criterion?.is_active ?? true,
     });
 
@@ -78,6 +119,33 @@ function FormBody({
             post(kpiConfigRoutes.criteria.store, opts);
         }
     };
+
+    const setLevel = (index: number, patch: Partial<ScaleLevel>) =>
+        setData(
+            'scale_levels',
+            data.scale_levels.map((level, i) =>
+                i === index ? { ...level, ...patch } : level,
+            ),
+        );
+
+    const addLevel = () =>
+        setData('scale_levels', [
+            ...data.scale_levels,
+            {
+                label: '',
+                value:
+                    data.scale_levels.reduce(
+                        (max, l) => Math.max(max, l.value),
+                        0,
+                    ) + 1,
+            },
+        ]);
+
+    const removeLevel = (index: number) =>
+        setData(
+            'scale_levels',
+            data.scale_levels.filter((_, i) => i !== index),
+        );
 
     return (
         <form onSubmit={submit} className="flex h-full flex-col">
@@ -116,6 +184,134 @@ function FormBody({
                         criteria typically sum to 100.
                     </p>
                     <InputError message={errors.weight} className="mt-1.5" />
+                </div>
+
+                {/* Rating scale */}
+                <div className="space-y-3 rounded-lg border border-sidebar-border/70 p-3.5 dark:border-sidebar-border">
+                    <div>
+                        <Label className="mb-1.5 block">Rating scale</Label>
+                        <Select
+                            value={data.scale_type}
+                            onValueChange={(v) =>
+                                setData('scale_type', v as ScaleType)
+                            }
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {SCALE_TYPES.map((type) => (
+                                    <SelectItem
+                                        key={type.value}
+                                        value={type.value}
+                                    >
+                                        {type.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                            {
+                                SCALE_TYPES.find(
+                                    (t) => t.value === data.scale_type,
+                                )?.hint
+                            }
+                        </p>
+                    </div>
+
+                    {data.scale_type === 'points' && (
+                        <div>
+                            <Label className="mb-1.5 block text-xs">
+                                Top of scale
+                            </Label>
+                            <Input
+                                type="number"
+                                min="2"
+                                max="100"
+                                step="1"
+                                value={data.scale_max}
+                                onChange={(e) =>
+                                    setData('scale_max', Number(e.target.value))
+                                }
+                                className="w-28"
+                            />
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                Evaluators rate from 1 to{' '}
+                                {data.scale_max || '…'}.
+                            </p>
+                            <InputError
+                                message={errors.scale_max}
+                                className="mt-1.5"
+                            />
+                        </div>
+                    )}
+
+                    {data.scale_type === 'scale' && (
+                        <div className="space-y-2">
+                            <Label className="block text-xs">
+                                Levels (low to high)
+                            </Label>
+                            {data.scale_levels.map((level, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Input
+                                        value={level.label}
+                                        onChange={(e) =>
+                                            setLevel(index, {
+                                                label: e.target.value,
+                                            })
+                                        }
+                                        placeholder="Level name"
+                                        className="flex-1"
+                                    />
+                                    <Input
+                                        type="number"
+                                        step="1"
+                                        value={level.value}
+                                        onChange={(e) =>
+                                            setLevel(index, {
+                                                value: Number(e.target.value),
+                                            })
+                                        }
+                                        className="w-20"
+                                        aria-label="Level value"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeLevel(index)}
+                                        disabled={data.scale_levels.length <= 2}
+                                        aria-label="Remove level"
+                                    >
+                                        <Trash2 className="size-4" />
+                                    </Button>
+                                </div>
+                            ))}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addLevel}
+                                disabled={data.scale_levels.length >= 12}
+                            >
+                                <Plus className="size-4" />
+                                Add level
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                                Each level's value sets its position; the
+                                overall score normalises every scale onto a
+                                common range.
+                            </p>
+                            <InputError
+                                message={errors.scale_levels}
+                                className="mt-1"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div>

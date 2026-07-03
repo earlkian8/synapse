@@ -35,6 +35,7 @@ class PerformanceEvaluation extends Model
         'submitted_at',
         'acknowledged_at',
         'remarks',
+        'ai_insights',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class PerformanceEvaluation extends Model
             'overall_score' => 'decimal:2',
             'submitted_at' => 'datetime',
             'acknowledged_at' => 'datetime',
+            'ai_insights' => 'array',
         ];
     }
 
