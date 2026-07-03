@@ -5,6 +5,8 @@
 export const attendanceRoutes = {
     index: '/attendance',
     store: '/attendance',
+    export: '/attendance/export',
+    approveAll: '/attendance/approve-all',
 
     me: '/attendance/me',
     mePunch: '/attendance/me/punch',

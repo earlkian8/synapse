@@ -1,4 +1,11 @@
-import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
+import {
+    ChevronLeft,
+    ChevronRight,
+    Download,
+    Plus,
+    Search,
+    X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +23,7 @@ type Props = {
     filters: AttendanceFilters;
     departments: DepartmentRef[];
     canManage: boolean;
+    exportUrl: string;
     onDate: (value: string) => void;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
@@ -115,6 +123,7 @@ export function AttendanceToolbar({
     filters,
     departments,
     canManage,
+    exportUrl,
     onDate,
     onSearch,
     onStatus,
@@ -202,12 +211,20 @@ export function AttendanceToolbar({
                     )}
                 </div>
 
-                {canManage && (
-                    <Button size="sm" onClick={onManualEntry}>
-                        <Plus className="size-4" />
-                        Manual entry
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                        <a href={exportUrl}>
+                            <Download className="size-4" />
+                            Export
+                        </a>
                     </Button>
-                )}
+                    {canManage && (
+                        <Button size="sm" onClick={onManualEntry}>
+                            <Plus className="size-4" />
+                            Manual entry
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Filters: search + department (+ status on the daily log) */}

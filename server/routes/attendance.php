@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Attendance\AttendanceController;
+use App\Http\Controllers\Attendance\AttendanceExportController;
 use App\Http\Controllers\Attendance\MyAttendanceController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,10 @@ Route::middleware(['auth', 'verified'])
         // HR daily board.
         Route::get('/', [AttendanceController::class, 'index'])->middleware('can:attendance.view')->name('index');
         Route::post('/', [AttendanceController::class, 'store'])->middleware('can:attendance.manage')->name('store');
+
+        // Board-wide actions (literal segments — declared before the wildcard).
+        Route::get('export', AttendanceExportController::class)->middleware('can:attendance.view')->name('export');
+        Route::patch('approve-all', [AttendanceController::class, 'approveAll'])->middleware('can:attendance.manage')->name('approve-all');
 
         // Self-service (any authenticated user linked to an employee).
         Route::get('me', [MyAttendanceController::class, 'index'])->name('me');

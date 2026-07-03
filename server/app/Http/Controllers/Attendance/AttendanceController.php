@@ -166,6 +166,35 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Approve every record still awaiting sign-off — a one-click way to clear the
+     * correction/overtime queue instead of approving them one at a time.
+     */
+    public function approveAll(Request $request): RedirectResponse
+    {
+        $count = AttendanceRecord::where('approval_status', 'pending')->update([
+            'approval_status' => 'approved',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
+
+        if ($count > 0) {
+            ActivityLogger::log(
+                event: 'updated',
+                description: "Bulk-approved {$count} pending attendance record".($count === 1 ? '' : 's'),
+                logName: 'attendance',
+                subjectLabel: 'Attendance',
+            );
+        }
+
+        return $this->respond(
+            $count > 0
+                ? "Approved {$count} pending record".($count === 1 ? '' : 's').'.'
+                : 'No pending records to approve.',
+            $count > 0 ? 'success' : 'info',
+        );
+    }
+
+    /**
      * Delete a record (and its punches via cascade).
      */
     public function destroy(AttendanceRecord $attendanceRecord): RedirectResponse
