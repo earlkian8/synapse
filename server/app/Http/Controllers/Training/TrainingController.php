@@ -71,7 +71,7 @@ class TrainingController extends Controller
      * the performance / recruitment insights endpoints: on-demand, cached on the
      * model, never a thrown error — failures resolve to an "unavailable" payload.
      */
-    public function insights(Request $request, TrainingProgram $trainingProgram, TrainingInsights $insights): JsonResponse
+    public function insights(TrainingProgram $trainingProgram, TrainingInsights $insights): JsonResponse
     {
         $trainingProgram->load([
             'enrollments.employee:id,first_name,middle_name,last_name,suffix',

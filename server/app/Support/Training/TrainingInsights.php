@@ -17,9 +17,9 @@ use Throwable;
  * what is working, the concerns, concrete recommendations, and who to follow up
  * with.
  *
- * Cost-disciplined like {@see ApplicantInsights}: one model call per request,
- * strict-JSON out, and graceful, retryable degradation on quota / overload. No
- * documents are attached — only the digest text.
+ * Cost-disciplined like {@see ApplicantInsights}: one
+ * model call per request, strict-JSON out, and graceful, retryable degradation on
+ * quota / overload. No documents are attached — only the digest text.
  */
 class TrainingInsights
 {

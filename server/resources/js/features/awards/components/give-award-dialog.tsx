@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,9 +19,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { giveAward, updateAward } from '../api';
+import { fetchCitation, giveAward, updateAward } from '../api';
 import type {
     AwardableEmployee,
+    AwardPreset,
     AwardTypeOption,
     EmployeeAward,
 } from '../types';
@@ -31,11 +33,17 @@ type Props = {
     types: AwardTypeOption[];
     employees: AwardableEmployee[];
     award: EmployeeAward | null;
+    /** Pre-selected employee + type when opened from the nomination board. */
+    preset?: AwardPreset | null;
+    /** Whether the AI citation draft button should show (key configured). */
+    aiAvailable?: boolean;
 };
 
 /**
  * Give a recognition, or edit an existing one. The employee picker only shows when
- * giving a new award — on an existing one the recipient is fixed.
+ * giving a new award — on an existing one the recipient is fixed. Opened from the
+ * nomination board it arrives pre-filled, and (when AI is configured) can draft
+ * the citation from the nominee's real signals.
  */
 export function GiveAwardDialog({
     open,
@@ -43,6 +51,8 @@ export function GiveAwardDialog({
     types,
     employees,
     award,
+    preset = null,
+    aiAvailable = false,
 }: Props) {
     const isEditing = Boolean(award);
 
@@ -62,10 +72,17 @@ export function GiveAwardDialog({
 
                 {open && (
                     <FormBody
-                        key={award?.id ?? 'new'}
+                        key={
+                            award?.id ??
+                            (preset
+                                ? `preset-${preset.employeeId}-${preset.typeId}`
+                                : 'new')
+                        }
                         types={types}
                         employees={employees}
                         award={award}
+                        preset={preset}
+                        aiAvailable={aiAvailable}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -78,33 +95,68 @@ function FormBody({
     types,
     employees,
     award,
+    preset,
+    aiAvailable,
     onDone,
 }: {
     types: AwardTypeOption[];
     employees: AwardableEmployee[];
     award: EmployeeAward | null;
+    preset: AwardPreset | null;
+    aiAvailable: boolean;
     onDone: () => void;
 }) {
     const isEditing = Boolean(award);
     const today = new Date().toISOString().slice(0, 10);
 
-    const [employeeId, setEmployeeId] = useState('');
+    const [employeeId, setEmployeeId] = useState(
+        preset ? String(preset.employeeId) : '',
+    );
     const [typeId, setTypeId] = useState(
-        award?.award_type ? String(award.award_type.id) : '',
+        award?.award_type
+            ? String(award.award_type.id)
+            : preset
+              ? String(preset.typeId)
+              : '',
     );
     const [awardedOn, setAwardedOn] = useState(award?.awarded_on ?? today);
     const [reason, setReason] = useState(award?.reason ?? '');
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
+    const [drafting, setDrafting] = useState(false);
+    const [draftError, setDraftError] = useState<string | null>(null);
 
     const canSubmit =
         typeId !== '' && awardedOn !== '' && (isEditing || employeeId !== '');
+
+    const canDraft =
+        aiAvailable && !isEditing && employeeId !== '' && typeId !== '';
 
     const handlers = {
         onStart: () => setProcessing(true),
         onFinish: () => setProcessing(false),
         onError: setErrors,
         onSuccess: onDone,
+    };
+
+    const draft = async () => {
+        setDrafting(true);
+        setDraftError(null);
+
+        try {
+            const result = await fetchCitation(
+                Number(employeeId),
+                Number(typeId),
+            );
+
+            if (result.available) {
+                setReason(result.citation);
+            } else {
+                setDraftError(result.reason);
+            }
+        } finally {
+            setDrafting(false);
+        }
     };
 
     const submit = (event: React.FormEvent) => {
@@ -198,6 +250,32 @@ function FormBody({
                     placeholder="What is this recognition for? (optional)"
                     className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                 />
+                {canDraft && (
+                    <div className="flex flex-col gap-1">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-fit px-2 text-xs text-[#0a8b91] hover:text-[#0a8b91] dark:text-[#0ABFBF] dark:hover:text-[#0ABFBF]"
+                            onClick={draft}
+                            disabled={drafting}
+                        >
+                            {drafting ? (
+                                <Spinner className="size-3.5" />
+                            ) : (
+                                <Sparkles className="size-3.5" />
+                            )}
+                            {drafting
+                                ? 'Drafting from their signals…'
+                                : 'Draft with AI'}
+                        </Button>
+                        {draftError && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                {draftError}
+                            </p>
+                        )}
+                    </div>
+                )}
             </Field>
 
             <DialogFooter className="mt-1">
