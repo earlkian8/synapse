@@ -30,6 +30,7 @@ class TrainingProgramResource extends JsonResource
             'capacity' => $capacity,
             'status' => $this->status(),
             'is_archived' => $this->deleted_at !== null,
+            'ai_insights' => $this->ai_insights ?? null,
 
             // Enrollment aggregates (populated via withCount on the query).
             'enrollments_count' => (int) ($this->enrollments_count ?? 0),

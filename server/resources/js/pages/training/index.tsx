@@ -12,11 +12,15 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { ProgramCard } from '@/features/training/components/program-card';
 import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
+import { ProgramTable } from '@/features/training/components/program-table';
+import type { ProgramSort } from '@/features/training/components/program-table';
 import { TrainingStatsCards } from '@/features/training/components/training-stats';
+import { TrainingToolbar } from '@/features/training/components/training-toolbar';
 import {
     PROGRAM_STATUS_LABELS,
     PROGRAM_STATUS_ORDER,
 } from '@/features/training/constants';
+import { useProgramsView } from '@/features/training/hooks/use-programs-view';
 import { trainingRoutes } from '@/features/training/routes';
 import type {
     ProgramStatus,
@@ -32,9 +36,22 @@ type ConfirmConfig = {
     run: () => void;
 };
 
+/** Rank a program by its lifecycle for the table's status sort. */
+const STATUS_RANK: Record<ProgramStatus, number> = {
+    ongoing: 0,
+    upcoming: 1,
+    completed: 2,
+};
+
 export default function TrainingIndex() {
     const { programs, archived, stats, can } =
         usePage<TrainingIndexPageProps>().props;
+
+    const { view, changeView } = useProgramsView();
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState<ProgramStatus | 'all'>('all');
+    const [sort, setSort] = useState<ProgramSort>('schedule');
+    const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
 
     const [form, setForm] = useState<{
         open: boolean;
@@ -59,21 +76,77 @@ export default function TrainingIndex() {
         setConfirmOpen(true);
     };
 
-    // Group programs by derived status, preserving the canonical order.
+    const onSort = (key: ProgramSort) => {
+        if (key === sort) {
+            setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSort(key);
+            setDirection(key === 'name' || key === 'status' ? 'asc' : 'desc');
+        }
+    };
+
+    // Search + status filter applied to both layouts.
+    const filtered = useMemo(() => {
+        const needle = search.trim().toLowerCase();
+
+        return programs.filter((program) => {
+            if (status !== 'all' && program.status !== status) {
+                return false;
+            }
+
+            if (
+                needle !== '' &&
+                !program.name.toLowerCase().includes(needle) &&
+                !(program.provider ?? '').toLowerCase().includes(needle)
+            ) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [programs, search, status]);
+
+    // Table layout: a flat, sorted list.
+    const sorted = useMemo(() => {
+        const dir = direction === 'asc' ? 1 : -1;
+        const time = (iso: string | null) =>
+            iso ? new Date(iso).getTime() : 0;
+
+        return [...filtered].sort((a, b) => {
+            switch (sort) {
+                case 'name':
+                    return a.name.localeCompare(b.name) * dir;
+                case 'seats':
+                    return (a.active_count - b.active_count) * dir;
+                case 'completed':
+                    return (a.completed_count - b.completed_count) * dir;
+                case 'status':
+                    return (
+                        (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * dir
+                    );
+                default:
+                    return (
+                        (time(a.start_date) - time(b.start_date)) * dir
+                    );
+            }
+        });
+    }, [filtered, sort, direction]);
+
+    // Grid layout: filtered programs grouped by derived status.
     const grouped = useMemo(() => {
         const map = new Map<ProgramStatus, TrainingProgram[]>();
 
-        for (const program of programs) {
+        for (const program of filtered) {
             const list = map.get(program.status) ?? [];
             list.push(program);
             map.set(program.status, list);
         }
 
-        return PROGRAM_STATUS_ORDER.filter((s) => map.has(s)).map((status) => ({
-            status,
-            items: map.get(status) as TrainingProgram[],
+        return PROGRAM_STATUS_ORDER.filter((s) => map.has(s)).map((s) => ({
+            status: s,
+            items: map.get(s) as TrainingProgram[],
         }));
-    }, [programs]);
+    }, [filtered]);
 
     return (
         <>
@@ -126,28 +199,55 @@ export default function TrainingIndex() {
                 {programs.length === 0 ? (
                     <EmptyState canManage={can.manage} />
                 ) : (
-                    <div className="flex flex-col gap-7">
-                        {grouped.map(({ status, items }) => (
-                            <section
-                                key={status}
-                                className="flex flex-col gap-3"
-                            >
-                                <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                                    {PROGRAM_STATUS_LABELS[status]}
-                                    <span className="ml-1 tabular-nums">
-                                        ({items.length})
-                                    </span>
-                                </h2>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    {items.map((program) => (
-                                        <ProgramCard
-                                            key={program.id}
-                                            program={program}
-                                        />
-                                    ))}
-                                </div>
-                            </section>
-                        ))}
+                    <div className="flex flex-col gap-4">
+                        <TrainingToolbar
+                            search={search}
+                            status={status}
+                            view={view}
+                            shown={filtered.length}
+                            total={programs.length}
+                            canExport
+                            onSearch={setSearch}
+                            onStatus={setStatus}
+                            onView={changeView}
+                        />
+
+                        {filtered.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground dark:border-sidebar-border">
+                                No programs match these filters.
+                            </p>
+                        ) : view === 'table' ? (
+                            <ProgramTable
+                                programs={sorted}
+                                sort={sort}
+                                direction={direction}
+                                onSort={onSort}
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-7">
+                                {grouped.map(({ status: s, items }) => (
+                                    <section
+                                        key={s}
+                                        className="flex flex-col gap-3"
+                                    >
+                                        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                            {PROGRAM_STATUS_LABELS[s]}
+                                            <span className="ml-1 tabular-nums">
+                                                ({items.length})
+                                            </span>
+                                        </h2>
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                            {items.map((program) => (
+                                                <ProgramCard
+                                                    key={program.id}
+                                                    program={program}
+                                                />
+                                            ))}
+                                        </div>
+                                    </section>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

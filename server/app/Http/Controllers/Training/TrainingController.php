@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\TrainingProgramResource;
 use App\Models\Employee;
 use App\Models\TrainingProgram;
+use App\Support\ActivityLogger;
+use App\Support\Training\TrainingInsights;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -15,8 +18,9 @@ use Inertia\Response;
 /**
  * Training & Development — the live view of the organisation's training program: an
  * overview of every program with its schedule, seat usage and completion count,
- * and a program's roster of enrolled employees. Programs are created in this module
- * (there is no Company-Setup config). Programs are addressed by hashid.
+ * and a program's roster of enrolled employees plus its effectiveness analytics
+ * and on-demand AI read. Programs are created in this module (there is no
+ * Company-Setup config). Programs are addressed by hashid.
  */
 class TrainingController extends Controller
 {
@@ -37,10 +41,10 @@ class TrainingController extends Controller
     }
 
     /**
-     * A single program with its enrolled employees and the employees still
-     * available to enroll.
+     * A single program with its enrolled employees, the employees still available
+     * to enroll, effectiveness analytics and any saved AI read.
      */
-    public function show(Request $request, TrainingProgram $trainingProgram): Response
+    public function show(Request $request, TrainingProgram $trainingProgram, TrainingInsights $insights): Response
     {
         $trainingProgram->loadCount([
             'enrollments',
@@ -56,8 +60,43 @@ class TrainingController extends Controller
         return Inertia::render('training/show', [
             'program' => (new TrainingProgramResource($trainingProgram))->resolve($request),
             'enrollable' => $this->enrollableEmployees($trainingProgram),
+            'analytics' => $this->analytics($trainingProgram),
+            'ai_available' => $insights->enabled(),
             'can' => $this->permissions($request),
         ]);
+    }
+
+    /**
+     * Generate (and persist) the LLM effectiveness read for one program. Mirrors
+     * the performance / recruitment insights endpoints: on-demand, cached on the
+     * model, never a thrown error — failures resolve to an "unavailable" payload.
+     */
+    public function insights(Request $request, TrainingProgram $trainingProgram, TrainingInsights $insights): JsonResponse
+    {
+        $trainingProgram->load([
+            'enrollments.employee:id,first_name,middle_name,last_name,suffix',
+        ]);
+
+        $result = $insights->generate(
+            $trainingProgram,
+            $this->analytics($trainingProgram),
+            $this->rosterDigest($trainingProgram),
+        );
+
+        if ($result['available'] ?? false) {
+            $trainingProgram->ai_insights = $result;
+            $trainingProgram->save();
+
+            ActivityLogger::log(
+                event: 'updated',
+                description: "Generated AI training insights for \"{$trainingProgram->name}\"",
+                subject: $trainingProgram,
+                logName: 'training',
+                subjectLabel: $trainingProgram->name,
+            );
+        }
+
+        return response()->json(['insights' => $result]);
     }
 
     /**
@@ -75,9 +114,10 @@ class TrainingController extends Controller
     }
 
     /**
-     * Active employees not yet enrolled in this program, for the enroll picker.
+     * Active employees not yet enrolled in this program, for the enroll picker —
+     * each with their department so the picker can group / filter by team.
      *
-     * @return list<array{id: int, full_name: string, employee_no: string}>
+     * @return list<array{id: int, full_name: string, employee_no: string, department: string|null}>
      */
     private function enrollableEmployees(TrainingProgram $program): array
     {
@@ -86,14 +126,65 @@ class TrainingController extends Controller
         return Employee::query()
             ->where('employment_status', 'active')
             ->whereNotIn('id', $enrolled)
+            ->with('department:id,name')
             ->orderBy('first_name')
             ->orderBy('last_name')
-            ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'employee_no'])
+            ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'employee_no', 'department_id'])
             ->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
                 'full_name' => $employee->full_name,
                 'employee_no' => $employee->employee_no,
+                'department' => $employee->department?->name,
             ])
+            ->all();
+    }
+
+    /**
+     * Effectiveness analytics for one program, derived from its loaded roster:
+     * outcome counts, completion rate, average score and the at-risk headcount
+     * (still enrolled after the program has ended).
+     *
+     * @return array<string, int|float|null>
+     */
+    private function analytics(TrainingProgram $program): array
+    {
+        $enrollments = $program->enrollments;
+        $total = $enrollments->count();
+
+        $completed = $enrollments->where('status', 'completed')->count();
+        $dropped = $enrollments->where('status', 'dropped')->count();
+        $enrolled = $enrollments->where('status', 'enrolled')->count();
+
+        $scored = $enrollments->whereNotNull('score');
+        $hasEnded = $program->status() === 'completed';
+
+        return [
+            'total' => $total,
+            'completed' => $completed,
+            'dropped' => $dropped,
+            'enrolled' => $enrolled,
+            'completion_rate' => $total === 0 ? null : (int) round($completed / $total * 100),
+            'average_score' => $scored->isEmpty()
+                ? null
+                : round((float) $scored->avg(fn ($e): float => (float) $e->score), 1),
+            'at_risk' => $hasEnded ? $enrolled : 0,
+        ];
+    }
+
+    /**
+     * A flat participant list (name / status / score) for the LLM digest.
+     *
+     * @return list<array{name: string, status: string, score: float|null}>
+     */
+    private function rosterDigest(TrainingProgram $program): array
+    {
+        return $program->enrollments
+            ->map(fn ($enrollment): array => [
+                'name' => $enrollment->employee?->full_name ?? 'Unknown',
+                'status' => $enrollment->status,
+                'score' => $enrollment->score === null ? null : (float) $enrollment->score,
+            ])
+            ->values()
             ->all();
     }
 

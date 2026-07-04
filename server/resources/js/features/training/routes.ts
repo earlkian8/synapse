@@ -7,11 +7,15 @@
 export const trainingRoutes = {
     index: '/training',
     store: '/training',
+    export: '/training/export',
     show: (hashid: string) => `/training/${hashid}`,
     update: (hashid: string) => `/training/${hashid}`,
     destroy: (hashid: string) => `/training/${hashid}`,
     restore: (hashid: string) => `/training/${hashid}/restore`,
     forceDelete: (hashid: string) => `/training/${hashid}/force`,
+    rosterExport: (hashid: string) => `/training/${hashid}/export`,
+    insights: (hashid: string) => `/training/${hashid}/insights`,
     enroll: (hashid: string) => `/training/${hashid}/enrollments`,
     enrollment: (id: number) => `/training/enrollments/${id}`,
+    bulkEnrollments: '/training/enrollments/bulk',
 } as const;
