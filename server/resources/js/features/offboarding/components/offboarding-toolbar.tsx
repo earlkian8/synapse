@@ -1,4 +1,12 @@
-import { Plus, RotateCcw, Search, X } from 'lucide-react';
+import {
+    Download,
+    LayoutGrid,
+    Plus,
+    RotateCcw,
+    Search,
+    Table2,
+    X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,31 +17,65 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { DEFAULT_FILTERS, STATUS_FILTERS, TYPE_OPTIONS } from '../constants';
+import type { CasesView } from '../hooks/use-cases-view';
+import { offboardingRoutes } from '../routes';
 import type { DepartmentRef, OffboardingFilters } from '../types';
 
 type Props = {
     filters: OffboardingFilters;
     departments: DepartmentRef[];
     canManage: boolean;
+    view: CasesView;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
     onType: (value: string | null) => void;
     onDepartment: (value: number | null) => void;
     onReset: () => void;
     onStart: () => void;
+    onView: (value: CasesView) => void;
 };
+
+/** The export URL carrying the board's current filters, so CSV = what you see. */
+function exportUrl(filters: OffboardingFilters): string {
+    const params = new URLSearchParams();
+
+    if (filters.search) {
+        params.set('search', filters.search);
+    }
+
+    if (filters.status && filters.status !== DEFAULT_FILTERS.status) {
+        params.set('status', filters.status);
+    }
+
+    if (filters.type) {
+        params.set('type', filters.type);
+    }
+
+    if (filters.department) {
+        params.set('department', String(filters.department));
+    }
+
+    const query = params.toString();
+
+    return query
+        ? `${offboardingRoutes.export}?${query}`
+        : offboardingRoutes.export;
+}
 
 export function OffboardingToolbar({
     filters,
     departments,
     canManage,
+    view,
     onSearch,
     onStatus,
     onType,
     onDepartment,
     onReset,
     onStart,
+    onView,
 }: Props) {
     const [term, setTerm] = useState(filters.search);
     const [syncedSearch, setSyncedSearch] = useState(filters.search);
@@ -162,14 +204,77 @@ export function OffboardingToolbar({
                 )}
             </div>
 
-            {canManage && (
-                <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+                <ViewToggle view={view} onView={onView} />
+                <Button variant="outline" size="sm" asChild>
+                    <a href={exportUrl(filters)}>
+                        <Download className="size-4" />
+                        Export
+                    </a>
+                </Button>
+                {canManage && (
                     <Button size="sm" onClick={onStart}>
                         <Plus className="size-4" />
                         Start offboarding
                     </Button>
-                </div>
-            )}
+                )}
+            </div>
         </div>
+    );
+}
+
+function ViewToggle({
+    view,
+    onView,
+}: {
+    view: CasesView;
+    onView: (value: CasesView) => void;
+}) {
+    return (
+        <div className="inline-flex items-center rounded-lg border border-sidebar-border/70 bg-card p-0.5 dark:border-sidebar-border">
+            <ToggleButton
+                active={view === 'table'}
+                onClick={() => onView('table')}
+                label="Table view"
+            >
+                <Table2 className="size-4" />
+            </ToggleButton>
+            <ToggleButton
+                active={view === 'grid'}
+                onClick={() => onView('grid')}
+                label="Grid view"
+            >
+                <LayoutGrid className="size-4" />
+            </ToggleButton>
+        </div>
+    );
+}
+
+function ToggleButton({
+    active,
+    onClick,
+    label,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            aria-pressed={active}
+            className={cn(
+                'flex size-7 items-center justify-center rounded-md transition-colors',
+                active
+                    ? 'bg-[#0ABFBF]/15 text-[#0a8b91] dark:text-[#0ABFBF]'
+                    : 'text-muted-foreground hover:text-foreground',
+            )}
+        >
+            {children}
+        </button>
     );
 }

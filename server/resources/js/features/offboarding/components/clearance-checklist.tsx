@@ -1,5 +1,6 @@
-import { Building2 } from 'lucide-react';
+import { Building2, CheckCheck } from 'lucide-react';
 import { useMemo } from 'react';
+import { Button } from '@/components/ui/button';
 import { UNASSIGNED_DEPARTMENT } from '../constants';
 import type { ClearanceItem, ClearanceStatus } from '../types';
 import { ClearanceItemRow } from './clearance-item-row';
@@ -10,9 +11,16 @@ type Props = {
     onToggle: (item: ClearanceItem, status: ClearanceStatus) => void;
     onEdit: (item: ClearanceItem) => void;
     onDelete: (item: ClearanceItem) => void;
+    /** Sign off a whole department group (null = the unassigned group). */
+    onClearGroup?: (departmentId: number | null, name: string) => void;
 };
 
-type Group = { key: string; name: string; items: ClearanceItem[] };
+type Group = {
+    key: string;
+    name: string;
+    departmentId: number | null;
+    items: ClearanceItem[];
+};
 
 /**
  * The clearance checklist, grouped by the department responsible for each
@@ -25,6 +33,7 @@ export function ClearanceChecklist({
     onToggle,
     onEdit,
     onDelete,
+    onClearGroup,
 }: Props) {
     const groups = useMemo(() => {
         const byDepartment = new Map<string, Group>();
@@ -34,7 +43,12 @@ export function ClearanceChecklist({
                 ? `d${item.department.id}`
                 : 'unassigned';
             const name = item.department?.name ?? UNASSIGNED_DEPARTMENT;
-            const group = byDepartment.get(key) ?? { key, name, items: [] };
+            const group = byDepartment.get(key) ?? {
+                key,
+                name,
+                departmentId: item.department?.id ?? null,
+                items: [],
+            };
             group.items.push(item);
             byDepartment.set(key, group);
         }
@@ -65,6 +79,9 @@ export function ClearanceChecklist({
         <div className="space-y-5">
             {groups.map((group) => {
                 const cleared = group.items.filter((i) => i.is_cleared).length;
+                const pending = group.items.filter(
+                    (i) => i.status === 'pending',
+                ).length;
 
                 return (
                     <div
@@ -81,6 +98,25 @@ export function ClearanceChecklist({
                             <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                                 {cleared}/{group.items.length}
                             </span>
+                            {canManage && onClearGroup && pending > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-muted-foreground hover:text-foreground"
+                                    onClick={() =>
+                                        onClearGroup(
+                                            group.departmentId,
+                                            group.name,
+                                        )
+                                    }
+                                >
+                                    <CheckCheck className="size-4" />
+                                    Clear all
+                                    <span className="tabular-nums">
+                                        ({pending})
+                                    </span>
+                                </Button>
+                            )}
                         </div>
                         <div className="divide-y divide-border">
                             {group.items.map((item) => (

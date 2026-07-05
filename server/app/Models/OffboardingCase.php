@@ -51,6 +51,7 @@ class OffboardingCase extends Model
     protected $fillable = [
         'organization_id',
         'employee_id',
+        'offboarding_program_id',
         'type',
         'notice_date',
         'last_working_day',
@@ -76,6 +77,17 @@ class OffboardingCase extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * The clearance template this case was seeded from (null = ad-hoc / the
+     * built-in standard checklist).
+     *
+     * @return BelongsTo<OffboardingProgram, $this>
+     */
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(OffboardingProgram::class, 'offboarding_program_id');
     }
 
     /**

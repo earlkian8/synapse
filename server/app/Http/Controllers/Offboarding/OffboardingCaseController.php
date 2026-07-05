@@ -8,6 +8,7 @@ use App\Http\Resources\OffboardingCaseResource;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OffboardingCase;
+use App\Models\OffboardingProgram;
 use App\Queries\OffboardingCasesIndexQuery;
 use App\Queries\OffboardingStatistics;
 use App\Support\ActivityLogger;
@@ -49,12 +50,16 @@ class OffboardingCaseController extends Controller
             'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id,employment_type,employment_status,date_hired',
             'employee.department:id,name',
             'employee.position:id,title',
+            'program:id,name',
             'clearanceItems' => fn ($query) => $query->with('department:id,name', 'clearedBy:id,first_name,middle_name,last_name,suffix'),
         ]);
 
         return Inertia::render('offboarding/case', [
             'case' => (new OffboardingCaseResource($case))->resolve($request),
-            'options' => ['departments' => $this->departments()],
+            'options' => [
+                'departments' => $this->departments(),
+                'programs' => $this->programs(),
+            ],
             'can' => $this->permissions($request),
         ]);
     }
@@ -70,12 +75,16 @@ class OffboardingCaseController extends Controller
             return $this->respond('That employee is already being offboarded.', 'warning');
         }
 
+        $program = $request->filled('offboarding_program_id')
+            ? OffboardingProgram::where('is_active', true)->find($request->integer('offboarding_program_id'))
+            : null;
+
         $case = OffboardingProvisioner::start($employee, [
             'type' => $request->string('type')->toString(),
             'notice_date' => $request->date('notice_date')?->toDateString(),
             'last_working_day' => $request->date('last_working_day')?->toDateString(),
             'reason' => $request->string('reason')->toString() ?: null,
-        ]);
+        ], $program);
 
         ActivityLogger::log(
             event: 'created',
@@ -201,6 +210,7 @@ class OffboardingCaseController extends Controller
     {
         return [
             'departments' => $this->departments(),
+            'programs' => $this->programs(),
             'employees' => Employee::query()
                 ->whereNotIn('employment_status', ['resigned', 'terminated'])
                 ->whereDoesntHave('offboardingCase')
@@ -223,6 +233,29 @@ class OffboardingCaseController extends Controller
     private function departments()
     {
         return Department::orderBy('name')->get(['id', 'name']);
+    }
+
+    /**
+     * Active clearance templates, for the start-offboarding picker and the
+     * apply-template dialog. Default first, then alphabetical.
+     *
+     * @return list<array{id: int, name: string, is_default: bool, items_count: int}>
+     */
+    private function programs(): array
+    {
+        return OffboardingProgram::query()
+            ->where('is_active', true)
+            ->withCount('items')
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_default'])
+            ->map(fn (OffboardingProgram $program): array => [
+                'id' => $program->id,
+                'name' => $program->name,
+                'is_default' => $program->is_default,
+                'items_count' => (int) $program->items_count,
+            ])
+            ->all();
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

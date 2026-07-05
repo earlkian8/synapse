@@ -9,6 +9,7 @@ import {
     CalendarClock,
     CalendarDays,
     CalendarRange,
+    ClipboardList,
     DatabaseBackup,
     Gauge,
     GraduationCap,
@@ -202,6 +203,12 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/onboarding',
         icon: ListChecks,
         permission: 'onboarding.manage-programs',
+    },
+    {
+        title: 'Offboarding Programs',
+        href: '/setup/offboarding',
+        icon: ClipboardList,
+        permission: 'offboarding.manage-programs',
     },
     {
         title: 'Email & Notifications',

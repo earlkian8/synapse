@@ -30,6 +30,9 @@ class OffboardingCaseResource extends JsonResource
 
             'clearance' => $this->clearance(),
 
+            // The clearance template that seeded this case (null = standard/ad-hoc).
+            'program' => $this->whenLoaded('program', fn () => $this->program?->name),
+
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,
                 'full_name' => $this->employee->full_name,
