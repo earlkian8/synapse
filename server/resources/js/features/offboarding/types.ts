@@ -72,6 +72,8 @@ export type OffboardingCase = {
     reason: string | null;
     completed_at: string | null;
     clearance: ClearanceSummary;
+    /** Name of the clearance template that seeded this case, when known. */
+    program?: string | null;
     employee: CaseEmployee | null;
     items?: ClearanceItem[];
     created_human: string | null;
@@ -88,6 +90,46 @@ export type EmployeeOption = {
 
 export type OffboardingPermissions = {
     manage: boolean;
+};
+
+// ── Clearance templates (offboarding programs) ──────────────────────────────
+
+/** One blueprint sign-off row inside a template's editor. */
+export type ProgramItemDraft = {
+    item: string;
+    department_id: number | null;
+    use_employee_department: boolean;
+    sort_order: number;
+};
+
+export type OffboardingProgram = {
+    id: number;
+    hashid: string;
+    name: string;
+    description: string | null;
+    exit_type: OffboardingType | null;
+    is_default: boolean;
+    is_active: boolean;
+    department: DepartmentRef | null;
+    department_id: number | null;
+    items?: (ProgramItemDraft & { id: number; department: string | null })[];
+    items_count?: number;
+    cases_count?: number;
+    created_human: string | null;
+};
+
+/** A lightweight template option for pickers (start-exit, apply-to-case). */
+export type ProgramOption = {
+    id: number;
+    name: string;
+    is_default: boolean;
+    items_count: number;
+};
+
+export type ProgramsPageProps = {
+    programs: OffboardingProgram[];
+    options: { departments: DepartmentRef[] };
+    can: { managePrograms: boolean };
 };
 
 export type OffboardingFilters = {
@@ -109,6 +151,7 @@ export type IndexPageProps = {
     stats: OffboardingStats;
     options: {
         departments: DepartmentRef[];
+        programs: ProgramOption[];
         employees: EmployeeOption[];
     };
     can: OffboardingPermissions;
@@ -117,6 +160,6 @@ export type IndexPageProps = {
 
 export type CasePageProps = {
     case: OffboardingCase;
-    options: { departments: DepartmentRef[] };
+    options: { departments: DepartmentRef[]; programs: ProgramOption[] };
     can: OffboardingPermissions;
 };

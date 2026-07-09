@@ -8,6 +8,10 @@ use App\Http\Resources\PerformanceEvaluationResource;
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
 use App\Models\PerformanceEvaluation;
+use App\Models\PerformanceForecast;
+use App\Support\ActivityLogger;
+use App\Support\Performance\PerformanceInsights;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -51,9 +55,10 @@ class PerformanceController extends Controller
     }
 
     /**
-     * A single evaluation and its KPI scorecard.
+     * A single evaluation and its KPI scorecard, plus per-employee decision
+     * support (rating history, the latest ML forecast and any saved AI read).
      */
-    public function show(Request $request, PerformanceEvaluation $evaluation): Response
+    public function show(Request $request, PerformanceEvaluation $evaluation, PerformanceInsights $insights): Response
     {
         $evaluation->load([
             'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id',
@@ -67,8 +72,92 @@ class PerformanceController extends Controller
 
         return Inertia::render('performance/show', [
             'evaluation' => (new PerformanceEvaluationResource($evaluation))->resolve($request),
+            'support' => $this->decisionSupport($evaluation, $insights),
             'can' => $this->permissions($request),
         ]);
+    }
+
+    /**
+     * Generate (and persist) the LLM performance read for one evaluation. Mirrors
+     * the recruitment insights endpoint: on-demand, cached on the model, never a
+     * thrown error to the client — failures resolve to an "unavailable" payload.
+     */
+    public function insights(PerformanceEvaluation $evaluation, PerformanceInsights $insights): JsonResponse
+    {
+        $evaluation->load([
+            'employee:id,first_name,middle_name,last_name,suffix,employee_no,department_id,position_id',
+            'employee.department:id,name',
+            'employee.position:id,title',
+            'period:id,name',
+            'scores' => fn ($query) => $query->orderBy('id'),
+        ]);
+
+        $result = $insights->generate($evaluation, $this->history($evaluation));
+
+        if ($result['available'] ?? false) {
+            $evaluation->ai_insights = $result;
+            $evaluation->save();
+
+            ActivityLogger::log(
+                event: 'updated',
+                description: "Generated AI performance insights for {$evaluation->employee?->full_name}",
+                subject: $evaluation,
+                logName: 'performance',
+                subjectLabel: $evaluation->employee?->full_name,
+            );
+        }
+
+        return response()->json(['insights' => $result]);
+    }
+
+    /**
+     * Per-employee decision support: rating history (trajectory), the latest ML
+     * performance forecast for this employee, and whether AI insights are enabled.
+     *
+     * @return array<string, mixed>
+     */
+    private function decisionSupport(PerformanceEvaluation $evaluation, PerformanceInsights $insights): array
+    {
+        $forecast = PerformanceForecast::query()
+            ->where('employee_id', $evaluation->employee_id)
+            ->with('run:id,created_at')
+            ->latest('id')
+            ->first();
+
+        return [
+            'history' => $this->history($evaluation),
+            'forecast' => $forecast ? [
+                'predicted_rating' => (float) $forecast->predicted_rating,
+                'band' => $forecast->band,
+                'confidence' => (float) $forecast->confidence,
+                'generated_at' => $forecast->run?->created_at?->toIso8601String(),
+            ] : null,
+            'ai_available' => $insights->enabled(),
+        ];
+    }
+
+    /**
+     * The employee's overall-score history across periods (oldest first), for the
+     * trajectory chart and the LLM digest.
+     *
+     * @return list<array{period: string|null, score: float, status: string, is_current: bool}>
+     */
+    private function history(PerformanceEvaluation $evaluation): array
+    {
+        return PerformanceEvaluation::query()
+            ->where('employee_id', $evaluation->employee_id)
+            ->whereNotNull('overall_score')
+            ->with('period:id,name')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (PerformanceEvaluation $e): array => [
+                'period' => $e->period?->name,
+                'score' => (float) $e->overall_score,
+                'status' => $e->status,
+                'is_current' => $e->id === $evaluation->id,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

@@ -13,12 +13,17 @@ import { Button } from '@/components/ui/button';
 import { EventCard } from '@/features/events/components/event-card';
 import { EventFormSheet } from '@/features/events/components/event-form-sheet';
 import { EventStatsCards } from '@/features/events/components/event-stats';
+import { EventTable } from '@/features/events/components/event-table';
+import type { EventSort } from '@/features/events/components/event-table';
+import { EventsToolbar } from '@/features/events/components/events-toolbar';
 import { STATUS_LABELS, STATUS_ORDER } from '@/features/events/constants';
+import { useEventsView } from '@/features/events/hooks/use-events-view';
 import { eventRoutes } from '@/features/events/routes';
 import type {
     EventIndexPageProps,
     EventItem,
     EventStatus,
+    EventType,
 } from '@/features/events/types';
 import { cn } from '@/lib/utils';
 
@@ -29,9 +34,23 @@ type ConfirmConfig = {
     run: () => void;
 };
 
+/** Rank an event by its lifecycle for the table's status sort. */
+const STATUS_RANK: Record<EventStatus, number> = {
+    ongoing: 0,
+    upcoming: 1,
+    past: 2,
+};
+
 export default function EventsIndex() {
     const { events, archived, stats, can } =
         usePage<EventIndexPageProps>().props;
+
+    const { view, changeView } = useEventsView();
+    const [search, setSearch] = useState('');
+    const [type, setType] = useState<EventType | 'all'>('all');
+    const [status, setStatus] = useState<EventStatus | 'all'>('all');
+    const [sort, setSort] = useState<EventSort>('schedule');
+    const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
 
     const [form, setForm] = useState<{
         open: boolean;
@@ -56,21 +75,82 @@ export default function EventsIndex() {
         setConfirmOpen(true);
     };
 
-    // Group events by derived status, preserving the canonical order.
+    const onSort = (key: EventSort) => {
+        if (key === sort) {
+            setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSort(key);
+            setDirection('asc');
+        }
+    };
+
+    // Search + type / status filters applied to both layouts.
+    const filtered = useMemo(() => {
+        const needle = search.trim().toLowerCase();
+
+        return events.filter((event) => {
+            if (type !== 'all' && event.type !== type) {
+                return false;
+            }
+
+            if (status !== 'all' && event.status !== status) {
+                return false;
+            }
+
+            if (
+                needle !== '' &&
+                !event.title.toLowerCase().includes(needle) &&
+                !(event.location ?? '').toLowerCase().includes(needle) &&
+                !(event.organizer?.name ?? '').toLowerCase().includes(needle)
+            ) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [events, search, type, status]);
+
+    // Table layout: a flat, sorted list.
+    const sorted = useMemo(() => {
+        const dir = direction === 'asc' ? 1 : -1;
+        const time = (iso: string | null) =>
+            iso ? new Date(iso).getTime() : 0;
+
+        return [...filtered].sort((a, b) => {
+            switch (sort) {
+                case 'title':
+                    return a.title.localeCompare(b.title) * dir;
+                case 'location':
+                    return (
+                        (a.location ?? '').localeCompare(b.location ?? '') * dir
+                    );
+                case 'attendance':
+                    return (a.attending_count - b.attending_count) * dir;
+                case 'status':
+                    return (
+                        (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * dir
+                    );
+                default:
+                    return (time(a.starts_at) - time(b.starts_at)) * dir;
+            }
+        });
+    }, [filtered, sort, direction]);
+
+    // Grid layout: filtered events grouped by derived status.
     const grouped = useMemo(() => {
         const map = new Map<EventStatus, EventItem[]>();
 
-        for (const event of events) {
+        for (const event of filtered) {
             const list = map.get(event.status) ?? [];
             list.push(event);
             map.set(event.status, list);
         }
 
-        return STATUS_ORDER.filter((s) => map.has(s)).map((status) => ({
-            status,
-            items: map.get(status) as EventItem[],
+        return STATUS_ORDER.filter((s) => map.has(s)).map((s) => ({
+            status: s,
+            items: map.get(s) as EventItem[],
         }));
-    }, [events]);
+    }, [filtered]);
 
     return (
         <>
@@ -122,28 +202,56 @@ export default function EventsIndex() {
                 {events.length === 0 ? (
                     <EmptyState canManage={can.manage} />
                 ) : (
-                    <div className="flex flex-col gap-7">
-                        {grouped.map(({ status, items }) => (
-                            <section
-                                key={status}
-                                className="flex flex-col gap-3"
-                            >
-                                <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                                    {STATUS_LABELS[status]}
-                                    <span className="ml-1 tabular-nums">
-                                        ({items.length})
-                                    </span>
-                                </h2>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    {items.map((event) => (
-                                        <EventCard
-                                            key={event.id}
-                                            event={event}
-                                        />
-                                    ))}
-                                </div>
-                            </section>
-                        ))}
+                    <div className="flex flex-col gap-4">
+                        <EventsToolbar
+                            search={search}
+                            type={type}
+                            status={status}
+                            view={view}
+                            shown={filtered.length}
+                            total={events.length}
+                            onSearch={setSearch}
+                            onType={setType}
+                            onStatus={setStatus}
+                            onView={changeView}
+                        />
+
+                        {filtered.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground dark:border-sidebar-border">
+                                No events match these filters.
+                            </p>
+                        ) : view === 'table' ? (
+                            <EventTable
+                                events={sorted}
+                                sort={sort}
+                                direction={direction}
+                                onSort={onSort}
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-7">
+                                {grouped.map(({ status: s, items }) => (
+                                    <section
+                                        key={s}
+                                        className="flex flex-col gap-3"
+                                    >
+                                        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                            {STATUS_LABELS[s]}
+                                            <span className="ml-1 tabular-nums">
+                                                ({items.length})
+                                            </span>
+                                        </h2>
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                            {items.map((event) => (
+                                                <EventCard
+                                                    key={event.id}
+                                                    event={event}
+                                                />
+                                            ))}
+                                        </div>
+                                    </section>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

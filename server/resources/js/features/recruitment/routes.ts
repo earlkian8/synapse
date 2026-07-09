@@ -8,6 +8,7 @@ export const recruitmentRoutes = {
     export: '/recruitment/export',
     // Postings are addressed by their obfuscated hashid (see App\Support\Hashid).
     show: (hashid: string) => `/recruitment/${hashid}`,
+    pipelineExport: (hashid: string) => `/recruitment/${hashid}/export`,
     update: (hashid: string) => `/recruitment/${hashid}`,
     destroy: (hashid: string) => `/recruitment/${hashid}`,
     status: (hashid: string) => `/recruitment/${hashid}/status`,

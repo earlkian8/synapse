@@ -30,6 +30,7 @@ class TrainingProgram extends Model
         'start_date',
         'end_date',
         'capacity',
+        'ai_insights',
     ];
 
     protected function casts(): array
@@ -38,6 +39,7 @@ class TrainingProgram extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'capacity' => 'integer',
+            'ai_insights' => 'array',
         ];
     }
 

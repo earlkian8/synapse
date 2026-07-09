@@ -21,16 +21,25 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { TYPE_OPTIONS } from '../constants';
 import { offboardingRoutes } from '../routes';
-import type { EmployeeOption, OffboardingType } from '../types';
+import type {
+    EmployeeOption,
+    OffboardingType,
+    ProgramOption,
+} from '../types';
 
 type Props = {
     employees: EmployeeOption[];
+    programs: ProgramOption[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
 
+/** Sentinel: let the provisioner pick the best-matching active template. */
+const AUTO = '__auto__';
+
 export function InitiateOffboardingSheet({
     employees,
+    programs,
     open,
     onOpenChange,
 }: Props) {
@@ -51,6 +60,7 @@ export function InitiateOffboardingSheet({
                 {open && (
                     <FormBody
                         employees={employees}
+                        programs={programs}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -61,14 +71,17 @@ export function InitiateOffboardingSheet({
 
 function FormBody({
     employees,
+    programs,
     onDone,
 }: {
     employees: EmployeeOption[];
+    programs: ProgramOption[];
     onDone: () => void;
 }) {
     const { data, setData, post, processing, errors, transform } = useForm({
         employee_id: '',
         type: 'resignation' as OffboardingType,
+        offboarding_program_id: AUTO,
         notice_date: '',
         last_working_day: '',
         reason: '',
@@ -82,6 +95,10 @@ function FormBody({
             employee_id: payload.employee_id
                 ? Number(payload.employee_id)
                 : null,
+            offboarding_program_id:
+                payload.offboarding_program_id === AUTO
+                    ? null
+                    : Number(payload.offboarding_program_id),
             notice_date: payload.notice_date || null,
             last_working_day: payload.last_working_day || null,
             reason: payload.reason || null,
@@ -153,6 +170,47 @@ function FormBody({
                     <InputError message={errors.type} className="mt-1.5" />
                 </div>
 
+                {programs.length > 0 && (
+                    <div>
+                        <Label className="mb-1.5 block">
+                            Clearance template
+                        </Label>
+                        <Select
+                            value={data.offboarding_program_id}
+                            onValueChange={(v) =>
+                                setData('offboarding_program_id', v)
+                            }
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={AUTO}>
+                                    Automatic
+                                    <span className="text-muted-foreground">
+                                        {' '}
+                                        · best match for the employee
+                                    </span>
+                                </SelectItem>
+                                {programs.map((p) => (
+                                    <SelectItem key={p.id} value={String(p.id)}>
+                                        {p.name}
+                                        <span className="text-muted-foreground">
+                                            {' '}
+                                            · {p.items_count} item
+                                            {p.items_count === 1 ? '' : 's'}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError
+                            message={errors.offboarding_program_id}
+                            className="mt-1.5"
+                        />
+                    </div>
+                )}
+
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                         <Label className="mb-1.5 block">Notice date</Label>
@@ -197,9 +255,8 @@ function FormBody({
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                    A standard clearance checklist (IT, Finance, HR and the
-                    employee's department) is generated automatically — you can
-                    tailor it afterwards.
+                    The clearance checklist is generated automatically from the
+                    selected template — you can tailor it afterwards.
                 </p>
             </div>
 

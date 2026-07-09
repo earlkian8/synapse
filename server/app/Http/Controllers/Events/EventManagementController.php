@@ -8,6 +8,8 @@ use App\Models\Event;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 /**
@@ -49,6 +51,37 @@ class EventManagementController extends Controller
         );
 
         return $this->respond('Event updated.');
+    }
+
+    /**
+     * Duplicate an event: same kind, description, window and location under a
+     * "(copy)" title, organised by the duplicating user. Attendees are not copied —
+     * the copy starts with a clean invite list. Lands on the copy so it can be
+     * rescheduled and staffed immediately.
+     */
+    public function duplicate(Request $request, Event $event): RedirectResponse
+    {
+        $copy = Event::create([
+            'title' => Str::limit($event->title, 160 - strlen(' (copy)'), '').' (copy)',
+            'type' => $event->type,
+            'description' => $event->description,
+            'starts_at' => $event->starts_at,
+            'ends_at' => $event->ends_at,
+            'location' => $event->location,
+            'organizer_id' => $request->user()->id,
+        ]);
+
+        ActivityLogger::log(
+            event: 'created',
+            description: "Duplicated \"{$event->title}\" as \"{$copy->title}\"",
+            subject: $copy,
+            logName: 'events',
+            subjectLabel: $copy->title,
+        );
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Event duplicated — adjust its schedule and invite attendees.']);
+
+        return redirect()->route('events.show', $copy);
     }
 
     public function destroy(Event $event): RedirectResponse

@@ -3,8 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\ClearanceItem;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OffboardingCase;
+use App\Models\OffboardingProgram;
 use App\Models\Organization;
 use App\Support\OffboardingProvisioner;
 use App\Support\Tenancy;
@@ -40,6 +42,8 @@ class OffboardingSeeder extends Seeder
             $tenancy->set($organization);
         }
 
+        $this->seedDefaultProgram();
+
         if (OffboardingCase::count() > 0) {
             return;
         }
@@ -62,6 +66,40 @@ class OffboardingSeeder extends Seeder
             ]);
 
             $this->varyProgress($case, $employee, $i);
+        }
+    }
+
+    /**
+     * Seed the default clearance template from the provisioner's standard list,
+     * so exits are template-driven out of the box and the Setup page isn't empty.
+     * Idempotent — only seeds when no programs exist yet.
+     */
+    private function seedDefaultProgram(): void
+    {
+        if (OffboardingProgram::count() > 0) {
+            return;
+        }
+
+        $program = OffboardingProgram::create([
+            'name' => 'Standard Exit Clearance',
+            'description' => 'The baseline clearance every departing employee goes through — IT, Finance, HR and their own department.',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $byCode = Department::query()
+            ->get(['id', 'code'])
+            ->keyBy(fn (Department $department): string => strtoupper((string) $department->code));
+
+        foreach (OffboardingProvisioner::STANDARD_ITEMS as $index => $item) {
+            $own = $item['department'] === '__own__';
+
+            $program->items()->create([
+                'item' => $item['item'],
+                'department_id' => $own ? null : $byCode->get(strtoupper($item['department']))?->id,
+                'use_employee_department' => $own,
+                'sort_order' => $index,
+            ]);
         }
     }
 

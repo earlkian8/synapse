@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DepartmentController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Setup\HolidayController;
 use App\Http\Controllers\Setup\KpiCriterionController;
 use App\Http\Controllers\Setup\KpiSetupController;
 use App\Http\Controllers\Setup\LeaveTypeController;
+use App\Http\Controllers\Setup\OffboardingProgramController;
 use App\Http\Controllers\Setup\PositionController;
 use App\Http\Controllers\Setup\ScheduleSetupController;
 use App\Http\Controllers\Setup\WorkScheduleController;
@@ -85,6 +87,22 @@ Route::middleware(['auth', 'verified'])
         Route::delete('kpi/periods/{evaluationPeriod}', [EvaluationPeriodController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.periods.destroy');
         Route::patch('kpi/periods/{evaluationPeriod}/restore', [EvaluationPeriodController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.periods.restore');
         Route::delete('kpi/periods/{evaluationPeriod}/force', [EvaluationPeriodController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.periods.force-delete');
+
+        // Onboarding Programs — reusable checklists (templates) that seed each
+        // new hire's onboarding case. Configured here; instantiated by the
+        // Onboarding module at hire time. Addressed by hashid.
+        Route::get('onboarding', [OnboardingProgramController::class, 'index'])->middleware('can:onboarding.manage-programs')->name('onboarding.index');
+        Route::post('onboarding', [OnboardingProgramController::class, 'store'])->middleware('can:onboarding.manage-programs')->name('onboarding.store');
+        Route::post('onboarding/{program}', [OnboardingProgramController::class, 'update'])->middleware('can:onboarding.manage-programs')->name('onboarding.update');
+        Route::delete('onboarding/{program}', [OnboardingProgramController::class, 'destroy'])->middleware('can:onboarding.manage-programs')->name('onboarding.destroy');
+
+        // Offboarding Programs — reusable clearance templates that seed each
+        // exit's checklist. Configured here; instantiated by the Offboarding
+        // module when an exit is started. Addressed by hashid.
+        Route::get('offboarding', [OffboardingProgramController::class, 'index'])->middleware('can:offboarding.manage-programs')->name('offboarding.index');
+        Route::post('offboarding', [OffboardingProgramController::class, 'store'])->middleware('can:offboarding.manage-programs')->name('offboarding.store');
+        Route::post('offboarding/{program}', [OffboardingProgramController::class, 'update'])->middleware('can:offboarding.manage-programs')->name('offboarding.update');
+        Route::delete('offboarding/{program}', [OffboardingProgramController::class, 'destroy'])->middleware('can:offboarding.manage-programs')->name('offboarding.destroy');
 
         // Award Types — the catalogue of recognitions the Awards & Recognition
         // module gives out. Addressed by hashid; restore / force take it as a string.

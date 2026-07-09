@@ -122,6 +122,36 @@ test('the pipeline board renders', function () {
             ->has('can'));
 });
 
+test('the pipeline board carries decision-support insights', function () {
+    actingAsSuperAdmin();
+    $posting = JobPosting::factory()->create();
+    JobApplication::factory()->count(3)->create([
+        'job_posting_id' => $posting->id,
+        'stage' => 'applied',
+    ]);
+
+    $this->get(route('recruitment.show', $posting))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('insights.overall', fn (Assert $overall) => $overall
+                ->where('total', 3)
+                ->where('active', 3)
+                ->etc())
+            ->has('insights.stages.applied')
+            ->has('insights.stages.hired'));
+});
+
+test('it exports a posting pipeline as csv', function () {
+    actingAsSuperAdmin();
+    $posting = JobPosting::factory()->create();
+    JobApplication::factory()->count(2)->create(['job_posting_id' => $posting->id]);
+
+    $response = $this->get(route('recruitment.pipeline.export', $posting));
+
+    $response->assertOk();
+    expect($response->headers->get('content-type'))->toContain('text/csv');
+});
+
 test('it adds a new applicant to the pipeline', function () {
     actingAsSuperAdmin();
     $posting = JobPosting::factory()->create();

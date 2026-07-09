@@ -12,9 +12,19 @@ class Role extends Model
     use BelongsToOrganization;
 
     /**
-     * The machine name of the all-powerful role, which bypasses every gate.
+     * The three built-in roles every organisation ships with (machine names).
      */
-    public const SUPER_ADMIN = 'super-admin';
+    public const HR_MANAGER = 'hr-manager';
+
+    public const DEPARTMENT_HEAD = 'department-head';
+
+    public const STAFF = 'staff';
+
+    /**
+     * The privileged owner role. HR Manager is the top role: it is granted every
+     * permission, bypasses every gate, and is protected from editing/deletion.
+     */
+    public const SUPER_ADMIN = self::HR_MANAGER;
 
     /**
      * The attributes that are mass assignable.
@@ -56,7 +66,7 @@ class Role extends Model
     }
 
     /**
-     * Whether this is the protected super-admin role.
+     * Whether this is the privileged owner role (HR Manager) that bypasses every gate.
      */
     public function isSuperAdmin(): bool
     {

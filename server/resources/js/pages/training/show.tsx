@@ -4,27 +4,22 @@ import {
     ArrowLeft,
     GraduationCap,
     Pencil,
-    Trash2,
     UserPlus,
     Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { removeEnrollment } from '@/features/training/api';
-import { EnrollDialog } from '@/features/training/components/enroll-dialog';
+import { BulkEnrollDialog } from '@/features/training/components/bulk-enroll-dialog';
+import { EditEnrollmentDialog } from '@/features/training/components/edit-enrollment-dialog';
 import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
-import {
-    EnrollmentStatusBadge,
-    ProgramStatusBadge,
-} from '@/features/training/components/training-status-badge';
-import {
-    formatDate,
-    formatDateRange,
-    formatScore,
-} from '@/features/training/constants';
+import { RosterAnalytics } from '@/features/training/components/roster-analytics';
+import { RosterTable } from '@/features/training/components/roster-table';
+import { TrainingInsightsPanel } from '@/features/training/components/training-insights';
+import { ProgramStatusBadge } from '@/features/training/components/training-status-badge';
+import { formatDateRange } from '@/features/training/constants';
 import { trainingRoutes } from '@/features/training/routes';
 import type {
     TrainingEnrollment,
@@ -33,7 +28,8 @@ import type {
 import { cn } from '@/lib/utils';
 
 export default function TrainingShow() {
-    const { program, enrollable, can } = usePage<TrainingShowPageProps>().props;
+    const { program, enrollable, analytics, ai_available, can } =
+        usePage<TrainingShowPageProps>().props;
     const enrollments = program.enrollments ?? [];
 
     const [enrollOpen, setEnrollOpen] = useState(false);
@@ -42,16 +38,6 @@ export default function TrainingShow() {
     const [remove, setRemove] = useState<TrainingEnrollment | null>(null);
     const [archiveOpen, setArchiveOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
-
-    const openEnroll = () => {
-        setEdit(null);
-        setEnrollOpen(true);
-    };
-
-    const openEdit = (enrollment: TrainingEnrollment) => {
-        setEdit(enrollment);
-        setEnrollOpen(true);
-    };
 
     const confirmRemove = () => {
         if (!remove) {
@@ -172,7 +158,6 @@ export default function TrainingShow() {
                     </div>
                 </div>
 
-                {/* Roster */}
                 {enrollments.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-14 text-center dark:border-sidebar-border">
                         <span className="flex size-10 items-center justify-center rounded-full bg-muted">
@@ -183,115 +168,58 @@ export default function TrainingShow() {
                         </p>
                         <p className="text-sm text-muted-foreground">
                             {can.manage
-                                ? 'Use "Enroll employee" to add people to this program.'
+                                ? 'Use "Enroll" to add people to this program.'
                                 : 'No employees are enrolled in this program.'}
                         </p>
                         {can.manage && (
                             <Button
                                 size="sm"
                                 className="mt-1"
-                                onClick={openEnroll}
+                                onClick={() => setEnrollOpen(true)}
                             >
                                 <UserPlus className="size-4" />
-                                Enroll employee
+                                Enroll employees
                             </Button>
                         )}
                     </div>
                 ) : (
-                    <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-                        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                            <p className="text-sm font-semibold">
-                                Enrolled employees
-                            </p>
-                            {can.manage && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={openEnroll}
-                                >
-                                    <UserPlus className="size-4" />
-                                    Enroll
-                                </Button>
+                    <>
+                        {/* Effectiveness analytics + AI read */}
+                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
+                            <RosterAnalytics analytics={analytics} />
+                            {ai_available && (
+                                <TrainingInsightsPanel
+                                    key={program.hashid}
+                                    hashid={program.hashid}
+                                    saved={program.ai_insights}
+                                />
                             )}
                         </div>
-                        <ul className="divide-y divide-border">
-                            {enrollments.map((enrollment) => (
-                                <li
-                                    key={enrollment.id}
-                                    className="flex items-center gap-3 px-4 py-3"
-                                >
-                                    <PersonAvatar
-                                        name={
-                                            enrollment.employee?.full_name ??
-                                            'Unknown'
-                                        }
-                                        initials={
-                                            enrollment.employee?.initials ?? '?'
-                                        }
-                                        photo={enrollment.employee?.photo}
-                                        className="size-9"
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {enrollment.employee?.full_name ??
-                                                'Unknown employee'}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {enrollment.employee?.position ??
-                                                enrollment.employee
-                                                    ?.employee_no ??
-                                                '—'}
-                                            {enrollment.completed_at
-                                                ? ` · ${formatDate(enrollment.completed_at)}`
-                                                : ''}
-                                        </p>
-                                    </div>
-                                    {enrollment.score !== null && (
-                                        <span className="hidden text-sm font-semibold text-foreground tabular-nums sm:block">
-                                            {formatScore(enrollment.score)}
-                                        </span>
-                                    )}
-                                    <EnrollmentStatusBadge
-                                        status={enrollment.status}
-                                    />
-                                    {can.manage && (
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-8"
-                                                onClick={() =>
-                                                    openEdit(enrollment)
-                                                }
-                                                aria-label="Edit enrollment"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-8 text-muted-foreground hover:text-destructive"
-                                                onClick={() =>
-                                                    setRemove(enrollment)
-                                                }
-                                                aria-label="Remove enrollment"
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+
+                        {/* Roster */}
+                        <RosterTable
+                            programHashid={program.hashid}
+                            enrollments={enrollments}
+                            canManage={can.manage}
+                            onEnroll={() => setEnrollOpen(true)}
+                            onEdit={setEdit}
+                            onRemove={setRemove}
+                        />
+                    </>
                 )}
             </div>
 
-            <EnrollDialog
+            <BulkEnrollDialog
                 open={enrollOpen}
                 onOpenChange={setEnrollOpen}
                 programHashid={program.hashid}
                 enrollable={enrollable}
+                seatsRemaining={program.seats_remaining}
+            />
+
+            <EditEnrollmentDialog
+                open={edit !== null}
+                onOpenChange={(open) => !open && setEdit(null)}
                 enrollment={edit}
             />
 

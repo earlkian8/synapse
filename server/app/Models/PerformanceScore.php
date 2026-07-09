@@ -22,6 +22,10 @@ class PerformanceScore extends Model
         'kpi_criterion_id',
         'label',
         'weight',
+        'scale_type',
+        'scale_min',
+        'scale_max',
+        'scale_levels',
         'score',
         'remarks',
     ];
@@ -30,6 +34,9 @@ class PerformanceScore extends Model
     {
         return [
             'weight' => 'decimal:2',
+            'scale_min' => 'decimal:2',
+            'scale_max' => 'decimal:2',
+            'scale_levels' => 'array',
             'score' => 'decimal:2',
         ];
     }

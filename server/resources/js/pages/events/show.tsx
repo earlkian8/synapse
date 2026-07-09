@@ -2,7 +2,11 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Archive,
     ArrowLeft,
+    BellRing,
     CalendarClock,
+    CalendarPlus,
+    Copy,
+    Download,
     MapPin,
     Pencil,
     Trash2,
@@ -52,6 +56,7 @@ export default function EventShow() {
     const [editEvent, setEditEvent] = useState(false);
     const [remove, setRemove] = useState<EventAttendee | null>(null);
     const [archiveOpen, setArchiveOpen] = useState(false);
+    const [remindOpen, setRemindOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     // Response tally for the stat strip.
@@ -92,6 +97,27 @@ export default function EventShow() {
                 setArchiveOpen(false);
             },
         });
+
+    const duplicate = () =>
+        router.post(
+            eventRoutes.duplicate(event.hashid),
+            {},
+            { onStart: () => setProcessing(true), onFinish: () => setProcessing(false) },
+        );
+
+    const remindPending = () =>
+        router.post(
+            eventRoutes.remind(event.hashid),
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => {
+                    setProcessing(false);
+                    setRemindOpen(false);
+                },
+            },
+        );
 
     return (
         <>
@@ -135,27 +161,44 @@ export default function EventShow() {
                             </div>
                         </div>
 
-                        {can.manage && (
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setEditEvent(true)}
-                                >
-                                    <Pencil className="size-4" />
-                                    Edit
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-muted-foreground hover:text-destructive"
-                                    onClick={() => setArchiveOpen(true)}
-                                >
-                                    <Archive className="size-4" />
-                                    Archive
-                                </Button>
-                            </div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={eventRoutes.ics(event.hashid)}>
+                                    <CalendarPlus className="size-4" />
+                                    Add to calendar
+                                </a>
+                            </Button>
+                            {can.manage && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditEvent(true)}
+                                    >
+                                        <Pencil className="size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={processing}
+                                        onClick={duplicate}
+                                    >
+                                        <Copy className="size-4" />
+                                        Duplicate
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        onClick={() => setArchiveOpen(true)}
+                                    >
+                                        <Archive className="size-4" />
+                                        Archive
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Stat strip */}
@@ -216,16 +259,43 @@ export default function EventShow() {
                                     ({attendees.length})
                                 </span>
                             </p>
-                            {can.manage && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setInviteOpen(true)}
-                                >
-                                    <UserPlus className="size-4" />
-                                    Invite
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" size="sm" asChild>
+                                    <a
+                                        href={eventRoutes.rosterExport(
+                                            event.hashid,
+                                        )}
+                                    >
+                                        <Download className="size-4" />
+                                        Export
+                                    </a>
                                 </Button>
-                            )}
+                                {can.manage &&
+                                    counts.invited > 0 &&
+                                    event.status !== 'past' && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setRemindOpen(true)}
+                                        >
+                                            <BellRing className="size-4" />
+                                            Remind pending
+                                            <span className="tabular-nums">
+                                                ({counts.invited})
+                                            </span>
+                                        </Button>
+                                    )}
+                                {can.manage && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setInviteOpen(true)}
+                                    >
+                                        <UserPlus className="size-4" />
+                                        Invite
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                         <ul className="divide-y divide-border">
                             {attendees.map((attendee) => (
@@ -325,6 +395,16 @@ export default function EventShow() {
                 destructive
                 processing={processing}
                 onConfirm={confirmRemove}
+            />
+
+            <ConfirmDialog
+                open={remindOpen}
+                onOpenChange={setRemindOpen}
+                title="Remind pending invitees?"
+                description={`${counts.invited} ${counts.invited === 1 ? 'invitee who has' : 'invitees who have'} not responded will get an in-app reminder about "${event.title}".`}
+                confirmLabel="Send reminders"
+                processing={processing}
+                onConfirm={remindPending}
             />
 
             <ConfirmDialog

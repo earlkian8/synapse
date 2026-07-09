@@ -6,7 +6,9 @@
 export const performanceRoutes = {
     index: '/performance',
     store: '/performance',
+    export: '/performance/export',
     show: (hashid: string) => `/performance/${hashid}`,
+    insights: (hashid: string) => `/performance/${hashid}/insights`,
     update: (hashid: string) => `/performance/${hashid}`,
     submit: (hashid: string) => `/performance/${hashid}/submit`,
     acknowledge: (hashid: string) => `/performance/${hashid}/acknowledge`,

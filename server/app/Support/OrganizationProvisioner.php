@@ -112,65 +112,51 @@ class OrganizationProvisioner
     private static function roleBlueprints(array $allPermissions): array
     {
         return [
+            // 1. HR Manager — the organisation owner. Full access to every module,
+            //    predictive analytics, the assistant, setup, and administration.
+            //    Granted every permission and bypasses all gates at runtime.
             [
-                'name' => Role::SUPER_ADMIN,
-                'label' => 'Super Admin',
-                'description' => 'Unrestricted access to every part of the organisation.',
-                'is_system' => true,
-                'permissions' => $allPermissions, // also bypasses all gates at runtime
-            ],
-            [
-                'name' => 'administrator',
-                'label' => 'Administrator',
-                'description' => 'Full operational access across all modules.',
+                'name' => Role::HR_MANAGER,
+                'label' => 'HR Manager',
+                'description' => 'Organisation owner with full access to every module, analytics, the assistant, setup, and administration.',
                 'is_system' => true,
                 'permissions' => $allPermissions,
             ],
+
+            // 2. Department Head — the supervisor. Approves leave, conducts
+            //    performance evaluations, and has read visibility into the records
+            //    and predictive signals of the workforce they oversee.
             [
-                'name' => 'hr-manager',
-                'label' => 'HR Manager',
-                'description' => 'Manages people and reviews the audit trail.',
-                'is_system' => false,
+                'name' => Role::DEPARTMENT_HEAD,
+                'label' => 'Department Head',
+                'description' => 'Supervisor who approves leave, conducts performance evaluations, and reviews team records and predictive signals.',
+                'is_system' => true,
                 'permissions' => [
-                    'employees.view', 'employees.create', 'employees.update',
-                    'employees.delete', 'employees.restore', 'employees.export',
-                    'employees.manage-documents',
-                    'recruitment.view', 'recruitment.create', 'recruitment.update',
-                    'recruitment.delete', 'recruitment.manage-pipeline',
-                    'recruitment.schedule-interviews', 'recruitment.hire',
-                    'recruitment.export',
-                    'onboarding.view', 'onboarding.manage', 'onboarding.manage-programs',
-                    'leave.view', 'leave.request', 'leave.manage',
-                    'attendance.view', 'attendance.manage', 'attendance.clock',
+                    // Self-service (as an employee themselves)
+                    'attendance.clock', 'leave.request',
+                    // Team visibility
+                    'employees.view',
+                    'attendance.view',
+                    'onboarding.view', 'offboarding.view',
+                    'training.view', 'awards.view', 'events.view',
+                    // Supervisory actions
+                    'leave.view', 'leave.manage',
                     'performance.view', 'performance.manage',
-                    'analytics.attrition.view', 'analytics.attrition.manage',
-                    'analytics.promotion.view', 'analytics.promotion.manage',
-                    'analytics.performance.view', 'analytics.performance.manage',
-                    'training.view', 'training.manage',
-                    'awards.view', 'awards.manage',
-                    'events.view', 'events.manage',
-                    'offboarding.view', 'offboarding.manage',
-                    'setup.company.view', 'setup.company.manage',
-                    'setup.schedule.view', 'setup.schedule.manage',
-                    'setup.departments.view', 'setup.departments.manage',
-                    'setup.leave-types.view', 'setup.leave-types.manage',
-                    'setup.kpi.view', 'setup.kpi.manage',
-                    'setup.award-types.view', 'setup.award-types.manage',
-                    'users.view', 'users.create', 'users.update',
-                    'users.manage-status', 'users.reset-password', 'users.export',
-                    'roles.view',
-                    'activity-logs.view', 'activity-logs.export',
-                    'notifications.send',
+                    // Decision support (view-only) for their people
+                    'analytics.attrition.view',
+                    'analytics.performance.view',
+                    'analytics.promotion.view',
                 ],
             ],
+
+            // 3. Staff — the regular employee. Self-service only: record attendance
+            //    and file/cancel their own leave (web or the mobile DTR app).
             [
-                'name' => 'staff',
+                'name' => Role::STAFF,
                 'label' => 'Staff',
-                'description' => 'Baseline access for regular employees.',
-                'is_system' => false,
+                'description' => 'Regular employee with self-service access: record attendance and file leave.',
+                'is_system' => true,
                 'permissions' => [
-                    // Self-service from web or the mobile app: clock in/out and
-                    // file/cancel their own leave.
                     'attendance.clock',
                     'leave.request',
                 ],

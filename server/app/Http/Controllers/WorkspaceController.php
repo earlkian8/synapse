@@ -94,9 +94,8 @@ class WorkspaceController extends Controller
             return null;
         }
 
-        // Owner/admin roles read first; otherwise the first role assigned.
+        // The owner role (HR Manager) reads first; otherwise the first role assigned.
         $primary = $roles->firstWhere('name', Role::SUPER_ADMIN)
-            ?? $roles->firstWhere('name', 'administrator')
             ?? $roles->first();
 
         $extra = $roles->count() - 1;

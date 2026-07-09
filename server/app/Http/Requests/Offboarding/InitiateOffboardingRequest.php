@@ -20,6 +20,8 @@ class InitiateOffboardingRequest extends FormRequest
         return [
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
             'type' => ['required', Rule::in(OffboardingCase::TYPES)],
+            // Optional explicit clearance template; omitted = best match / standard.
+            'offboarding_program_id' => ['nullable', 'integer', Rule::exists('offboarding_programs', 'id')],
             'notice_date' => ['nullable', 'date'],
             'last_working_day' => ['nullable', 'date'],
             'reason' => ['nullable', 'string', 'max:5000'],

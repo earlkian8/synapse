@@ -47,6 +47,27 @@ export function formatScore(score: number | null): string {
         : `${Number.isInteger(score) ? score : score.toFixed(1)}%`;
 }
 
+/** Colour band for a completion score, from rose (low) to emerald (high). */
+export function scoreTone(score: number | null): string {
+    if (score === null) {
+        return 'text-muted-foreground';
+    }
+
+    if (score >= 85) {
+        return 'text-emerald-600 dark:text-emerald-400';
+    }
+
+    if (score >= 70) {
+        return 'text-[#0a8b91] dark:text-[#0ABFBF]';
+    }
+
+    if (score >= 50) {
+        return 'text-amber-600 dark:text-amber-400';
+    }
+
+    return 'text-rose-600 dark:text-rose-400';
+}
+
 /** Format an ISO date (YYYY-MM-DD) as "Jun 16, 2026". */
 export function formatDate(iso: string | null): string {
     if (!iso) {

@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ChevronRight, Gauge, Plus, Search } from 'lucide-react';
+import { ChevronRight, Download, Gauge, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
@@ -94,12 +94,22 @@ export default function PerformanceIndex() {
                             track their scores.
                         </p>
                     </div>
-                    {can.manage && (
-                        <Button size="sm" onClick={() => setNewOpen(true)}>
-                            <Plus className="size-4" />
-                            New evaluation
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {evaluations.length > 0 && (
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={performanceRoutes.export}>
+                                    <Download className="size-4" />
+                                    Export
+                                </a>
+                            </Button>
+                        )}
+                        {can.manage && (
+                            <Button size="sm" onClick={() => setNewOpen(true)}>
+                                <Plus className="size-4" />
+                                New evaluation
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <PerformanceStatsCards stats={stats} />

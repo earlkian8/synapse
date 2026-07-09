@@ -18,6 +18,7 @@ use App\Queries\JobPostingsIndexQuery;
 use App\Queries\RecruitmentStatistics;
 use App\Support\ActivityLogger;
 use App\Support\Recruitment\ApplicantScorer;
+use App\Support\Recruitment\PipelineInsights;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -52,7 +53,7 @@ class JobPostingController extends Controller
     /**
      * Display a posting's hiring pipeline (the ATS board).
      */
-    public function show(Request $request, JobPosting $jobPosting, ApplicantScorer $scorer): Response
+    public function show(Request $request, JobPosting $jobPosting, ApplicantScorer $scorer, PipelineInsights $insights): Response
     {
         $jobPosting->load(['department:id,name,code', 'position:id,title', 'postedBy:id,first_name,middle_name,last_name,suffix'])
             ->loadCount([
@@ -75,6 +76,7 @@ class JobPostingController extends Controller
         return Inertia::render('recruitment/pipeline', [
             'posting' => (new JobPostingResource($jobPosting))->resolve($request),
             'applications' => JobApplicationResource::collection($applications)->resolve($request),
+            'insights' => $insights->build($applications),
             'options' => $this->pipelineOptions($jobPosting),
             'can' => $this->permissions($request),
         ]);

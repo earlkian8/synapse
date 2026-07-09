@@ -21,6 +21,7 @@ class TrainingEnrollmentResource extends JsonResource
             'status' => $this->status,
             'score' => $this->score === null ? null : (float) $this->score,
             'completed_at' => $this->completed_at?->toDateString(),
+            'enrolled_on' => $this->created_at?->toDateString(),
             'remarks' => $this->remarks,
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [

@@ -60,6 +60,53 @@ class EventAttendeeController extends Controller
     }
 
     /**
+     * Re-notify every invitee who has not responded yet (still "invited") and has
+     * an active linked account. Refreshes `notified_at` on each reminder sent.
+     */
+    public function remind(Event $event): RedirectResponse
+    {
+        if ($event->status() === 'past') {
+            return $this->respond('This event is over — no reminders sent.', 'warning');
+        }
+
+        $pending = $event->attendees()
+            ->where('response', 'invited')
+            ->with('employee.user')
+            ->get();
+
+        if ($pending->isEmpty()) {
+            return $this->respond('Everyone has already responded.', 'warning');
+        }
+
+        $reminded = 0;
+
+        foreach ($pending as $attendee) {
+            $employee = $attendee->employee;
+
+            if (! $employee || $this->notify($event, $employee, reminder: true) === null) {
+                continue;
+            }
+
+            $attendee->update(['notified_at' => now()]);
+            $reminded++;
+        }
+
+        if ($reminded === 0) {
+            return $this->respond('No pending invitee has an active account to remind.', 'warning');
+        }
+
+        ActivityLogger::log(
+            event: 'updated',
+            description: "Reminded {$reminded} pending ".str('invitee')->plural($reminded)." about \"{$event->title}\"",
+            subject: $event,
+            logName: 'events',
+            subjectLabel: $event->title,
+        );
+
+        return $this->respond($reminded === 1 ? 'Reminder sent to 1 pending invitee.' : "Reminders sent to {$reminded} pending invitees.");
+    }
+
+    /**
      * Update an invitee's response. The employee and event never change here.
      */
     public function update(EventAttendeeRequest $request, EventAttendee $attendee): RedirectResponse
@@ -101,7 +148,7 @@ class EventAttendeeController extends Controller
      * sent (null when the employee has no active login). Best-effort — a delivery
      * problem never blocks the invite.
      */
-    private function notify(Event $event, Employee $employee): ?Carbon
+    private function notify(Event $event, Employee $employee, bool $reminder = false): ?Carbon
     {
         $user = $employee->user;
 
@@ -111,7 +158,7 @@ class EventAttendeeController extends Controller
 
         Notifier::toUser(
             user: $user,
-            title: "You're invited: {$event->title}",
+            title: ($reminder ? 'Reminder — please respond: ' : "You're invited: ").$event->title,
             body: trim(($event->location ? "{$event->location} · " : '').$event->starts_at?->format('M j, Y g:i A')),
             url: '/events/'.$event->hashid,
             level: 'info',

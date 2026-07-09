@@ -26,6 +26,10 @@ class PerformanceEvaluationResource extends JsonResource
             'remarks' => $this->remarks,
             'scores_count' => (int) ($this->scores_count ?? 0),
 
+            // The last LLM-generated performance read, persisted so it shows
+            // instantly on reopen. Null until HR first generates it.
+            'ai_insights' => $this->ai_insights ?? null,
+
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,
                 'full_name' => $this->employee->full_name,

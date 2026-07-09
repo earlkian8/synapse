@@ -70,6 +70,9 @@ class PerformanceEvaluationController extends Controller
                     'label' => $criterion->name,
                     'weight' => $criterion->weight,
                     'score' => null,
+                    // Snapshot the criterion's rating scale so this evaluation's
+                    // measurement stays fixed even if the criterion is later retuned.
+                    ...$criterion->scaleSnapshot(),
                 ])->all()
             );
 
@@ -104,6 +107,17 @@ class PerformanceEvaluationController extends Controller
 
         // Index the incoming lines by id so only this evaluation's lines apply.
         $incoming = collect($data['scores'])->keyBy('id');
+
+        // Guard: a score must sit within its own criterion's snapshot scale. The
+        // UI constrains this, but never trust the client with the bounds.
+        foreach ($evaluation->scores as $score) {
+            $line = $incoming->get($score->id);
+            $value = $line['score'] ?? null;
+
+            if ($value !== null && ((float) $value < (float) $score->scale_min || (float) $value > (float) $score->scale_max)) {
+                return $this->back('A score is outside its criterion’s rating scale.', 'warning');
+            }
+        }
 
         DB::transaction(function () use ($evaluation, $incoming, $data) {
             foreach ($evaluation->scores as $score) {

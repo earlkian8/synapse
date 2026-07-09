@@ -5,5 +5,8 @@
 export const awardsRoutes = {
     index: '/awards',
     store: '/awards',
+    export: '/awards/export',
+    nominations: '/awards/nominations',
+    citation: '/awards/citation',
     award: (id: number) => `/awards/${id}`,
 } as const;

@@ -10,8 +10,10 @@ import { AddCandidateSheet } from '@/features/recruitment/components/add-candida
 import { ApplicationDetailSheet } from '@/features/recruitment/components/application-detail-sheet';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
 import { PipelineGrid } from '@/features/recruitment/components/pipeline-grid';
+import { PipelineInsights } from '@/features/recruitment/components/pipeline-insights';
 import { PipelineStageTabs } from '@/features/recruitment/components/pipeline-stage-tabs';
 import { PipelineTable } from '@/features/recruitment/components/pipeline-table';
+import { PipelineToolbar } from '@/features/recruitment/components/pipeline-toolbar';
 import { PostingDeadline } from '@/features/recruitment/components/posting-deadline';
 import { PostingStatusBadge } from '@/features/recruitment/components/posting-status-badge';
 import { TYPE_LABELS } from '@/features/recruitment/constants';
@@ -20,6 +22,7 @@ import { recruitmentRoutes } from '@/features/recruitment/routes';
 import type {
     Application,
     PipelinePageProps,
+    PipelineSort,
     PipelineView,
     Stage,
     StageFilter,
@@ -36,11 +39,13 @@ type ConfirmConfig = {
 };
 
 export default function RecruitmentPipeline() {
-    const { posting, applications, options, can } =
+    const { posting, applications, insights, options, can } =
         usePage<PipelinePageProps>().props;
     const { view, changeView } = usePipelineView();
 
     const [stage, setStage] = useState<StageFilter>('all');
+    const [search, setSearch] = useState('');
+    const [sort, setSort] = useState<PipelineSort>('default');
     const [detailApp, setDetailApp] = useState<Application | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(false);
@@ -75,13 +80,57 @@ export default function RecruitmentPipeline() {
         return counts;
     }, [applications]);
 
-    const visibleApplications = useMemo(
+    const stageApplications = useMemo(
         () =>
             stage === 'all'
                 ? applications
                 : applications.filter((a) => a.stage === stage),
         [applications, stage],
     );
+
+    const visibleApplications = useMemo(() => {
+        const term = search.trim().toLowerCase();
+
+        const filtered = term
+            ? stageApplications.filter((a) => {
+                  const applicant = a.applicant;
+
+                  return [
+                      applicant?.full_name,
+                      applicant?.email,
+                      applicant?.headline,
+                  ]
+                      .filter(Boolean)
+                      .some((field) => field!.toLowerCase().includes(term));
+              })
+            : stageApplications;
+
+        if (sort === 'default') {
+            return filtered;
+        }
+
+        const time = (value: string | null) =>
+            value ? new Date(value).getTime() : 0;
+
+        return [...filtered].sort((a, b) => {
+            switch (sort) {
+                case 'fit':
+                    return (b.fit?.value ?? -1) - (a.fit?.value ?? -1);
+                case 'rating':
+                    return (b.rating ?? -1) - (a.rating ?? -1);
+                case 'recent':
+                    return time(b.applied_at) - time(a.applied_at);
+                case 'oldest':
+                    return time(a.applied_at) - time(b.applied_at);
+                case 'name':
+                    return (a.applicant?.full_name ?? '').localeCompare(
+                        b.applicant?.full_name ?? '',
+                    );
+                default:
+                    return 0;
+            }
+        });
+    }, [stageApplications, search, sort]);
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);
@@ -247,6 +296,21 @@ export default function RecruitmentPipeline() {
                         counts={stageCounts}
                         total={applications.length}
                         onChange={setStage}
+                    />
+
+                    <PipelineInsights insights={insights} stage={stage} />
+
+                    <PipelineToolbar
+                        search={search}
+                        sort={sort}
+                        shown={visibleApplications.length}
+                        total={stageApplications.length}
+                        canExport={can.export}
+                        exportUrl={recruitmentRoutes.pipelineExport(
+                            posting.hashid,
+                        )}
+                        onSearch={setSearch}
+                        onSort={setSort}
                     />
 
                     {view === 'grid' ? (

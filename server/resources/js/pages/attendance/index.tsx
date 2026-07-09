@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CalendarCheck, UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { CalendarCheck, CheckCheck, UserRound } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
@@ -33,6 +33,45 @@ export default function AttendanceIndex() {
 
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    const [approveOpen, setApproveOpen] = useState(false);
+    const [approving, setApproving] = useState(false);
+
+    // A GET download that mirrors the on-screen tab and its active filters.
+    const exportUrl = useMemo(() => {
+        const params = new URLSearchParams({
+            tab: filters.tab,
+            date: filters.date,
+        });
+
+        if (filters.search) {
+            params.set('search', filters.search);
+        }
+
+        if (filters.status && filters.status !== 'all') {
+            params.set('status', filters.status);
+        }
+
+        if (filters.department) {
+            params.set('department', String(filters.department));
+        }
+
+        return `${attendanceRoutes.export}?${params.toString()}`;
+    }, [filters]);
+
+    const approveAllPending = () =>
+        router.patch(
+            attendanceRoutes.approveAll,
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setApproving(true),
+                onFinish: () => {
+                    setApproving(false);
+                    setApproveOpen(false);
+                },
+            },
+        );
 
     const openDetail = (record: AttendanceRecord) => {
         setDetail(record);
@@ -93,12 +132,28 @@ export default function AttendanceIndex() {
                             late, and who's out.
                         </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={attendanceRoutes.me}>
-                            <UserRound className="size-4" />
-                            My attendance
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {can.manage && stats.pending > 0 && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setApproveOpen(true)}
+                            >
+                                <CheckCheck className="size-4" />
+                                Approve{' '}
+                                <span className="tabular-nums">
+                                    {stats.pending}
+                                </span>{' '}
+                                pending
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={attendanceRoutes.me}>
+                                <UserRound className="size-4" />
+                                My attendance
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
 
                 <AttendanceStatsCards stats={stats} />
@@ -110,6 +165,7 @@ export default function AttendanceIndex() {
                         filters={filters}
                         departments={options.departments}
                         canManage={can.manage}
+                        exportUrl={exportUrl}
                         onDate={setDate}
                         onSearch={setSearch}
                         onStatus={setStatus}
@@ -168,6 +224,16 @@ export default function AttendanceIndex() {
                 destructive
                 processing={processing}
                 onConfirm={remove}
+            />
+
+            <ConfirmDialog
+                open={approveOpen}
+                onOpenChange={setApproveOpen}
+                title={`Approve ${stats.pending} pending record${stats.pending === 1 ? '' : 's'}?`}
+                description="Every attendance record awaiting sign-off will be approved. This clears the correction and overtime queue."
+                confirmLabel="Approve all"
+                processing={approving}
+                onConfirm={approveAllPending}
             />
         </>
     );

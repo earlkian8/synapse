@@ -3,7 +3,11 @@ import {
     ArrowLeft,
     CalendarClock,
     CalendarX2,
+    CheckCheck,
     CheckCircle2,
+    ClipboardList,
+    Download,
+    ListPlus,
     MoreHorizontal,
     Plus,
     RotateCcw,
@@ -23,6 +27,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ApplyProgramDialog } from '@/features/offboarding/components/apply-program-dialog';
 import { CaseSettingsSheet } from '@/features/offboarding/components/case-settings-sheet';
 import { CaseStatusBadge } from '@/features/offboarding/components/case-status-badge';
 import { ClearanceChecklist } from '@/features/offboarding/components/clearance-checklist';
@@ -64,6 +69,7 @@ export default function OffboardingCasePage() {
     const [itemSheetOpen, setItemSheetOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<ClearanceItem | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [applyOpen, setApplyOpen] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -115,6 +121,38 @@ export default function OffboardingCasePage() {
             { action: 'reopen' },
             { preserveScroll: true },
         );
+
+    /** Sign off one department group's pending items (null = unassigned). */
+    const clearGroup = (departmentId: number | null, name: string) =>
+        askConfirm({
+            title: `Clear all pending items for ${name}?`,
+            description:
+                'Every pending item in this group is signed off under your name. Flagged items are left untouched.',
+            confirmLabel: 'Clear all',
+            run: () =>
+                router.patch(
+                    offboardingRoutes.bulkClear(c.hashid),
+                    departmentId === null
+                        ? { scope: 'unassigned' }
+                        : { scope: 'department', department_id: departmentId },
+                    withProcessing,
+                ),
+        });
+
+    /** Sign off every pending item on the case in one go. */
+    const clearAllPending = () =>
+        askConfirm({
+            title: `Clear all ${c.clearance.pending} pending items?`,
+            description:
+                'Every pending item on this checklist is signed off under your name. Flagged items are left untouched.',
+            confirmLabel: 'Clear all pending',
+            run: () =>
+                router.patch(
+                    offboardingRoutes.bulkClear(c.hashid),
+                    { scope: 'all' },
+                    withProcessing,
+                ),
+        });
 
     const completeCase = () => {
         const outstanding = c.clearance.total - c.clearance.cleared;
@@ -225,8 +263,19 @@ export default function OffboardingCasePage() {
                         </div>
                     </div>
 
-                    {can.manage && (
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <a
+                                href={offboardingRoutes.clearanceExport(
+                                    c.hashid,
+                                )}
+                            >
+                                <Download className="size-4" />
+                                Export sheet
+                            </a>
+                        </Button>
+                        {can.manage && (
+                            <>
                             <Button size="sm" onClick={openAddItem}>
                                 <Plus className="size-4" />
                                 Add item
@@ -260,6 +309,26 @@ export default function OffboardingCasePage() {
                                             Reopen
                                         </DropdownMenuItem>
                                     )}
+                                    {c.is_active &&
+                                        options.programs.length > 0 && (
+                                            <DropdownMenuItem
+                                                onSelect={() =>
+                                                    setApplyOpen(true)
+                                                }
+                                            >
+                                                <ListPlus className="size-4" />
+                                                Add from template
+                                            </DropdownMenuItem>
+                                        )}
+                                    {c.is_active &&
+                                        c.clearance.pending > 0 && (
+                                            <DropdownMenuItem
+                                                onSelect={clearAllPending}
+                                            >
+                                                <CheckCheck className="size-4" />
+                                                Clear all pending
+                                            </DropdownMenuItem>
+                                        )}
                                     <DropdownMenuItem
                                         onSelect={() => setSettingsOpen(true)}
                                     >
@@ -282,8 +351,9 @@ export default function OffboardingCasePage() {
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                        </div>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* Summary band */}
@@ -324,6 +394,13 @@ export default function OffboardingCasePage() {
                             label="Type"
                             value={TYPE_LABELS[c.type]}
                         />
+                        {c.program && (
+                            <Meta
+                                icon={<ClipboardList className="size-3.5" />}
+                                label="Template"
+                                value={c.program}
+                            />
+                        )}
                         {c.clearance.flagged > 0 && (
                             <span className="font-medium text-rose-600 dark:text-rose-400">
                                 {c.clearance.flagged} flagged
@@ -344,6 +421,7 @@ export default function OffboardingCasePage() {
                     onToggle={toggleItem}
                     onEdit={openEditItem}
                     onDelete={deleteItem}
+                    onClearGroup={clearGroup}
                 />
             </div>
 
@@ -353,6 +431,13 @@ export default function OffboardingCasePage() {
                 departments={options.departments}
                 open={itemSheetOpen}
                 onOpenChange={setItemSheetOpen}
+            />
+
+            <ApplyProgramDialog
+                caseHashid={c.hashid}
+                programs={options.programs}
+                open={applyOpen}
+                onOpenChange={setApplyOpen}
             />
 
             <CaseSettingsSheet

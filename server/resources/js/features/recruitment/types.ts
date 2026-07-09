@@ -221,6 +221,44 @@ export type RecruitmentStats = {
     hired_this_month: number;
 };
 
+/** The standout candidate a pipeline insight points to. */
+export type InsightTop = {
+    name: string;
+    fit: number;
+    stage?: Stage;
+};
+
+/** Decision-support metrics for a single pipeline stage. */
+export type StageInsight = {
+    count: number;
+    avg_fit: number | null;
+    strong: number;
+    ready: number;
+    stalled: number;
+    next_stage: Stage | null;
+    top: InsightTop | null;
+};
+
+/** Pipeline-wide decision support across all still-active candidates. */
+export type OverallInsight = {
+    total: number;
+    active: number;
+    avg_fit: number | null;
+    strong: number;
+    ready: number;
+    stalled: number;
+    hired: number;
+    rejected: number;
+    conversion: number | null;
+    top: InsightTop | null;
+};
+
+/** The full pipeline insights payload, built server-side from fit scores. */
+export type PipelineInsightsData = {
+    overall: OverallInsight;
+    stages: Record<Stage, StageInsight>;
+};
+
 export type PostingOptions = {
     departments: DepartmentRef[];
     positions: { id: number; title: string; department_id: number | null }[];
@@ -290,6 +328,16 @@ export type PostingsPageProps = {
 export type PipelinePageProps = {
     posting: ManagedPosting;
     applications: Application[];
+    insights: PipelineInsightsData;
     options: PipelineOptions;
     can: RecruitmentPermissions;
 };
+
+/** How the pipeline candidates are ordered client-side. */
+export type PipelineSort =
+    | 'default'
+    | 'fit'
+    | 'rating'
+    | 'recent'
+    | 'oldest'
+    | 'name';

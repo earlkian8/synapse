@@ -1,5 +1,13 @@
-import { Head, usePage } from '@inertiajs/react';
-import { Award, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import {
+    Award,
+    Download,
+    Pencil,
+    Plus,
+    Search,
+    Sparkles,
+    Trash2,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
@@ -17,6 +25,7 @@ import { AwardStatsCards } from '@/features/awards/components/award-stats';
 import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
 import { GiveAwardDialog } from '@/features/awards/components/give-award-dialog';
 import { formatDate } from '@/features/awards/constants';
+import { awardsRoutes } from '@/features/awards/routes';
 import type {
     AwardsIndexPageProps,
     EmployeeAward,
@@ -107,12 +116,30 @@ export default function AwardsIndex() {
                             recognition feed.
                         </p>
                     </div>
-                    {can.manage && (
-                        <Button size="sm" onClick={openGive}>
-                            <Plus className="size-4" />
-                            Give recognition
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {awards.length > 0 && (
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={awardsRoutes.export}>
+                                    <Download className="size-4" />
+                                    Export
+                                </a>
+                            </Button>
+                        )}
+                        {can.manage && (
+                            <>
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href={awardsRoutes.nominations}>
+                                        <Sparkles className="size-4" />
+                                        Nomination board
+                                    </Link>
+                                </Button>
+                                <Button size="sm" onClick={openGive}>
+                                    <Plus className="size-4" />
+                                    Give recognition
+                                </Button>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 <AwardStatsCards stats={stats} />

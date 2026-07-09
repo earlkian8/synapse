@@ -5,11 +5,14 @@ namespace App\Support;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OffboardingCase;
+use App\Models\OffboardingProgram;
 
 /**
  * Starts an employee's offboarding: opens an {@see OffboardingCase} and seeds it
- * with the standard clearance checklist, routing each sign-off to the department
- * that owns it.
+ * with a clearance checklist, routing each sign-off to the department that owns
+ * it. The checklist comes from the best-matching (or explicitly chosen) active
+ * {@see OffboardingProgram}; when the tenant has none, the built-in standard
+ * checklist below is used, so an unconfigured org still gets a sensible exit.
  *
  * This is the counterpart of {@see OnboardingProvisioner} at the other end of the
  * employment life cycle — the single place the exit checklist is defined, so the
@@ -19,13 +22,13 @@ use App\Models\OffboardingCase;
 class OffboardingProvisioner
 {
     /**
-     * The baseline clearance every exit starts with. `department` is a Company-Setup
-     * department **code** (resolved to that department, if it exists), or the
-     * sentinel `__own__` for the employee's own department.
+     * The baseline clearance used when no program matches. `department` is a
+     * Company-Setup department **code** (resolved to that department, if it
+     * exists), or the sentinel `__own__` for the employee's own department.
      *
      * @var list<array{item: string, department: string}>
      */
-    private const STANDARD_ITEMS = [
+    public const STANDARD_ITEMS = [
         ['item' => 'Knowledge transfer & turnover of responsibilities', 'department' => '__own__'],
         ['item' => 'Return department files, documents & tools', 'department' => '__own__'],
         ['item' => 'Return laptop, peripherals & assigned devices', 'department' => 'IT'],
@@ -39,36 +42,85 @@ class OffboardingProvisioner
     ];
 
     /**
-     * Begin offboarding for an employee, seeding the standard clearance checklist.
+     * Begin offboarding for an employee, seeding the clearance checklist from the
+     * given program, the best-matching active one, or the built-in standard list.
      * Returns the existing case if the employee already has one.
      *
      * @param  array{type?: string, notice_date?: ?string, last_working_day?: ?string, reason?: ?string}  $attributes
      */
-    public static function start(Employee $employee, array $attributes = []): OffboardingCase
+    public static function start(Employee $employee, array $attributes = [], ?OffboardingProgram $program = null): OffboardingCase
     {
         if ($existing = $employee->offboardingCase()->first()) {
             return $existing;
         }
 
+        $type = $attributes['type'] ?? 'resignation';
+        $program ??= self::programFor($employee, $type);
+
         $case = OffboardingCase::create([
             'employee_id' => $employee->id,
-            'type' => $attributes['type'] ?? 'resignation',
+            'offboarding_program_id' => $program?->id,
+            'type' => $type,
             'notice_date' => $attributes['notice_date'] ?? null,
             'last_working_day' => $attributes['last_working_day'] ?? null,
             'reason' => $attributes['reason'] ?? null,
             'status' => 'initiated',
         ]);
 
-        self::seedClearance($case, $employee);
+        if ($program) {
+            self::seedFromProgram($case, $employee, $program);
+        } else {
+            self::seedStandardClearance($case, $employee);
+        }
 
         return $case;
     }
 
     /**
-     * Instantiate the standard checklist on a case, resolving each item's owning
-     * department from its code (or the employee's own department).
+     * Resolve the clearance template that best fits an exit, preferring the most
+     * specific active match: department + exit type, then department, then exit
+     * type, then a default (mirrors {@see OnboardingProvisioner::programFor}).
      */
-    private static function seedClearance(OffboardingCase $case, Employee $employee): void
+    public static function programFor(Employee $employee, ?string $type = null): ?OffboardingProgram
+    {
+        $programs = OffboardingProgram::where('is_active', true)->get();
+
+        if ($programs->isEmpty()) {
+            return null;
+        }
+
+        $department = $employee->department_id;
+
+        return $programs->first(fn (OffboardingProgram $p): bool => $p->department_id === $department && $p->exit_type === $type && $department !== null)
+            ?? $programs->first(fn (OffboardingProgram $p): bool => $p->department_id === $department && $p->exit_type === null && $department !== null)
+            ?? $programs->first(fn (OffboardingProgram $p): bool => $p->department_id === null && $p->exit_type === $type && $type !== null)
+            ?? $programs->first(fn (OffboardingProgram $p): bool => $p->is_default)
+            ?? null;
+    }
+
+    /**
+     * Instantiate a program's blueprint items on a case, resolving "employee's own
+     * department" items against the departing employee.
+     */
+    private static function seedFromProgram(OffboardingCase $case, Employee $employee, OffboardingProgram $program): void
+    {
+        foreach ($program->items()->get() as $index => $blueprint) {
+            $case->clearanceItems()->create([
+                'item' => $blueprint->item,
+                'department_id' => $blueprint->use_employee_department
+                    ? $employee->department_id
+                    : $blueprint->department_id,
+                'status' => 'pending',
+                'sort_order' => $index,
+            ]);
+        }
+    }
+
+    /**
+     * Instantiate the built-in standard checklist on a case, resolving each item's
+     * owning department from its code (or the employee's own department).
+     */
+    private static function seedStandardClearance(OffboardingCase $case, Employee $employee): void
     {
         $byCode = Department::query()
             ->get(['id', 'code'])
