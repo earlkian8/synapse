@@ -3,6 +3,7 @@
 namespace App\Queries;
 
 use App\Models\OnboardingCase;
+use App\Models\OnboardingTask;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -35,7 +36,6 @@ class OnboardingCasesIndexQuery
         $status = $this->status($request);
         $department = $request->integer('department');
         $search = $request->string('search')->toString();
-        $today = now()->toDateString();
 
         return OnboardingCase::query()
             ->with([
@@ -47,12 +47,10 @@ class OnboardingCasesIndexQuery
             ->withCount([
                 'tasks',
                 'tasks as done_tasks_count' => fn (Builder $query) => $query->where('status', 'done'),
-                'tasks as resolved_tasks_count' => fn (Builder $query) => $query->whereIn('status', ['done', 'skipped']),
-                'tasks as overdue_tasks_count' => fn (Builder $query) => $query
-                    ->whereNotIn('status', ['done', 'skipped'])
-                    ->whereDate('due_date', '<', $today),
+                'tasks as resolved_tasks_count' => fn (Builder $query) => $query->whereIn('status', OnboardingTask::RESOLVED_STATUSES),
+                'tasks as overdue_tasks_count' => fn (Builder $query) => $query->overdue(),
             ])
-            ->when($status === 'active', fn (Builder $query) => $query->whereIn('status', ['pending', 'in_progress']))
+            ->when($status === 'active', fn (Builder $query) => $query->active())
             ->when(in_array($status, ['pending', 'in_progress', 'completed', 'cancelled'], true), fn (Builder $query) => $query->where('status', $status))
             ->when($department > 0, fn (Builder $query) => $query->whereHas('employee', fn (Builder $q) => $q->where('department_id', $department)))
             ->when($search !== '', fn (Builder $query) => $query->whereHas('employee', fn (Builder $q) => $q->search($search)))

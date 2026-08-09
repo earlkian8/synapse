@@ -3,6 +3,7 @@ import {
     ArrowRightCircle,
     BadgeCheck,
     Ban,
+    BellRing,
     CalendarClock,
     Check,
     CheckCircle2,
@@ -41,6 +42,7 @@ const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
     move: ArrowRightCircle,
     hire: BadgeCheck,
     post: Megaphone,
+    remind: BellRing,
     insight: Sparkles,
 };
 

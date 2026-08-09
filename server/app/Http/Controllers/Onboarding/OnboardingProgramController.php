@@ -43,8 +43,8 @@ class OnboardingProgramController extends Controller
     {
         $program = DB::transaction(function () use ($request): OnboardingProgram {
             $program = OnboardingProgram::create($this->programAttributes($request));
-            $this->enforceSingleDefault($program);
-            $this->syncTasks($program, $request->input('tasks', []));
+            $program->enforceSingleDefault();
+            $program->syncBlueprint($request->input('tasks', []));
 
             return $program;
         });
@@ -67,8 +67,8 @@ class OnboardingProgramController extends Controller
     {
         DB::transaction(function () use ($request, $program): void {
             $program->update($this->programAttributes($request));
-            $this->enforceSingleDefault($program);
-            $this->syncTasks($program, $request->input('tasks', []));
+            $program->enforceSingleDefault();
+            $program->syncBlueprint($request->input('tasks', []));
         });
 
         ActivityLogger::log(
@@ -115,38 +115,6 @@ class OnboardingProgramController extends Controller
             'is_default' => $request->boolean('is_default'),
             'is_active' => $request->boolean('is_active'),
         ];
-    }
-
-    /**
-     * Keep at most one default program per tenant.
-     */
-    private function enforceSingleDefault(OnboardingProgram $program): void
-    {
-        if ($program->is_default) {
-            OnboardingProgram::whereKeyNot($program->id)
-                ->where('is_default', true)
-                ->update(['is_default' => false]);
-        }
-    }
-
-    /**
-     * Replace a program's blueprint tasks wholesale (they carry no history).
-     *
-     * @param  array<int, array<string, mixed>>  $tasks
-     */
-    private function syncTasks(OnboardingProgram $program, array $tasks): void
-    {
-        $program->tasks()->delete();
-
-        foreach (array_values($tasks) as $index => $task) {
-            $program->tasks()->create([
-                'title' => $task['title'],
-                'description' => $task['description'] ?? null,
-                'category' => $task['category'],
-                'due_offset_days' => $task['due_offset_days'],
-                'sort_order' => $index,
-            ]);
-        }
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

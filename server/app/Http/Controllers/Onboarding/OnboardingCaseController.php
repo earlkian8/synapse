@@ -112,16 +112,12 @@ class OnboardingCaseController extends Controller
     public function status(Request $request, OnboardingCase $case): RedirectResponse
     {
         $validated = $request->validate([
-            'action' => ['required', Rule::in(['complete', 'cancel', 'reopen'])],
+            'action' => ['required', Rule::in(OnboardingCase::LIFECYCLE_ACTIONS)],
         ]);
 
         $case->load('employee:id,first_name,middle_name,last_name,suffix');
 
-        match ($validated['action']) {
-            'complete' => $case->update(['status' => 'completed', 'completed_at' => now()]),
-            'cancel' => $case->update(['status' => 'cancelled', 'completed_at' => null]),
-            'reopen' => $case->update(['status' => 'in_progress', 'completed_at' => null]),
-        };
+        $case->applyLifecycle($validated['action']);
 
         ActivityLogger::log(
             event: 'updated',

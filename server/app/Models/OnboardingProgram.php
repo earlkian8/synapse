@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
 use Database\Factories\OnboardingProgramFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -64,5 +65,69 @@ class OnboardingProgram extends Model
     public function cases(): HasMany
     {
         return $this->hasMany(OnboardingCase::class);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Keep at most one default program per tenant: when this one is the default,
+     * every other one stops being it.
+     */
+    public function enforceSingleDefault(): void
+    {
+        if (! $this->is_default) {
+            return;
+        }
+
+        static::whereKeyNot($this->id)
+            ->where('is_default', true)
+            ->update(['is_default' => false]);
+    }
+
+    /**
+     * Replace the program's blueprint tasks wholesale — they carry no history, and
+     * the editor always sends the full list. The one writer, so the setup screen
+     * and the assistant produce identical templates.
+     *
+     * @param  array<int, array<string, mixed>>  $tasks
+     */
+    public function syncBlueprint(array $tasks): void
+    {
+        $this->tasks()->delete();
+
+        foreach (array_values($tasks) as $index => $task) {
+            $this->tasks()->create([
+                'title' => $task['title'],
+                'description' => $task['description'] ?? null,
+                'category' => $task['category'],
+                'due_offset_days' => $task['due_offset_days'],
+                'sort_order' => $index,
+            ]);
+        }
+    }
+
+    // ── Scopes ───────────────────────────────────────────────────────────────
+
+    /**
+     * Free-text search across a program's name and description.
+     *
+     * @param  Builder<OnboardingProgram>  $query
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(function (Builder $query) use ($needle, $like) {
+            foreach (['name', 'description'] as $column) {
+                $query->orWhere($column, $like, $needle);
+            }
+        });
     }
 }
