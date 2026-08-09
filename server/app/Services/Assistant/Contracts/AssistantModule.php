@@ -31,17 +31,19 @@ interface AssistantModule
     public function handles(string $tool): bool;
 
     /**
-     * The Gemini function declarations (OpenAPI subset) this module exposes.
+     * The Gemini function declarations (OpenAPI subset) this module exposes to
+     * *this* user — a module advertises only the tools their permissions allow,
+     * so the model is never offered an action that would just be denied.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function tools(): array;
+    public function tools(User $user): array;
 
     /**
-     * A short system-prompt fragment: what this module can do, plus any live
-     * catalogs / allowed values the model should prefer.
+     * A short system-prompt fragment: what this module can do *for this user*,
+     * plus any live catalogs / allowed values the model should prefer.
      */
-    public function guidance(): string;
+    public function guidance(User $user): string;
 
     /**
      * Execute one tool call for this module.

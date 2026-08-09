@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Applicant;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Persists an applicant's supporting uploads (cover letter, certificates,
@@ -46,5 +47,31 @@ class ApplicantDocumentStore
         }
 
         return $stored;
+    }
+
+    /**
+     * Delete the applicant's résumé from disk (and clear the column). Used when
+     * a new résumé replaces it, and when the candidate is removed altogether.
+     */
+    public static function forgetResume(Applicant $applicant): void
+    {
+        if ($applicant->resume) {
+            Storage::disk('public')->delete($applicant->resume);
+            $applicant->resume = null;
+        }
+    }
+
+    /**
+     * Delete every file the applicant has on disk — the résumé and each
+     * supporting document — so removing a candidate never orphans uploads,
+     * whichever surface removed them.
+     */
+    public static function purge(Applicant $applicant): void
+    {
+        self::forgetResume($applicant);
+
+        foreach ($applicant->documents as $document) {
+            Storage::disk('public')->delete($document->file);
+        }
     }
 }

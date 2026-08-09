@@ -27,7 +27,9 @@ export type AgentCardKind =
     | 'start'
     | 'move'
     | 'hire'
-    | 'post';
+    | 'post'
+    /** A read-out rather than a change: a summary, a ranking, an AI read. */
+    | 'insight';
 
 /** Colour intent of a result card. */
 export type AgentCardTone =

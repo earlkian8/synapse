@@ -10,7 +10,6 @@ use App\Support\ActivityLogger;
 use App\Support\ApplicantDocumentStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ApplicantController extends Controller
@@ -49,7 +48,7 @@ class ApplicantController extends Controller
         $applicant->fill(Arr::except($request->validated(), ['resume', 'documents']));
 
         if ($request->hasFile('resume')) {
-            $this->deleteResume($applicant);
+            ApplicantDocumentStore::forgetResume($applicant);
             $applicant->resume = $request->file('resume')->store('applicant-resumes', 'public');
         }
 
@@ -74,11 +73,7 @@ class ApplicantController extends Controller
     public function destroy(Applicant $applicant): RedirectResponse
     {
         $label = $applicant->full_name;
-        $this->deleteResume($applicant);
-
-        foreach ($applicant->documents as $document) {
-            Storage::disk('public')->delete($document->file);
-        }
+        ApplicantDocumentStore::purge($applicant);
 
         $applicant->delete();
 
@@ -90,17 +85,6 @@ class ApplicantController extends Controller
         );
 
         return $this->respond('Applicant removed.');
-    }
-
-    /**
-     * Remove an applicant's résumé from disk, if any.
-     */
-    private function deleteResume(Applicant $applicant): void
-    {
-        if ($applicant->resume) {
-            Storage::disk('public')->delete($applicant->resume);
-            $applicant->resume = null;
-        }
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

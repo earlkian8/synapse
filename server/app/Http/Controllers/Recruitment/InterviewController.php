@@ -7,6 +7,7 @@ use App\Http\Requests\Recruitment\StoreInterviewRequest;
 use App\Models\Interview;
 use App\Models\JobApplication;
 use App\Support\ActivityLogger;
+use App\Support\Recruitment\InterviewScheduler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,11 +21,7 @@ class InterviewController extends Controller
      */
     public function store(StoreInterviewRequest $request, JobApplication $application): RedirectResponse
     {
-        $application->interviews()->create($request->validated());
-
-        if (in_array($application->stage, ['applied', 'screening'], true)) {
-            $application->update(['stage' => 'interview']);
-        }
+        InterviewScheduler::book($application, $request->validated());
 
         ActivityLogger::log(
             event: 'created',
@@ -45,7 +42,7 @@ class InterviewController extends Controller
     public function update(Request $request, Interview $interview): RedirectResponse
     {
         $validated = $request->validate([
-            'result' => ['required', Rule::in(['pending', 'passed', 'failed'])],
+            'result' => ['required', Rule::in(InterviewScheduler::RESULTS)],
             'feedback' => ['nullable', 'string', 'max:2000'],
         ]);
 

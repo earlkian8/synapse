@@ -21,14 +21,6 @@ use Inertia\Inertia;
 class JobApplicationController extends Controller
 {
     /**
-     * Stages an application may be moved to from the board (terminal stages
-     * "hired" and "rejected" have dedicated actions).
-     *
-     * @var list<string>
-     */
-    private const MOVABLE_STAGES = ['applied', 'screening', 'interview', 'offer'];
-
-    /**
      * Add a candidate to a posting's pipeline — picking an existing applicant or
      * creating a new one inline.
      */
@@ -151,19 +143,16 @@ class JobApplicationController extends Controller
     }
 
     /**
-     * Move an application to another (non-terminal) pipeline stage.
+     * Move an application to another (non-terminal) pipeline stage. Terminal
+     * stages have dedicated actions, so `hired` and `rejected` are refused here.
      */
     public function stage(Request $request, JobApplication $application): RedirectResponse
     {
         $validated = $request->validate([
-            'stage' => ['required', Rule::in(self::MOVABLE_STAGES)],
+            'stage' => ['required', Rule::in(JobApplication::OPEN_STAGES)],
         ]);
 
-        $application->update([
-            'stage' => $validated['stage'],
-            'rejected_reason' => null,
-            'decided_at' => null,
-        ]);
+        $application->moveTo($validated['stage']);
 
         ActivityLogger::log(
             event: 'updated',
@@ -186,11 +175,7 @@ class JobApplicationController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $application->update([
-            'stage' => 'rejected',
-            'rejected_reason' => $validated['reason'] ?? null,
-            'decided_at' => now(),
-        ]);
+        $application->rejectWith($validated['reason'] ?? null);
 
         ActivityLogger::log(
             event: 'updated',

@@ -43,7 +43,7 @@ class AttendanceModule extends Module
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
-    public function guidance(): string
+    public function guidance(User $user): string
     {
         return <<<'TXT'
         ATTENDANCE — Daily Time Records (DTR): one record per employee per day, built from clock in/out and break punches. Worked hours, lateness, undertime and overtime are computed server-side against the employee's work schedule.
@@ -53,7 +53,7 @@ class AttendanceModule extends Module
         TXT;
     }
 
-    public function tools(): array
+    public function tools(User $user): array
     {
         return [
             [

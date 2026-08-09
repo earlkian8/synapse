@@ -19,7 +19,7 @@ class RecruitmentStatistics
         return [
             'open_postings' => JobPosting::where('status', 'open')->count(),
             'total_applicants' => Applicant::count(),
-            'in_pipeline' => JobApplication::whereNotIn('stage', ['hired', 'rejected'])->count(),
+            'in_pipeline' => JobApplication::query()->open()->count(),
             'offers' => JobApplication::where('stage', 'offer')->count(),
             'interviews_upcoming' => Interview::where('result', 'pending')
                 ->where('scheduled_at', '>=', now()->startOfDay())

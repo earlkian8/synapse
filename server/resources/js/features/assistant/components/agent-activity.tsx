@@ -11,6 +11,7 @@ import {
     PencilLine,
     PlayCircle,
     Search,
+    Sparkles,
     UserPlus,
     X,
     XCircle,
@@ -40,6 +41,7 @@ const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
     move: ArrowRightCircle,
     hire: BadgeCheck,
     post: Megaphone,
+    insight: Sparkles,
 };
 
 /** Badge colour per tone. */
@@ -155,6 +157,10 @@ function ResultCard({ card }: { card: AgentCard }) {
     const Icon = KIND_ICON[card.kind] ?? Check;
     const tone = TONE_CLASS[card.tone] ?? TONE_CLASS.neutral;
     const meta = card.meta.filter(Boolean);
+    // Read-outs (a pipeline summary, a ranked candidate, an AI read) carry
+    // several figures worth seeing at once, so their meta becomes a chip row
+    // instead of being collapsed into the single subtitle line.
+    const chips = card.kind === 'insight' ? meta.slice(1) : [];
 
     return (
         <div className="relative animate-in overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm duration-500 zoom-in-95 fade-in slide-in-from-bottom-1">
@@ -201,6 +207,19 @@ function ResultCard({ card }: { card: AgentCard }) {
                     {card.badge}
                 </span>
             </div>
+
+            {chips.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1 pl-13">
+                    {chips.map((chip) => (
+                        <span
+                            key={chip}
+                            className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                            {chip}
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

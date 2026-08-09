@@ -10,8 +10,9 @@ use Illuminate\Support\Carbon;
 /**
  * The agentic brain behind the floating Synapse assistant.
  *
- * Aggregates the tools of every module the user is permitted to use, then runs a
- * bounded Gemini function-calling loop: the model decides which tools to call,
+ * Aggregates the tools every module is willing to expose to *this* user (module
+ * availability first, then per-tool permissions), then runs a bounded Gemini
+ * function-calling loop: the model decides which tools to call,
  * this service executes each one (permission-checked, validated, logged) and
  * feeds the results back until the model produces a final reply. The model only
  * *decides* — the modules *enforce*.
@@ -45,7 +46,7 @@ class Assistant
     public function handle(User $user, string $message, array $history = [], array $fileParts = []): array
     {
         $modules = array_values(array_filter($this->modules, fn (AssistantModule $m): bool => $m->isAvailable($user)));
-        $tools = $this->collectTools($modules);
+        $tools = $this->collectTools($modules, $user);
 
         $contents = $this->buildHistory($history);
         $contents[] = $this->buildUserTurn($message, $fileParts);
@@ -56,7 +57,7 @@ class Assistant
         $lastResults = [];
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
-            $response = $this->gemini->generate($contents, $tools, $this->systemInstruction($modules));
+            $response = $this->gemini->generate($contents, $tools, $this->systemInstruction($modules, $user));
             $parts = data_get($response, 'candidates.0.content.parts', []);
 
             if (! is_array($parts) || $parts === []) {
@@ -219,12 +220,12 @@ class Assistant
      * @param  array<int, AssistantModule>  $modules
      * @return array<int, array<string, mixed>>
      */
-    private function collectTools(array $modules): array
+    private function collectTools(array $modules, User $user): array
     {
         $tools = [];
 
         foreach ($modules as $module) {
-            foreach ($module->tools() as $tool) {
+            foreach ($module->tools($user) as $tool) {
                 $tools[] = $tool;
             }
         }
@@ -235,7 +236,7 @@ class Assistant
     /**
      * @param  array<int, AssistantModule>  $modules
      */
-    private function systemInstruction(array $modules): string
+    private function systemInstruction(array $modules, User $user): string
     {
         $today = Carbon::today()->toDateString();
 
@@ -248,7 +249,7 @@ class Assistant
         }
 
         $capabilities = collect($modules)
-            ->map(fn (AssistantModule $m): string => trim($m->guidance()))
+            ->map(fn (AssistantModule $m): string => trim($m->guidance($user)))
             ->implode("\n\n");
 
         return <<<TXT
@@ -343,12 +344,20 @@ class Assistant
         }
 
         $finds = array_values(array_filter($cards, fn (array $c): bool => ($c['kind'] ?? '') === 'find'));
-        $mutations = array_values(array_filter($cards, fn (array $c): bool => ($c['kind'] ?? '') !== 'find'));
+        // Read-outs (summaries, rankings, AI reads) carry their substance in the
+        // subtitle + meta rather than in a "we changed this" badge, so they are
+        // narrated like a single lookup instead of like an action.
+        $reads = array_values(array_filter($cards, fn (array $c): bool => ($c['kind'] ?? '') === 'insight'));
+        $mutations = array_values(array_filter($cards, fn (array $c): bool => ! in_array($c['kind'] ?? '', ['find', 'insight'], true)));
 
         $parts = [];
 
         foreach ($mutations as $card) {
             $parts[] = $this->describeCard($card);
+        }
+
+        foreach ($reads as $card) {
+            $parts[] = $this->describeCard($card, withMeta: true);
         }
 
         if (count($finds) === 1) {
