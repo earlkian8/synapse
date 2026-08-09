@@ -6,8 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Onboarding\StoreOnboardingTaskRequest;
 use App\Models\OnboardingCase;
 use App\Models\OnboardingTask;
-use App\Models\User;
-use App\Support\Notifier;
+use App\Support\OnboardingTaskNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,8 +25,8 @@ class OnboardingTaskController extends Controller
             'sort_order' => (int) $case->tasks()->max('sort_order') + 1,
         ]);
 
-        $this->touchCaseProgress($case);
-        $this->notifyAssignee($task, null);
+        $case->touchProgress();
+        OnboardingTaskNotifier::assigned($task, null, $request->user());
 
         return $this->respond('Task added.');
     }
@@ -40,7 +39,7 @@ class OnboardingTaskController extends Controller
         $previousAssignee = $task->assigned_to;
         $task->update($request->validated());
 
-        $this->notifyAssignee($task, $previousAssignee);
+        OnboardingTaskNotifier::assigned($task, $previousAssignee, $request->user());
 
         return $this->respond('Task updated.');
     }
@@ -54,15 +53,9 @@ class OnboardingTaskController extends Controller
             'status' => ['required', Rule::in(OnboardingTask::STATUSES)],
         ]);
 
-        $done = $validated['status'] === 'done';
+        $task->markStatus($validated['status'], $request->user()->id);
 
-        $task->update([
-            'status' => $validated['status'],
-            'completed_at' => $done ? now() : null,
-            'completed_by' => $done ? $request->user()->id : null,
-        ]);
-
-        $this->touchCaseProgress($task->case);
+        $task->case->touchProgress();
 
         return $this->respond('Task updated.');
     }
@@ -75,50 +68,6 @@ class OnboardingTaskController extends Controller
         $task->delete();
 
         return $this->respond('Task removed.');
-    }
-
-    /**
-     * Nudge a case from "pending" into "in_progress" once any work has happened,
-     * so the board reflects activity without forcing a manual status change.
-     */
-    private function touchCaseProgress(OnboardingCase $case): void
-    {
-        if ($case->status !== 'pending') {
-            return;
-        }
-
-        $hasActivity = $case->tasks()
-            ->whereIn('status', ['in_progress', 'done', 'skipped'])
-            ->exists();
-
-        if ($hasActivity) {
-            $case->update(['status' => 'in_progress']);
-        }
-    }
-
-    /**
-     * Notify a user when a task is newly assigned to them.
-     */
-    private function notifyAssignee(OnboardingTask $task, ?int $previousAssignee): void
-    {
-        if ($task->assigned_to === null || $task->assigned_to === $previousAssignee) {
-            return;
-        }
-
-        $assignee = User::find($task->assigned_to);
-
-        if (! $assignee) {
-            return;
-        }
-
-        Notifier::toUser(
-            $assignee,
-            'Onboarding task assigned',
-            "You were assigned \"{$task->title}\".",
-            url: '/onboarding/'.$task->case->getRouteKey(),
-            category: 'onboarding',
-            actor: request()->user(),
-        );
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

@@ -16,7 +16,7 @@ class OnboardingCaseResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $progress = $this->progress();
+        $progress = $this->progressSummary();
 
         return [
             'id' => $this->id,
@@ -58,36 +58,6 @@ class OnboardingCaseResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'created_human' => $this->created_at?->diffForHumans(),
             'updated_human' => $this->updated_at?->diffForHumans(),
-        ];
-    }
-
-    /**
-     * Progress summary — derived from loaded tasks when present, else from the
-     * `*_count` aggregates added by the index query.
-     *
-     * @return array{total: int, done: int, resolved: int, overdue: int, percent: int}
-     */
-    private function progress(): array
-    {
-        if ($this->relationLoaded('tasks')) {
-            $tasks = $this->tasks;
-            $total = $tasks->count();
-            $done = $tasks->where('status', 'done')->count();
-            $resolved = $tasks->whereIn('status', ['done', 'skipped'])->count();
-            $overdue = $tasks->filter->isOverdue()->count();
-        } else {
-            $total = (int) ($this->tasks_count ?? 0);
-            $done = (int) ($this->done_tasks_count ?? 0);
-            $resolved = (int) ($this->resolved_tasks_count ?? 0);
-            $overdue = (int) ($this->overdue_tasks_count ?? 0);
-        }
-
-        return [
-            'total' => $total,
-            'done' => $done,
-            'resolved' => $resolved,
-            'overdue' => $overdue,
-            'percent' => $total > 0 ? (int) round(($resolved / $total) * 100) : 0,
         ];
     }
 }

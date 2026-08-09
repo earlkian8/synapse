@@ -28,6 +28,8 @@ export type AgentCardKind =
     | 'move'
     | 'hire'
     | 'post'
+    /** Someone was chased about outstanding work. */
+    | 'remind'
     /** A read-out rather than a change: a summary, a ranking, an AI read. */
     | 'insight';
 

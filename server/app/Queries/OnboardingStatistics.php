@@ -4,7 +4,6 @@ namespace App\Queries;
 
 use App\Models\OnboardingCase;
 use App\Models\OnboardingTask;
-use Illuminate\Database\Eloquent\Builder;
 
 class OnboardingStatistics
 {
@@ -18,12 +17,9 @@ class OnboardingStatistics
         $today = now()->toDateString();
 
         return [
-            'active' => OnboardingCase::whereIn('status', ['pending', 'in_progress'])->count(),
-            'overdue_tasks' => OnboardingTask::whereNotIn('status', ['done', 'skipped'])
-                ->whereDate('due_date', '<', $today)
-                ->whereHas('case', fn (Builder $query) => $query->whereIn('status', ['pending', 'in_progress']))
-                ->count(),
-            'completing_soon' => OnboardingCase::whereIn('status', ['pending', 'in_progress'])
+            'active' => OnboardingCase::query()->active()->count(),
+            'overdue_tasks' => OnboardingTask::query()->overdue()->onActiveCase()->count(),
+            'completing_soon' => OnboardingCase::query()->active()
                 ->whereNotNull('target_end_date')
                 ->whereDate('target_end_date', '>=', $today)
                 ->whereDate('target_end_date', '<=', now()->addDays(7)->toDateString())
