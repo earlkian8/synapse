@@ -2,15 +2,16 @@
 
 namespace App\Services\Assistant\Modules;
 
+use App\Models\User;
 use App\Services\Assistant\Contracts\AssistantModule;
 use App\Services\Assistant\ToolResult;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 /**
- * Shared plumbing for the concrete assistant modules: case-insensitive name → id
- * resolution, a uniform "permission denied" result, and the result-card builder
- * the chat UI renders.
+ * Shared plumbing for the concrete assistant modules: permission-scoped tool
+ * exposure, case-insensitive name → id resolution, a uniform "permission denied"
+ * result, and the result-card builder the chat UI renders.
  */
 abstract class Module implements AssistantModule
 {
@@ -25,6 +26,54 @@ abstract class Module implements AssistantModule
      * @return array<string, string>
      */
     abstract protected function toolMap(): array;
+
+    /**
+     * Map of tool name => the permission required to run it. Tools absent from
+     * the map need nothing beyond the module's own {@see isAvailable()} check.
+     *
+     * @return array<string, string>
+     */
+    protected function permissionMap(): array
+    {
+        return [];
+    }
+
+    /**
+     * Drop the declarations this user could never run, so the model is offered
+     * exactly the actions their role allows — fewer wasted tokens, no tool calls
+     * that would only come back denied. The runtime check in each handler stays:
+     * this narrows what is *offered*, it does not replace what is *enforced*.
+     *
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<int, array<string, mixed>>
+     */
+    protected function permitted(User $user, array $tools): array
+    {
+        $permissions = $this->permissionMap();
+
+        return array_values(array_filter($tools, function (array $tool) use ($user, $permissions): bool {
+            $permission = $permissions[$tool['name'] ?? ''] ?? null;
+
+            return $permission === null || $user->can($permission);
+        }));
+    }
+
+    /**
+     * Whether this user holds every one of the given permissions — for guidance
+     * fragments that only make sense when a capability is actually available.
+     *
+     * @param  list<string>  $permissions
+     */
+    protected function allows(User $user, string ...$permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($user->cannot($permission)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /**
      * Apply a token-aware search to a query whose model has a `search` scope, so

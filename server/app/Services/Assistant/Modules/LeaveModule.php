@@ -48,7 +48,7 @@ class LeaveModule extends Module
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
-    public function guidance(): string
+    public function guidance(User $user): string
     {
         $types = LeaveType::where('is_active', true)->orderBy('name')->get(['name', 'code'])
             ->map(fn (LeaveType $t): string => "{$t->name} ({$t->code})")->implode(', ') ?: 'none';
@@ -62,7 +62,7 @@ class LeaveModule extends Module
         TXT;
     }
 
-    public function tools(): array
+    public function tools(User $user): array
     {
         return [
             [

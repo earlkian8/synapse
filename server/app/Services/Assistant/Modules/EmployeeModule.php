@@ -46,7 +46,7 @@ class EmployeeModule extends Module
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
-    public function guidance(): string
+    public function guidance(User $user): string
     {
         $departments = Department::orderBy('name')->get(['id', 'name'])
             ->map(fn (Department $d): string => "#{$d->id} {$d->name}")->implode(', ') ?: 'none';
@@ -66,7 +66,7 @@ class EmployeeModule extends Module
         TXT;
     }
 
-    public function tools(): array
+    public function tools(User $user): array
     {
         $employeeFields = [
             'first_name' => ['type' => 'STRING'],

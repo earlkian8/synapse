@@ -58,7 +58,7 @@ class JobPostingController extends Controller
         $jobPosting->load(['department:id,name,code', 'position:id,title', 'postedBy:id,first_name,middle_name,last_name,suffix'])
             ->loadCount([
                 'applications',
-                'applications as open_count' => fn ($query) => $query->whereNotIn('stage', ['hired', 'rejected']),
+                'applications as open_count' => fn ($query) => $query->open(),
                 'applications as hired_count' => fn ($query) => $query->where('stage', 'hired'),
             ]);
 

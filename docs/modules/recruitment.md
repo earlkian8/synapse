@@ -83,6 +83,46 @@ dependency is needed; office files are named in the digest but not uploaded.
   activity-logged. Degrades gracefully (retryable) when the key is missing or the
   service is rate-limited/overloaded — exactly like the Reports insights.
 
+## The agentic assistant
+
+Everything a recruiter can do on the board, the **Synapse assistant** can do in
+conversation. `App\Services\Assistant\Modules\RecruitmentModule` is the largest
+capability in the assistant registry — **25 Gemini function declarations** — and the
+*why* is in [ADR 0024](../decisions/0024-agentic-recruitment-and-permission-scoped-tools.md).
+The model only *decides*; the module *enforces* (permission, validation, tenancy,
+activity log, notifications), reusing the same support classes the controllers do.
+
+| Group | Tools |
+| --- | --- |
+| Vacancies | `find_job_postings` (text / status / department / closing window), `create_job_posting`, `update_job_posting`, `set_posting_status`, `delete_job_posting` |
+| Candidate pool | `find_applicants`, `add_applicant`, `update_applicant`, `delete_applicant` |
+| Pipeline | `find_applications` (candidate / posting / stage / **stalled**), `add_application`, `move_application`, `advance_application`, `update_application` (rating, ask, note), `reject_application`, `withdraw_application`, `hire_applicant` |
+| Interviews | `find_interviews` (upcoming / past / today / all), `schedule_interview`, `update_interview` (reschedule **or** record the outcome), `cancel_interview` |
+| Decision support | `recruitment_summary`, `rank_candidates`, `candidate_profile`, `candidate_insights` |
+
+- **Permission-scoped tool surface.** `tools($user)` and `guidance($user)` take the
+  signed-in user, so the model is only offered actions that user's role allows — a
+  view-only recruiter sees 8 tools, a full recruiter 25. Each handler still re-checks
+  its own permission: the filter narrows what is *offered*, not what is *enforced*.
+  `Module::permissionMap()` + `Module::permitted()` are the shared plumbing.
+- **Judgement, not just execution.** `advance_application` takes whatever
+  `ApplicantScorer` recommends as the next step — but when the recommendation is
+  *reject* or *hire* it reports it and stops. Negative and irreversible outcomes stay
+  explicit human decisions. `move_application` can **reinstate** a rejected candidate;
+  it will never un-hire one.
+- **Decision support without a second model call.** `recruitment_summary` (org-wide,
+  or one pipeline's average fit / strong / ready / stalled / standout via
+  `PipelineInsights`), `rank_candidates` (the fit shortlist, terminal cards excluded)
+  and `candidate_profile` (fit breakdown, rank, rating, interview verdict, next step)
+  are pure database reads. They return `insight` cards, which the orchestrator
+  narrates with their metrics and the chat renders as a chip row.
+- **`candidate_insights` is the only tool that spends a model call.** It returns the
+  **saved** `ai_insights` read unless `refresh` is asked for, and degrades gracefully
+  (with the reason) when the key is missing or the service is busy.
+- **Résumés in chat.** The assistant is multimodal, so a CV attached to the message is
+  read by the model and its fields (headline, years of experience, contact) can be
+  passed straight into `add_applicant` / `add_application`.
+
 ## Due dates
 
 A published (`open`) posting must carry a **closing date** — the create/edit form
@@ -161,6 +201,12 @@ application detail drawer.
   recommendations; **`App\Support\Recruitment\ApplicantInsights`** for the LLM candidate
   read (reuses `App\Support\Ai\GeminiClient`); **`App\Console\Commands\CloseExpiredPostings`**
   (scheduled daily).
+- **Shared with the assistant** (one implementation, two callers): the stage vocabulary
+  and transitions live on the model — `JobApplication::OPEN_STAGES` / `TERMINAL_STAGES` /
+  `STALL_DAYS`, the `open()` / `stalled()` scopes, and `moveTo()` / `rejectWith()` (which
+  clear the decision fields consistently); **`App\Support\Recruitment\InterviewScheduler`**
+  is the one booking path (create the interview *and* advance an early-stage candidate);
+  `ApplicantDocumentStore::purge()` / `forgetResume()` keep file cleanup in one place.
 - `routes/recruitment.php` (literal-prefixed routes precede the `{jobPosting}`
   wildcard). Every route is gated by a **Recruitment** permission (8 in the registry).
 - Mutations are activity-logged (`logName: 'recruitment'`); a new application and a
@@ -223,3 +269,10 @@ Acquisition → Recruitment** link is gated on `recruitment.view`.
 - `tests/Feature/Recruitment/ApplicantInsightsTest.php` — the AI-insights endpoint with
   Gemini faked: it generates + persists the read and **excludes the government ID** from
   the documents sent, and degrades gracefully when the key is unconfigured.
+- `tests/Feature/Recruitment/RecruitmentAssistantTest.php` — the agentic surface, driving
+  `RecruitmentModule` directly (no model call): the permission-scoped tool list, a
+  **denial case for all 17 mutating tools**, every posting / pool / pipeline / interview
+  action and its guards (publish without a deadline, unknown department, duplicate
+  candidate, delete-a-hire, un-hire, empty edit), `advance_application` **refusing to
+  reject or hire**, the three read-outs, the saved-vs-refreshed AI read (Gemini faked),
+  and tenant isolation.

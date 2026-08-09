@@ -59,7 +59,7 @@ class JobPostingsIndexQuery
             ])
             ->withCount([
                 'applications',
-                'applications as open_count' => fn (Builder $query) => $query->whereNotIn('stage', ['hired', 'rejected']),
+                'applications as open_count' => fn (Builder $query) => $query->open(),
                 'applications as hired_count' => fn (Builder $query) => $query->where('stage', 'hired'),
             ])
             ->when($status !== 'all', fn (Builder $query) => $query->where('status', $status))

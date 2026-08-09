@@ -17,11 +17,8 @@ use Illuminate\Support\Collection;
  */
 class PipelineInsights
 {
-    /** A card counts as "stalled" once it sits in an open stage this many days. */
-    private const STALL_DAYS = 14;
-
     /** Non-terminal stages a candidate can still advance through. */
-    private const OPEN_STAGES = ['applied', 'screening', 'interview', 'offer'];
+    private const OPEN_STAGES = JobApplication::OPEN_STAGES;
 
     /** The stage each open stage advances into (for "ready to advance" copy). */
     private const NEXT_STAGE = [
@@ -135,11 +132,9 @@ class PipelineInsights
      */
     private function stalledCount($apps): int
     {
-        return $apps->filter(function (JobApplication $a): bool {
-            $days = $a->applied_at ? (int) $a->applied_at->diffInDays() : 0;
-
-            return $days >= self::STALL_DAYS;
-        })->count();
+        return $apps->filter(
+            fn (JobApplication $a): bool => $a->daysInPipeline() >= JobApplication::STALL_DAYS
+        )->count();
     }
 
     /**

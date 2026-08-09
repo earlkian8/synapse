@@ -42,7 +42,7 @@ class OnboardingModule extends Module
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
-    public function guidance(): string
+    public function guidance(User $user): string
     {
         $programs = OnboardingProgram::where('is_active', true)->orderByDesc('is_default')->orderBy('name')
             ->get(['name', 'is_default'])
@@ -58,7 +58,7 @@ class OnboardingModule extends Module
         TXT;
     }
 
-    public function tools(): array
+    public function tools(User $user): array
     {
         return [
             [
