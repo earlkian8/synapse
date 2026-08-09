@@ -1,4 +1,4 @@
-# Attendance
+# Attendance 
 
 The **Daily Time Record (DTR)**: employees clock in/out (and breaks) from the web or a
 mobile app; HR sees the whole team's day, corrects records, and approves. Worked hours,
