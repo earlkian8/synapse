@@ -14,6 +14,7 @@ use App\Models\WorkSchedule;
 use App\Queries\EmployeesIndexQuery;
 use App\Queries\EmployeeStatistics;
 use App\Support\ActivityLogger;
+use App\Support\Employees\EmployeeNumbers;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -81,7 +82,9 @@ class EmployeeController extends Controller
     public function store(StoreEmployeeRequest $request): RedirectResponse
     {
         $data = Arr::except($request->validated(), ['photo']);
-        $data['employee_no'] = $data['employee_no'] ?: $this->nextEmployeeNo();
+        // `validated()` omits an optional key that was never sent, so this has
+        // to tolerate the key being absent — not merely empty.
+        $data['employee_no'] = ($data['employee_no'] ?? null) ?: EmployeeNumbers::next();
 
         $employee = new Employee($data);
 
@@ -110,7 +113,7 @@ class EmployeeController extends Controller
         $original = $employee->only(['position_id', 'basic_salary']);
 
         $data = Arr::except($request->validated(), ['photo', 'remove_photo']);
-        $data['employee_no'] = $data['employee_no'] ?: $employee->employee_no;
+        $data['employee_no'] = ($data['employee_no'] ?? null) ?: $employee->employee_no;
 
         $employee->fill($data);
 
@@ -252,16 +255,6 @@ class EmployeeController extends Controller
                 ])
                 ->all(),
         ];
-    }
-
-    /**
-     * Generate the next sequential employee number.
-     */
-    private function nextEmployeeNo(): string
-    {
-        $next = (int) Employee::withTrashed()->max('id') + 1;
-
-        return 'EMP-'.str_pad((string) $next, 5, '0', STR_PAD_LEFT);
     }
 
     /**

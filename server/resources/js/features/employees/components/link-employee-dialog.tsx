@@ -1,13 +1,14 @@
 import { Search, UserRoundSearch } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+} from '@/components/modal';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import type { JoinRequest, UnlinkedEmployee } from '../types';
@@ -27,7 +28,7 @@ type Props = {
  *
  * This is the one irreversible judgement on the App Access screen — bind the wrong
  * record and somebody is handed another person's 201 file — so the dialog puts the
- * requester's own name and address at the top and keeps them visible while the
+ * requester's own name and address in the header and keeps them visible while the
  * choice is made, rather than making HR remember who they were approving.
  *
  * Candidates whose email matches the requester's are floated to the top and marked,
@@ -72,7 +73,7 @@ export function LinkEmployeeDialog({
     }, [candidates, search, requesterEmail]);
 
     return (
-        <Dialog
+        <Modal
             open={open}
             onOpenChange={(next) => {
                 if (!next) {
@@ -83,33 +84,42 @@ export function LinkEmployeeDialog({
                 onOpenChange(next);
             }}
         >
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>Which employee is this?</DialogTitle>
-                    <DialogDescription>
-                        Pick the record{' '}
-                        <span className="font-medium text-foreground">
-                            {request?.user?.full_name ?? 'this person'}
-                        </span>{' '}
-                        ({request?.user?.email}) should be linked to. They'll
-                        get access to that record straight away.
-                    </DialogDescription>
-                </DialogHeader>
+            <ModalContent size="lg">
+                <ModalHeader
+                    icon={
+                        <ModalIcon>
+                            <UserRoundSearch />
+                        </ModalIcon>
+                    }
+                    title="Which employee is this?"
+                    description={
+                        <>
+                            Pick the record{' '}
+                            <span className="font-medium text-foreground">
+                                {request?.user?.full_name ?? 'this person'}
+                            </span>{' '}
+                            ({request?.user?.email}) should be linked to. They
+                            get access to that record straight away.
+                        </>
+                    }
+                />
 
-                <div className="relative">
-                    <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Search by name, number or email"
-                        className="pl-9"
-                        aria-label="Search employee records"
-                    />
+                <div className="shrink-0 border-b border-border px-5 py-3 sm:px-6">
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Search by name, number or email"
+                            className="pl-9"
+                            aria-label="Search employee records"
+                        />
+                    </div>
                 </div>
 
-                <div className="max-h-72 overflow-y-auto rounded-lg border border-sidebar-border/70 dark:border-sidebar-border">
+                <ModalBody className="px-0 py-0 sm:px-0">
                     {results.length === 0 ? (
-                        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                        <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
                             <UserRoundSearch className="size-6 text-muted-foreground" />
                             <p className="text-sm font-medium">
                                 No matching records
@@ -121,7 +131,10 @@ export function LinkEmployeeDialog({
                             </p>
                         </div>
                     ) : (
-                        <ul className="divide-y divide-border">
+                        <ul
+                            className="divide-y divide-border"
+                            aria-label="Employee records"
+                        >
                             {results.map((candidate) => {
                                 const likely =
                                     (candidate.email ?? '').toLowerCase() ===
@@ -137,7 +150,7 @@ export function LinkEmployeeDialog({
                                             aria-pressed={
                                                 chosen === candidate.id
                                             }
-                                            className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 ${
+                                            className={`flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:px-6 ${
                                                 chosen === candidate.id
                                                     ? 'bg-[#0ABFBF]/10'
                                                     : ''
@@ -170,9 +183,9 @@ export function LinkEmployeeDialog({
                             })}
                         </ul>
                     )}
-                </div>
+                </ModalBody>
 
-                <div className="flex justify-end gap-2">
+                <ModalFooter>
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
@@ -187,8 +200,8 @@ export function LinkEmployeeDialog({
                         {processing && <Spinner />}
                         Approve and link
                     </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
     );
 }

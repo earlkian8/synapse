@@ -122,16 +122,15 @@ export function ModalIcon({ children }: { children: React.ReactNode }) {
 export function ModalBody({
     className,
     children,
-}: {
-    className?: string;
-    children: React.ReactNode;
-}) {
+    ...props
+}: React.ComponentProps<'div'>) {
     return (
         <div
             className={cn(
                 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6',
                 className,
             )}
+            {...props}
         >
             {children}
         </div>

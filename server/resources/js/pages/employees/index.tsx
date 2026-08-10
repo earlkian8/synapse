@@ -5,8 +5,8 @@ import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeBulkActionsBar } from '@/features/employees/components/employee-bulk-actions-bar';
-import { EmployeeDetailSheet } from '@/features/employees/components/employee-detail-sheet';
-import { EmployeeFormSheet } from '@/features/employees/components/employee-form-sheet';
+import { EmployeeDetailDialog } from '@/features/employees/components/employee-detail-dialog';
+import { EmployeeFormDialog } from '@/features/employees/components/employee-form-dialog';
 import { EmployeesPagination } from '@/features/employees/components/employees-pagination';
 import { EmployeesStats } from '@/features/employees/components/employees-stats';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
@@ -309,14 +309,14 @@ export default function EmployeesIndex() {
                 </div>
             </div>
 
-            <EmployeeFormSheet
+            <EmployeeFormDialog
                 employee={formEmployee}
                 options={options}
                 open={formOpen}
                 onOpenChange={setFormOpen}
             />
 
-            <EmployeeDetailSheet
+            <EmployeeDetailDialog
                 employee={detailEmployee}
                 open={detailOpen}
                 canEdit={can.update}

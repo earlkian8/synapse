@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Employee;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +22,7 @@ class StoreEmployeeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'employee_no' => ['nullable', 'string', 'max:50', Rule::unique('employees', 'employee_no')],
+            'employee_no' => ['nullable', 'string', 'max:50', TenantRule::unique('employees', 'employee_no')],
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -34,11 +35,14 @@ class StoreEmployeeRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:1000'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
-            'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
-            'manager_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
-            'work_schedule_id' => ['nullable', 'integer', Rule::exists('work_schedules', 'id')],
-            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id'), Rule::unique('employees', 'user_id')],
+            // Foreign keys are confined to this organisation's rows; `users` is
+            // deliberately not, because an identity is global under ADR 0023 —
+            // but the roster line it claims is per-organisation.
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
+            'position_id' => ['nullable', 'integer', TenantRule::exists('positions')],
+            'manager_id' => ['nullable', 'integer', TenantRule::exists('employees')],
+            'work_schedule_id' => ['nullable', 'integer', TenantRule::exists('work_schedules')],
+            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id'), TenantRule::unique('employees', 'user_id')],
 
             'employment_type' => ['required', Rule::in(self::EMPLOYMENT_TYPES)],
             'employment_status' => ['required', Rule::in(self::EMPLOYMENT_STATUSES)],

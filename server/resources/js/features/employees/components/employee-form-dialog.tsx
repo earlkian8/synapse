@@ -1,25 +1,19 @@
 import { useForm } from '@inertiajs/react';
-import { Trash2, Upload } from 'lucide-react';
+import { Trash2, UserRoundCog, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { FormField } from '@/components/form-field';
+import { FormSelect } from '@/components/form-select';
 import InputError from '@/components/input-error';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+} from '@/components/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import {
     CIVIL_STATUS_OPTIONS,
@@ -44,7 +38,7 @@ type Props = {
 
 const NONE = '__none__';
 
-export function EmployeeFormSheet({
+export function EmployeeFormDialog({
     employee,
     options,
     open,
@@ -53,21 +47,21 @@ export function EmployeeFormSheet({
     const isEditing = Boolean(employee);
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent
-                side="right"
-                className="w-full gap-0 overflow-y-auto p-0 sm:max-w-2xl"
-            >
-                <SheetHeader className="border-b border-border px-6 py-4">
-                    <SheetTitle>
-                        {isEditing ? 'Edit employee' : 'New employee'}
-                    </SheetTitle>
-                    <SheetDescription>
-                        {isEditing
-                            ? 'Update this employee record.'
-                            : 'Add a new employee to the directory.'}
-                    </SheetDescription>
-                </SheetHeader>
+        <Modal open={open} onOpenChange={onOpenChange}>
+            <ModalContent size="2xl">
+                <ModalHeader
+                    icon={
+                        <ModalIcon>
+                            <UserRoundCog />
+                        </ModalIcon>
+                    }
+                    title={isEditing ? 'Edit employee' : 'New employee'}
+                    description={
+                        isEditing
+                            ? `Update the record for ${employee?.full_name ?? 'this employee'}.`
+                            : 'Add a new employee to the directory.'
+                    }
+                />
 
                 {open && (
                     <FormBody
@@ -77,8 +71,8 @@ export function EmployeeFormSheet({
                         onDone={() => onOpenChange(false)}
                     />
                 )}
-            </SheetContent>
-        </Sheet>
+            </ModalContent>
+        </Modal>
     );
 }
 
@@ -232,8 +226,8 @@ function FormBody({
     };
 
     return (
-        <form onSubmit={submit} className="flex h-full flex-col">
-            <div className="flex-1 space-y-8 px-6 py-6">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+            <ModalBody className="space-y-7">
                 {/* Personal */}
                 <Section
                     title="Personal information"
@@ -244,7 +238,7 @@ function FormBody({
                             {photoPreview ? (
                                 <img
                                     src={photoPreview}
-                                    alt="Employee preview"
+                                    alt=""
                                     className="size-full object-cover"
                                 />
                             ) : (
@@ -285,50 +279,57 @@ function FormBody({
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp"
                                 className="hidden"
+                                aria-label="Employee photo"
                                 onChange={(e) =>
                                     pickPhoto(e.target.files?.[0] ?? null)
                                 }
                             />
-                            <InputError message={errors.photo} />
+                            <InputError message={errors.photo} role="alert" />
                         </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormField
                             label="First name"
                             required
                             error={errors.first_name}
                         >
                             <Input
                                 value={data.first_name}
+                                autoComplete="given-name"
                                 onChange={(e) =>
                                     setData('first_name', e.target.value)
                                 }
                                 required
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
+                            label="Middle name"
+                            error={errors.middle_name}
+                        >
+                            <Input
+                                value={data.middle_name ?? ''}
+                                autoComplete="additional-name"
+                                onChange={(e) =>
+                                    setData('middle_name', e.target.value)
+                                }
+                            />
+                        </FormField>
+                        <FormField
                             label="Last name"
                             required
                             error={errors.last_name}
                         >
                             <Input
                                 value={data.last_name}
+                                autoComplete="family-name"
                                 onChange={(e) =>
                                     setData('last_name', e.target.value)
                                 }
                                 required
                             />
-                        </Field>
-                        <Field label="Middle name" error={errors.middle_name}>
-                            <Input
-                                value={data.middle_name ?? ''}
-                                onChange={(e) =>
-                                    setData('middle_name', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field label="Suffix" error={errors.suffix}>
+                        </FormField>
+                        <FormField label="Suffix" error={errors.suffix}>
                             <Input
                                 value={data.suffix ?? ''}
                                 onChange={(e) =>
@@ -336,8 +337,8 @@ function FormBody({
                                 }
                                 placeholder="Jr., III…"
                             />
-                        </Field>
-                        <Field label="Birth date" error={errors.birth_date}>
+                        </FormField>
+                        <FormField label="Birth date" error={errors.birth_date}>
                             <Input
                                 type="date"
                                 value={data.birth_date ?? ''}
@@ -345,55 +346,58 @@ function FormBody({
                                     setData('birth_date', e.target.value)
                                 }
                             />
-                        </Field>
-                        <Field label="Gender" error={errors.gender}>
-                            <FkSelect
+                        </FormField>
+                        <FormField label="Gender" error={errors.gender}>
+                            <FormSelect
                                 value={data.gender || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('gender', v)}
-                                options={GENDER_OPTIONS.map((o) => ({
-                                    value: o.value,
-                                    label: o.label,
-                                }))}
+                                options={GENDER_OPTIONS}
                             />
-                        </Field>
-                        <Field label="Civil status" error={errors.civil_status}>
-                            <FkSelect
+                        </FormField>
+                        <FormField
+                            label="Civil status"
+                            error={errors.civil_status}
+                        >
+                            <FormSelect
                                 value={data.civil_status || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('civil_status', v)}
-                                options={CIVIL_STATUS_OPTIONS.map((o) => ({
-                                    value: o.value,
-                                    label: o.label,
-                                }))}
+                                options={CIVIL_STATUS_OPTIONS}
                             />
-                        </Field>
-                        <Field label="Phone" error={errors.phone}>
+                        </FormField>
+                        <FormField label="Phone" error={errors.phone}>
                             <Input
+                                type="tel"
                                 value={data.phone ?? ''}
+                                autoComplete="tel"
                                 onChange={(e) =>
                                     setData('phone', e.target.value)
                                 }
                             />
-                        </Field>
-                        <Field label="Email" error={errors.email}>
+                        </FormField>
+                        <FormField label="Email" error={errors.email}>
                             <Input
                                 type="email"
                                 value={data.email ?? ''}
+                                autoComplete="email"
                                 onChange={(e) =>
                                     setData('email', e.target.value)
                                 }
                             />
-                        </Field>
+                        </FormField>
                     </div>
-                    <Field label="Address" error={errors.address}>
+
+                    <FormField label="Address" error={errors.address}>
                         <textarea
                             value={data.address ?? ''}
                             onChange={(e) => setData('address', e.target.value)}
                             rows={2}
-                            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                            className={TEXTAREA_CLASS}
                         />
-                    </Field>
+                    </FormField>
                 </Section>
 
                 {/* Employment */}
@@ -401,21 +405,28 @@ function FormBody({
                     title="Employment"
                     subtitle="Placement, type and key dates."
                 >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Employee No." error={errors.employee_no}>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormField
+                            label="Employee No."
+                            error={errors.employee_no}
+                            hint="Auto-generated if left blank."
+                        >
                             <Input
                                 value={data.employee_no}
                                 onChange={(e) =>
                                     setData('employee_no', e.target.value)
                                 }
-                                placeholder="Auto-generated if blank"
                                 className="font-mono text-sm"
                             />
-                        </Field>
-                        <Field label="Department" error={errors.department_id}>
-                            <FkSelect
+                        </FormField>
+                        <FormField
+                            label="Department"
+                            error={errors.department_id}
+                        >
+                            <FormSelect
                                 value={data.department_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => {
                                     setData('department_id', v);
                                     setData('position_id', '');
@@ -425,49 +436,52 @@ function FormBody({
                                     label: d.name,
                                 }))}
                             />
-                        </Field>
-                        <Field label="Position" error={errors.position_id}>
-                            <FkSelect
+                        </FormField>
+                        <FormField label="Position" error={errors.position_id}>
+                            <FormSelect
                                 value={data.position_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('position_id', v)}
                                 options={positions.map((p) => ({
                                     value: String(p.id),
                                     label: p.title,
                                 }))}
                             />
-                        </Field>
-                        <Field label="Manager" error={errors.manager_id}>
-                            <FkSelect
+                        </FormField>
+                        <FormField label="Manager" error={errors.manager_id}>
+                            <FormSelect
                                 value={data.manager_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('manager_id', v)}
                                 options={managers.map((m) => ({
                                     value: String(m.id),
                                     label: `${m.full_name} (${m.employee_no})`,
                                 }))}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Work schedule"
                             error={errors.work_schedule_id}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.work_schedule_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('work_schedule_id', v)}
                                 options={options.schedules.map((s) => ({
                                     value: String(s.id),
                                     label: s.name,
                                 }))}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Employment type"
                             required
                             error={errors.employment_type}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.employment_type}
                                 onChange={(v) =>
                                     setData(
@@ -477,13 +491,13 @@ function FormBody({
                                 }
                                 options={EMPLOYMENT_TYPE_OPTIONS}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Status"
                             required
                             error={errors.employment_status}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.employment_status}
                                 onChange={(v) =>
                                     setData(
@@ -493,8 +507,8 @@ function FormBody({
                                 }
                                 options={EMPLOYMENT_STATUS_OPTIONS}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Date hired"
                             required
                             error={errors.date_hired}
@@ -507,19 +521,21 @@ function FormBody({
                                 }
                                 required
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Date regularized"
                             error={errors.date_regularized}
+                            hint="Left empty until probation ends."
                         >
                             <Input
                                 type="date"
+                                min={data.date_hired || undefined}
                                 value={data.date_regularized ?? ''}
                                 onChange={(e) =>
                                     setData('date_regularized', e.target.value)
                                 }
                             />
-                        </Field>
+                        </FormField>
                     </div>
                 </Section>
 
@@ -528,27 +544,32 @@ function FormBody({
                     title="Compensation"
                     subtitle="Salary and payout details."
                 >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Basic salary" error={errors.basic_salary}>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormField
+                            label="Basic salary"
+                            error={errors.basic_salary}
+                            hint="Monthly, in pesos."
+                        >
                             <Input
                                 type="number"
                                 step="0.01"
                                 min="0"
+                                inputMode="decimal"
                                 value={data.basic_salary}
                                 onChange={(e) =>
                                     setData('basic_salary', e.target.value)
                                 }
                             />
-                        </Field>
-                        <Field label="Bank name" error={errors.bank_name}>
+                        </FormField>
+                        <FormField label="Bank name" error={errors.bank_name}>
                             <Input
                                 value={data.bank_name ?? ''}
                                 onChange={(e) =>
                                     setData('bank_name', e.target.value)
                                 }
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Bank account no."
                             error={errors.bank_account_no}
                         >
@@ -557,29 +578,35 @@ function FormBody({
                                 onChange={(e) =>
                                     setData('bank_account_no', e.target.value)
                                 }
+                                className="font-mono text-sm"
                             />
-                        </Field>
+                        </FormField>
                     </div>
                 </Section>
 
                 {/* Government IDs */}
-                <Section title="Government IDs" subtitle="Statutory numbers.">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="TIN" error={errors.tin}>
+                <Section
+                    title="Government IDs"
+                    subtitle="Statutory numbers, used for filing. Never surfaced by the assistant."
+                >
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <FormField label="TIN" error={errors.tin}>
                             <Input
                                 value={data.tin ?? ''}
                                 onChange={(e) => setData('tin', e.target.value)}
+                                className="font-mono text-sm"
                             />
-                        </Field>
-                        <Field label="SSS No." error={errors.sss_no}>
+                        </FormField>
+                        <FormField label="SSS No." error={errors.sss_no}>
                             <Input
                                 value={data.sss_no ?? ''}
                                 onChange={(e) =>
                                     setData('sss_no', e.target.value)
                                 }
+                                className="font-mono text-sm"
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="PhilHealth No."
                             error={errors.philhealth_no}
                         >
@@ -588,16 +615,21 @@ function FormBody({
                                 onChange={(e) =>
                                     setData('philhealth_no', e.target.value)
                                 }
+                                className="font-mono text-sm"
                             />
-                        </Field>
-                        <Field label="Pag-IBIG No." error={errors.pagibig_no}>
+                        </FormField>
+                        <FormField
+                            label="Pag-IBIG No."
+                            error={errors.pagibig_no}
+                        >
                             <Input
                                 value={data.pagibig_no ?? ''}
                                 onChange={(e) =>
                                     setData('pagibig_no', e.target.value)
                                 }
+                                className="font-mono text-sm"
                             />
-                        </Field>
+                        </FormField>
                     </div>
                 </Section>
 
@@ -606,39 +638,41 @@ function FormBody({
                     title="System account"
                     subtitle="Optionally link this employee to a login account."
                 >
-                    <Field label="Linked user" error={errors.user_id}>
-                        <FkSelect
+                    <FormField label="Linked user" error={errors.user_id}>
+                        <FormSelect
                             value={data.user_id || NONE}
                             placeholder="No account linked"
+                            noneValue={NONE}
                             onChange={(v) => setData('user_id', v)}
                             options={options.users.map((u) => ({
                                 value: String(u.id),
                                 label: `${u.full_name} · ${u.email}`,
                             }))}
                         />
-                    </Field>
+                    </FormField>
                 </Section>
-            </div>
+            </ModalBody>
 
-            <SheetFooter className="border-t border-border px-6 py-4">
-                <div className="flex w-full items-center justify-end gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onDone}
-                        disabled={processing}
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={processing}>
-                        {processing && <Spinner />}
-                        {isEditing ? 'Save changes' : 'Add employee'}
-                    </Button>
-                </div>
-            </SheetFooter>
+            <ModalFooter>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onDone}
+                    disabled={processing}
+                >
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={processing}>
+                    {processing && <Spinner />}
+                    {isEditing ? 'Save changes' : 'Add employee'}
+                </Button>
+            </ModalFooter>
         </form>
     );
 }
+
+const TEXTAREA_CLASS =
+    'flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20';
 
 function Section({
     title,
@@ -651,64 +685,15 @@ function Section({
 }) {
     return (
         <section className="space-y-4">
-            <div>
-                <h3 className="text-sm font-semibold">{title}</h3>
-                <p className="text-xs text-muted-foreground">{subtitle}</p>
+            <div className="border-b border-border/70 pb-2.5">
+                <h3 className="text-sm font-semibold tracking-tight">
+                    {title}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    {subtitle}
+                </p>
             </div>
             {children}
         </section>
-    );
-}
-
-function Field({
-    label,
-    required = false,
-    error,
-    children,
-}: {
-    label: string;
-    required?: boolean;
-    error?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div>
-            <Label className="mb-1.5 block">
-                {label}
-                {required && <span className="ml-0.5 text-destructive">*</span>}
-            </Label>
-            {children}
-            <InputError message={error} className="mt-1.5" />
-        </div>
-    );
-}
-
-function FkSelect({
-    value,
-    placeholder,
-    onChange,
-    options,
-}: {
-    value: string;
-    placeholder?: string;
-    onChange: (value: string) => void;
-    options: { value: string; label: string }[];
-}) {
-    return (
-        <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="w-full">
-                <SelectValue placeholder={placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-                {placeholder && (
-                    <SelectItem value={NONE}>{placeholder}</SelectItem>
-                )}
-                {options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
     );
 }

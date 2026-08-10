@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Employee;
 
 use App\Models\Employee;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +18,7 @@ class UpdateEmployeeRequest extends FormRequest
         $employee = $this->route('employee');
 
         return [
-            'employee_no' => ['nullable', 'string', 'max:50', Rule::unique('employees', 'employee_no')->ignore($employee->id)],
+            'employee_no' => ['nullable', 'string', 'max:50', TenantRule::unique('employees', 'employee_no')->ignore($employee->id)],
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -30,11 +31,14 @@ class UpdateEmployeeRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:1000'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
-            'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
-            'manager_id' => ['nullable', 'integer', Rule::exists('employees', 'id'), Rule::notIn([$employee->id])],
-            'work_schedule_id' => ['nullable', 'integer', Rule::exists('work_schedules', 'id')],
-            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id'), Rule::unique('employees', 'user_id')->ignore($employee->id)],
+            // See StoreEmployeeRequest: every foreign key but `users` is pinned
+            // to this organisation, so an id from another tenant fails here
+            // rather than being written and silently resolving to null on read.
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
+            'position_id' => ['nullable', 'integer', TenantRule::exists('positions')],
+            'manager_id' => ['nullable', 'integer', TenantRule::exists('employees'), Rule::notIn([$employee->id])],
+            'work_schedule_id' => ['nullable', 'integer', TenantRule::exists('work_schedules')],
+            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id'), TenantRule::unique('employees', 'user_id')->ignore($employee->id)],
 
             'employment_type' => ['required', Rule::in(StoreEmployeeRequest::EMPLOYMENT_TYPES)],
             'employment_status' => ['required', Rule::in(StoreEmployeeRequest::EMPLOYMENT_STATUSES)],

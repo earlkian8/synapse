@@ -5,8 +5,8 @@
 The HR hub of SYNAPSE — the `employees` record that almost every operational
 module (attendance, leave, performance, …) will reference. Built to the
 same ERP-grade pattern as [User Management](./user-management.md): stats cards,
-server-side filtered table, bulk actions, a sectioned create/edit drawer, and a
-tabbed profile drawer with managed sub-records.
+server-side filtered table, bulk actions, a sectioned create/edit modal, and a
+tabbed profile modal with managed sub-records.
 
 This module also lays the **organisation foundation** (departments, positions,
 work schedules) the employee form selects from.
@@ -19,8 +19,8 @@ work schedules) the employee form selects from.
 | --- | --- |
 | **Directory** | Server-side search (name / no. / email), filters (department, status, employment type), sortable columns, pagination (10–100). |
 | **Stats** | Total, active, regular, probationary, on-leave, new this month. |
-| **Create / Edit** | Slide-over with grouped sections: Personal, Employment, Compensation, Government IDs, System account. Employee number auto-generates when blank. |
-| **Profile drawer** | Tabbed: **Profile** (read-only sections, incl. salary & government IDs), **Performance**, **Training**, **Awards**, **Events**, **Offboarding**, **Documents**, **Certifications**, **History** (career timeline). Sub-records are lazy-loaded. |
+| **Create / Edit** | Centred modal with grouped sections: Personal, Employment, Compensation, Government IDs, System account. Employee number auto-generates when blank. |
+| **Profile modal** | Tabbed (a real tablist — arrow keys, Home/End): **Profile**, **Performance**, **Training**, **Awards**, **Events**, **Offboarding**, **Documents**, **Certifications**, **History** (career timeline). Sub-records are lazy-loaded. Government IDs and the bank account are masked until revealed. |
 | **201 file** | Upload/remove **documents** (contract, CV, govt ID…) and **certifications** (with expiry tracking). |
 | **Career history** | A `employee_promotions` row is **auto-recorded** whenever an employee's position or salary changes. |
 | **Lifecycle** | Quick status change (active / on-leave / suspended / resigned / terminated), archive (soft delete), restore, permanent delete. |
@@ -134,8 +134,9 @@ resources/js/
         ├── employees-stats.tsx · employees-toolbar.tsx · employees-table.tsx
         ├── employee-row-actions.tsx · employee-status-badge.tsx · employee-avatar.tsx
         ├── employee-bulk-actions-bar.tsx · employees-pagination.tsx
-        ├── employee-form-sheet.tsx           # sectioned create/edit; FK selects; dept→position scoping
-        ├── employee-detail-sheet.tsx         # tabbed profile + performance/documents/certifications/history
+        ├── employee-form-dialog.tsx          # sectioned create/edit; FK selects; dept→position scoping
+        ├── employee-detail-dialog.tsx        # tabbed profile + performance/documents/certifications/history
+        ├── link-employee-dialog.tsx          # binds an approved join request to a roster line
         └── confirm-dialog.tsx
 ```
 
@@ -143,8 +144,18 @@ Query params: `search`, `status`, `type`, `department`, `sort` (`first_name` |
 `employee_no` | `date_hired`), `direction`, `per_page`, `page`. Defaults are
 omitted from the URL.
 
-The detail drawer fetches `/employees/{id}` (JSON) on open and renders the
-sub-records; uploads post `FormData` and re-fetch on success.
+All four open as **centred modals** on the shared shell in `components/modal.tsx`
+(`Modal` / `ModalContent` / `ModalHeader` / `ModalBody` / `ModalFooter`) —
+height-capped, with the body as the only scrolling region so Save stays in view.
+Fields go through the shared `FormField` + `FormSelect`, which wire the label,
+hint and error to the control. See the
+[recruitment module doc](recruitment.md#the-modal-shell) for the shell itself.
+
+The detail modal fetches `/employees/{id}` (JSON) on open and renders the
+sub-records; uploads post `FormData` and re-fetch on success. Government ID
+numbers and the bank account render masked with a reveal control — that is
+shoulder-surfing cover for a 201 file opened on a shared screen, **not** access
+control, since whoever can open the record was already sent the value.
 
 ---
 
@@ -175,6 +186,47 @@ because the code belongs to the organisation rather than the roster).
 Row actions and the bulk bar offer **Invite / Resend / Revoke** in place of the
 removed password reset — HR cannot set or reset anybody's password. All of it runs
 through `App\Support\EmployeeInvitations` and `App\Support\WorkspaceJoin`.
+
+---
+
+## 5b. The agentic assistant (ADR 0027)
+
+`App\Services\Assistant\Modules\EmployeeModule` is how the assistant answers
+questions about the workforce. **Retrieval is function calling over live,
+tenant-scoped, permission-checked queries — not an embedding index**; the *why*
+is in [ADR 0027](../decisions/0027-assistant-employee-retrieval-and-disclosure-policy.md).
+
+**Nine tools**, each filtered from the offer *and* re-checked at execution:
+
+| Tool | Permission | Answers |
+| --- | --- | --- |
+| `find_employees` | `employees.view` | "look up Ana" |
+| `get_employee_profile` | `employees.view` | one person's placement, reporting line, dates, tenure, work contact |
+| `list_employees` | `employees.view` | "who is in Support", "who joined since March", "who is still probationary" |
+| `count_employees` | `employees.view` | "how many …", "headcount by department" — numbers only, never names |
+| `list_direct_reports` | `employees.view` | "who reports to Ana" |
+| `get_my_employee_record` | *none* | the signed-in user's own record |
+| `create_employee` | `employees.create` | add a person (including from an attached CV) |
+| `update_employee` | `employees.update` | change fields |
+| `archive_employee` | `employees.delete` | archive a person |
+
+**What the assistant will never say.** `App\Support\Employees\EmployeeDisclosure::WITHHELD`
+withholds `tin`, `sss_no`, `philhealth_no`, `pagibig_no`, `bank_name`,
+`bank_account_no`, `basic_salary`, `address` and `birth_date` from every read,
+for every user, at every permission level — because a tool result travels to
+Gemini, into the transcript, and onto a possibly-shared screen. They stay
+*writable* through the assistant and readable in the 201 file.
+
+**Other guards.** Tools refuse to run when no organisation is bound (the global
+scope is a no-op in that state). List reads are capped at 25 rows and carry no
+contact details. Retrieved free text is stripped of control characters and
+length-capped, so a record cannot pose as a prompt turn — though the real
+guarantee is that the model only ever *asks*, and every action re-checks
+permission. Reading a named person's profile is activity-logged as `viewed`;
+searches and headcounts are not.
+
+`POST /assistant` is throttled at **12/minute and 240/day per user** — a turn
+spends Gemini quota.
 
 ---
 

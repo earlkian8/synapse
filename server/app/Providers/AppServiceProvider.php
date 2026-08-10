@@ -16,11 +16,14 @@ use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -69,7 +72,26 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configureAuthorization();
         $this->configureEmailVerification();
+        $this->configureRateLimiting();
         $this->recordLastLogin();
+    }
+
+    /**
+     * Rate limits for endpoints that cost something to answer.
+     *
+     * A chat turn is not a cheap request: it spends Gemini quota (the tier this
+     * runs on is measured in requests per *minute*), it can fan out into several
+     * tool calls, and each of those hits the database. Authenticated does not
+     * mean unlimited — a single tab in a retry loop should not be able to burn
+     * the whole organisation's daily quota. Keyed per user so one person's
+     * enthusiasm cannot deny the service to their colleagues.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('assistant', fn (Request $request) => [
+            Limit::perMinute(12)->by('assistant-min:'.$request->user()?->id),
+            Limit::perDay(240)->by('assistant-day:'.$request->user()?->id),
+        ]);
     }
 
     /**

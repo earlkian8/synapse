@@ -5,6 +5,8 @@ import {
     Building2,
     CalendarClock,
     Clock,
+    Eye,
+    EyeOff,
     FileText,
     Gauge,
     GraduationCap,
@@ -13,23 +15,18 @@ import {
     Upload,
     UserRoundMinus,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FormField } from '@/components/form-field';
+import { FormSelect } from '@/components/form-select';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+} from '@/components/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-} from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
 import { ResponseBadge } from '@/features/events/components/event-status-badge';
@@ -88,7 +85,7 @@ const TABS: { value: Tab; label: string }[] = [
     { value: 'history', label: 'History' },
 ];
 
-export function EmployeeDetailSheet({
+export function EmployeeDetailDialog({
     employee,
     open,
     canEdit,
@@ -100,7 +97,7 @@ export function EmployeeDetailSheet({
     const [tab, setTab] = useState<Tab>('profile');
     const [openedId, setOpenedId] = useState<number | null>(null);
 
-    // Fetch the full record (with sub-records) when the drawer opens. State is
+    // Fetch the full record (with sub-records) when the modal opens. State is
     // only set in the async callback, never synchronously in the effect body.
     const load = useCallback(() => {
         if (!employee) {
@@ -136,83 +133,55 @@ export function EmployeeDetailSheet({
 
     const current = detail ?? (employee as EmployeeDetail | null);
 
+    // Nothing selected — there is no record to put in a dialog.
+    if (!current) {
+        return null;
+    }
+
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent
-                side="right"
-                className="w-full gap-0 overflow-y-auto p-0 sm:max-w-2xl"
-            >
-                <SheetHeader className="border-b border-border px-6 py-5">
-                    {current && (
-                        <div className="flex items-start gap-4">
-                            <EmployeeAvatar
-                                name={current.full_name}
-                                initials={current.initials}
-                                photo={current.photo}
-                                className="size-14"
-                            />
-                            <div className="min-w-0 flex-1">
-                                <SheetTitle className="truncate text-lg">
-                                    {current.full_name}
-                                </SheetTitle>
-                                <p className="font-mono text-xs text-muted-foreground">
-                                    {current.employee_no}
-                                </p>
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <EmployeeStatusBadge
-                                        status={current.status}
-                                    />
-                                    <span className="text-xs text-muted-foreground">
-                                        {current.position?.title ??
-                                            'No position'}
-                                        {current.department
-                                            ? ` · ${current.department.name}`
-                                            : ''}
-                                    </span>
-                                </div>
-                            </div>
-                            {canEdit && current.status !== 'archived' && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onEdit(current)}
-                                >
-                                    <Pencil className="size-4" />
-                                    Edit
-                                </Button>
-                            )}
-                        </div>
-                    )}
-                </SheetHeader>
+        <Modal open={open} onOpenChange={onOpenChange}>
+            <ModalContent size="2xl">
+                <ModalHeader
+                    icon={
+                        <EmployeeAvatar
+                            name={current.full_name}
+                            initials={current.initials}
+                            photo={current.photo}
+                            className="size-12 shrink-0"
+                        />
+                    }
+                    title={current.full_name}
+                    description={
+                        <span className="font-mono text-xs">
+                            {current.employee_no}
+                        </span>
+                    }
+                    meta={
+                        <>
+                            <EmployeeStatusBadge status={current.status} />
+                            <span className="text-xs text-muted-foreground">
+                                {current.position?.title ?? 'No position'}
+                                {current.department
+                                    ? ` · ${current.department.name}`
+                                    : ''}
+                            </span>
+                        </>
+                    }
+                />
 
-                {/* Tabs */}
-                <div className="flex gap-1 border-b border-border px-4 pt-2">
-                    {TABS.map((t) => (
-                        <button
-                            key={t.value}
-                            type="button"
-                            onClick={() => setTab(t.value)}
-                            className={cn(
-                                'relative px-3 py-2 text-sm font-medium transition-colors',
-                                tab === t.value
-                                    ? 'text-foreground'
-                                    : 'text-muted-foreground hover:text-foreground',
-                            )}
-                        >
-                            {t.label}
-                            {tab === t.value && (
-                                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[#0ABFBF]" />
-                            )}
-                        </button>
-                    ))}
-                </div>
+                <TabStrip value={tab} onChange={setTab} />
 
-                <div className="px-6 py-5">
-                    {tab === 'profile' && current && <ProfileTab e={current} />}
+                <ModalBody
+                    id={`employee-panel-${tab}`}
+                    role="tabpanel"
+                    aria-labelledby={`employee-tab-${tab}`}
+                >
+                    {tab === 'profile' && <ProfileTab e={current} />}
 
                     {tab !== 'profile' && !detail && (
-                        <div className="flex items-center justify-center py-16 text-muted-foreground">
+                        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
                             <Spinner />
+                            Loading…
                         </div>
                     )}
 
@@ -240,9 +209,99 @@ export function EmployeeDetailSheet({
                         />
                     )}
                     {tab === 'history' && detail && <HistoryTab e={detail} />}
-                </div>
-            </SheetContent>
-        </Sheet>
+                </ModalBody>
+
+                {canEdit && current.status !== 'archived' && (
+                    <ModalFooter>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                onOpenChange(false);
+                                onEdit(current);
+                            }}
+                        >
+                            <Pencil className="size-4" />
+                            Edit employee
+                        </Button>
+                    </ModalFooter>
+                )}
+            </ModalContent>
+        </Modal>
+    );
+}
+
+/**
+ * The record's tabs. A real tablist: arrow keys move between tabs, Home/End
+ * jump to the ends, and only the active tab is in the page's tab order — so
+ * reaching the panel does not mean pressing Tab nine times.
+ */
+function TabStrip({
+    value,
+    onChange,
+}: {
+    value: Tab;
+    onChange: (tab: Tab) => void;
+}) {
+    const strip = useRef<HTMLDivElement>(null);
+
+    const move = (event: React.KeyboardEvent) => {
+        const index = TABS.findIndex((t) => t.value === value);
+
+        const next = {
+            ArrowRight: (index + 1) % TABS.length,
+            ArrowLeft: (index - 1 + TABS.length) % TABS.length,
+            Home: 0,
+            End: TABS.length - 1,
+        }[event.key];
+
+        if (next === undefined) {
+            return;
+        }
+
+        event.preventDefault();
+        onChange(TABS[next].value);
+        strip.current
+            ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+            [next]?.focus();
+    };
+
+    return (
+        <div
+            ref={strip}
+            role="tablist"
+            aria-label="Employee record sections"
+            onKeyDown={move}
+            className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-4 pt-2"
+        >
+            {TABS.map((t) => {
+                const active = t.value === value;
+
+                return (
+                    <button
+                        key={t.value}
+                        id={`employee-tab-${t.value}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-controls={`employee-panel-${t.value}`}
+                        tabIndex={active ? 0 : -1}
+                        onClick={() => onChange(t.value)}
+                        className={cn(
+                            'relative shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                            active
+                                ? 'text-foreground'
+                                : 'text-muted-foreground hover:text-foreground',
+                        )}
+                    >
+                        {t.label}
+                        {active && (
+                            <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[#0ABFBF]" />
+                        )}
+                    </button>
+                );
+            })}
+        </div>
     );
 }
 
@@ -255,7 +314,7 @@ function ProfileTab({ e }: { e: EmployeeDetail }) {
             : '—';
 
     return (
-        <div className="space-y-6">
+        <div className="grid items-start gap-6 lg:grid-cols-2 lg:gap-x-8">
             <Group icon={Building2} title="Employment">
                 <Row label="Department" value={e.department?.name} />
                 <Row label="Position" value={e.position?.title} />
@@ -276,14 +335,21 @@ function ProfileTab({ e }: { e: EmployeeDetail }) {
                 <Row label="Address" value={e.address} />
             </Group>
 
-            <Group icon={Award} title="Compensation & IDs">
+            <Group icon={Award} title="Compensation">
                 <Row label="Basic salary" value={money(e.basic_salary)} />
                 <Row label="Bank" value={e.bank_name} />
-                <Row label="Bank account" value={e.bank_account_no} />
-                <Row label="TIN" value={e.tin} />
-                <Row label="SSS" value={e.sss_no} />
-                <Row label="PhilHealth" value={e.philhealth_no} />
-                <Row label="Pag-IBIG" value={e.pagibig_no} />
+                <Row label="Bank account" value={e.bank_account_no} sensitive />
+            </Group>
+
+            <Group
+                icon={FileText}
+                title="Government IDs"
+                note="Hidden until revealed, and never surfaced by the assistant."
+            >
+                <Row label="TIN" value={e.tin} sensitive />
+                <Row label="SSS" value={e.sss_no} sensitive />
+                <Row label="PhilHealth" value={e.philhealth_no} sensitive />
+                <Row label="Pag-IBIG" value={e.pagibig_no} sensitive />
             </Group>
 
             {e.user && (
@@ -298,10 +364,12 @@ function ProfileTab({ e }: { e: EmployeeDetail }) {
 function Group({
     icon: Icon,
     title,
+    note,
     children,
 }: {
     icon: typeof Building2;
     title: string;
+    note?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -310,9 +378,10 @@ function Group({
                 <Icon className="size-3.5" />
                 {title}
             </h3>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                {children}
-            </dl>
+            {note && (
+                <p className="mb-2 text-xs text-muted-foreground/80">{note}</p>
+            )}
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5">{children}</dl>
         </section>
     );
 }
@@ -321,10 +390,12 @@ function Row({
     label,
     value,
     capitalize = false,
+    sensitive = false,
 }: {
     label: string;
     value: string | null | undefined;
     capitalize?: boolean;
+    sensitive?: boolean;
 }) {
     return (
         <div className="flex items-center justify-between gap-4 border-b border-border/50 py-1.5">
@@ -335,9 +406,53 @@ function Row({
                     capitalize && 'capitalize',
                 )}
             >
-                {value || '—'}
+                {sensitive ? (
+                    <SensitiveValue label={label} value={value} />
+                ) : (
+                    value || '—'
+                )}
             </dd>
         </div>
+    );
+}
+
+/**
+ * A statutory number or bank account, masked until asked for. This is
+ * shoulder-surfing cover, not access control — whoever can open this record was
+ * already sent the value. It exists so a 201 file opened on a shared screen
+ * does not put somebody's TIN in the room by default.
+ */
+function SensitiveValue({
+    label,
+    value,
+}: {
+    label: string;
+    value: string | null | undefined;
+}) {
+    const [shown, setShown] = useState(false);
+
+    if (!value) {
+        return <>—</>;
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1.5">
+            <span className="font-mono text-sm">
+                {shown ? value : '•'.repeat(Math.min(value.length, 12))}
+            </span>
+            <button
+                type="button"
+                onClick={() => setShown((s) => !s)}
+                className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                aria-label={`${shown ? 'Hide' : 'Reveal'} ${label}`}
+            >
+                {shown ? (
+                    <EyeOff className="size-3.5" />
+                ) : (
+                    <Eye className="size-3.5" />
+                )}
+            </button>
+        </span>
     );
 }
 
@@ -675,38 +790,30 @@ function DocumentsTab({
             {canManage && (
                 <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <Label className="mb-1.5 block">Title</Label>
+                        <FormField label="Title">
                             <Input
                                 value={title}
                                 onChange={(ev) => setTitle(ev.target.value)}
                                 placeholder="e.g. Employment Contract"
                             />
-                        </div>
-                        <div>
-                            <Label className="mb-1.5 block">Type</Label>
-                            <Select value={type} onValueChange={setType}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {DOCUMENT_TYPE_OPTIONS.map((o) => (
-                                        <SelectItem
-                                            key={o.value}
-                                            value={o.value}
-                                        >
-                                            {o.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        </FormField>
+                        <FormField label="Type">
+                            <FormSelect
+                                value={type}
+                                onChange={setType}
+                                options={DOCUMENT_TYPE_OPTIONS}
+                            />
+                        </FormField>
                     </div>
-                    <Input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                        onChange={(ev) => setFile(ev.target.files?.[0] ?? null)}
-                    />
+                    <FormField label="File" hint="PDF, image or Word document.">
+                        <Input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                            onChange={(ev) =>
+                                setFile(ev.target.files?.[0] ?? null)
+                            }
+                        />
+                    </FormField>
                     <Button
                         size="sm"
                         onClick={upload}
@@ -746,8 +853,8 @@ function DocumentsTab({
                                 <button
                                     type="button"
                                     onClick={() => remove(doc.id)}
-                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                    aria-label="Remove document"
+                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                    aria-label={`Remove ${doc.title}`}
                                 >
                                     <Trash2 className="size-4" />
                                 </button>
@@ -830,43 +937,44 @@ function CertificationsTab({
             {canManage && (
                 <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <Label className="mb-1.5 block">Name</Label>
+                        <FormField label="Name">
                             <Input
                                 value={name}
                                 onChange={(ev) => setName(ev.target.value)}
                                 placeholder="e.g. PMP Certification"
                             />
-                        </div>
-                        <div>
-                            <Label className="mb-1.5 block">Issuer</Label>
+                        </FormField>
+                        <FormField label="Issuer">
                             <Input
                                 value={issuer}
                                 onChange={(ev) => setIssuer(ev.target.value)}
                             />
-                        </div>
-                        <div>
-                            <Label className="mb-1.5 block">Issued date</Label>
+                        </FormField>
+                        <FormField label="Issued date">
                             <Input
                                 type="date"
                                 value={issued}
                                 onChange={(ev) => setIssued(ev.target.value)}
                             />
-                        </div>
-                        <div>
-                            <Label className="mb-1.5 block">Expiry date</Label>
+                        </FormField>
+                        <FormField label="Expiry date">
                             <Input
                                 type="date"
+                                min={issued || undefined}
                                 value={expiry}
                                 onChange={(ev) => setExpiry(ev.target.value)}
                             />
-                        </div>
+                        </FormField>
                     </div>
-                    <Input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp"
-                        onChange={(ev) => setFile(ev.target.files?.[0] ?? null)}
-                    />
+                    <FormField label="File" hint="Optional — PDF or image.">
+                        <Input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={(ev) =>
+                                setFile(ev.target.files?.[0] ?? null)
+                            }
+                        />
+                    </FormField>
                     <Button
                         size="sm"
                         onClick={add}
@@ -918,8 +1026,8 @@ function CertificationsTab({
                                 <button
                                     type="button"
                                     onClick={() => remove(cert.id)}
-                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                    aria-label="Remove certification"
+                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                    aria-label={`Remove ${cert.name}`}
                                 >
                                     <Trash2 className="size-4" />
                                 </button>
