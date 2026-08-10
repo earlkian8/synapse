@@ -15,6 +15,15 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { FormSelect } from '@/components/form-select';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalSection,
+} from '@/components/modal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,15 +50,6 @@ import type {
 } from '../types';
 import { ApplicantInsights } from './applicant-insights';
 import { FitMeter } from './fit-score';
-import { FkSelect } from './fk-select';
-import {
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    ModalSection,
-} from './modal';
 import { RatingStars } from './rating-stars';
 import { StageBadge } from './stage-badge';
 import { StageStepper } from './stage-stepper';
@@ -752,7 +752,7 @@ function InterviewsSection({
                             {canSchedule && (
                                 <div className="mt-2.5 flex items-center gap-2">
                                     <div className="w-32">
-                                        <FkSelect
+                                        <FormSelect
                                             value={interview.result}
                                             onChange={(v) =>
                                                 setResult(interview.id, v)
@@ -799,7 +799,7 @@ function InterviewsSection({
                             >
                                 Mode
                             </Label>
-                            <FkSelect
+                            <FormSelect
                                 id="interview-mode"
                                 value={mode}
                                 onChange={(v) => setMode(v as InterviewMode)}
@@ -813,7 +813,7 @@ function InterviewsSection({
                             >
                                 Interviewer
                             </Label>
-                            <FkSelect
+                            <FormSelect
                                 id="interview-interviewer"
                                 value={interviewerId}
                                 onChange={setInterviewerId}

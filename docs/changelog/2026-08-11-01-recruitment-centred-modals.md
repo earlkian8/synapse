@@ -61,8 +61,10 @@ while it happens, did.
 
 ## Notes
 
-- **Scope:** the recruitment module only. The other modules' sheets are untouched — the
-  shell is deliberately module-local until a second module wants it.
+- **Scope:** the recruitment module only. The other modules' sheets are untouched. The
+  shell started module-local; Onboarding asked for it next, so it moved to
+  `components/` — see
+  [the onboarding entry](2026-08-11-02-onboarding-centred-modals.md).
 - **Verification:** `tsc`, ESLint, Prettier and `npm run build` are green. Pest was run
   in full on the Postgres harness — **431 tests, 416 passing, 12 failures + 3 errors**,
   which is `development`'s documented standing baseline to the test, not a regression;

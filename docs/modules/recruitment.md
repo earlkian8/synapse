@@ -252,7 +252,8 @@ Acquisition → Recruitment** link is gated on `recruitment.view`.
 ### The modal shell
 
 Every recruitment surface that used to slide in from the right is now a **centred
-modal** built from one shell, `components/modal.tsx`:
+modal** built from one shell, `resources/js/components/modal.tsx` — shared with
+[Onboarding](onboarding.md#frontend), which uses the same parts:
 
 ```text
 Modal ─ ModalContent ─┬─ ModalHeader   icon/avatar, title, description, status meta
@@ -266,10 +267,11 @@ Save — is never pushed below the fold on a short viewport. Sizes run `sm`…`2
 candidate modal takes `2xl` and splits its body into a decision column and a reference
 rail from `lg` up, collapsing to one decision-first column on small screens.
 
-Two form helpers sit alongside it. **`FormField`** wires a label, its hint and its
+Two form helpers sit alongside it, also shared (`components/form-field.tsx`,
+`components/form-select.tsx`). **`FormField`** wires a label, its hint and its
 validation error to the control itself (`htmlFor` / `aria-describedby` /
 `aria-invalid`), so the error state is announced *and* styled without a second class
-list; **`FkSelect`** forwards those props onto the select's trigger — the element the
+list; **`FormSelect`** forwards those props onto the select's trigger — the element the
 label points at. Destructive candidate actions (reject, remove) confirm **inside the
 footer** rather than stacking a second dialog on top of the first.
 

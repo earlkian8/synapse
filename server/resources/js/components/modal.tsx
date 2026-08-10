@@ -8,15 +8,15 @@ import {
 import { cn } from '@/lib/utils';
 
 /**
- * The recruitment module's modal shell. Every recruitment surface that used to
- * slide in from the edge now opens as a centred dialog built from these parts:
+ * The app's centred modal shell. A surface that used to slide in from the edge
+ * as a sheet opens instead as a dialog built from these parts:
  *
  *   Modal ─ ModalContent ─┬─ ModalHeader   identity: icon, title, description, meta
  *                         ├─ ModalBody     the only scrolling region
  *                         └─ ModalFooter   actions, always in view
  *
- * The content is height-capped and the body scrolls inside it, so a decision
- * bar (hire, reject, save) is never pushed below the fold on a short viewport.
+ * The content is height-capped and the body scrolls inside it, so the action
+ * bar (save, hire, start) is never pushed below the fold on a short viewport.
  */
 
 const SIZES = {

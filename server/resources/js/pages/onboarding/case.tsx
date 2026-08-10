@@ -22,12 +22,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { CaseSettingsSheet } from '@/features/onboarding/components/case-settings-sheet';
+import { CaseSettingsDialog } from '@/features/onboarding/components/case-settings-dialog';
 import { CaseStatusBadge } from '@/features/onboarding/components/case-status-badge';
 import { ConfirmDialog } from '@/features/onboarding/components/confirm-dialog';
 import { ProgressBar } from '@/features/onboarding/components/progress-bar';
 import { TaskChecklist } from '@/features/onboarding/components/task-checklist';
-import { TaskFormSheet } from '@/features/onboarding/components/task-form-sheet';
+import { TaskFormDialog } from '@/features/onboarding/components/task-form-dialog';
 import { EMPLOYMENT_TYPE_LABELS } from '@/features/onboarding/constants';
 import { onboardingRoutes } from '@/features/onboarding/routes';
 import type {
@@ -49,7 +49,7 @@ export default function OnboardingCasePage() {
     const employee = c.employee;
     const tasks = c.tasks ?? [];
 
-    const [taskSheetOpen, setTaskSheetOpen] = useState(false);
+    const [taskFormOpen, setTaskFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<OnboardingTask | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
@@ -72,12 +72,12 @@ export default function OnboardingCasePage() {
 
     const openAddTask = () => {
         setEditingTask(null);
-        setTaskSheetOpen(true);
+        setTaskFormOpen(true);
     };
 
     const openEditTask = (task: OnboardingTask) => {
         setEditingTask(task);
-        setTaskSheetOpen(true);
+        setTaskFormOpen(true);
     };
 
     const toggleTask = (task: OnboardingTask, status: TaskStatus) =>
@@ -131,7 +131,9 @@ export default function OnboardingCasePage() {
 
     return (
         <>
-            <Head title={`${employee?.full_name ?? 'Onboarding'} — Onboarding`} />
+            <Head
+                title={`${employee?.full_name ?? 'Onboarding'} — Onboarding`}
+            />
 
             <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
                 {/* Header */}
@@ -193,10 +195,15 @@ export default function OnboardingCasePage() {
                                         <MoreHorizontal className="size-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-48"
+                                >
                                     {c.is_active && (
                                         <DropdownMenuItem
-                                            onSelect={() => setStatus('complete')}
+                                            onSelect={() =>
+                                                setStatus('complete')
+                                            }
                                         >
                                             <CheckCircle2 className="size-4" />
                                             Mark complete
@@ -243,7 +250,7 @@ export default function OnboardingCasePage() {
                             {c.progress.resolved} of {c.progress.total} tasks
                             done
                         </span>
-                        <span className="text-sm font-semibold tabular-nums text-[#0ABFBF]">
+                        <span className="text-sm font-semibold text-[#0ABFBF] tabular-nums">
                             {c.progress.percent}%
                         </span>
                     </div>
@@ -291,15 +298,15 @@ export default function OnboardingCasePage() {
                 />
             </div>
 
-            <TaskFormSheet
+            <TaskFormDialog
                 task={editingTask}
                 caseHashid={c.hashid}
                 assignees={options.assignees}
-                open={taskSheetOpen}
-                onOpenChange={setTaskSheetOpen}
+                open={taskFormOpen}
+                onOpenChange={setTaskFormOpen}
             />
 
-            <CaseSettingsSheet
+            <CaseSettingsDialog
                 case={c}
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}

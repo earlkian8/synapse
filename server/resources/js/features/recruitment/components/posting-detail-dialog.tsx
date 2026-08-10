@@ -6,9 +6,6 @@ import {
     Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { TYPE_LABELS } from '../constants';
-import type { ManagedPosting, RecruitmentPermissions } from '../types';
 import {
     Modal,
     ModalBody,
@@ -17,7 +14,10 @@ import {
     ModalHeader,
     ModalIcon,
     ModalSection,
-} from './modal';
+} from '@/components/modal';
+import { Button } from '@/components/ui/button';
+import { TYPE_LABELS } from '../constants';
+import type { ManagedPosting, RecruitmentPermissions } from '../types';
 import { PostingStatusBadge } from './posting-status-badge';
 
 type Props = {

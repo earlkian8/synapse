@@ -19,8 +19,8 @@ type Props = {
 };
 
 /**
- * One labelled control in a recruitment form. It wires the label, the hint and
- * the validation error to the control itself, so a screen reader announces the
+ * One labelled control in a form. It wires the label, the hint and the
+ * validation error to the control itself, so a screen reader announces the
  * field's name, its guidance, and what went wrong — and the input picks up the
  * `aria-invalid` error styling for free.
  */

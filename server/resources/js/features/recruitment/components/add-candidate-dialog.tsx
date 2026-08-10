@@ -1,14 +1,8 @@
 import { useForm } from '@inertiajs/react';
 import { UserRoundPlus } from 'lucide-react';
 import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
-import { SOURCE_LABELS, SOURCE_OPTIONS } from '../constants';
-import { recruitmentRoutes } from '../routes';
-import type { ApplicantSource, PipelineOptions } from '../types';
-import { FkSelect } from './fk-select';
-import { FormField } from './form-field';
+import { FormField } from '@/components/form-field';
+import { FormSelect } from '@/components/form-select';
 import {
     Modal,
     ModalBody,
@@ -16,7 +10,13 @@ import {
     ModalFooter,
     ModalHeader,
     ModalIcon,
-} from './modal';
+} from '@/components/modal';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { SOURCE_LABELS, SOURCE_OPTIONS } from '../constants';
+import { recruitmentRoutes } from '../routes';
+import type { ApplicantSource, PipelineOptions } from '../types';
 import { RatingStars } from './rating-stars';
 
 type Props = {
@@ -147,7 +147,7 @@ function FormBody({
                     error={errors.applicant_id}
                     hint="Adding an existing candidate keeps their history in one profile."
                 >
-                    <FkSelect
+                    <FormSelect
                         value={data.applicant_id}
                         onChange={(v) => setData('applicant_id', v)}
                         options={[
@@ -279,7 +279,7 @@ function FormBody({
                                 />
                             </FormField>
                             <FormField label="Source" error={errors.source}>
-                                <FkSelect
+                                <FormSelect
                                     value={data.source}
                                     onChange={(v) =>
                                         setData('source', v as ApplicantSource)

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { OnboardingCaseCard } from '@/features/onboarding/components/onboarding-case-card';
 import { OnboardingStatsCards } from '@/features/onboarding/components/onboarding-stats';
 import { OnboardingToolbar } from '@/features/onboarding/components/onboarding-toolbar';
-import { StartOnboardingSheet } from '@/features/onboarding/components/start-onboarding-sheet';
+import { StartOnboardingDialog } from '@/features/onboarding/components/start-onboarding-dialog';
 import { useOnboardingFilters } from '@/features/onboarding/hooks/use-onboarding-filters';
 import type { IndexPageProps } from '@/features/onboarding/types';
 
@@ -58,7 +58,7 @@ export default function OnboardingIndex() {
                 </div>
             </div>
 
-            <StartOnboardingSheet
+            <StartOnboardingDialog
                 employees={options.employees}
                 programs={options.programs}
                 open={startOpen}

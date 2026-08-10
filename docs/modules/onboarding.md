@@ -123,11 +123,24 @@ reopen are deliberate actions (`PATCH …/status`). The stage toggle stamps `com
 
 `features/onboarding/` — types, routes, constants (status & category meta), the board
 filter hook, and components: stats, toolbar, **case card**, progress bar, status badge,
-**start-onboarding sheet**, **task checklist** (grouped) + **task row** + **task form
-sheet**, **case settings sheet**, **program card** + **program form sheet** (with an
+**start-onboarding modal**, **task checklist** (grouped) + **task row** + **task form
+modal**, **case settings modal**, **program card** + **program form modal** (with an
 inline blueprint-task editor), and a confirm dialog. Pages: `pages/onboarding/index.tsx`
 and `case.tsx`; the programs screen is `pages/setup/onboarding.tsx`. The sidebar
 **Talent Acquisition → Onboarding** link is gated on `onboarding.view`.
+
+All four open as **centred modals** built from the shared shell in
+`components/modal.tsx` (`Modal` / `ModalContent` / `ModalHeader` / `ModalBody` /
+`ModalFooter`) — height-capped, with the body as the only scrolling region so Save is
+always in view. Fields go through the shared `FormField` + `FormSelect`, which wire the
+label, hint and error to the control (`htmlFor` / `aria-describedby` / `aria-invalid`).
+See the [recruitment module doc](recruitment.md#the-modal-shell) for the shell itself.
+
+**The program form's blueprint editor** is the one with real work in it: each row is a
+task's title, category and due offset, and the row's **position is its `sort_order`** —
+so the row carries working move-up / move-down controls rather than a drag handle that
+never dragged. The program `description` is editable here (it was previously sent by the
+form but had no input).
 
 ## Permissions
 

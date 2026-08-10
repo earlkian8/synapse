@@ -1,6 +1,16 @@
 import { useForm } from '@inertiajs/react';
 import { BriefcaseBusiness, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { FormField } from '@/components/form-field';
+import { FormSelect } from '@/components/form-select';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+} from '@/components/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -12,16 +22,6 @@ import type {
     PostingOptions,
     PostingStatus,
 } from '../types';
-import { FkSelect } from './fk-select';
-import { FormField } from './form-field';
-import {
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    ModalIcon,
-} from './modal';
 
 type Props = {
     posting: ManagedPosting | null;
@@ -171,7 +171,7 @@ function FormBody({
                             label="Department"
                             error={errors.department_id}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.department_id || NONE}
                                 placeholder="Select…"
                                 noneValue={NONE}
@@ -186,7 +186,7 @@ function FormBody({
                             />
                         </FormField>
                         <FormField label="Position" error={errors.position_id}>
-                            <FkSelect
+                            <FormSelect
                                 value={data.position_id || NONE}
                                 placeholder="Select…"
                                 noneValue={NONE}
@@ -202,7 +202,7 @@ function FormBody({
                             required
                             error={errors.employment_type}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.employment_type}
                                 onChange={(v) =>
                                     setData(
@@ -234,7 +234,7 @@ function FormBody({
                             required
                             error={errors.status}
                         >
-                            <FkSelect
+                            <FormSelect
                                 value={data.status}
                                 onChange={(v) =>
                                     setData('status', v as PostingStatus)

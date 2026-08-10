@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ConfirmDialog } from '@/features/onboarding/components/confirm-dialog';
 import { ProgramCard } from '@/features/onboarding/components/program-card';
-import { ProgramFormSheet } from '@/features/onboarding/components/program-form-sheet';
+import { ProgramFormDialog } from '@/features/onboarding/components/program-form-dialog';
 import { ProgramTable } from '@/features/onboarding/components/program-table';
 import { useProgramsView } from '@/features/onboarding/hooks/use-programs-view';
 import { onboardingRoutes } from '@/features/onboarding/routes';
@@ -188,7 +188,7 @@ export default function SetupOnboarding() {
                 )}
             </div>
 
-            <ProgramFormSheet
+            <ProgramFormDialog
                 program={formProgram}
                 departments={options.departments}
                 open={formOpen}

@@ -17,23 +17,25 @@ type Props = {
     /** The value that stands for "nothing selected". */
     noneValue?: string;
     disabled?: boolean;
+    className?: string;
     id?: string;
     'aria-describedby'?: string;
     'aria-invalid'?: boolean;
 };
 
 /**
- * The select used across the recruitment forms. It forwards the accessibility
- * props a FormField hands down onto the trigger — the element the label points
- * at — so the label, hint and error reach the control the user actually opens.
+ * The select used across the app's forms. It forwards the accessibility props a
+ * FormField hands down onto the trigger — the element the label points at — so
+ * the label, hint and error reach the control the user actually opens.
  */
-export function FkSelect({
+export function FormSelect({
     value,
     onChange,
     options,
     placeholder,
     noneValue,
     disabled,
+    className,
     id,
     'aria-describedby': describedBy,
     'aria-invalid': invalid,
@@ -44,7 +46,7 @@ export function FkSelect({
                 id={id}
                 aria-describedby={describedBy}
                 aria-invalid={invalid}
-                className="w-full"
+                className={className ?? 'w-full'}
             >
                 <SelectValue placeholder={placeholder} />
             </SelectTrigger>
