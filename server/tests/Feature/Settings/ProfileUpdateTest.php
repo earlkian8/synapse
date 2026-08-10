@@ -69,7 +69,20 @@ test('user can delete their account', function () {
         ->assertRedirect(route('home'));
 
     $this->assertGuest();
-    expect($user->fresh())->toBeNull();
+
+    // The account is soft-deleted, not erased: `users` is a trashable record so
+    // the Trash Bin can restore a mistaken deletion, and rows that reference the
+    // identity (activity logs, an employee link) keep resolving. What matters is
+    // that it no longer functions as an account.
+    expect($user->fresh()->trashed())->toBeTrue()
+        ->and(User::query()->where('id', $user->id)->exists())->toBeFalse();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertGuest();
 });
 
 test('correct password must be provided to delete account', function () {

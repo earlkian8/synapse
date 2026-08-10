@@ -5,6 +5,7 @@ use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Position;
 use App\Support\Tenancy;
+use Illuminate\Database\QueryException;
 use Inertia\Testing\AssertableInertia as Assert;
 
 // ── Listing ─────────────────────────────────────────────────────────────────
@@ -128,6 +129,22 @@ test('it archives, restores and force-deletes a department', function () {
     expect(Department::withTrashed()->find($department->id))->toBeNull();
 });
 
+test('archiving a department frees its code for reuse', function () {
+    // The uniqueness index ignores archived rows, so the code comes back into
+    // circulation the moment the department leaves it.
+    actingAsSuperAdmin();
+
+    Department::factory()->create(['code' => 'DUP'])->delete();
+
+    $this->post(route('setup.departments.store'), [
+        'name' => 'Duplicate Coded',
+        'code' => 'DUP',
+    ])->assertSessionHasNoErrors();
+
+    expect(Department::where('code', 'DUP')->count())->toBe(1)
+        ->and(Department::withTrashed()->where('code', 'DUP')->count())->toBe(2);
+});
+
 test('it will not restore a department whose code was reused', function () {
     actingAsSuperAdmin();
     $department = Department::factory()->create(['code' => 'DUP']);
@@ -136,7 +153,33 @@ test('it will not restore a department whose code was reused', function () {
 
     $this->patch(route('setup.departments.restore', $department))->assertSessionHasNoErrors();
 
+    assertToast('warning', 'already uses the code');
+
     expect($department->fresh()->trashed())->toBeTrue();
+});
+
+test('a department whose code is still free restores cleanly', function () {
+    actingAsSuperAdmin();
+    $department = Department::factory()->create(['code' => 'FREE']);
+    $department->delete();
+
+    $this->patch(route('setup.departments.restore', $department))->assertSessionHasNoErrors();
+
+    assertToast('success');
+
+    expect($department->fresh()->trashed())->toBeFalse();
+});
+
+test('the database still refuses two live departments sharing a code', function () {
+    // Dropping the *total* unique index (so archiving frees a code) must not
+    // have loosened the rule that matters: two live departments in one
+    // organisation cannot share one. Asserted below the validation layer, since
+    // that is the layer the migration touched.
+    actingAsSuperAdmin();
+    Department::factory()->create(['code' => 'OPS']);
+
+    expect(fn () => Department::factory()->create(['code' => 'OPS']))
+        ->toThrow(QueryException::class);
 });
 
 // ── Positions ────────────────────────────────────────────────────────────────

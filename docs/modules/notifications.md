@@ -87,6 +87,13 @@ Notifications are **personal**, so only composing to others is permission-gated.
 "own" actions are scoped through `$request->user()->notifications()`, so a user
 can never read or delete another person's notifications.
 
+The literal routes are declared **before** the `{notification}` wildcard, and the
+wildcard is pinned with `whereUuid('notification')`. Without both,
+`DELETE …/notifications/subscriptions` matched the wildcard — "delete the
+notification with id `subscriptions`" — which compared a plain string against a
+`uuid` column, aborted the surrounding Postgres transaction, and took the rest of
+the request with it. Push notifications could be enabled but never disabled.
+
 ---
 
 ## 5. Data model

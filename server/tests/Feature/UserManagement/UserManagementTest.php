@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Organization;
 use App\Models\User;
+use App\Support\Tenancy;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -112,7 +114,8 @@ test('it creates an invited user without a password', function () {
     expect(User::where('email', 'no.pass@example.com')->first()->password)->toBeNull();
 });
 
-test('it rejects a duplicate email on create', function () {
+test('it refuses to add an email that is already in this organisation', function () {
+    // A duplicate inside one organisation is a mistake, not a second account.
     User::factory()->create(['email' => 'taken@example.com']);
 
     $this->post(route('system.users.store'), [
@@ -120,7 +123,32 @@ test('it rejects a duplicate email on create', function () {
         'last_name' => 'User',
         'email' => 'taken@example.com',
         'is_active' => true,
-    ])->assertSessionHasErrors('email');
+    ])->assertSessionHasNoErrors();
+
+    assertToast('error', 'already belongs to a user in this organisation');
+
+    expect(User::where('email', 'taken@example.com')->count())->toBe(1);
+});
+
+test('an identity that already works elsewhere is linked in, not duplicated', function () {
+    // Users are global identities (ADR 0023): somebody who already has an account
+    // at another company joins this one rather than getting a second account.
+    $elsewhere = Organization::factory()->create();
+    $person = app(Tenancy::class)->runFor(
+        $elsewhere,
+        fn (): User => User::factory()->create(['email' => 'jordan@dual.test']),
+    );
+
+    $this->post(route('system.users.store'), [
+        'first_name' => 'Jordan',
+        'last_name' => 'Reyes',
+        'email' => 'jordan@dual.test',
+        'is_active' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect(User::withoutGlobalScopes()->where('email', 'jordan@dual.test')->count())->toBe(1)
+        ->and($person->fresh()->isMemberOf(testOrganization()))->toBeTrue()
+        ->and($person->fresh()->isMemberOf($elsewhere))->toBeTrue();
 });
 
 test('it creates new users unverified and emails a confirmation link', function () {

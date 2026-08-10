@@ -139,3 +139,27 @@ function actingAsUserWith(array $permissions): User
 
     return $user;
 }
+
+/**
+ * Assert the last response flashed a toast of the given level, optionally
+ * containing a fragment of copy.
+ *
+ * Toasts are the app's feedback contract: the server flashes
+ * `Inertia::flash('toast', ['type' => …, 'message' => …])`, which lands in the
+ * session under `inertia.flash_data` and is rendered by `use-flash-toast.ts`.
+ * Tests assert it here rather than reaching for that key by hand, so the whole
+ * suite moves together if the transport ever changes.
+ *
+ * @param  'success'|'error'|'warning'|'info'  $type
+ */
+function assertToast(string $type, ?string $contains = null): void
+{
+    $toast = session('inertia.flash_data.toast');
+
+    expect($toast)->not->toBeNull('No toast was flashed.')
+        ->and($toast['type'] ?? null)->toBe($type);
+
+    if ($contains !== null) {
+        expect($toast['message'] ?? '')->toContain($contains);
+    }
+}

@@ -49,7 +49,12 @@ department.
   are activity-logged (`logName: 'company-setup'`).
 - **Per-tenant code uniqueness** is enforced by a partial unique index
   `(organization_id, code) WHERE deleted_at IS NULL` (migration
-  `…_make_department_code_unique_per_tenant`).
+  `…_make_department_code_unique_per_tenant`). It is *partial* on purpose:
+  archiving a department frees its code, and `restore()` guards against the code
+  having been taken in the meantime. A second, **total** index on the same pair
+  survived from `…_add_multi_tenancy` and silently overrode that — archiving
+  never freed anything and the restore guard was unreachable — until
+  `…_drop_total_department_code_unique` removed it.
 
 ## Frontend
 

@@ -243,6 +243,47 @@ test('a user can register and remove a push subscription', function () {
     expect($user->fresh()->pushSubscriptions()->count())->toBe(0);
 });
 
+test('the subscriptions route is not swallowed by the notification wildcard', function () {
+    // `DELETE …/notifications/subscriptions` used to match the `{notification}`
+    // wildcard declared above it, so the controller looked for a notification
+    // with the id "subscriptions" — a plain string compared against a uuid
+    // column, which aborts the surrounding Postgres transaction and takes the
+    // rest of the request down with it. The literal route now wins.
+    actingAsUserWith([]);
+
+    $subscriptions = url('/system/notifications/subscriptions');
+
+    expect(route('system.notifications.subscriptions.destroy'))->toBe($subscriptions);
+
+    $this->delete($subscriptions, ['endpoint' => 'https://push.example/none'])
+        ->assertSessionHasNoErrors();
+});
+
+test('a notification id that is not a uuid is not found rather than fatal', function () {
+    // The wildcard is pinned to a UUID, so junk never reaches the query layer.
+    actingAsUserWith([]);
+
+    foreach (['not-a-uuid', '../../etc/passwd', '1 OR 1=1'] as $junk) {
+        $this->delete(url('/system/notifications/'.urlencode($junk)))->assertNotFound();
+        $this->patch(url('/system/notifications/'.urlencode($junk).'/read'))->assertNotFound();
+    }
+});
+
+test('a notification belonging to another user is left alone', function () {
+    $owner = User::factory()->create();
+    seedNotification($owner, ['title' => 'Private']);
+
+    $id = $owner->notifications()->first()->id;
+
+    actingAsUserWith([]);
+
+    // Scoped through the caller's own relation, so this is a silent no-op
+    // rather than somebody else's notification disappearing.
+    $this->delete(route('system.notifications.destroy', $id))->assertSessionHasNoErrors();
+
+    expect($owner->fresh()->notifications()->count())->toBe(1);
+});
+
 // â”€â”€ Auto-notification on user creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 test('creating a user sends them a welcome notification', function () {

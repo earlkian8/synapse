@@ -75,8 +75,14 @@ test('registration provisions an organisation owned by the registrant', function
         expect($user->fresh()->isSuperAdmin())->toBeTrue();
     });
 
-    // Every new tenant gets the full built-in role set.
-    expect(Role::withoutGlobalScopes()->where('organization_id', $org->id)->count())->toBe(4);
+    // Every new tenant gets the full built-in role set: HR Manager (the owner),
+    // Department Head, Staff. See OrganizationProvisioner::roleBlueprints().
+    $roles = Role::withoutGlobalScopes()->where('organization_id', $org->id)->pluck('name');
+
+    expect($roles)->toHaveCount(3)
+        ->and($roles->all())->toEqualCanonicalizing([
+            Role::HR_MANAGER, Role::DEPARTMENT_HEAD, Role::STAFF,
+        ]);
 });
 
 // ── Per-tenant numbering ──────────────────────────────────────────────────────

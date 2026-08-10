@@ -95,7 +95,10 @@ test('a token bound to one organisation cannot read another tenant', function ()
     // Two organisations, each with an employee; the user belongs only to org A.
     $user = actingAsSuperAdmin();
     $orgA = testOrganization();
-    app(Tenancy::class)->runFor($orgA, fn () => Employee::factory()->create());
+
+    // The mobile endpoints are self-scoped — they answer for the caller's own
+    // employee record — so the acting user needs one, in org A.
+    app(Tenancy::class)->runFor($orgA, fn () => Employee::factory()->create(['user_id' => $user->id]));
 
     $orgB = Organization::factory()->create();
     app(Tenancy::class)->runFor($orgB, fn () => Employee::factory()->count(4)->create());
@@ -108,7 +111,25 @@ test('a token bound to one organisation cannot read another tenant', function ()
         ->getJson(route('api.attendance.summary'))
         ->assertOk();
 
-    // The employee directory (web) under org A shows exactly its one employee.
+    // The employee directory (web) under org A shows exactly its one employee —
+    // org B's four are not merely filtered out of the page, they are unreachable.
     $this->get(route('employees.index'))
         ->assertInertia(fn (Assert $page) => $page->has('employees.data', 1));
+
+    expect(Employee::query()->count())->toBe(1)
+        ->and(Employee::withoutGlobalScopes()->count())->toBe(5);
+});
+
+test('a self-scoped endpoint refuses a user with no employee record', function () {
+    seedPermissions();
+
+    // No roster line means nothing to answer about — and 403 rather than an
+    // empty 200, so the client cannot mistake "not linked" for "no data".
+    $user = actingAsSuperAdmin();
+    $token = $user->createToken('test');
+    $token->accessToken->forceFill(['organization_id' => testOrganization()->id])->save();
+
+    $this->withToken($token->plainTextToken)
+        ->getJson(route('api.attendance.summary'))
+        ->assertForbidden();
 });

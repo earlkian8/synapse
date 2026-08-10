@@ -50,16 +50,22 @@ Route::middleware(['auth', 'verified'])
         });
 
         // Notifications — personal to each user; only broadcasting is gated.
+        // Literal-prefixed routes are declared BEFORE the `{notification}`
+        // wildcard, and the wildcard is pinned to a UUID: `DELETE …/subscriptions`
+        // used to match "delete the notification with id `subscriptions`", which
+        // compared a plain string against a uuid column and aborted the whole
+        // transaction. Either guard alone fixes it; both together mean a future
+        // reorder cannot bring it back.
         Route::prefix('notifications')->name('notifications.')->group(function () {
             Route::get('/', [NotificationController::class, 'index'])->name('index');
             Route::post('/', [NotificationController::class, 'store'])->middleware('can:notifications.send')->name('store');
             Route::post('read-all', [NotificationController::class, 'readAll'])->name('read-all');
             Route::delete('clear', [NotificationController::class, 'clear'])->name('clear');
-            Route::patch('{notification}/read', [NotificationController::class, 'read'])->name('read');
-            Route::delete('{notification}', [NotificationController::class, 'destroy'])->name('destroy');
             Route::put('preferences', [NotificationPreferenceController::class, 'update'])->name('preferences');
             Route::post('subscriptions', [PushSubscriptionController::class, 'store'])->name('subscriptions.store');
             Route::delete('subscriptions', [PushSubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+            Route::patch('{notification}/read', [NotificationController::class, 'read'])->whereUuid('notification')->name('read');
+            Route::delete('{notification}', [NotificationController::class, 'destroy'])->whereUuid('notification')->name('destroy');
         });
 
         // Trash Bin — archived records across modules. Visibility + each action
