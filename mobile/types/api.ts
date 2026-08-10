@@ -16,7 +16,7 @@ export type AuthEmployee = {
   schedule: Schedule | null;
 };
 
-/** The tenant (company) an account belongs to — one per account (ADR 0005). */
+/** A company the identity can act in. */
 export type AuthOrganization = {
   id: number;
   name: string;
@@ -24,17 +24,50 @@ export type AuthOrganization = {
   initials: string;
 };
 
+/** A request to join a company that HR hasn't answered yet (ADR 0026). */
+export type PendingJoinRequest = {
+  id: number;
+  organization: string | null;
+  requested_human: string | null;
+};
+
 export type AuthUser = {
   id: number;
   name: string;
   email: string;
-  /** The active organisation this session is scoped to. */
+  /**
+   * The active organisation this session is scoped to — null when they have
+   * registered but not joined a company yet, which is a valid state (ADR 0026).
+   */
   organization: AuthOrganization | null;
   /** Every organisation the identity belongs to, for the workspace switcher. */
   organizations: AuthOrganization[];
+  /** True when they belong to no company at all: route them to the join screen. */
+  needs_workspace: boolean;
+  /** Join requests still awaiting an HR decision. */
+  pending_requests: PendingJoinRequest[];
   employee: AuthEmployee | null;
   can_clock: boolean;
 };
+
+/** An invitation waiting to be claimed (ADR 0026). */
+export type Invitation = {
+  id: number;
+  code: string;
+  email: string;
+  expires_at: string | null;
+  expires_human: string | null;
+  organization: AuthOrganization;
+  employee: {
+    full_name: string | null;
+    employee_no: string | null;
+    position: string | null;
+    department: string | null;
+  };
+};
+
+/** What redeeming a join code did: straight in, or queued for HR review. */
+export type JoinOutcome = 'admitted' | 'pending';
 
 export type PunchType = 'clock_in' | 'clock_out' | 'break_start' | 'break_end';
 

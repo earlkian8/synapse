@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
+use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,11 +24,31 @@ Route::post('auth/login', [AuthController::class, 'login'])
     ->middleware('throttle:login')
     ->name('api.auth.login');
 
+// People create their own accounts (ADR 0026) — the ERP no longer issues logins.
+// Registering joins no company; the session comes back with `needs_workspace`.
+Route::post('auth/register', [AuthController::class, 'register'])
+    ->middleware('throttle:6,1')
+    ->name('api.auth.register');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
     Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
     // Switch the active organisation (employees of more than one company).
     Route::post('auth/switch', [AuthController::class, 'switch'])->name('api.auth.switch');
+
+    // The two ways into a company (ADR 0026). Both are guessing targets — a join
+    // code names a real organisation and an invitation code grants a seat in one —
+    // so every lookup here is rate-limited, not just the ones that mutate.
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('workspaces/preview', [WorkspaceController::class, 'preview'])->name('api.workspaces.preview');
+        Route::post('workspaces/join', [WorkspaceController::class, 'join'])->name('api.workspaces.join');
+        Route::post('invitations/preview', [InvitationController::class, 'preview'])->name('api.invitations.preview');
+        Route::post('invitations/accept', [InvitationController::class, 'accept'])->name('api.invitations.accept');
+    });
+
+    Route::get('invitations', [InvitationController::class, 'index'])->name('api.invitations.index');
+    Route::delete('invitations/{invitation}', [InvitationController::class, 'decline'])
+        ->whereNumber('invitation')->name('api.invitations.decline');
 
     // Self-service Daily Time Record.
     Route::get('attendance/today', [AttendanceController::class, 'today'])->name('api.attendance.today');

@@ -42,6 +42,7 @@ class EmployeeController extends Controller
                 'forceDelete' => $request->user()->can('employees.force-delete'),
                 'export' => $request->user()->can('employees.export'),
                 'manageDocuments' => $request->user()->can('employees.manage-documents'),
+                'invite' => $request->user()->can('employees.invite'),
             ],
             'filters' => [
                 'search' => $request->string('search')->toString(),

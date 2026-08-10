@@ -68,6 +68,9 @@ class EmployeesIndexQuery
                 'manager:id,first_name,middle_name,last_name,suffix,employee_no',
                 'workSchedule:id,name',
                 'user:id,email',
+                // Feeds Employee::appAccess() for the directory's Access column —
+                // eager-loaded so deriving it per row costs no extra query.
+                'invitations',
             ])
             ->withCount(['documents', 'certifications'])
             ->when($status === 'archived', fn (Builder $query) => $query->onlyTrashed())

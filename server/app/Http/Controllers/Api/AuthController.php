@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\PasswordValidationRules;
+use App\Concerns\ProfileValidationRules;
 use App\Http\Controllers\Controller;
-use App\Models\Organization;
 use App\Models\User;
+use App\Support\MobileSession;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,22 +14,60 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Token issuance for the mobile app. Separate from the web's session-based Fortify
- * flow: mobile clients exchange credentials for a Sanctum personal access token and
- * send it as a Bearer token on every request.
+ * Identity for the mobile app: registering one, exchanging it for a token, and
+ * moving it between companies.
  *
- * A user is a global identity that may belong to several organisations (ADR 0023).
- * Each token is minted **bound to one active organisation**
- * (`personal_access_tokens.organization_id`); switching companies issues a fresh
- * token for the chosen organisation. Every payload carries the caller's full list
- * of organisations so the app can offer the switcher.
+ * Since ADR 0026 people create their own accounts here rather than receiving one
+ * from an employer, so this controller answers a question it used to refuse:
+ * **an identity that belongs to no organisation is valid.** Registering, and
+ * signing in afterwards, both succeed with `organization: null`; the app routes
+ * that to the join screen. Nothing about employment is decided here — see
+ * {@see WorkspaceController} and {@see InvitationController} for the two ways in.
+ *
+ * Every payload and token is built by {@see MobileSession} so the four ways a
+ * session is created cannot drift apart.
  */
 class AuthController extends Controller
 {
-    public function __construct(private readonly Tenancy $tenancy) {}
+    use PasswordValidationRules, ProfileValidationRules;
+
+    public function __construct(
+        private readonly Tenancy $tenancy,
+        private readonly MobileSession $session,
+    ) {}
 
     /**
-     * Exchange credentials for a token bound to the identity's default organisation.
+     * Register a brand-new identity. Creates no employment and joins no company —
+     * it hands back a signed-in session with nowhere to stand yet.
+     */
+    public function register(Request $request): JsonResponse
+    {
+        // The same name/email rules the web registration uses — the email is
+        // globally unique because it *is* the identity key across every tenant.
+        $validated = $request->validate([
+            ...$this->profileRules(),
+            'password' => $this->passwordRules(),
+            'device_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $user = User::create([
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'is_active' => true,
+        ]);
+
+        return response()->json(
+            $this->session->open($user, null, $validated['device_name'] ?? null),
+            201,
+        );
+    }
+
+    /**
+     * Exchange credentials for a token bound to the identity's default company —
+     * or to none, if they haven't joined one yet.
      */
     public function login(Request $request): JsonResponse
     {
@@ -48,16 +88,9 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => ['This account is inactive.']]);
         }
 
-        $active = $user->defaultOrganization();
-
-        if ($active === null) {
-            throw ValidationException::withMessages(['email' => ['This account is not linked to any organisation.']]);
-        }
-
-        return response()->json([
-            'token' => $this->issueToken($user, $active, $credentials['device_name'] ?? null),
-            'user' => $this->userPayload($user, $active),
-        ]);
+        return response()->json(
+            $this->session->open($user, $user->defaultOrganization(), $credentials['device_name'] ?? null),
+        );
     }
 
     /**
@@ -77,27 +110,23 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['organization_id' => ['You are not a member of that organisation.']]);
         }
 
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json([
-            'token' => $this->issueToken($user, $organization, 'mobile'),
-            'user' => $this->userPayload($user, $organization),
-        ]);
+        return response()->json($this->session->reissue($user, $organization));
     }
 
     /**
-     * The signed-in user, their active organisation and linked employee.
+     * The signed-in user, their active organisation (if any) and linked employee.
+     *
+     * Reports strictly what *this token* can do. A token minted before the holder
+     * joined anywhere stays unbound even once they have memberships, so answering
+     * with their default company here would describe a workspace the token cannot
+     * actually act in. The payload still lists every membership, and the client
+     * binds one by calling `/auth/switch`.
      */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $active = $this->tenancy->organization() ?? $user->defaultOrganization();
-
-        if ($active === null) {
-            abort(403, 'This account is not linked to any organisation.');
-        }
-
-        return response()->json(['user' => $this->userPayload($user, $active)]);
+        return response()->json([
+            'user' => $this->session->payload($request->user(), $this->tenancy->organization()),
+        ]);
     }
 
     /**
@@ -108,67 +137,5 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Signed out.']);
-    }
-
-    /**
-     * Mint a personal access token bound to the given organisation.
-     */
-    private function issueToken(User $user, Organization $organization, ?string $deviceName): string
-    {
-        $token = $user->createToken($deviceName ?? 'mobile');
-        $token->accessToken->forceFill(['organization_id' => $organization->id])->save();
-
-        return $token->plainTextToken;
-    }
-
-    /**
-     * Build the payload for an identity viewed from a specific active organisation.
-     * Computed with the organisation bound as the tenant so the employee record,
-     * roles and permissions resolve to that organisation.
-     *
-     * @return array<string, mixed>
-     */
-    private function userPayload(User $user, Organization $active): array
-    {
-        return $this->tenancy->runFor($active, function () use ($user, $active): array {
-            // Drop any roles/permissions memoised under a previous tenant.
-            $user->forgetCachedPermissions();
-
-            $employee = $user->employee()->with('workSchedule')->first();
-
-            return [
-                'id' => $user->id,
-                'name' => trim("{$user->first_name} {$user->last_name}"),
-                'email' => $user->email,
-                'organization' => $this->organizationPayload($active),
-                'organizations' => $user->memberships()
-                    ->orderByDesc('organization_user.is_default')
-                    ->orderBy('organizations.name')
-                    ->get()
-                    ->map(fn (Organization $organization): array => $this->organizationPayload($organization))
-                    ->all(),
-                'employee' => $employee ? [
-                    'id' => $employee->id,
-                    'full_name' => $employee->full_name,
-                    'employee_no' => $employee->employee_no,
-                    'photo' => $employee->photo_url,
-                    'schedule' => $employee->workSchedule?->only(['name', 'start_time', 'end_time', 'grace_minutes', 'required_hours']),
-                ] : null,
-                'can_clock' => $user->can('attendance.clock'),
-            ];
-        });
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function organizationPayload(Organization $organization): array
-    {
-        return [
-            'id' => $organization->id,
-            'name' => $organization->name,
-            'logo' => $organization->logo_url,
-            'initials' => $organization->initials(),
-        ];
     }
 }

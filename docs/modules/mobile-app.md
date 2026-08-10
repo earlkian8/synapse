@@ -8,20 +8,33 @@ tokens), and mirrors the web brand so the two read as one product. See
 
 ## Who can sign in
 
-A login account is provisioned **when an applicant is hired**
-(`EmployeeAccountProvisioner`, called from `ApplicantHirer::hire()`): one `User`
-with the `staff` role, linked to the `Employee`, with a generated temporary
-password. The recruiter can opt to email the credentials at hire time
-(`send_credentials`, default on) — `EmployeeCredentialsNotification`, mail-only
-and synchronous, so it works under `MAIL_MAILER=log` with no SMTP. The `staff`
-role grants `attendance.clock` and `leave.request`; all read endpoints are
-self-scoped and need no further permission.
+**People create their own accounts** ([ADR 0026](../decisions/0026-self-served-identity-and-workspace-join.md)).
+`POST /api/auth/register` (throttled) takes a name, any email address they choose,
+and a password. It creates no employment and joins no company: the response is a
+real session whose `organization` is `null` and whose `needs_workspace` is `true`.
+The ERP never issues, knows, or can reset anybody's password — forgotten passwords
+go through Fortify's web forgot-password flow.
 
-HR can re-issue access later from the **Employees** module: the **Reset
-password** row action (`POST employees/{employee}/reset-password`,
-`can:employees.update`) opens a right-side confirmation drawer that rotates the
-password via `EmployeeAccountProvisioner::resetPassword()` — provisioning the
-account first if the employee never had one — and re-sends the credentials email.
+Connecting that account to an employer is a second, separate step, with two routes:
+
+- **An invitation.** HR invites a specific roster line; the email carries a link and
+  an 8-character code. `GET /api/invitations` lists the ones addressed to the
+  caller's mailbox; `POST /api/invitations/accept` redeems any valid code (holding
+  one *is* the authorisation, so it need not match their address).
+- **The company join code.** `POST /api/workspaces/preview` names the company behind
+  a 7-character code before committing; `POST /api/workspaces/join` redeems it. If
+  their registered email matches exactly one unclaimed roster line they are admitted
+  on the spot; otherwise the request queues for HR and the response comes back
+  `status: "pending"`.
+
+Both admitting responses re-issue the Sanctum token **bound to the new company**.
+Admission grants the `staff` role (`attendance.clock`, `leave.request`); every read
+endpoint is self-scoped and needs no further permission.
+
+`App\Support\MobileSession` builds every session — login, register, switch, join — so
+the four cannot drift. Note that `/me` reports what *this token* can do: a token
+minted before its holder joined anywhere stays unbound, so the payload lists their
+memberships and the client binds one with `/auth/switch`.
 
 ## Multiple companies
 
@@ -38,6 +51,14 @@ every `useQuery` screen refetches against the new company's tenant context.
 
 ## Surfaces
 
+- **Sign in / Create account** — `app/(auth)/login.tsx` and
+  `app/(auth)/register.tsx`. Registration asks for nothing about work: the account
+  is the person's own, and connecting it to a company is the next screen.
+- **Join a company** (`app/join.tsx`) — where an account with no employer lands.
+  Invitations addressed to them are listed unprompted and joined in one tap; below
+  that, a single code field takes either an invitation code or the company join
+  code (it tries the more specific one first). Pending requests are shown so nobody
+  asks twice. Company creation is deliberately absent — that lives on the web app.
 - **Home** — greeting, today's clock state, quick actions, leave-balance
   mini-cards, latest award, pending-request badge.
 - **Clock (DTR, the hero)** — live clock, today's shift, a state-driven primary
@@ -58,7 +79,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the account's `organization` |
+| `POST /api/auth/register` (public, throttled) | Create an identity; returns a session with `organization: null`, `needs_workspace: true` |
+| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`) |
+| `POST /api/auth/switch` | Re-issue the token bound to another company the identity belongs to |
+| `POST /api/workspaces/preview` · `POST /api/workspaces/join` | Look up / redeem a company join code (throttled) |
+| `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
 | `GET /api/awards` | Own recognitions |

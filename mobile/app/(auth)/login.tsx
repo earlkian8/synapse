@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -97,7 +98,7 @@ export default function LoginScreen() {
                   Welcome back
                 </AppText>
                 <AppText variant="caption" style={{ color: '#64748B' }}>
-                  Sign in with your employee credentials.
+                  Sign in to your SYNAPSE account.
                 </AppText>
               </View>
 
@@ -143,13 +144,26 @@ export default function LoginScreen() {
               />
             </Animated.View>
 
-            <AppText
-              variant="caption"
-              center
-              style={{ color: 'rgba(255,255,255,0.55)', marginTop: 24 }}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 24,
+              }}
             >
-              Your account is created by HR when you’re hired.
-            </AppText>
+              <AppText variant="caption" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                New here?
+              </AppText>
+              <Link href="/(auth)/register" replace asChild>
+                <Pressable hitSlop={8}>
+                  <AppText variant="caption" style={{ color: palette.teal, fontWeight: '600' }}>
+                    Create an account
+                  </AppText>
+                </Pressable>
+              </Link>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

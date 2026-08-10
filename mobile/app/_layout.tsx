@@ -33,7 +33,8 @@ export default function RootLayout() {
  * state, and keeps the native splash up until the stored session is restored.
  */
 function RootNavigator() {
-  const { isLoading, isAuthenticated, hasEnteredWorkspace, organizations } = useAuth();
+  const { isLoading, isAuthenticated, hasEnteredWorkspace, needsWorkspace, organizations } =
+    useAuth();
   const { scheme, colors } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -47,17 +48,31 @@ function RootNavigator() {
 
     const inAuthGroup = segments[0] === '(auth)';
     const onPicker = segments[0] === 'select-workspace';
+    const onJoin = segments[0] === 'join';
     // A fresh login by someone in several companies must pick one first.
     const needsChoice = isAuthenticated && !hasEnteredWorkspace && organizations.length > 1;
+    // Signed in but belonging nowhere is a valid state (ADR 0026) — it has its own
+    // screen rather than being treated as a failed session.
+    const unaffiliated = isAuthenticated && needsWorkspace;
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login');
+    } else if (unaffiliated && !onJoin) {
+      router.replace('/join');
     } else if (needsChoice && !onPicker) {
       router.replace('/select-workspace');
-    } else if (isAuthenticated && !needsChoice && (inAuthGroup || onPicker)) {
+    } else if (isAuthenticated && !unaffiliated && !needsChoice && (inAuthGroup || onPicker || onJoin)) {
       router.replace('/(tabs)');
     }
-  }, [isLoading, isAuthenticated, hasEnteredWorkspace, organizations.length, segments, router]);
+  }, [
+    isLoading,
+    isAuthenticated,
+    hasEnteredWorkspace,
+    needsWorkspace,
+    organizations.length,
+    segments,
+    router,
+  ]);
 
   return (
     <>
@@ -71,6 +86,7 @@ function RootNavigator() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
+        <Stack.Screen name="join" />
         <Stack.Screen name="select-workspace" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />

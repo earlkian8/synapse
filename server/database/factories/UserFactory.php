@@ -67,6 +67,20 @@ class UserFactory extends Factory
     }
 
     /**
+     * An identity that belongs to no organisation — somebody who registered in the
+     * app and hasn't joined a company yet (ADR 0026).
+     *
+     * Undoes the membership {@see configure()} attaches rather than suppressing it,
+     * so the two states stay described in one place.
+     */
+    public function unaffiliated(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->memberships()->detach();
+        });
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

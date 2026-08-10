@@ -33,7 +33,7 @@ type ConfirmConfig = {
     description: ReactNode;
     confirmLabel: string;
     destructive?: boolean;
-    /** Tags the hire action so its credential-email toggle can be rendered. */
+    /** Tags the hire action so its invitation toggle can be rendered. */
     kind?: 'hire';
     run: () => void;
 };
@@ -53,14 +53,14 @@ export default function RecruitmentPipeline() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
 
-    // Whether hiring should email the new hire their login credentials. A ref
-    // mirrors the state so the hire request reads the live value, not the value
-    // captured when the confirm dialog was opened.
-    const [sendCredentials, setSendCredentials] = useState(true);
-    const sendCredentialsRef = useRef(true);
-    const toggleSendCredentials = (value: boolean) => {
-        sendCredentialsRef.current = value;
-        setSendCredentials(value);
+    // Whether hiring should invite the new hire to the app. A ref mirrors the
+    // state so the hire request reads the live value, not the value captured
+    // when the confirm dialog was opened.
+    const [sendInvitation, setSendInvitation] = useState(true);
+    const sendInvitationRef = useRef(true);
+    const toggleSendInvitation = (value: boolean) => {
+        sendInvitationRef.current = value;
+        setSendInvitation(value);
     };
 
     const stageCounts = useMemo(() => {
@@ -159,17 +159,17 @@ export default function RecruitmentPipeline() {
         );
 
     const hire = (application: Application) => {
-        toggleSendCredentials(true);
+        toggleSendInvitation(true);
         askConfirm({
             title: `Hire ${application.applicant?.full_name}?`,
             description:
-                'This creates an employee record from the applicant and this posting, provisions their mobile-app login, copies their résumé into the 201 file, and marks the application hired.',
+                'This creates an employee record from the applicant and this posting, copies their résumé into the 201 file, and marks the application hired.',
             confirmLabel: 'Hire & create employee',
             kind: 'hire',
             run: () =>
                 router.post(
                     recruitmentRoutes.applicationHire(application.id),
-                    { send_credentials: sendCredentialsRef.current },
+                    { send_invitation: sendInvitationRef.current },
                     withProcessing,
                 ),
         });
@@ -363,20 +363,21 @@ export default function RecruitmentPipeline() {
                         confirm.kind === 'hire' ? (
                             <label className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
                                 <Checkbox
-                                    checked={sendCredentials}
+                                    checked={sendInvitation}
                                     onCheckedChange={(value) =>
-                                        toggleSendCredentials(value === true)
+                                        toggleSendInvitation(value === true)
                                     }
                                     className="mt-0.5"
                                 />
                                 <span className="space-y-0.5">
                                     <Label className="cursor-pointer">
-                                        Email login credentials to the new hire
+                                        Invite the new hire to the app
                                     </Label>
                                     <span className="block text-xs text-muted-foreground">
-                                        Sends their email and a temporary
-                                        password so they can sign in to the
-                                        SYNAPSE app.
+                                        Emails them a link and a code to claim
+                                        this record with an account they set up
+                                        themselves. You can invite them later
+                                        from App access instead.
                                     </span>
                                 </span>
                             </label>

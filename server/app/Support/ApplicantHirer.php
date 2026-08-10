@@ -7,7 +7,6 @@ use App\Models\Applicant;
 use App\Models\Employee;
 use App\Models\JobApplication;
 use App\Models\User;
-use App\Notifications\EmployeeCredentialsNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -25,11 +24,14 @@ class ApplicantHirer
      * file, seeds onboarding, marks the application hired and fills the posting
      * when its openings are met. Returns the new employee.
      *
-     * @param  bool  $sendCredentials  Email the new hire their temporary password.
+     * Hiring creates *employment*, never a login: since ADR 0026 the new hire owns
+     * their own identity and claims this roster line with the invitation sent below.
+     *
+     * @param  bool  $sendInvitation  Email the new hire an invitation to the app.
      *
      * @throws RuntimeException when the application has already been hired.
      */
-    public static function hire(JobApplication $application, User $actor, bool $sendCredentials = true): Employee
+    public static function hire(JobApplication $application, User $actor, bool $sendInvitation = true): Employee
     {
         $application->loadMissing(['applicant', 'jobPosting']);
 
@@ -39,9 +41,8 @@ class ApplicantHirer
 
         $applicant = $application->applicant;
         $posting = $application->jobPosting;
-        $temporaryPassword = null;
 
-        $employee = DB::transaction(function () use ($application, $applicant, $posting, $actor, &$temporaryPassword): Employee {
+        $employee = DB::transaction(function () use ($application, $applicant, $posting, $actor): Employee {
             $employee = new Employee([
                 'employee_no' => self::nextEmployeeNo(),
                 'first_name' => $applicant->first_name,
@@ -61,10 +62,6 @@ class ApplicantHirer
             // Seed the new hire's onboarding from the best-matching program.
             OnboardingProvisioner::start($employee);
 
-            // Provision the login account they'll use on the mobile app; the
-            // temporary password is captured for the welcome email below.
-            [, $temporaryPassword] = EmployeeAccountProvisioner::provision($employee);
-
             $application->update([
                 'stage' => 'hired',
                 'hired_employee_id' => $employee->id,
@@ -81,14 +78,16 @@ class ApplicantHirer
             return $employee;
         });
 
-        // Email the credentials after commit so nothing is sent on a rollback,
-        // and only when a brand-new account (and password) was just created.
-        if ($sendCredentials && $temporaryPassword !== null && $employee->user) {
-            $employee->user->notify(new EmployeeCredentialsNotification(
-                email: $employee->email,
-                temporaryPassword: $temporaryPassword,
-                organizationName: $posting->organization?->name ?? config('app.name', 'SYNAPSE'),
-            ));
+        // Invite them to claim the roster line, after commit so nothing is sent on
+        // a rollback. A hire is a workforce fact and must stand on its own, so a
+        // refused invitation (no address on the application, say) is reported by
+        // the caller rather than unwinding the employment that just happened.
+        if ($sendInvitation && filled($employee->email)) {
+            try {
+                EmployeeInvitations::invite($employee, $actor);
+            } catch (RuntimeException $e) {
+                report($e);
+            }
         }
 
         ActivityLogger::log(

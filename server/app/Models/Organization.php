@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\JoinCode;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,6 +30,7 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
+        'join_code_enabled',
         'legal_name',
         'logo',
         'email',
@@ -44,6 +46,27 @@ class Organization extends Model
      * @var list<string>
      */
     protected $appends = ['logo_url'];
+
+    /**
+     * Mirrors the column default so a freshly-made instance answers the same as one
+     * read back from the database.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['join_code_enabled' => true];
+
+    /**
+     * `join_code` is deliberately absent from {@see $fillable}: it is a credential,
+     * not a profile field, and only ever changes through {@see rotateJoinCode()}.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'join_code_enabled' => 'boolean',
+        ];
+    }
 
     /**
      * Identities that are members of this organisation (ADR 0023). A user belongs
@@ -86,6 +109,61 @@ class Organization extends Model
     public function departments(): HasMany
     {
         return $this->hasMany(Department::class);
+    }
+
+    /**
+     * People waiting at the door — identities that typed this organisation's join
+     * code but need HR to place them on the roster (ADR 0026).
+     *
+     * @return HasMany<OrganizationJoinRequest, $this>
+     */
+    public function joinRequests(): HasMany
+    {
+        return $this->hasMany(OrganizationJoinRequest::class);
+    }
+
+    /**
+     * Claim tickets issued against this organisation's roster lines.
+     *
+     * @return HasMany<EmployeeInvitation, $this>
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(EmployeeInvitation::class);
+    }
+
+    /**
+     * Issue a fresh join code, invalidating the current one. Used both to seed a
+     * brand-new organisation and to cut off a code that has leaked.
+     */
+    public function rotateJoinCode(): string
+    {
+        $code = JoinCode::uniqueFor(self::class, 'join_code', JoinCode::ORGANIZATION_LENGTH);
+
+        $this->forceFill(['join_code' => $code])->save();
+
+        return $code;
+    }
+
+    /**
+     * Resolve an organisation from a typed join code, or null when it matches
+     * nothing or its owner has switched code entry off.
+     *
+     * Deliberately unscoped: the code is answered from *outside* any tenant, by
+     * somebody who is not yet a member of the organisation they are naming.
+     */
+    public static function findByJoinCode(?string $code): ?self
+    {
+        $normalized = JoinCode::normalize($code);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return self::query()
+            ->where('join_code', $normalized)
+            ->where('join_code_enabled', true)
+            ->first();
     }
 
     /**

@@ -430,7 +430,7 @@ test('it hires a candidate through the shared hire bridge', function () {
         'stage' => 'offer',
     ]);
 
-    $result = agent($user, 'hire_applicant', ['applicant' => 'Future Hire', 'send_credentials' => false]);
+    $result = agent($user, 'hire_applicant', ['applicant' => 'Future Hire', 'send_invitation' => false]);
 
     $employee = Employee::where('last_name', 'Hire')->first();
 

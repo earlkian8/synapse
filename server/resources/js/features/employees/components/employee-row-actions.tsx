@@ -1,9 +1,10 @@
 import {
     ArchiveRestore,
     Eye,
-    KeyRound,
+    MailX,
     MoreHorizontal,
     Pencil,
+    Send,
     Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,8 @@ type Props = {
     can: EmployeePermissions;
     onView: (employee: ManagedEmployee) => void;
     onEdit: (employee: ManagedEmployee) => void;
-    onResetPassword: (employee: ManagedEmployee) => void;
+    onInvite: (employee: ManagedEmployee) => void;
+    onRevokeInvite: (employee: ManagedEmployee) => void;
     onArchive: (employee: ManagedEmployee) => void;
     onRestore: (employee: ManagedEmployee) => void;
     onDelete: (employee: ManagedEmployee) => void;
@@ -33,12 +35,14 @@ export function EmployeeRowActions({
     can,
     onView,
     onEdit,
-    onResetPassword,
+    onInvite,
+    onRevokeInvite,
     onArchive,
     onRestore,
     onDelete,
 }: Props) {
     const isArchived = employee.status === 'archived';
+    const access = employee.app_access;
 
     return (
         <DropdownMenu>
@@ -69,13 +73,32 @@ export function EmployeeRowActions({
                                 Edit
                             </DropdownMenuItem>
                         )}
-                        {can.update && (
+                        {/* HR invites; it never sets a password (ADR 0026). The
+                            wording tracks where the person actually is, so the
+                            menu never offers to "invite" somebody already in. */}
+                        {can.invite && access === 'none' && (
                             <DropdownMenuItem
-                                onSelect={() => onResetPassword(employee)}
+                                onSelect={() => onInvite(employee)}
                             >
-                                <KeyRound className="size-4" />
-                                Reset password
+                                <Send className="size-4" />
+                                Invite to the app
                             </DropdownMenuItem>
+                        )}
+                        {can.invite && access === 'invited' && (
+                            <>
+                                <DropdownMenuItem
+                                    onSelect={() => onInvite(employee)}
+                                >
+                                    <Send className="size-4" />
+                                    Resend invitation
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onSelect={() => onRevokeInvite(employee)}
+                                >
+                                    <MailX className="size-4" />
+                                    Revoke invitation
+                                </DropdownMenuItem>
+                            </>
                         )}
                         {can.delete && (
                             <>

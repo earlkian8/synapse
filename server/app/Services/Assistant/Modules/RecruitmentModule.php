@@ -402,13 +402,13 @@ class RecruitmentModule extends Module
             ],
             [
                 'name' => 'hire_applicant',
-                'description' => 'Hire a candidate — creates an employee from their application, provisions their login and seeds onboarding. Irreversible.',
+                'description' => 'Hire a candidate — creates an employee from their application, invites them to the app and seeds onboarding. Irreversible.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
                         'applicant' => $applicantArg,
                         'posting' => $postingArg,
-                        'send_credentials' => ['type' => 'BOOLEAN', 'description' => 'Email the new hire their temporary password. Defaults to true.'],
+                        'send_invitation' => ['type' => 'BOOLEAN', 'description' => 'Email the new hire an invitation to join the app. Defaults to true.'],
                     ],
                     'required' => ['applicant'],
                 ],
@@ -1168,7 +1168,7 @@ class RecruitmentModule extends Module
         }
 
         try {
-            $employee = ApplicantHirer::hire($application, $user, (bool) ($args['send_credentials'] ?? true));
+            $employee = ApplicantHirer::hire($application, $user, (bool) ($args['send_invitation'] ?? true));
         } catch (RuntimeException $e) {
             return ToolResult::error("Checked {$application->applicant->full_name}", $e->getMessage());
         }

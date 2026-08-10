@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\BulkEmployeeActionRequest;
 use App\Models\Employee;
+use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\EmployeeInvitations;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use RuntimeException;
 
 class EmployeeBulkActionController extends Controller
 {
@@ -29,6 +32,7 @@ class EmployeeBulkActionController extends Controller
             'delete' => Employee::withTrashed()->whereIn('id', $ids)->forceDelete(),
             'set-status' => Employee::whereIn('id', $ids)
                 ->update(['employment_status' => $request->validated('status')]),
+            'invite' => $this->invite($ids, $request->user()),
         };
 
         ActivityLogger::log(
@@ -47,6 +51,29 @@ class EmployeeBulkActionController extends Controller
     }
 
     /**
+     * Invite a batch of employees to the app, skipping the ones that cannot be
+     * invited (already have access, no address on file) rather than failing the
+     * whole batch for them. Returns how many invitations actually went out.
+     *
+     * @param  list<int>  $ids
+     */
+    private function invite(array $ids, User $actor): int
+    {
+        $sent = 0;
+
+        foreach (Employee::whereIn('id', $ids)->whereNull('user_id')->get() as $employee) {
+            try {
+                EmployeeInvitations::invite($employee, $actor);
+                $sent++;
+            } catch (RuntimeException) {
+                // Nothing to send to, or somebody claimed the line meanwhile.
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
      * Map a bulk action to the permission it requires.
      */
     private function permissionFor(string $action): string
@@ -56,6 +83,7 @@ class EmployeeBulkActionController extends Controller
             'restore' => 'employees.restore',
             'delete' => 'employees.force-delete',
             'set-status' => 'employees.update',
+            'invite' => 'employees.invite',
         };
     }
 
@@ -69,6 +97,7 @@ class EmployeeBulkActionController extends Controller
             'restore' => 'restored',
             'delete' => 'deleted',
             'set-status' => 'updated',
+            'invite' => 'created',
         };
     }
 
@@ -84,6 +113,9 @@ class EmployeeBulkActionController extends Controller
             'restore' => "{$count} {$noun} restored.",
             'delete' => "{$count} {$noun} permanently deleted.",
             'set-status' => "{$count} {$noun} updated.",
+            'invite' => $count === 0
+                ? 'Nobody was invited — those employees already have access, or have no email address on file.'
+                : "{$count} {$noun} invited to the app.",
         };
     }
 }

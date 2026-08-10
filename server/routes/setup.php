@@ -6,6 +6,7 @@ use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\EvaluationPeriodController;
 use App\Http\Controllers\Setup\HolidayController;
+use App\Http\Controllers\Setup\JoinCodeController;
 use App\Http\Controllers\Setup\KpiCriterionController;
 use App\Http\Controllers\Setup\KpiSetupController;
 use App\Http\Controllers\Setup\LeaveTypeController;
@@ -30,6 +31,11 @@ Route::middleware(['auth', 'verified'])
         // statutory employer numbers (the tenant doubles as the company profile).
         Route::get('company', [CompanyProfileController::class, 'edit'])->middleware('can:setup.company.view')->name('company.edit');
         Route::post('company', [CompanyProfileController::class, 'update'])->middleware('can:setup.company.manage')->name('company.update');
+
+        // The company join code (ADR 0026) — a credential rather than a profile
+        // field, so it rotates and toggles rather than being edited.
+        Route::post('company/join-code', [JoinCodeController::class, 'rotate'])->middleware('can:setup.company.manage')->name('company.join-code.rotate');
+        Route::patch('company/join-code', [JoinCodeController::class, 'update'])->middleware('can:setup.company.manage')->name('company.join-code.update');
 
         // Work Schedule & Holidays — the shifts employees follow (read by
         // Attendance) and the holiday calendar (read by Leave). Both addressed by

@@ -4,10 +4,18 @@ use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrganizationSwitchController;
+use App\Http\Controllers\Public\InvitationController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Where the invitation email's link lands. Public on purpose (ADR 0026): the
+// recipient may not have an account anywhere yet. Shows who is inviting them and
+// the code to type — it never redeems anything, which happens in the app.
+Route::get('invite/{token}', [InvitationController::class, 'show'])
+    ->middleware('throttle:20,1')
+    ->name('invite.show');
 
 // Switch the active organisation (employees / admins of more than one company).
 // Only `auth` — switching must work regardless of the new org's verification state.

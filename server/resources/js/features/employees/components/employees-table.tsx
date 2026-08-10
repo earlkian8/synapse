@@ -15,6 +15,7 @@ import type {
     EmployeesFilters,
     ManagedEmployee,
 } from '../types';
+import { AppAccessBadge } from './app-access-badge';
 import { EmployeeAvatar } from './employee-avatar';
 import { EmployeeRowActions } from './employee-row-actions';
 import { EmployeeStatusBadge } from './employee-status-badge';
@@ -22,7 +23,8 @@ import { EmployeeStatusBadge } from './employee-status-badge';
 type RowHandlers = {
     onView: (employee: ManagedEmployee) => void;
     onEdit: (employee: ManagedEmployee) => void;
-    onResetPassword: (employee: ManagedEmployee) => void;
+    onInvite: (employee: ManagedEmployee) => void;
+    onRevokeInvite: (employee: ManagedEmployee) => void;
     onArchive: (employee: ManagedEmployee) => void;
     onRestore: (employee: ManagedEmployee) => void;
     onDelete: (employee: ManagedEmployee) => void;
@@ -92,6 +94,7 @@ export function EmployeesTable({
                         <TableHead>Position</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>App access</TableHead>
                         <SortHeader
                             column="date_hired"
                             filters={filters}
@@ -105,7 +108,7 @@ export function EmployeesTable({
                 <TableBody>
                     {employees.length === 0 && (
                         <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={9} className="py-16">
+                            <TableCell colSpan={10} className="py-16">
                                 <div className="flex flex-col items-center justify-center gap-2 text-center">
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <Users2 className="size-6 text-muted-foreground" />
@@ -194,6 +197,11 @@ export function EmployeesTable({
                                 <TableCell>
                                     <EmployeeStatusBadge
                                         status={employee.status}
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <AppAccessBadge
+                                        access={employee.app_access}
                                     />
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">

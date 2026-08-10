@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Send, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Select,
@@ -88,6 +88,16 @@ export function EmployeeBulkActionsBar({
                                 ))}
                             </SelectContent>
                         </Select>
+                    )}
+                    {can.invite && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onAction('invite')}
+                        >
+                            <Send className="size-4" />
+                            Invite to the app
+                        </Button>
                     )}
                     {can.delete && (
                         <Button

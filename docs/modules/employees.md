@@ -81,7 +81,12 @@ Registered in [`routes/employees.php`](../../server/routes/employees.php) under
 | GET | `/employees/{employee}` | `show` (JSON) | `employees.view` |
 | POST | `/employees/{employee}` | `update` | `employees.update` |
 | DELETE | `/employees/{employee}` | `destroy` (archive) | `employees.delete` |
+| GET | `/employees/access` | `access` | `employees.invite` |
+| POST | `/employees/join-requests/{joinRequest}/approve` | `join-requests.approve` | `employees.invite` |
+| POST | `/employees/join-requests/{joinRequest}/decline` | `join-requests.decline` | `employees.invite` |
 | PATCH | `/employees/{employee}/status` | `status` | `employees.update` |
+| POST | `/employees/{employee}/invite` | `invite` | `employees.invite` |
+| DELETE | `/employees/{employee}/invite` | `invite.revoke` | `employees.invite` |
 | PATCH | `/employees/{employee}/restore` | `restore` | `employees.restore` |
 | DELETE | `/employees/{employee}/force` | `force-delete` | `employees.force-delete` |
 | POST/DELETE | `…/documents[/{document}]` | `documents.*` | `employees.manage-documents` |
@@ -143,12 +148,44 @@ sub-records; uploads post `FormData` and re-fetch on success.
 
 ---
 
+## 5a. App access (ADR 0026)
+
+Creating an employee creates *employment*, never a login. Whether a person can
+actually sign in is therefore its own question, answered by a derived
+`app_access` on every employee row — `active` (an identity has claimed it),
+`invited` (a claim ticket is outstanding), or `none`. It is computed on read
+(`Employee::appAccess()`), because the `invited` state lapses on its own when the
+invitation expires and no writer would be watching; `EmployeesIndexQuery` eager-loads
+`invitations` to keep it off the N+1 path.
+
+**App Access** (`/employees/access`, `employees.invite`) is the screen that manages
+it, ordered by who is waiting on whom:
+
+1. **Waiting to join** — people who used the company join code but couldn't be
+   matched to a roster line automatically. Approving opens a picker that floats
+   email matches to the top; HR must nominate the record before it binds.
+2. **Invitations sent** — outstanding claim tickets, with their codes visible so HR
+   can read one back to somebody who never got the email. Resend supersedes.
+3. **Not invited yet** — the backlog, with a per-row Invite and an Invite-all.
+
+The **company join code** lives at the top of the same screen (rotate + an on/off
+switch, both `setup.company.manage`, routed under `setup.company.join-code.*`
+because the code belongs to the organisation rather than the roster).
+
+Row actions and the bulk bar offer **Invite / Resend / Revoke** in place of the
+removed password reset — HR cannot set or reset anybody's password. All of it runs
+through `App\Support\EmployeeInvitations` and `App\Support\WorkspaceJoin`.
+
+---
+
 ## 6. Permissions & roles
 
 A new **Employee Management** permission group in `PermissionRegistry`:
 `employees.view / create / update / delete / restore / force-delete / export /
-manage-documents`. Seeded: Super Admin & Administrator get all; **HR Manager**
-gets view/create/update/delete/restore/export/manage-documents.
+manage-documents / invite`. Seeded: Super Admin & Administrator get all; **HR
+Manager** gets view/create/update/delete/restore/export/manage-documents/invite.
+`employees.invite` gates both inviting people and reviewing join requests, and is
+back-filled onto existing owner roles by the ADR 0026 migration.
 
 The sidebar's Workforce → Employees link is gated on `employees.view`.
 
@@ -156,10 +193,16 @@ The sidebar's Workforce → Employees link is gated on `employees.view`.
 
 ## 7. Key decisions
 
-Employee is **separate from User** (`employees.user_id` is a nullable, unique FK):
-a field worker may have no login; an IT admin may not be an employee. See
-[ADR 0004](../decisions/0004-employee-user-separation.md). Single-tenant; approvers
-recorded as `users`.
+Employee is **separate from User** (`employees.user_id` is a nullable FK, unique per
+organisation): a field worker may have no login; an IT admin may not be an employee.
+See [ADR 0004](../decisions/0004-employee-user-separation.md). Approvers recorded as
+`users`.
+
+Hiring or creating an employee **never creates a login**
+([ADR 0026](../decisions/0026-self-served-identity-and-workspace-join.md)). The ERP
+owns employment; the person owns identity, registering themselves in the mobile app
+and claiming their roster line with an invitation or the company join code. HR can
+neither set nor reset a password.
 
 ---
 
@@ -173,6 +216,16 @@ authorization matrix (view/create/force-delete/manage-documents gates) + the
 unique user link.
 
 `tests/Unit/EmployeeModelTest.php` — `full_name` / `initials` accessors (DB-free).
+
+`tests/Feature/Employee/EmployeeInvitationTest.php` (20) — issuing, the hashed link
+token, supersede-on-resend, expiry/revoke, redeeming from outside the issuing tenant,
+one-record-per-company, mailbox-scoped discovery, the permission gate, and the mobile
+accept endpoint.
+
+`tests/Feature/Employee/WorkspaceJoinTest.php` (15) — auto-match vs queue, the
+ambiguous-email and claimed-line guards, disabled/unknown codes, approve/decline,
+re-asking after a decline, the App Access screen, registration with no workspace, and
+join-code rotation.
 
 (The Feature suite needs `pdo_sqlite` / CI; the schema, queries, resources, stats
 and gates were validated against live Postgres.)

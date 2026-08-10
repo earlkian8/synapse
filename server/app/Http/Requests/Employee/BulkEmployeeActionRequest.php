@@ -12,7 +12,7 @@ class BulkEmployeeActionRequest extends FormRequest
      *
      * @var list<string>
      */
-    public const ACTIONS = ['archive', 'restore', 'delete', 'set-status'];
+    public const ACTIONS = ['archive', 'restore', 'delete', 'set-status', 'invite'];
 
     /**
      * @return array<string, mixed>

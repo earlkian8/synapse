@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Permission;
 use App\Models\Role;
@@ -72,8 +73,41 @@ class OrganizationProvisioner
     }
 
     /**
-     * Provision a brand-new organisation from a display name: unique slug, default
-     * roles. Returns the organisation and its super-admin role.
+     * Admit an identity into an organisation as a working member: membership, the
+     * organisation's baseline role, and — when a roster line is named — the link
+     * that turns them into that employee.
+     *
+     * This is the ONE place a person becomes staff of a company. Both ways in
+     * (accepting an invitation and being approved off a join code, ADR 0026) end
+     * here, so neither can drift from the other. Idempotent.
+     */
+    public static function admit(Organization $organization, User $user, ?Employee $employee = null, string $role = Role::STAFF): void
+    {
+        // Their first company becomes the one a fresh login lands in.
+        self::addMember($organization, $user, default: ! $user->memberships()->exists());
+
+        // Roles are per-organisation, so resolve this one explicitly instead of
+        // trusting whichever tenant happens to be bound. `syncWithoutDetaching`
+        // adds it without disturbing the roles they hold at other companies.
+        $baseline = Role::withoutGlobalScopes()
+            ->where('organization_id', $organization->id)
+            ->where('name', $role)
+            ->first();
+
+        if ($baseline !== null) {
+            $user->roles()->syncWithoutDetaching([$baseline->id]);
+        }
+
+        $user->forgetCachedPermissions();
+
+        if ($employee !== null && $employee->user_id === null) {
+            $employee->forceFill(['user_id' => $user->id])->save();
+        }
+    }
+
+    /**
+     * Provision a brand-new organisation from a display name: unique slug, join
+     * code, default roles. Returns the organisation and its super-admin role.
      *
      * @return array{0: Organization, 1: Role}
      */
@@ -83,6 +117,9 @@ class OrganizationProvisioner
             'name' => $name,
             'slug' => self::uniqueSlug($name),
         ]);
+
+        // Every organisation ships with a join code people can be given (ADR 0026).
+        $organization->rotateJoinCode();
 
         return [$organization, self::provisionRoles($organization)];
     }

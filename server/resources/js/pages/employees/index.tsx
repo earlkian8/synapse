@@ -1,11 +1,12 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { UserRoundCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeBulkActionsBar } from '@/features/employees/components/employee-bulk-actions-bar';
 import { EmployeeDetailSheet } from '@/features/employees/components/employee-detail-sheet';
 import { EmployeeFormSheet } from '@/features/employees/components/employee-form-sheet';
-import { EmployeeResetPasswordSheet } from '@/features/employees/components/employee-reset-password-sheet';
 import { EmployeesPagination } from '@/features/employees/components/employees-pagination';
 import { EmployeesStats } from '@/features/employees/components/employees-stats';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
@@ -49,11 +50,6 @@ export default function EmployeesIndex() {
     const [detailEmployee, setDetailEmployee] =
         useState<ManagedEmployee | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
-    const [resetEmployee, setResetEmployee] = useState<ManagedEmployee | null>(
-        null,
-    );
-    const [resetOpen, setResetOpen] = useState(false);
-    const [resetProcessing, setResetProcessing] = useState(false);
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -130,29 +126,27 @@ export default function EmployeesIndex() {
         setDetailOpen(true);
     };
 
-    const openResetPassword = (employee: ManagedEmployee) => {
-        setResetEmployee(employee);
-        setResetOpen(true);
-    };
-
-    const submitResetPassword = () => {
-        if (!resetEmployee) {
-            return;
-        }
-
+    // Invitations are re-sendable by design: sending again supersedes the old
+    // code, which is the fix when somebody never received the first one.
+    const invite = (employee: ManagedEmployee) =>
         router.post(
-            employeeRoutes.resetPassword(resetEmployee.id),
+            employeeRoutes.invite(employee.id),
             {},
-            {
-                preserveScroll: true,
-                onStart: () => setResetProcessing(true),
-                onFinish: () => {
-                    setResetProcessing(false);
-                    setResetOpen(false);
-                },
-            },
+            { preserveScroll: true },
         );
-    };
+
+    const revokeInvite = (employee: ManagedEmployee) =>
+        askConfirm({
+            title: `Revoke the invitation for ${employee.full_name}?`,
+            description:
+                'Their invitation code stops working immediately. You can invite them again at any time.',
+            confirmLabel: 'Revoke invitation',
+            run: () =>
+                router.delete(
+                    employeeRoutes.invite(employee.id),
+                    withProcessing,
+                ),
+        });
 
     const archive = (employee: ManagedEmployee) =>
         askConfirm({
@@ -241,14 +235,25 @@ export default function EmployeesIndex() {
             <Head title="Employees" />
 
             <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-xl font-semibold tracking-tight">
-                        Employees
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Manage your organisation's workforce, records and
-                        placements.
-                    </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                        <h1 className="text-xl font-semibold tracking-tight">
+                            Employees
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                            Manage your organisation's workforce, records and
+                            placements.
+                        </p>
+                    </div>
+
+                    {can.invite && (
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={employeeRoutes.access}>
+                                <UserRoundCheck className="size-4" />
+                                App access
+                            </Link>
+                        </Button>
+                    )}
                 </div>
 
                 <EmployeesStats stats={stats} />
@@ -288,7 +293,8 @@ export default function EmployeesIndex() {
                         onToggleRow={toggleRow}
                         onView={openView}
                         onEdit={openEdit}
-                        onResetPassword={openResetPassword}
+                        onInvite={invite}
+                        onRevokeInvite={revokeInvite}
                         onArchive={archive}
                         onRestore={restore}
                         onDelete={remove}
@@ -317,14 +323,6 @@ export default function EmployeesIndex() {
                 canManageDocuments={can.manageDocuments}
                 onOpenChange={setDetailOpen}
                 onEdit={openEdit}
-            />
-
-            <EmployeeResetPasswordSheet
-                employee={resetEmployee}
-                open={resetOpen}
-                processing={resetProcessing}
-                onOpenChange={setResetOpen}
-                onConfirm={submitResetPassword}
             />
 
             {confirm && (

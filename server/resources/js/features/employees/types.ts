@@ -131,6 +131,9 @@ export type ManagedEmployee = {
     work_schedule: ScheduleRef | null;
     user: UserRef | null;
 
+    /** Whether this person can sign in to the app yet (ADR 0026). */
+    app_access: AppAccess;
+
     department_id: number | null;
     position_id: number | null;
     manager_id: number | null;
@@ -202,6 +205,72 @@ export type EmployeePermissions = {
     forceDelete: boolean;
     export: boolean;
     manageDocuments: boolean;
+    invite: boolean;
+};
+
+/**
+ * How far a roster line has got towards somebody signing in (ADR 0026):
+ * `active` — claimed, `invited` — waiting on them, `none` — nobody asked yet.
+ */
+export type AppAccess = 'active' | 'invited' | 'none';
+
+// ── App access (ADR 0026) ──────────────────────────────────────────────────
+
+/** A roster line nobody has claimed — the invite backlog, and the pool HR picks
+ *  from when approving a join request. */
+export type UnlinkedEmployee = {
+    id: number;
+    full_name: string;
+    employee_no: string;
+    email: string | null;
+    initials: string;
+    photo: string | null;
+    position: string | null;
+    department: string | null;
+    app_access: AppAccess;
+};
+
+/** An invitation that is still redeemable. */
+export type OutstandingInvitation = {
+    id: number;
+    email: string;
+    code: string;
+    status: string;
+    expires_at: string | null;
+    expires_human: string | null;
+    created_at: string | null;
+    invited_by?: string | null;
+    employee: {
+        id: number;
+        full_name: string;
+        employee_no: string;
+        initials: string;
+        photo: string | null;
+        position: string | null;
+        department: string | null;
+    } | null;
+};
+
+/** Somebody who used the company join code and needs to be placed on the roster. */
+export type JoinRequest = {
+    id: number;
+    status: string;
+    requested_at: string | null;
+    requested_human: string | null;
+    user: {
+        id: number;
+        full_name: string;
+        email: string;
+        avatar: string | null;
+    } | null;
+};
+
+export type EmployeeAccessPageProps = {
+    requests: JoinRequest[];
+    invitations: OutstandingInvitation[];
+    unlinked: UnlinkedEmployee[];
+    joinCode: { code: string | null; enabled: boolean };
+    can: { invite: boolean; manageJoinCode: boolean };
 };
 
 export type EmployeesFilters = {
@@ -253,4 +322,5 @@ export type BulkEmployeeAction =
     | 'archive'
     | 'restore'
     | 'delete'
-    | 'set-status';
+    | 'set-status'
+    | 'invite';

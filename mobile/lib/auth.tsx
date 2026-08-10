@@ -8,6 +8,13 @@
  * signed-in user carries both the active `organization` and the full list of
  * `organizations` the switcher offers.
  *
+ * **People create their own accounts here (ADR 0026).** That makes "signed in but
+ * belonging to no company" a perfectly ordinary state rather than a broken one:
+ * `register` returns a real session with `needs_workspace` set, and the root
+ * navigator sends it to the join screen instead of the tab shell. `joinWithCode`
+ * and `acceptInvite` are the two ways out of that state, and both swap in the
+ * organisation-bound token the server issues on the way through.
+ *
  * On boot we restore the token and re-hydrate from `/me`.
  */
 import * as SecureStore from 'expo-secure-store';
@@ -22,9 +29,10 @@ import {
   type ReactNode,
 } from 'react';
 
+import { acceptInvitation, joinWorkspace } from '@/features/workspaces/api';
 import { setActiveWorkspaceId } from '@/lib/active-workspace';
 import { api, setTokenProvider } from '@/lib/api';
-import type { AuthOrganization, AuthUser } from '@/types/api';
+import type { AuthOrganization, AuthUser, JoinOutcome, PendingJoinRequest } from '@/types/api';
 
 const TOKEN_KEY = 'synapse.token';
 
@@ -43,13 +51,32 @@ type AuthValue = {
    * sends them through the workspace picker before the app shell.
    */
   hasEnteredWorkspace: boolean;
+  /** True when the identity belongs to no company yet — show the join screen. */
+  needsWorkspace: boolean;
+  /** Join requests HR hasn't answered yet. */
+  pendingRequests: PendingJoinRequest[];
   login: (email: string, password: string) => Promise<void>;
+  /** Create a brand-new identity. Joins no company — `needsWorkspace` follows. */
+  register: (input: RegisterInput) => Promise<void>;
+  /** Redeem a company join code. Resolves to what it did. */
+  joinWithCode: (code: string) => Promise<JoinOutcome>;
+  /** Redeem an invitation code and land in the company it names. */
+  acceptInvite: (code: string) => Promise<void>;
   /** Switch the active company — fetches a token bound to it, no re-auth. */
   switchTo: (organizationId: number) => Promise<void>;
   /** Commit to a workspace from the picker (switches only if it isn't the active one). */
   enterWorkspace: (organizationId: number) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+};
+
+export type RegisterInput = {
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -127,6 +154,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [apply],
   );
 
+  const register = useCallback(
+    async (input: RegisterInput) => {
+      const result = await api.post<{ token: string; user: AuthUser }>('/auth/register', {
+        ...input,
+        device_name: 'SYNAPSE Mobile',
+      });
+
+      await apply(result.token, result.user);
+      // Nowhere to pick between — the join screen is the next stop.
+      setHasEnteredWorkspace(true);
+    },
+    [apply],
+  );
+
+  const joinWithCode = useCallback(
+    async (code: string) => {
+      const result = await joinWorkspace(code);
+
+      // `admitted` mints a token bound to the new company; `pending` changes
+      // nothing but the pending list, so keep the token we already hold.
+      await apply(result.token ?? tokenRef.current, result.user);
+      setHasEnteredWorkspace(true);
+
+      return result.status;
+    },
+    [apply],
+  );
+
+  const acceptInvite = useCallback(
+    async (code: string) => {
+      const result = await acceptInvitation(code);
+
+      await apply(result.token, result.user);
+      setHasEnteredWorkspace(true);
+    },
+    [apply],
+  );
+
   const switchTo = useCallback(
     async (organizationId: number) => {
       const result = await api.post<{ token: string; user: AuthUser }>('/auth/switch', {
@@ -178,13 +243,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organization: user?.organization ?? null,
       organizations: user?.organizations ?? ([] as AuthOrganization[]),
       hasEnteredWorkspace,
+      // Trust the server's flag: it knows about memberships this token predates.
+      needsWorkspace: user?.needs_workspace ?? false,
+      pendingRequests: user?.pending_requests ?? [],
       login,
+      register,
+      joinWithCode,
+      acceptInvite,
       switchTo,
       enterWorkspace,
       logout,
       refresh,
     }),
-    [isLoading, token, user, hasEnteredWorkspace, login, switchTo, enterWorkspace, logout, refresh],
+    [
+      isLoading,
+      token,
+      user,
+      hasEnteredWorkspace,
+      login,
+      register,
+      joinWithCode,
+      acceptInvite,
+      switchTo,
+      enterWorkspace,
+      logout,
+      refresh,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

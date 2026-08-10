@@ -80,6 +80,40 @@ class Employee extends Model
     }
 
     /**
+     * Claim tickets issued against this roster line, newest first (ADR 0026).
+     *
+     * @return HasMany<EmployeeInvitation, $this>
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(EmployeeInvitation::class)->latest('id');
+    }
+
+    /**
+     * How far this roster line has got towards somebody actually using the app:
+     *
+     * - `active`  — an identity has claimed it and can sign in;
+     * - `invited` — a claim ticket is outstanding, nobody has redeemed it yet;
+     * - `none`    — nothing has been sent.
+     *
+     * Derived on every read rather than stored, because the `invited` state can
+     * lapse on its own when the invitation expires and no writer would be watching.
+     * Eager-load `invitations` on lists to keep this off the N+1 path.
+     */
+    public function appAccess(): string
+    {
+        if ($this->user_id !== null) {
+            return 'active';
+        }
+
+        $outstanding = $this->relationLoaded('invitations')
+            ? $this->invitations->contains(fn (EmployeeInvitation $invitation): bool => $invitation->isRedeemable())
+            : $this->invitations()->outstanding()->exists();
+
+        return $outstanding ? 'invited' : 'none';
+    }
+
+    /**
      * @return BelongsTo<Department, $this>
      */
     public function department(): BelongsTo

@@ -2,7 +2,8 @@
 
 use App\Models\Employee;
 use App\Models\Organization;
-use App\Support\EmployeeAccountProvisioner;
+use App\Models\User;
+use App\Support\EmployeeInvitations;
 use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -56,27 +57,36 @@ test('a user cannot switch to an organisation they do not belong to', function (
         ->assertInertia(fn (Assert $page) => $page->has('employees.data', 2));
 });
 
-test('hiring an applicant with an existing email links the identity into the new organisation', function () {
-    // Identity first created when hired by org A.
+test('one identity can accept invitations from two organisations', function () {
+    // Since ADR 0026 nothing creates a login on the employer's behalf — the person
+    // registers once and claims a roster line at each company that invites them.
+    seedPermissions();
+
     $orgA = testOrganization();
+    $hrA = actingAsSuperAdmin();
+    $person = User::factory()->create(['email' => 'jordan@dual.test']);
+
     $employeeA = Employee::factory()->create(['email' => 'jordan@dual.test', 'user_id' => null]);
-    [$userA, $passwordA] = EmployeeAccountProvisioner::provision($employeeA);
+    EmployeeInvitations::accept(EmployeeInvitations::invite($employeeA, $hrA), $person);
 
-    expect($userA->isMemberOf($orgA))->toBeTrue()
-        ->and($passwordA)->not->toBeNull();   // a brand-new account got a temp password
+    expect($person->isMemberOf($orgA))->toBeTrue()
+        ->and($employeeA->fresh()->user_id)->toBe($person->id);
 
-    // Later hired by org B with the same email → the same identity is reused.
+    // A second company invites the same human. One identity, two memberships.
     $orgB = Organization::factory()->create();
-    [$userB, $passwordB] = app(Tenancy::class)->runFor($orgB, function () {
+    OrganizationProvisioner::provisionRoles($orgB);
+
+    app(Tenancy::class)->runFor($orgB, function () use ($hrA, $person) {
         $employeeB = Employee::factory()->create(['email' => 'jordan@dual.test', 'user_id' => null]);
 
-        return EmployeeAccountProvisioner::provision($employeeB);
+        EmployeeInvitations::accept(EmployeeInvitations::invite($employeeB, $hrA), $person);
+
+        expect($employeeB->fresh()->user_id)->toBe($person->id);
     });
 
-    expect($userB->id)->toBe($userA->id)        // one identity, not two accounts
-        ->and($passwordB)->toBeNull()           // existing account → no new password/email
-        ->and($userB->isMemberOf($orgB))->toBeTrue()
-        ->and($userB->memberships()->count())->toBe(2);
+    expect($person->isMemberOf($orgB))->toBeTrue()
+        ->and($person->memberships()->count())->toBe(2)
+        ->and(User::where('email', 'jordan@dual.test')->count())->toBe(1);
 });
 
 test('a token bound to one organisation cannot read another tenant', function () {

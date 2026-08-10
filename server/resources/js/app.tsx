@@ -20,6 +20,10 @@ createInertiaApp({
                 return null;
             case name.startsWith('careers/'):
                 return null;
+            // The invitation landing page is answered by people with no account
+            // anywhere yet (ADR 0026) — it cannot assume the app shell.
+            case name === 'invite':
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

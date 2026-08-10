@@ -71,15 +71,30 @@ know from Supabase or Vercel.
 5. Attach **Super Admin** to the registrant — they own the organisation.
 
 The register form collects an **Organization name** alongside the user's details.
+`OrganizationProvisioner::create()` also mints the organisation's **join code**
+(ADR 0026). Web registration is the *only* way a tenant is created: the mobile app
+deliberately cannot, being the employee companion.
 
 ## Identity vs membership
 
 A `User` is an identity (login / email / password) and is **not** tenant-scoped.
 Belonging to a company is the `organization_user` membership; a person employed by
 two companies is one identity with two memberships (and one `Employee` record per
-organisation — `employees.user_id` is unique per org). The hire bridge and the Users
-module **link an existing email** into a new organisation rather than creating a second
-account. Because users are global, admin queries over users must scope by membership —
+organisation — `employees.user_id` is unique per org).
+
+**Nobody creates that identity on the person's behalf**
+([ADR 0026](../decisions/0026-self-served-identity-and-workspace-join.md)). People
+register themselves in the mobile app, and *joining* a company is a separate act:
+either an `employee_invitations` claim ticket HR issued against a roster line, or the
+organisation's `join_code`. Both converge on `OrganizationProvisioner::admit()`, the
+single path that records membership, grants the baseline role, and links the employee.
+**"Belongs to no organisation" is therefore a valid state** — API sessions return
+`organization: null` rather than erroring. The two support classes
+(`EmployeeInvitations`, `WorkspaceJoin`) are the only code in the system that reads
+past `OrganizationScope` with `withoutGlobalScopes()`, because a code is issued inside
+a tenant and answered from outside it; don't copy that escape elsewhere.
+
+Because users are global, admin queries over users must scope by membership —
 use `User::inCurrentOrganization()` (the model also guards route-model binding to the
 active org via `resolveRouteBindingQuery`). Roles stay organisation-scoped, so
 `$user->roles` / `$user->employee` resolve to the active organisation automatically.

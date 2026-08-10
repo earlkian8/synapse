@@ -58,6 +58,10 @@ class EmployeeResource extends JsonResource
                 'email' => $this->user->email,
             ] : null),
 
+            // Whether this person can actually sign in yet: `active`, `invited`, or
+            // `none`. Derived (ADR 0026) — there is no column behind it.
+            'app_access' => $this->appAccess(),
+
             'department_id' => $this->department_id,
             'position_id' => $this->position_id,
             'manager_id' => $this->manager_id,

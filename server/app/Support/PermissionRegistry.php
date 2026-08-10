@@ -29,6 +29,7 @@ class PermissionRegistry
             'employees.force-delete' => 'Permanently delete employees',
             'employees.export' => 'Export employees',
             'employees.manage-documents' => 'Manage employee documents & records',
+            'employees.invite' => 'Invite employees to the app & review join requests',
         ],
         'Recruitment' => [
             'recruitment.view' => 'View recruitment',

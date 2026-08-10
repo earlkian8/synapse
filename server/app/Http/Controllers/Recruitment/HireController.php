@@ -15,20 +15,22 @@ class HireController extends Controller
     /**
      * Hire an applicant — the recruitment → workforce bridge.
      *
-     * Delegates to {@see ApplicantHirer}, which creates the Employee, provisions
-     * the new hire's mobile-app login, copies the résumé into the new 201 file,
-     * seeds onboarding, marks the application hired and fills the posting when its
-     * openings are met. See ADR 0006 / 0007. The recruiter can opt out of emailing
-     * the login credentials via `send_credentials`.
+     * Delegates to {@see ApplicantHirer}, which creates the Employee, copies the
+     * résumé into the new 201 file, seeds onboarding, marks the application hired
+     * and fills the posting when its openings are met. See ADR 0006 / 0007.
+     *
+     * Hiring no longer creates a login (ADR 0026): the new hire is *invited* to
+     * claim the roster line with an account they register themselves. The recruiter
+     * can hold that invitation back with `send_invitation`.
      */
     public function __invoke(Request $request, JobApplication $application): RedirectResponse
     {
         $application->load(['applicant', 'jobPosting']);
 
-        $sendCredentials = $request->boolean('send_credentials', true);
+        $sendInvitation = $request->boolean('send_invitation', true);
 
         try {
-            $employee = ApplicantHirer::hire($application, $request->user(), $sendCredentials);
+            $employee = ApplicantHirer::hire($application, $request->user(), $sendInvitation);
         } catch (RuntimeException $e) {
             return $this->respond($e->getMessage(), 'warning');
         }
