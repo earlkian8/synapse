@@ -20,8 +20,8 @@ migration, bypass hires), not the default path.
 
 - **`/recruitment`** — the job-postings board: stats, search/status/department
   filters, a **table ⇄ card-grid** view switch in the toolbar (the choice is
-  remembered per browser), create/edit drawer, status lifecycle, CSV export.
-  Selecting a posting opens a **read-only details drawer** (overview, public
+  remembered per browser), create/edit modal, status lifecycle, CSV export.
+  Selecting a posting opens a **read-only details modal** (overview, public
   application link, description/requirements, pipeline summary) with **Open pipeline**
   and **Edit** actions; the pipeline-count chip and the row menu's "Open pipeline"
   jump straight to the board.
@@ -54,8 +54,8 @@ it rather than re-deriving the formula.
   cover letter.
 - **Recommendation.** Derived from the stage + fit + interview verdict — *Advance to
   screening · Schedule an interview · Move to offer · Hire · Consider rejecting* — and
-  surfaced in the candidate drawer's **decision panel** with a one-click action that
-  performs it. The drawer is the **full candidate profile**: contact, profile links, all
+  surfaced in the candidate modal's **decision panel** with a one-click action that
+  performs it. The modal is the **full candidate profile**: contact, profile links, all
   documents, the fit breakdown, interview history, and the candidate's **other
   applications across postings**.
 
@@ -75,10 +75,10 @@ dependency is needed; office files are named in the digest but not uploaded.
   budget. The model returns strict JSON: a headline verdict, summary, strengths,
   concerns, what the documents reveal, sharp interview questions, and a
   recommendation.
-- **On demand + persisted.** Insights are generated from the candidate drawer's
+- **On demand + persisted.** Insights are generated from the candidate modal's
   **AI Insights** panel (`POST /recruitment/applications/{application}/insights`,
   gated `recruitment.view`) and **saved on the application** (`ai_insights` JSON
-  column) so reopening the drawer shows the last read instantly without spending
+  column) so reopening the modal shows the last read instantly without spending
   another model call; a **Regenerate** button re-runs it. Generation is
   activity-logged. Degrades gracefully (retryable) when the key is missing or the
   service is rate-limited/overloaded — exactly like the Reports insights.
@@ -168,7 +168,7 @@ The primary `resume` column stays (it is what the hire bridge copies into the 20
 file). Documents are captured on the public form **and** the recruiter's
 add-candidate / applicant-edit forms (`App\Support\ApplicantDocumentStore` is the
 one place that persists them), and shown — with download links — in the pipeline
-application detail drawer.
+application detail modal.
 
 ## Data model
 
@@ -233,21 +233,45 @@ two layout-preference hooks built on a shared `use-stored-view` (localStorage-ba
 `use-postings-view` (table/grid) and `use-pipeline-view` (board/table). Components:
 stats, postings toolbar (search/status/department filters + the table/card-grid view
 switch), **table** and **card grid**, row-actions, posting status badge, **posting
-detail sheet** (read-only overview + public link), posting form sheet, pagination;
+detail modal** (read-only overview + public link), posting form modal, pagination;
 and the pipeline pieces — **table** and **card grid** (of candidate cards), **stage
 tabs** (filter both, with counts), the shared **application actions menu** (Move /
 Hire / Reject, used by the card and the table), the **fit score** badge + meter
 (`fit-score.tsx`), the **posting deadline** countdown (`posting-deadline.tsx`),
-**application detail sheet** (the full candidate profile + a **decision panel** with the
-recommended next step, the fit breakdown, the **AI Insights** panel
+**application detail modal** (the full candidate profile + a **decision panel** with the
+recommended next step, the **stage stepper**, the fit breakdown, the **AI Insights** panel
 (`applicant-insights.tsx`, calls the insights endpoint via `features/recruitment/api.ts`),
 interviews, other applications, hire, reject),
-**add candidate sheet**, stage badge, rating stars. The **posting form** has a
+**add candidate modal**, stage badge, rating stars. The **posting form** has a
 *Screening criteria* section (minimum experience + a skills tag input) and a
 required-when-open closing date. Pages: `pages/recruitment/index.tsx`
-and `pages/recruitment/pipeline.tsx`. The detail drawer lazy-loads the full
+and `pages/recruitment/pipeline.tsx`. The detail modal lazy-loads the full
 application (`GET /recruitment/applications/{id}` JSON). The sidebar **Talent
 Acquisition → Recruitment** link is gated on `recruitment.view`.
+
+### The modal shell
+
+Every recruitment surface that used to slide in from the right is now a **centred
+modal** built from one shell, `components/modal.tsx`:
+
+```text
+Modal ─ ModalContent ─┬─ ModalHeader   icon/avatar, title, description, status meta
+                      ├─ ModalBody     the only scrolling region
+                      └─ ModalFooter   the action bar, always in view
+```
+
+`ModalContent` is height-capped (`100dvh` minus the gutter) and lays its parts out as
+a flex column, so the body scrolls *inside* the modal and a decision — Hire, Reject,
+Save — is never pushed below the fold on a short viewport. Sizes run `sm`…`2xl`; the
+candidate modal takes `2xl` and splits its body into a decision column and a reference
+rail from `lg` up, collapsing to one decision-first column on small screens.
+
+Two form helpers sit alongside it. **`FormField`** wires a label, its hint and its
+validation error to the control itself (`htmlFor` / `aria-describedby` /
+`aria-invalid`), so the error state is announced *and* styled without a second class
+list; **`FkSelect`** forwards those props onto the select's trigger — the element the
+label points at. Destructive candidate actions (reject, remove) confirm **inside the
+footer** rather than stacking a second dialog on top of the first.
 
 ## Permissions
 

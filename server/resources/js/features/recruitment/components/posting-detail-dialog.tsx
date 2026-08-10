@@ -7,14 +7,17 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-} from '@/components/ui/sheet';
 import { TYPE_LABELS } from '../constants';
 import type { ManagedPosting, RecruitmentPermissions } from '../types';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+    ModalSection,
+} from './modal';
 import { PostingStatusBadge } from './posting-status-badge';
 
 type Props = {
@@ -26,7 +29,7 @@ type Props = {
     onEdit: (posting: ManagedPosting) => void;
 };
 
-export function PostingDetailSheet({
+export function PostingDetailDialog({
     posting,
     open,
     can,
@@ -35,14 +38,7 @@ export function PostingDetailSheet({
     onEdit,
 }: Props) {
     if (!posting) {
-        return (
-            <Sheet open={open} onOpenChange={onOpenChange}>
-                <SheetContent
-                    side="right"
-                    className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl"
-                />
-            </Sheet>
-        );
+        return null;
     }
 
     const copyPublicLink = () => {
@@ -57,38 +53,32 @@ export function PostingDetailSheet({
     };
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent
-                side="right"
-                className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl"
-            >
-                <SheetHeader className="border-b border-border px-6 py-5">
-                    <div className="flex items-start gap-3">
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#0F2044] text-white">
-                            <KanbanSquare className="size-5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <SheetTitle className="truncate text-lg">
-                                {posting.title}
-                            </SheetTitle>
-                            <p className="truncate text-xs text-muted-foreground">
-                                {posting.position?.title ??
-                                    'No linked position'}
-                            </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <PostingStatusBadge status={posting.status} />
-                                <span className="text-xs text-muted-foreground">
-                                    {TYPE_LABELS[posting.employment_type]}
-                                    {posting.created_human
-                                        ? ` · posted ${posting.created_human}`
-                                        : ''}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </SheetHeader>
+        <Modal open={open} onOpenChange={onOpenChange}>
+            <ModalContent size="lg">
+                <ModalHeader
+                    icon={
+                        <ModalIcon>
+                            <KanbanSquare />
+                        </ModalIcon>
+                    }
+                    title={posting.title}
+                    description={
+                        posting.position?.title ?? 'No linked position'
+                    }
+                    meta={
+                        <>
+                            <PostingStatusBadge status={posting.status} />
+                            <span className="text-xs text-muted-foreground">
+                                {TYPE_LABELS[posting.employment_type]}
+                                {posting.created_human
+                                    ? ` · posted ${posting.created_human}`
+                                    : ''}
+                            </span>
+                        </>
+                    }
+                />
 
-                <div className="space-y-6 px-6 py-5">
+                <ModalBody className="space-y-6">
                     {/* Pipeline summary */}
                     <div className="grid grid-cols-3 gap-3">
                         <Stat
@@ -110,35 +100,61 @@ export function PostingDetailSheet({
                     </div>
 
                     {/* Facts */}
-                    <Group title="Overview">
-                        <Row
-                            label="Department"
-                            value={posting.department?.name ?? '—'}
-                        />
-                        <Row
-                            label="Position"
-                            value={posting.position?.title ?? '—'}
-                        />
-                        <Row
-                            label="Employment type"
-                            value={TYPE_LABELS[posting.employment_type]}
-                        />
-                        <Row
-                            label="Closing date"
-                            value={posting.closing_date ?? 'Open-ended'}
-                        />
-                        {posting.posted_by && (
-                            <Row label="Posted by" value={posting.posted_by} />
+                    <ModalSection title="Overview">
+                        <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                            <Row
+                                label="Department"
+                                value={posting.department?.name ?? '—'}
+                            />
+                            <Row
+                                label="Position"
+                                value={posting.position?.title ?? '—'}
+                            />
+                            <Row
+                                label="Employment type"
+                                value={TYPE_LABELS[posting.employment_type]}
+                            />
+                            <Row
+                                label="Closing date"
+                                value={posting.closing_date ?? 'Open-ended'}
+                            />
+                            {posting.posted_by && (
+                                <Row
+                                    label="Posted by"
+                                    value={posting.posted_by}
+                                />
+                            )}
+                            {posting.min_years_experience != null && (
+                                <Row
+                                    label="Minimum experience"
+                                    value={`${posting.min_years_experience} ${
+                                        posting.min_years_experience === 1
+                                            ? 'year'
+                                            : 'years'
+                                    }`}
+                                />
+                            )}
+                        </dl>
+                        {posting.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                {posting.skills.map((skill) => (
+                                    <span
+                                        key={skill}
+                                        className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                    >
+                                        {skill}
+                                    </span>
+                                ))}
+                            </div>
                         )}
-                    </Group>
+                    </ModalSection>
 
                     {/* Public link */}
                     {posting.is_open && posting.apply_url && (
-                        <Group title="Public application page">
-                            <p className="text-sm text-muted-foreground">
-                                Candidates can read this role and apply here —
-                                share the link or copy it for a job board.
-                            </p>
+                        <ModalSection
+                            title="Public application page"
+                            hint="Candidates can read this role and apply here — share the link or copy it for a job board."
+                        >
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     variant="outline"
@@ -159,37 +175,37 @@ export function PostingDetailSheet({
                                     </a>
                                 </Button>
                             </div>
-                        </Group>
+                        </ModalSection>
                     )}
 
                     {/* Description */}
                     {posting.description && (
-                        <Group title="Description">
-                            <p className="text-sm whitespace-pre-line text-muted-foreground">
+                        <ModalSection title="Description">
+                            <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
                                 {posting.description}
                             </p>
-                        </Group>
+                        </ModalSection>
                     )}
 
                     {/* Requirements */}
                     {posting.requirements && (
-                        <Group title="Requirements">
-                            <p className="text-sm whitespace-pre-line text-muted-foreground">
+                        <ModalSection title="Requirements">
+                            <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
                                 {posting.requirements}
                             </p>
-                        </Group>
+                        </ModalSection>
                     )}
 
                     {!posting.description && !posting.requirements && (
                         <p className="flex items-center gap-2 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">
-                            <CalendarClock className="size-4" />
+                            <CalendarClock className="size-4 shrink-0" />
                             No description or requirements were added to this
                             posting.
                         </p>
                     )}
-                </div>
+                </ModalBody>
 
-                <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-background px-6 py-4">
+                <ModalFooter className="justify-start">
                     <Button
                         size="sm"
                         onClick={() => {
@@ -213,9 +229,9 @@ export function PostingDetailSheet({
                             Edit posting
                         </Button>
                     )}
-                </div>
-            </SheetContent>
-        </Sheet>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
     );
 }
 
@@ -247,28 +263,11 @@ function Stat({
     );
 }
 
-function Group({
-    title,
-    children,
-}: {
-    title: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <section className="space-y-3">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {title}
-            </h3>
-            {children}
-        </section>
-    );
-}
-
 function Row({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="text-right font-medium">{value}</span>
+        <div className="flex items-baseline justify-between gap-4 text-sm">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium">{value}</dd>
         </div>
     );
 }

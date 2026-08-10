@@ -1,25 +1,8 @@
 import { useForm } from '@inertiajs/react';
-import { X } from 'lucide-react';
+import { BriefcaseBusiness, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { EMPLOYMENT_TYPE_OPTIONS, POSTING_STATUS_OPTIONS } from '../constants';
 import { recruitmentRoutes } from '../routes';
@@ -29,6 +12,16 @@ import type {
     PostingOptions,
     PostingStatus,
 } from '../types';
+import { FkSelect } from './fk-select';
+import { FormField } from './form-field';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+} from './modal';
 
 type Props = {
     posting: ManagedPosting | null;
@@ -43,7 +36,7 @@ function str(value: string | number | null | undefined): string {
     return value === null || value === undefined ? '' : String(value);
 }
 
-export function PostingFormSheet({
+export function PostingFormDialog({
     posting,
     options,
     open,
@@ -52,21 +45,21 @@ export function PostingFormSheet({
     const isEditing = Boolean(posting);
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent
-                side="right"
-                className="w-full gap-0 overflow-y-auto p-0 sm:max-w-xl"
-            >
-                <SheetHeader className="border-b border-border px-6 py-4">
-                    <SheetTitle>
-                        {isEditing ? 'Edit posting' : 'New job posting'}
-                    </SheetTitle>
-                    <SheetDescription>
-                        {isEditing
-                            ? 'Update this job posting.'
-                            : 'Open a vacancy to start collecting applications.'}
-                    </SheetDescription>
-                </SheetHeader>
+        <Modal open={open} onOpenChange={onOpenChange}>
+            <ModalContent size="xl">
+                <ModalHeader
+                    icon={
+                        <ModalIcon>
+                            <BriefcaseBusiness />
+                        </ModalIcon>
+                    }
+                    title={isEditing ? 'Edit posting' : 'New job posting'}
+                    description={
+                        isEditing
+                            ? 'Update the role, its screening criteria, and how long it stays open.'
+                            : 'Open a vacancy to start collecting applications.'
+                    }
+                />
 
                 {open && (
                     <FormBody
@@ -76,8 +69,8 @@ export function PostingFormSheet({
                         onDone={() => onOpenChange(false)}
                     />
                 )}
-            </SheetContent>
-        </Sheet>
+            </ModalContent>
+        </Modal>
     );
 }
 
@@ -162,22 +155,26 @@ function FormBody({
     };
 
     return (
-        <form onSubmit={submit} className="flex h-full flex-col">
-            <div className="flex-1 space-y-8 px-6 py-6">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+            <ModalBody className="space-y-7">
                 <Section title="Role" subtitle="What you are hiring for.">
-                    <Field label="Job title" required error={errors.title}>
+                    <FormField label="Job title" required error={errors.title}>
                         <Input
                             value={data.title}
                             onChange={(e) => setData('title', e.target.value)}
                             placeholder="e.g. Software Engineer"
                             required
                         />
-                    </Field>
+                    </FormField>
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Department" error={errors.department_id}>
+                        <FormField
+                            label="Department"
+                            error={errors.department_id}
+                        >
                             <FkSelect
                                 value={data.department_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => {
                                     setData('department_id', v);
                                     setData('position_id', '');
@@ -187,19 +184,20 @@ function FormBody({
                                     label: d.name,
                                 }))}
                             />
-                        </Field>
-                        <Field label="Position" error={errors.position_id}>
+                        </FormField>
+                        <FormField label="Position" error={errors.position_id}>
                             <FkSelect
                                 value={data.position_id || NONE}
                                 placeholder="Select…"
+                                noneValue={NONE}
                                 onChange={(v) => setData('position_id', v)}
                                 options={positions.map((p) => ({
                                     value: String(p.id),
                                     label: p.title,
                                 }))}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Employment type"
                             required
                             error={errors.employment_type}
@@ -214,8 +212,8 @@ function FormBody({
                                 }
                                 options={EMPLOYMENT_TYPE_OPTIONS}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Openings"
                             required
                             error={errors.openings}
@@ -223,14 +221,19 @@ function FormBody({
                             <Input
                                 type="number"
                                 min="1"
+                                inputMode="numeric"
                                 value={data.openings}
                                 onChange={(e) =>
                                     setData('openings', e.target.value)
                                 }
                                 required
                             />
-                        </Field>
-                        <Field label="Status" required error={errors.status}>
+                        </FormField>
+                        <FormField
+                            label="Status"
+                            required
+                            error={errors.status}
+                        >
                             <FkSelect
                                 value={data.status}
                                 onChange={(v) =>
@@ -238,8 +241,8 @@ function FormBody({
                                 }
                                 options={POSTING_STATUS_OPTIONS}
                             />
-                        </Field>
-                        <Field
+                        </FormField>
+                        <FormField
                             label="Closing date"
                             required={closingRequired}
                             error={errors.closing_date}
@@ -257,7 +260,7 @@ function FormBody({
                                 }
                                 required={closingRequired}
                             />
-                        </Field>
+                        </FormField>
                     </div>
                 </Section>
 
@@ -265,80 +268,97 @@ function FormBody({
                     title="Screening criteria"
                     subtitle="Optional — sharpens the automatic candidate ranking for this role."
                 >
-                    <Field
-                        label="Minimum experience (years)"
-                        error={errors.min_years_experience}
-                        hint="Candidates at or above this earn full experience marks."
-                    >
-                        <Input
-                            type="number"
-                            min="0"
-                            max="50"
-                            value={data.min_years_experience}
-                            onChange={(e) =>
-                                setData('min_years_experience', e.target.value)
-                            }
-                            placeholder="e.g. 3"
-                        />
-                    </Field>
-                    <Field
-                        label="Required skills"
-                        error={errors['skills'] ?? errors['skills.0']}
-                        hint="Press Enter or comma to add. Matched against the candidate's headline, notes and cover letter."
-                    >
-                        <SkillsInput
-                            value={data.skills}
-                            onChange={(skills) => setData('skills', skills)}
-                        />
-                    </Field>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                            label="Minimum experience (years)"
+                            error={errors.min_years_experience}
+                            hint="Candidates at or above this earn full experience marks."
+                        >
+                            <Input
+                                type="number"
+                                min="0"
+                                max="50"
+                                inputMode="numeric"
+                                value={data.min_years_experience}
+                                onChange={(e) =>
+                                    setData(
+                                        'min_years_experience',
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="e.g. 3"
+                            />
+                        </FormField>
+                        <FormField
+                            label="Required skills"
+                            error={errors['skills'] ?? errors['skills.0']}
+                            hint="Press Enter or comma to add. Matched against the candidate's headline, notes and cover letter."
+                        >
+                            <SkillsInput
+                                value={data.skills}
+                                onChange={(skills) => setData('skills', skills)}
+                            />
+                        </FormField>
+                    </div>
                 </Section>
 
                 <Section
                     title="Details"
-                    subtitle="The job description and requirements."
+                    subtitle="The job description and requirements, as candidates will read them."
                 >
-                    <Field label="Description" error={errors.description}>
-                        <textarea
-                            value={data.description ?? ''}
-                            onChange={(e) =>
-                                setData('description', e.target.value)
-                            }
-                            rows={4}
-                            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                        />
-                    </Field>
-                    <Field label="Requirements" error={errors.requirements}>
-                        <textarea
-                            value={data.requirements ?? ''}
-                            onChange={(e) =>
-                                setData('requirements', e.target.value)
-                            }
-                            rows={4}
-                            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                        />
-                    </Field>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <FormField
+                            label="Description"
+                            error={errors.description}
+                        >
+                            <textarea
+                                value={data.description ?? ''}
+                                onChange={(e) =>
+                                    setData('description', e.target.value)
+                                }
+                                rows={5}
+                                placeholder="What the role does, who it works with, and what a good week looks like."
+                                className={TEXTAREA_CLASS}
+                            />
+                        </FormField>
+                        <FormField
+                            label="Requirements"
+                            error={errors.requirements}
+                        >
+                            <textarea
+                                value={data.requirements ?? ''}
+                                onChange={(e) =>
+                                    setData('requirements', e.target.value)
+                                }
+                                rows={5}
+                                placeholder="Qualifications, licences, and the experience a candidate needs."
+                                className={TEXTAREA_CLASS}
+                            />
+                        </FormField>
+                    </div>
                 </Section>
-            </div>
+            </ModalBody>
 
-            <SheetFooter className="border-t border-border px-6 py-4">
-                <div className="flex w-full items-center justify-end gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onDone}
-                        disabled={processing}
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={processing}>
-                        {processing && <Spinner />}
-                        {isEditing ? 'Save changes' : 'Create posting'}
-                    </Button>
-                </div>
-            </SheetFooter>
+            <ModalFooter>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onDone}
+                    disabled={processing}
+                >
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={processing}>
+                    {processing && <Spinner />}
+                    {isEditing ? 'Save changes' : 'Create posting'}
+                </Button>
+            </ModalFooter>
         </form>
     );
 }
+
+const TEXTAREA_CLASS =
+    'flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20';
 
 function Section({
     title,
@@ -351,40 +371,16 @@ function Section({
 }) {
     return (
         <section className="space-y-4">
-            <div>
-                <h3 className="text-sm font-semibold">{title}</h3>
-                <p className="text-xs text-muted-foreground">{subtitle}</p>
+            <div className="border-b border-border/70 pb-2.5">
+                <h3 className="text-sm font-semibold tracking-tight">
+                    {title}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    {subtitle}
+                </p>
             </div>
             {children}
         </section>
-    );
-}
-
-function Field({
-    label,
-    required = false,
-    error,
-    hint,
-    children,
-}: {
-    label: string;
-    required?: boolean;
-    error?: string;
-    hint?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div>
-            <Label className="mb-1.5 block">
-                {label}
-                {required && <span className="ml-0.5 text-destructive">*</span>}
-            </Label>
-            {children}
-            {hint && !error && (
-                <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
-            )}
-            <InputError message={error} className="mt-1.5" />
-        </div>
     );
 }
 
@@ -395,9 +391,12 @@ function Field({
 function SkillsInput({
     value,
     onChange,
+    ...props
 }: {
     value: string[];
     onChange: (skills: string[]) => void;
+    id?: string;
+    'aria-describedby'?: string;
 }) {
     const [draft, setDraft] = useState('');
 
@@ -428,7 +427,7 @@ function SkillsInput({
                     <button
                         type="button"
                         onClick={() => remove(index)}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="rounded-sm text-muted-foreground hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         aria-label={`Remove ${skill}`}
                     >
                         <X className="size-3" />
@@ -436,6 +435,7 @@ function SkillsInput({
                 </span>
             ))}
             <input
+                {...props}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -454,38 +454,8 @@ function SkillsInput({
                 placeholder={
                     value.length === 0 ? 'e.g. React, SQL, Laravel' : ''
                 }
-                className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
         </div>
-    );
-}
-
-function FkSelect({
-    value,
-    placeholder,
-    onChange,
-    options,
-}: {
-    value: string;
-    placeholder?: string;
-    onChange: (value: string) => void;
-    options: { value: string; label: string }[];
-}) {
-    return (
-        <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="w-full">
-                <SelectValue placeholder={placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-                {placeholder && (
-                    <SelectItem value={NONE}>{placeholder}</SelectItem>
-                )}
-                {options.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
     );
 }

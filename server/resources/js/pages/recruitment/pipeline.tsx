@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { AddCandidateSheet } from '@/features/recruitment/components/add-candidate-sheet';
-import { ApplicationDetailSheet } from '@/features/recruitment/components/application-detail-sheet';
+import { AddCandidateDialog } from '@/features/recruitment/components/add-candidate-dialog';
+import { ApplicationDetailDialog } from '@/features/recruitment/components/application-detail-dialog';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
 import { PipelineGrid } from '@/features/recruitment/components/pipeline-grid';
 import { PipelineInsights } from '@/features/recruitment/components/pipeline-insights';
@@ -335,14 +335,14 @@ export default function RecruitmentPipeline() {
                 </div>
             </div>
 
-            <AddCandidateSheet
+            <AddCandidateDialog
                 postingId={posting.hashid}
                 options={options}
                 open={addOpen}
                 onOpenChange={setAddOpen}
             />
 
-            <ApplicationDetailSheet
+            <ApplicationDetailDialog
                 application={detailApp}
                 open={detailOpen}
                 can={can}

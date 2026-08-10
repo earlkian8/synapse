@@ -2,8 +2,8 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
-import { PostingDetailSheet } from '@/features/recruitment/components/posting-detail-sheet';
-import { PostingFormSheet } from '@/features/recruitment/components/posting-form-sheet';
+import { PostingDetailDialog } from '@/features/recruitment/components/posting-detail-dialog';
+import { PostingFormDialog } from '@/features/recruitment/components/posting-form-dialog';
 import { PostingsGrid } from '@/features/recruitment/components/postings-grid';
 import { PostingsPagination } from '@/features/recruitment/components/postings-pagination';
 import { PostingsTable } from '@/features/recruitment/components/postings-table';
@@ -160,7 +160,7 @@ export default function RecruitmentIndex() {
                 </div>
             </div>
 
-            <PostingDetailSheet
+            <PostingDetailDialog
                 posting={detailPosting}
                 open={detailOpen}
                 can={can}
@@ -169,7 +169,7 @@ export default function RecruitmentIndex() {
                 onEdit={openEdit}
             />
 
-            <PostingFormSheet
+            <PostingFormDialog
                 posting={formPosting}
                 options={options}
                 open={formOpen}
