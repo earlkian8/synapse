@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     CalendarRange,
     Download,
@@ -17,6 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { kpiConfigRoutes } from '@/features/kpi-config/routes';
 import { BandDistribution } from '@/features/performance/components/band-distribution';
 import { CalibrationTable } from '@/features/performance/components/calibration-table';
 import { EvaluationTable } from '@/features/performance/components/evaluation-table';
@@ -195,7 +196,13 @@ export default function PerformanceIndex() {
                 <PerformanceStatsCards stats={stats} />
 
                 {evaluations.length === 0 ? (
-                    <EmptyState canManage={can.manage} />
+                    <EmptyState
+                        canManage={can.manage}
+                        hasFramework={templates.length > 0}
+                        hasOpenCycle={periods.some(
+                            (p) => p.status === 'open' && !p.is_archived,
+                        )}
+                    />
                 ) : (
                     <>
                         <div className="grid gap-4 xl:grid-cols-2">
@@ -289,20 +296,56 @@ export default function PerformanceIndex() {
     );
 }
 
-function EmptyState({ canManage }: { canManage: boolean }) {
+/**
+ * An empty board means one of three different things, and each has a different
+ * next step. Telling somebody to "launch the cycle" when they have no framework
+ * to launch it with sends them to a modal that can only refuse them.
+ */
+function EmptyState({
+    canManage,
+    hasFramework,
+    hasOpenCycle,
+}: {
+    canManage: boolean;
+    hasFramework: boolean;
+    hasOpenCycle: boolean;
+}) {
+    const blocked = !hasFramework
+        ? {
+              title: 'No appraisal framework yet',
+              body: 'A framework decides what gets measured and how the result is reported. Build one first.',
+              cta: 'Set up a framework',
+          }
+        : !hasOpenCycle
+          ? {
+                title: 'No review cycle is open',
+                body: 'Appraisals are conducted inside a cycle. Open one to start reviewing.',
+                cta: 'Open a review cycle',
+            }
+          : {
+                title: 'Nothing appraised in this cycle',
+                body: 'Launch the cycle to open an appraisal for everyone at once, or open them one at a time.',
+                cta: null,
+            };
+
     return (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
             <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
                 <Gauge className="size-5" />
             </span>
             <p className="text-sm font-medium">
-                Nothing appraised in this cycle
+                {canManage ? blocked.title : 'Nothing appraised in this cycle'}
             </p>
             <p className="max-w-sm text-sm text-muted-foreground">
                 {canManage
-                    ? 'Launch the cycle to open an appraisal for everyone at once, or open one at a time.'
+                    ? blocked.body
                     : 'No appraisals have been conducted in this cycle yet.'}
             </p>
+            {canManage && blocked.cta && (
+                <Button variant="outline" size="sm" className="mt-2" asChild>
+                    <Link href={kpiConfigRoutes.index}>{blocked.cta}</Link>
+                </Button>
+            )}
         </div>
     );
 }

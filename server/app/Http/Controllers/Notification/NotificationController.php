@@ -95,6 +95,9 @@ class NotificationController extends Controller
 
     /**
      * Mark a single notification as read.
+     *
+     * Deliberately silent: the row visibly loses its unread dot, so a toast
+     * would announce something the person is already looking at.
      */
     public function read(Request $request, string $notification): RedirectResponse
     {
@@ -105,6 +108,9 @@ class NotificationController extends Controller
 
     /**
      * Mark every notification as read.
+     *
+     * Deliberately silent, for the same reason as {@see read()} — the whole list
+     * visibly changes state.
      */
     public function readAll(Request $request): RedirectResponse
     {
@@ -115,6 +121,9 @@ class NotificationController extends Controller
 
     /**
      * Delete a single notification.
+     *
+     * Deliberately silent: the row disappears. {@see clear()} does toast, because
+     * emptying the whole list is a bulk action worth confirming.
      */
     public function destroy(Request $request, string $notification): RedirectResponse
     {
