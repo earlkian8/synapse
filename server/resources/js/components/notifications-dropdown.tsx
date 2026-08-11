@@ -40,7 +40,11 @@ export function NotificationsDropdown() {
         router.post(
             notificationRoutes.readAll,
             {},
-            { preserveScroll: true, preserveState: true, only: ['notifications'] },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                only: ['notifications'],
+            },
         );
 
     const openNotification = (notification: AppNotification) => {

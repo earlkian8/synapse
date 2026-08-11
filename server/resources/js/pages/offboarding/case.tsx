@@ -276,81 +276,87 @@ export default function OffboardingCasePage() {
                         </Button>
                         {can.manage && (
                             <>
-                            <Button size="sm" onClick={openAddItem}>
-                                <Plus className="size-4" />
-                                Add item
-                            </Button>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="size-9"
-                                        aria-label="Offboarding actions"
-                                    >
-                                        <MoreHorizontal className="size-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="end"
-                                    className="w-48"
-                                >
-                                    {c.is_active && (
-                                        <DropdownMenuItem
-                                            onSelect={completeCase}
+                                <Button size="sm" onClick={openAddItem}>
+                                    <Plus className="size-4" />
+                                    Add item
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="size-9"
+                                            aria-label="Offboarding actions"
                                         >
-                                            <CheckCircle2 className="size-4" />
-                                            Complete exit
-                                        </DropdownMenuItem>
-                                    )}
-                                    {!c.is_active && (
-                                        <DropdownMenuItem onSelect={reopenCase}>
-                                            <RotateCcw className="size-4" />
-                                            Reopen
-                                        </DropdownMenuItem>
-                                    )}
-                                    {c.is_active &&
-                                        options.programs.length > 0 && (
+                                            <MoreHorizontal className="size-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align="end"
+                                        className="w-48"
+                                    >
+                                        {c.is_active && (
                                             <DropdownMenuItem
-                                                onSelect={() =>
-                                                    setApplyOpen(true)
-                                                }
+                                                onSelect={completeCase}
                                             >
-                                                <ListPlus className="size-4" />
-                                                Add from template
+                                                <CheckCircle2 className="size-4" />
+                                                Complete exit
                                             </DropdownMenuItem>
                                         )}
-                                    {c.is_active &&
-                                        c.clearance.pending > 0 && (
+                                        {!c.is_active && (
                                             <DropdownMenuItem
-                                                onSelect={clearAllPending}
+                                                onSelect={reopenCase}
                                             >
-                                                <CheckCheck className="size-4" />
-                                                Clear all pending
+                                                <RotateCcw className="size-4" />
+                                                Reopen
                                             </DropdownMenuItem>
                                         )}
-                                    <DropdownMenuItem
-                                        onSelect={() => setSettingsOpen(true)}
-                                    >
-                                        <Settings2 className="size-4" />
-                                        Edit details
-                                    </DropdownMenuItem>
-                                    {c.is_active && (
-                                        <DropdownMenuItem onSelect={cancelCase}>
-                                            <XCircle className="size-4" />
-                                            Cancel offboarding
+                                        {c.is_active &&
+                                            options.programs.length > 0 && (
+                                                <DropdownMenuItem
+                                                    onSelect={() =>
+                                                        setApplyOpen(true)
+                                                    }
+                                                >
+                                                    <ListPlus className="size-4" />
+                                                    Add from template
+                                                </DropdownMenuItem>
+                                            )}
+                                        {c.is_active &&
+                                            c.clearance.pending > 0 && (
+                                                <DropdownMenuItem
+                                                    onSelect={clearAllPending}
+                                                >
+                                                    <CheckCheck className="size-4" />
+                                                    Clear all pending
+                                                </DropdownMenuItem>
+                                            )}
+                                        <DropdownMenuItem
+                                            onSelect={() =>
+                                                setSettingsOpen(true)
+                                            }
+                                        >
+                                            <Settings2 className="size-4" />
+                                            Edit details
                                         </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        onSelect={removeCase}
-                                    >
-                                        <Trash2 className="size-4" />
-                                        Delete
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                        {c.is_active && (
+                                            <DropdownMenuItem
+                                                onSelect={cancelCase}
+                                            >
+                                                <XCircle className="size-4" />
+                                                Cancel offboarding
+                                            </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            variant="destructive"
+                                            onSelect={removeCase}
+                                        >
+                                            <Trash2 className="size-4" />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </>
                         )}
                     </div>

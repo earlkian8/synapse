@@ -10,12 +10,13 @@ use App\Support\Recruitment\ApplicantInsights;
 use Throwable;
 
 /**
- * LLM decision support for one employee's performance evaluation. It compiles a
- * compact digest — the employee and role, the review period, the weighted overall
- * (1–5), each KPI line scored on its own scale, the evaluator's remarks, and the
- * employee's rating history across periods — and returns a grounded managerial
- * read: strengths, development areas, concrete coaching actions, suggested goals
- * for next cycle, and a one-line recommendation.
+ * LLM decision support for one employee's appraisal. It compiles a compact
+ * digest — the employee and role, the review cycle, the framework it was
+ * conducted under, the result in that company's own rating band, each line
+ * scored on its own scale within its section, the evaluator's remarks, and the
+ * employee's history across cycles — and returns a grounded managerial read:
+ * strengths, development areas, concrete coaching actions, suggested goals for
+ * next cycle, and a one-line recommendation.
  *
  * Cost-disciplined like {@see ApplicantInsights}: one
  * model call per request, strict-JSON out, and graceful, retryable degradation on
@@ -35,7 +36,7 @@ class PerformanceInsights
      * Generate coaching-oriented insights for one evaluation. The evaluation is
      * expected to have `employee`, `period` and `scores` loaded.
      *
-     * @param  list<array{period: string|null, score: float, status: string}>  $history
+     * @param  list<array{period: string|null, percent: float, score: float, label: string|null, status: string}>  $history
      * @return array<string, mixed>
      */
     public function generate(PerformanceEvaluation $evaluation, array $history): array
@@ -86,10 +87,12 @@ class PerformanceInsights
         return <<<'PROMPT'
         You are an experienced people manager and HR business partner embedded in
         an HR ERP, reviewing ONE employee's performance appraisal. You are given a
-        digest: the employee and their role, the review period, a weighted overall
-        score (on a 1–5 scale), each KPI criterion scored on its own scale with its
-        weight, the evaluator's written remarks, and the employee's overall-score
-        history across past periods. Base everything on this digest.
+        digest: the employee and their role, the review cycle, the appraisal
+        framework used, the overall attainment (0–100) and the rating band this
+        company reports it as, each criterion scored on its own scale with its
+        weight and section, the evaluator's written remarks, and the employee's
+        attainment history across past cycles. Base everything on this digest.
+        Use the company's own band wording when you describe the result.
 
         Respond with STRICT minified JSON and nothing else, in this exact shape:
         {"headline":"...","summary":"...","strengths":["..."],"development_areas":["..."],"coaching_actions":["..."],"suggested_goals":["..."],"recommendation":"..."}
@@ -109,7 +112,7 @@ class PerformanceInsights
     /**
      * Compile the compact, model-facing text digest.
      *
-     * @param  list<array{period: string|null, score: float, status: string}>  $history
+     * @param  list<array{period: string|null, percent: float, score: float, label: string|null, status: string}>  $history
      */
     private function digest(PerformanceEvaluation $evaluation, array $history): string
     {
@@ -125,19 +128,35 @@ class PerformanceInsights
         }
 
         $lines[] = '';
-        $lines[] = 'REVIEW PERIOD: '.($evaluation->period?->name ?? 'Unknown period');
+        $lines[] = 'REVIEW CYCLE: '.($evaluation->period?->name ?? 'Unknown cycle');
+        $lines[] = 'FRAMEWORK: '.($evaluation->template_name ?? 'Standard');
         $lines[] = 'STATUS: '.$evaluation->status;
-        $lines[] = 'WEIGHTED OVERALL: '.($evaluation->overall_score !== null ? number_format((float) $evaluation->overall_score, 2).' / 5.00' : 'not yet scored');
+        $lines[] = 'OVERALL ATTAINMENT: '.($evaluation->overall_percent !== null
+            ? number_format((float) $evaluation->overall_percent, 1).' / 100'
+                .($evaluation->result_label ? ' — rated "'.$evaluation->result_label.'"' : '')
+            : 'not yet scored');
+
+        $lines[] = 'RATING MODEL: '.implode(', ', array_map(
+            fn (array $band): string => $band['label'].' ≥ '.rtrim(rtrim(number_format($band['min_percent'], 1), '0'), '.').'%',
+            $evaluation->bandList(),
+        ));
 
         $scores = $evaluation->relationLoaded('scores') ? $evaluation->scores : collect();
 
         if ($scores->isNotEmpty()) {
             $lines[] = '';
-            $lines[] = 'KPI SCORECARD (each on its own scale):';
-            foreach ($scores as $score) {
-                $lines[] = '  - '.$score->label.' (weight '.rtrim(rtrim((string) $score->weight, '0'), '.').'%): '
-                    .$this->displayScore($score)
-                    .($score->remarks ? ' — '.$this->trim($score->remarks, 200) : '');
+            $lines[] = 'SCORECARD (each criterion on its own scale, grouped by section):';
+
+            foreach ($scores->groupBy('section_key') as $section) {
+                $first = $section->first();
+                $lines[] = '  ['.($first->section_name ?? 'Performance criteria')
+                    .' — '.rtrim(rtrim((string) $first->section_weight, '0'), '.').'% of the appraisal]';
+
+                foreach ($section as $score) {
+                    $lines[] = '    - '.$score->label.' (weight '.rtrim(rtrim((string) $score->weight, '0'), '.').'%): '
+                        .$this->displayScore($score)
+                        .($score->remarks ? ' — '.$this->trim($score->remarks, 200) : '');
+                }
             }
         }
 
@@ -148,9 +167,10 @@ class PerformanceInsights
 
         if ($history !== []) {
             $lines[] = '';
-            $lines[] = 'OVERALL-SCORE HISTORY (oldest → newest, 1–5 scale):';
+            $lines[] = 'ATTAINMENT HISTORY (oldest → newest, 0–100):';
             foreach ($history as $point) {
-                $lines[] = '  - '.($point['period'] ?? 'Period').': '.number_format($point['score'], 2);
+                $lines[] = '  - '.($point['period'] ?? 'Cycle').': '.number_format($point['percent'] ?? 0, 1)
+                    .(isset($point['label']) && $point['label'] !== null ? ' ('.$point['label'].')' : '');
             }
         }
 
@@ -158,8 +178,8 @@ class PerformanceInsights
     }
 
     /**
-     * A KPI line's raw score rendered in its own scale, e.g. "4/5", "82%",
-     * "Proficient", for the digest.
+     * A line's raw score rendered in its own scale — "4 of 5", "82%",
+     * "Proficient" — for the digest.
      */
     private function displayScore(PerformanceScore $score): string
     {
@@ -167,24 +187,12 @@ class PerformanceInsights
             return 'not scored';
         }
 
-        $value = (float) $score->score;
-        $clean = rtrim(rtrim(number_format($value, 2), '0'), '.');
+        $scale = $score->scale();
+        $formatted = RatingScales::format((float) $score->score, $scale);
 
-        if ($score->scale_type === 'percentage') {
-            return $clean.'%';
-        }
-
-        if ($score->scale_type === 'scale') {
-            foreach ($score->scale_levels ?? [] as $level) {
-                if (isset($level['value']) && (float) $level['value'] === $value) {
-                    return ($level['label'] ?? $clean).' ('.$clean.')';
-                }
-            }
-
-            return $clean;
-        }
-
-        return $clean.'/'.rtrim(rtrim((string) $score->scale_max, '0'), '.');
+        return $scale['type'] === 'numeric'
+            ? $formatted.' of '.RatingScales::format($scale['max'], $scale)
+            : $formatted;
     }
 
     private function trim(?string $value, int $limit): string

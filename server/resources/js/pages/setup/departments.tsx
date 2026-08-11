@@ -32,14 +32,18 @@ export default function SetupDepartments() {
     const [showArchived, setShowArchived] = useState(false);
 
     const [formOpen, setFormOpen] = useState(false);
-    const [formDepartment, setFormDepartment] = useState<Department | null>(null);
+    const [formDepartment, setFormDepartment] = useState<Department | null>(
+        null,
+    );
     const [formParent, setFormParent] = useState<Department | null>(null);
 
     const [detailOpen, setDetailOpen] = useState(false);
     const [detailId, setDetailId] = useState<number | null>(null);
 
     const [positionOpen, setPositionOpen] = useState(false);
-    const [positionEditing, setPositionEditing] = useState<Position | null>(null);
+    const [positionEditing, setPositionEditing] = useState<Position | null>(
+        null,
+    );
     const [positionDept, setPositionDept] = useState<Department | null>(null);
 
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
@@ -49,7 +53,8 @@ export default function SetupDepartments() {
     // Re-derive the open department from fresh props so it reflects mutations.
     const detailDepartment = useMemo(
         () =>
-            [...departments, ...archived].find((d) => d.id === detailId) ?? null,
+            [...departments, ...archived].find((d) => d.id === detailId) ??
+            null,
         [departments, archived, detailId],
     );
 

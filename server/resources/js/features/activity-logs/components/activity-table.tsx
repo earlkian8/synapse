@@ -56,19 +56,29 @@ export function ActivityTable({
                                               ? 'indeterminate'
                                               : false
                                     }
-                                    onCheckedChange={(value) => onToggleAll(value === true)}
+                                    onCheckedChange={(value) =>
+                                        onToggleAll(value === true)
+                                    }
                                     aria-label="Select all"
                                 />
                             </TableHead>
                         )}
                         <TableHead>Actor</TableHead>
-                        <SortHeader column="event" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="event"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             Event
                         </SortHeader>
                         <TableHead>Description</TableHead>
                         <TableHead>Target</TableHead>
                         <TableHead>IP address</TableHead>
-                        <SortHeader column="created_at" filters={filters} onSort={onToggleSort}>
+                        <SortHeader
+                            column="created_at"
+                            filters={filters}
+                            onSort={onToggleSort}
+                        >
                             When
                         </SortHeader>
                         <TableHead className="w-10 pr-4" />
@@ -82,10 +92,13 @@ export function ActivityTable({
                                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                                         <ScrollText className="size-6 text-muted-foreground" />
                                     </span>
-                                    <p className="text-sm font-medium">No activity yet</p>
+                                    <p className="text-sm font-medium">
+                                        No activity yet
+                                    </p>
                                     <p className="max-w-xs text-sm text-muted-foreground">
-                                        Actions performed across the system will appear
-                                        here. Try adjusting your search or filters.
+                                        Actions performed across the system will
+                                        appear here. Try adjusting your search
+                                        or filters.
                                     </p>
                                 </div>
                             </TableCell>
@@ -105,7 +118,10 @@ export function ActivityTable({
                                         <Checkbox
                                             checked={isSelected}
                                             onCheckedChange={(value) =>
-                                                onToggleRow(log.id, value === true)
+                                                onToggleRow(
+                                                    log.id,
+                                                    value === true,
+                                                )
                                             }
                                             aria-label={`Select log ${log.id}`}
                                         />
@@ -120,10 +136,12 @@ export function ActivityTable({
                                         <ActorAvatar causer={log.causer} />
                                         <span className="min-w-0">
                                             <span className="block truncate font-medium">
-                                                {log.causer?.full_name ?? 'System'}
+                                                {log.causer?.full_name ??
+                                                    'System'}
                                             </span>
                                             <span className="block truncate text-xs text-muted-foreground">
-                                                {log.causer?.email ?? 'Automated action'}
+                                                {log.causer?.email ??
+                                                    'Automated action'}
                                             </span>
                                         </span>
                                     </button>
@@ -148,11 +166,15 @@ export function ActivityTable({
                                             {log.ip_address}
                                         </span>
                                     ) : (
-                                        <span className="text-muted-foreground">—</span>
+                                        <span className="text-muted-foreground">
+                                            —
+                                        </span>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
-                                    <span title={log.created_display ?? undefined}>
+                                    <span
+                                        title={log.created_display ?? undefined}
+                                    >
                                         {log.created_human ?? '—'}
                                     </span>
                                 </TableCell>

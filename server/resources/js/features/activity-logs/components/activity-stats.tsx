@@ -18,12 +18,42 @@ type Card = {
 };
 
 const CARDS: Card[] = [
-    { key: 'total', label: 'Total events', icon: Activity, accent: 'text-[#0ABFBF] bg-[#0ABFBF]/10' },
-    { key: 'today', label: 'Today', icon: Clock, accent: 'text-indigo-600 bg-indigo-500/10' },
-    { key: 'this_week', label: 'This week', icon: CalendarDays, accent: 'text-sky-600 bg-sky-500/10' },
-    { key: 'this_month', label: 'This month', icon: CalendarRange, accent: 'text-violet-600 bg-violet-500/10' },
-    { key: 'creates', label: 'Creates', icon: PlusCircle, accent: 'text-emerald-600 bg-emerald-500/10' },
-    { key: 'deletions', label: 'Deletions', icon: Trash2, accent: 'text-rose-600 bg-rose-500/10' },
+    {
+        key: 'total',
+        label: 'Total events',
+        icon: Activity,
+        accent: 'text-[#0ABFBF] bg-[#0ABFBF]/10',
+    },
+    {
+        key: 'today',
+        label: 'Today',
+        icon: Clock,
+        accent: 'text-indigo-600 bg-indigo-500/10',
+    },
+    {
+        key: 'this_week',
+        label: 'This week',
+        icon: CalendarDays,
+        accent: 'text-sky-600 bg-sky-500/10',
+    },
+    {
+        key: 'this_month',
+        label: 'This month',
+        icon: CalendarRange,
+        accent: 'text-violet-600 bg-violet-500/10',
+    },
+    {
+        key: 'creates',
+        label: 'Creates',
+        icon: PlusCircle,
+        accent: 'text-emerald-600 bg-emerald-500/10',
+    },
+    {
+        key: 'deletions',
+        label: 'Deletions',
+        icon: Trash2,
+        accent: 'text-rose-600 bg-rose-500/10',
+    },
 ];
 
 export function ActivityStatsCards({ stats }: { stats: ActivityStats }) {

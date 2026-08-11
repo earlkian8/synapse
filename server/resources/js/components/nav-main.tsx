@@ -23,7 +23,7 @@ export function NavMain({ items = [], label, badge }: Props) {
     return (
         <SidebarGroup className="px-2 py-1">
             {label && (
-                <SidebarGroupLabel className="flex items-center justify-between text-[10px] tracking-[0.12em] uppercase text-sidebar-foreground/50 font-semibold px-2 mb-1">
+                <SidebarGroupLabel className="mb-1 flex items-center justify-between px-2 text-[10px] font-semibold tracking-[0.12em] text-sidebar-foreground/50 uppercase">
                     {label}
                     {badge}
                 </SidebarGroupLabel>
@@ -43,7 +43,7 @@ export function NavMain({ items = [], label, badge }: Props) {
                                 asChild
                                 isActive={active}
                                 tooltip={{ children: item.title }}
-                                className="relative text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-[#0ABFBF]/12 data-[active=true]:text-[#0ABFBF] transition-colors duration-150"
+                                className="relative text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-[#0ABFBF]/12 data-[active=true]:text-[#0ABFBF]"
                             >
                                 <Link href={item.href} prefetch>
                                     {item.icon && (
@@ -51,7 +51,7 @@ export function NavMain({ items = [], label, badge }: Props) {
                                     )}
                                     <span>{item.title}</span>
                                     {active && (
-                                        <span className="ml-auto w-1 h-4 rounded-full bg-[#0ABFBF] opacity-80" />
+                                        <span className="ml-auto h-4 w-1 rounded-full bg-[#0ABFBF] opacity-80" />
                                     )}
                                 </Link>
                             </SidebarMenuButton>

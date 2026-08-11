@@ -215,7 +215,9 @@ function FormBody({
                             type="date"
                             value={data.end_date}
                             min={data.start_date}
-                            onChange={(e) => setData('end_date', e.target.value)}
+                            onChange={(e) =>
+                                setData('end_date', e.target.value)
+                            }
                             className={inputClass}
                             required
                         />
@@ -242,7 +244,10 @@ function FormBody({
                         <Select
                             value={data.half_day_period}
                             onValueChange={(v) =>
-                                setData('half_day_period', v as 'morning' | 'afternoon')
+                                setData(
+                                    'half_day_period',
+                                    v as 'morning' | 'afternoon',
+                                )
                             }
                         >
                             <SelectTrigger className="w-full">

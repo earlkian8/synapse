@@ -191,13 +191,16 @@ function Body({
                             <span className="font-medium">
                                 {balance.name} balance
                             </span>
-                            <span className="tabular-nums text-muted-foreground">
+                            <span className="text-muted-foreground tabular-nums">
                                 {balance.remaining} of {balance.entitled} left
                             </span>
                         </div>
                         <BalanceMeter balance={balance} />
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
-                            <Legend color="#0ABFBF" label={`${balance.used} used`} />
+                            <Legend
+                                color="#0ABFBF"
+                                label={`${balance.used} used`}
+                            />
                             <Legend
                                 color="#F59E0B"
                                 label={`${balance.pending} pending`}
@@ -378,7 +381,13 @@ function Meta({
     );
 }
 
-function Block({ label, children }: { label: string; children: React.ReactNode }) {
+function Block({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
     return (
         <div>
             <p className="mb-1 text-xs font-medium text-muted-foreground">

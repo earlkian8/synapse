@@ -115,68 +115,68 @@ export function RolesTable({
                         const isSelected = selected.includes(role.id);
 
                         return (
-                        <TableRow
-                            key={role.id}
-                            data-state={isSelected ? 'selected' : undefined}
-                        >
-                            <TableCell className="pl-4">
-                                <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={(value) =>
-                                        onToggleRow(role.id, value === true)
-                                    }
-                                    aria-label={`Select ${role.label}`}
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <button
-                                    type="button"
-                                    onClick={() => handlers.onView(role)}
-                                    className="flex items-start gap-3 text-left"
-                                >
-                                    <span className="min-w-0">
-                                        <span className="block truncate font-medium">
-                                            {role.label}
+                            <TableRow
+                                key={role.id}
+                                data-state={isSelected ? 'selected' : undefined}
+                            >
+                                <TableCell className="pl-4">
+                                    <Checkbox
+                                        checked={isSelected}
+                                        onCheckedChange={(value) =>
+                                            onToggleRow(role.id, value === true)
+                                        }
+                                        aria-label={`Select ${role.label}`}
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlers.onView(role)}
+                                        className="flex items-start gap-3 text-left"
+                                    >
+                                        <span className="min-w-0">
+                                            <span className="block truncate font-medium">
+                                                {role.label}
+                                            </span>
+                                            <span className="block truncate font-mono text-xs text-muted-foreground">
+                                                {role.name}
+                                            </span>
                                         </span>
-                                        <span className="block truncate font-mono text-xs text-muted-foreground">
-                                            {role.name}
+                                    </button>
+                                </TableCell>
+                                <TableCell>
+                                    <RoleBadge role={role} />
+                                </TableCell>
+                                <TableCell>
+                                    <span className="inline-flex items-center gap-1.5 text-sm">
+                                        <KeyRound className="size-3.5 text-muted-foreground" />
+                                        <span className="font-medium tabular-nums">
+                                            {role.is_super_admin
+                                                ? 'All'
+                                                : role.permissions_count}
                                         </span>
                                     </span>
-                                </button>
-                            </TableCell>
-                            <TableCell>
-                                <RoleBadge role={role} />
-                            </TableCell>
-                            <TableCell>
-                                <span className="inline-flex items-center gap-1.5 text-sm">
-                                    <KeyRound className="size-3.5 text-muted-foreground" />
-                                    <span className="font-medium tabular-nums">
-                                        {role.is_super_admin
-                                            ? 'All'
-                                            : role.permissions_count}
+                                </TableCell>
+                                <TableCell>
+                                    <span className="inline-flex items-center gap-1.5 text-sm">
+                                        <Users className="size-3.5 text-muted-foreground" />
+                                        <span className="font-medium tabular-nums">
+                                            {role.users_count}
+                                        </span>
                                     </span>
-                                </span>
-                            </TableCell>
-                            <TableCell>
-                                <span className="inline-flex items-center gap-1.5 text-sm">
-                                    <Users className="size-3.5 text-muted-foreground" />
-                                    <span className="font-medium tabular-nums">
-                                        {role.users_count}
-                                    </span>
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {role.created_human ?? '—'}
-                            </TableCell>
-                            <TableCell className="pr-4 text-right">
-                                <RoleRowActions
-                                    role={role}
-                                    canUpdate={canUpdate}
-                                    canDelete={canDelete}
-                                    {...handlers}
-                                />
-                            </TableCell>
-                        </TableRow>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                    {role.created_human ?? '—'}
+                                </TableCell>
+                                <TableCell className="pr-4 text-right">
+                                    <RoleRowActions
+                                        role={role}
+                                        canUpdate={canUpdate}
+                                        canDelete={canDelete}
+                                        {...handlers}
+                                    />
+                                </TableCell>
+                            </TableRow>
                         );
                     })}
                 </TableBody>

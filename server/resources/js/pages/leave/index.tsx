@@ -95,7 +95,10 @@ export default function LeaveIndex() {
             destructive: true,
             run: () => {
                 setReviewOpen(false);
-                router.delete(leaveRoutes.destroy(request.hashid), withProcessing);
+                router.delete(
+                    leaveRoutes.destroy(request.hashid),
+                    withProcessing,
+                );
             },
         });
 

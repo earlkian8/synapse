@@ -25,9 +25,7 @@ export function RosterAnalytics({
                         Completion rate
                     </span>
                     <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                        {analytics.completion_rate === null
-                            ? '—'
-                            : `${rate}%`}
+                        {analytics.completion_rate === null ? '—' : `${rate}%`}
                     </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

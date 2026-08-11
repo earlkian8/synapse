@@ -4,61 +4,66 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
+use Database\Factories\KpiCriterionFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * A Company-Setup KPI criterion (ERD §2): a weighted dimension a performance
- * evaluation scores an employee against — Quality of Work, Productivity,
- * Teamwork… `weight` is the relative weight the overall score is averaged by.
- * Archivable so retiring a criterion keeps historical evaluations intact.
+ * A Company-Setup KPI criterion (ERD §2): a dimension performance is measured
+ * on — Quality of Work, Productivity, Teamwork… It is the tenant's **catalogue**
+ * entry: it names the thing and the {@see RatingScale} it is measured on, and
+ * carries a default weight that a framework can override.
+ *
+ * A criterion does not decide an appraisal on its own — a {@see ReviewTemplate}
+ * puts it in a section, at a weight, for a population. Archivable so retiring one
+ * keeps historical evaluations intact.
  */
 class KpiCriterion extends Model
 {
-    use BelongsToOrganization, HasHashid, SoftDeletes;
-
-    /** The rating-scale kinds a criterion can be measured on. */
-    public const SCALE_TYPES = ['points', 'percentage', 'scale'];
+    /** @use HasFactory<KpiCriterionFactory> */
+    use BelongsToOrganization, HasFactory, HasHashid, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
         'name',
         'description',
         'weight',
-        'scale_type',
-        'scale_min',
-        'scale_max',
-        'scale_levels',
+        'rating_scale_id',
         'is_active',
+        'sort_order',
     ];
 
     protected function casts(): array
     {
         return [
             'weight' => 'decimal:2',
-            'scale_min' => 'decimal:2',
-            'scale_max' => 'decimal:2',
-            'scale_levels' => 'array',
             'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
     /**
-     * The scale fields to snapshot onto a {@see PerformanceScore} when seeding an
-     * evaluation, so the criterion's measurement method stays stable per-appraisal.
+     * The scale this criterion is measured on.
      *
-     * @return array<string, mixed>
+     * @return BelongsTo<RatingScale, $this>
      */
-    public function scaleSnapshot(): array
+    public function ratingScale(): BelongsTo
     {
-        return [
-            'scale_type' => $this->scale_type,
-            'scale_min' => $this->scale_min,
-            'scale_max' => $this->scale_max,
-            'scale_levels' => $this->scale_levels,
-        ];
+        return $this->belongsTo(RatingScale::class);
+    }
+
+    /**
+     * The framework items drawing from this criterion.
+     *
+     * @return HasMany<ReviewTemplateItem, $this>
+     */
+    public function templateItems(): HasMany
+    {
+        return $this->hasMany(ReviewTemplateItem::class);
     }
 
     /**
@@ -82,12 +87,12 @@ class KpiCriterion extends Model
     }
 
     /**
-     * Active first, then by name — the catalogue ordering.
+     * Active first, then the tenant's own ordering, then by name.
      *
      * @param  Builder<KpiCriterion>  $query
      */
     public function scopeCatalogueOrder(Builder $query): void
     {
-        $query->orderByDesc('is_active')->orderBy('name');
+        $query->orderByDesc('is_active')->orderBy('sort_order')->orderBy('name');
     }
 }

@@ -1,4 +1,9 @@
-import { AlarmClock, CalendarCheck2, CircleUserRound, Flag } from 'lucide-react';
+import {
+    AlarmClock,
+    CalendarCheck2,
+    CircleUserRound,
+    Flag,
+} from 'lucide-react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import type { OnboardingStats } from '../types';

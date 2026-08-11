@@ -12,7 +12,8 @@ export const offboardingRoutes = {
     status: (hashid: string) => `/offboarding/${hashid}/status`,
     destroy: (hashid: string) => `/offboarding/${hashid}`,
     clearance: (caseHashid: string) => `/offboarding/${caseHashid}/clearance`,
-    clearanceExport: (caseHashid: string) => `/offboarding/${caseHashid}/export`,
+    clearanceExport: (caseHashid: string) =>
+        `/offboarding/${caseHashid}/export`,
     applyProgram: (caseHashid: string) =>
         `/offboarding/${caseHashid}/clearance/apply-program`,
     bulkClear: (caseHashid: string) =>

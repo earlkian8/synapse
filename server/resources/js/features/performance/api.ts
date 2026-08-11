@@ -64,6 +64,14 @@ type Handlers = {
 export type CreateEvaluationPayload = {
     employee_id: number;
     evaluation_period_id: number;
+    review_template_id: number | null;
+};
+
+export type LaunchCyclePayload = {
+    evaluation_period_id: number;
+    review_template_id: number | null;
+    scope: 'all' | 'departments';
+    department_ids: number[];
 };
 
 export type ScoreLinePayload = {
@@ -85,12 +93,23 @@ const opts = (h: Handlers = {}) => ({
     onError: h.onError,
 });
 
-/** Open a new evaluation; the server redirects to its scorecard. */
+/** Open a new appraisal; the server redirects to its scorecard. */
 export function createEvaluation(
     payload: CreateEvaluationPayload,
     h: Handlers = {},
 ): void {
     router.post(performanceRoutes.store, payload, opts(h));
+}
+
+/**
+ * Open every appraisal of a cycle at once. Idempotent server-side — anyone
+ * already appraised in the cycle is skipped, so it is safe to re-run.
+ */
+export function launchCycle(
+    payload: LaunchCyclePayload,
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.launchCycle, payload, opts(h));
 }
 
 /** Save the scorecard (ratings + remarks) of a draft evaluation. */

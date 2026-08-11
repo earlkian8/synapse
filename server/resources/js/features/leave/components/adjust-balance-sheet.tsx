@@ -35,9 +35,7 @@ export function AdjustBalanceSheet({
                 <SheetHeader className="border-b border-border px-6 py-4">
                     <SheetTitle>Adjust entitlements</SheetTitle>
                     <SheetDescription>
-                        {employee
-                            ? `${employee.full_name} · ${year}`
-                            : null}
+                        {employee ? `${employee.full_name} · ${year}` : null}
                     </SheetDescription>
                 </SheetHeader>
 

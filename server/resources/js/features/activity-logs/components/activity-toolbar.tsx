@@ -85,7 +85,10 @@ export function ActivityToolbar({
                 </div>
 
                 <Select value={filters.event} onValueChange={onEvent}>
-                    <SelectTrigger className="w-[160px]" aria-label="Filter by event">
+                    <SelectTrigger
+                        className="w-[160px]"
+                        aria-label="Filter by event"
+                    >
                         <SelectValue placeholder="Event" />
                     </SelectTrigger>
                     <SelectContent>

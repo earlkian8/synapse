@@ -102,7 +102,10 @@ export default function EventShow() {
         router.post(
             eventRoutes.duplicate(event.hashid),
             {},
-            { onStart: () => setProcessing(true), onFinish: () => setProcessing(false) },
+            {
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+            },
         );
 
     const remindPending = () =>

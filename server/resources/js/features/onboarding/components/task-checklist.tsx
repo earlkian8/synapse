@@ -68,7 +68,7 @@ export function TaskChecklist({
                             <span className="text-sm font-semibold">
                                 {meta.label}
                             </span>
-                            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                                 {resolved}/{groupTasks.length}
                             </span>
                         </div>

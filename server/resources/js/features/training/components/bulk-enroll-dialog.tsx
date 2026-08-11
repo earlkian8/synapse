@@ -249,8 +249,8 @@ function Body({
                 <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
                     <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                     Only {seatsRemaining} seat
-                    {seatsRemaining === 1 ? '' : 's'} left — the extra selections
-                    won't be enrolled.
+                    {seatsRemaining === 1 ? '' : 's'} left — the extra
+                    selections won't be enrolled.
                 </p>
             )}
 

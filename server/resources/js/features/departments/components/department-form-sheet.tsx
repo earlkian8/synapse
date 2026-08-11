@@ -35,7 +35,10 @@ type Props = {
 const NONE = '__none__';
 
 /** Ids the given department may not be parented into (itself + descendants). */
-function subtreeIds(department: Department | null, all: Department[]): Set<number> {
+function subtreeIds(
+    department: Department | null,
+    all: Department[],
+): Set<number> {
     const blocked = new Set<number>();
 
     if (!department) {
@@ -90,7 +93,10 @@ export function DepartmentFormSheet({
 
                 {open && (
                     <FormBody
-                        key={department?.id ?? `new-${parentDefault?.id ?? 'root'}`}
+                        key={
+                            department?.id ??
+                            `new-${parentDefault?.id ?? 'root'}`
+                        }
                         department={department}
                         parentDefault={parentDefault}
                         departments={departments}
@@ -127,9 +133,8 @@ function FormBody({
     const { data, setData, post, processing, errors, transform } = useForm({
         name: department?.name ?? '',
         code: department?.code ?? '',
-        parent_id: String(
-            department?.parent_id ?? parentDefault?.id ?? '',
-        ) || NONE,
+        parent_id:
+            String(department?.parent_id ?? parentDefault?.id ?? '') || NONE,
         head_id: department?.head_id ? String(department.head_id) : NONE,
         description: department?.description ?? '',
     });
@@ -139,7 +144,8 @@ function FormBody({
 
         transform((payload) => ({
             ...payload,
-            parent_id: payload.parent_id === NONE ? null : Number(payload.parent_id),
+            parent_id:
+                payload.parent_id === NONE ? null : Number(payload.parent_id),
             head_id: payload.head_id === NONE ? null : Number(payload.head_id),
             description: payload.description || null,
         }));

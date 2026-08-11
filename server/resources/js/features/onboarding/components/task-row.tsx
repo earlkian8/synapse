@@ -27,7 +27,13 @@ type Props = {
     onDelete: (task: OnboardingTask) => void;
 };
 
-export function TaskRow({ task, canManage, onToggle, onEdit, onDelete }: Props) {
+export function TaskRow({
+    task,
+    canManage,
+    onToggle,
+    onEdit,
+    onDelete,
+}: Props) {
     const done = task.status === 'done';
     const skipped = task.status === 'skipped';
 

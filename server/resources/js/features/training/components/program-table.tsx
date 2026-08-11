@@ -1,5 +1,11 @@
 import { router } from '@inertiajs/react';
-import { ArrowDown, ArrowUp, ChevronsUpDown, Trophy, Users } from 'lucide-react';
+import {
+    ArrowDown,
+    ArrowUp,
+    ChevronsUpDown,
+    Trophy,
+    Users,
+} from 'lucide-react';
 import {
     Table,
     TableBody,
@@ -14,7 +20,12 @@ import { trainingRoutes } from '../routes';
 import type { TrainingProgram } from '../types';
 import { ProgramStatusBadge } from './training-status-badge';
 
-export type ProgramSort = 'name' | 'schedule' | 'seats' | 'completed' | 'status';
+export type ProgramSort =
+    | 'name'
+    | 'schedule'
+    | 'seats'
+    | 'completed'
+    | 'status';
 
 type Props = {
     programs: TrainingProgram[];

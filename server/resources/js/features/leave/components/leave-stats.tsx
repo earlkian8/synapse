@@ -1,4 +1,9 @@
-import { CalendarDays, CalendarRange, Hourglass, PalmtreeIcon } from 'lucide-react';
+import {
+    CalendarDays,
+    CalendarRange,
+    Hourglass,
+    PalmtreeIcon,
+} from 'lucide-react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import type { LeaveStats } from '../types';

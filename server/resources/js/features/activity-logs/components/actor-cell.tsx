@@ -26,7 +26,9 @@ export function ActorAvatar({ causer, className }: Props) {
     }
 
     return (
-        <Avatar className={cn('size-9 rounded-full ring-1 ring-border', className)}>
+        <Avatar
+            className={cn('size-9 rounded-full ring-1 ring-border', className)}
+        >
             {causer.avatar && (
                 <AvatarImage src={causer.avatar} alt={causer.full_name} />
             )}

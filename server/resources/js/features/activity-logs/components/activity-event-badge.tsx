@@ -5,9 +5,7 @@ export function ActivityEventBadge({ event }: { event: string }) {
     const style = EVENT_META[event] ?? EVENT_META.default;
     const label =
         EVENT_META[event]?.label ??
-        event
-            .replace(/_/g, ' ')
-            .replace(/^\w/, (c) => c.toUpperCase());
+        event.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
     return (
         <span

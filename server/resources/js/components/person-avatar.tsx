@@ -24,7 +24,9 @@ export function PersonAvatar({
     fallbackClassName,
 }: Props) {
     return (
-        <Avatar className={cn('size-9 rounded-lg ring-1 ring-border', className)}>
+        <Avatar
+            className={cn('size-9 rounded-lg ring-1 ring-border', className)}
+        >
             {photo && <AvatarImage src={photo} alt={name} />}
             <AvatarFallback
                 className={cn(

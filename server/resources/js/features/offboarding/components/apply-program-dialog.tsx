@@ -68,8 +68,8 @@ export function ApplyProgramDialog({
                 <DialogHeader>
                     <DialogTitle>Add items from a template</DialogTitle>
                     <DialogDescription>
-                        Every item in the template is appended to this checklist.
-                        Items already on it are skipped.
+                        Every item in the template is appended to this
+                        checklist. Items already on it are skipped.
                     </DialogDescription>
                 </DialogHeader>
 

@@ -4,11 +4,10 @@ import {
     GraduationCap,
     KeyRound,
     Laptop,
-    
     ShieldCheck,
-    Sparkles
+    Sparkles,
 } from 'lucide-react';
-import type {LucideIcon} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
     CaseStatus,
     EmploymentType,
@@ -39,7 +38,8 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
 };
 
 export const CASE_STATUS_STYLES: Record<CaseStatus, string> = {
-    pending: 'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+    pending:
+        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
     in_progress:
         'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
     completed:

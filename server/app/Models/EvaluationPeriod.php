@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
+use Database\Factories\EvaluationPeriodFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -16,7 +18,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class EvaluationPeriod extends Model
 {
-    use BelongsToOrganization, HasHashid, SoftDeletes;
+    /** @use HasFactory<EvaluationPeriodFactory> */
+    use BelongsToOrganization, HasFactory, HasHashid, SoftDeletes;
 
     /** The lifecycle of a review cycle. */
     public const STATUSES = ['draft', 'open', 'closed'];

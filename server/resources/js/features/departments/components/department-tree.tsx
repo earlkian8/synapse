@@ -1,8 +1,8 @@
 import { Network } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Department } from '../types';
-import { DepartmentNode  } from './department-node';
-import type {NodeHandlers} from './department-node';
+import { DepartmentNode } from './department-node';
+import type { NodeHandlers } from './department-node';
 
 type Props = NodeHandlers & {
     departments: Department[];

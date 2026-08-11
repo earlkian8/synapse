@@ -3,10 +3,11 @@ import {
     ArrowLeft,
     BadgeCheck,
     CheckCircle2,
+    Layers,
     Send,
     Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
@@ -19,26 +20,24 @@ import {
 } from '@/features/performance/api';
 import { DecisionSupport } from '@/features/performance/components/decision-support';
 import { PerformanceInsights } from '@/features/performance/components/performance-insights';
-import { ScoreRow } from '@/features/performance/components/score-row';
+import { ResultSummary } from '@/features/performance/components/result-summary';
+import { SectionCard } from '@/features/performance/components/section-card';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
-import {
-    computeOverall,
-    formatDate,
-    formatScore,
-    ratingLabelForScore,
-    scoreBarTone,
-    scoreTone,
-} from '@/features/performance/constants';
+import { computeResult, formatDate } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
 import type {
     PerformanceScore,
     PerformanceShowPageProps,
 } from '@/features/performance/types';
-import { cn } from '@/lib/utils';
 
 export default function PerformanceShow() {
-    const { evaluation, support, can } =
-        usePage<PerformanceShowPageProps>().props;
+    const {
+        evaluation,
+        result: savedResult,
+        support,
+        can,
+    } = usePage<PerformanceShowPageProps>().props;
+
     const employee = evaluation.employee;
     const editable = can.manage && evaluation.status === 'draft';
 
@@ -50,19 +49,41 @@ export default function PerformanceShow() {
     const [processing, setProcessing] = useState(false);
     const [confirm, setConfirm] = useState<'submit' | 'delete' | null>(null);
 
-    const liveOverall = editable
-        ? computeOverall(lines)
-        : evaluation.overall_score;
-    const allScored = lines.length > 0 && lines.every((l) => l.score !== null);
+    // While a draft is being filled in the result is derived here, on the same
+    // rules the server applies on save — so the ladder moves as HR types.
+    const result = useMemo(
+        () => (editable ? computeResult(lines, evaluation.bands) : savedResult),
+        [editable, lines, evaluation.bands, savedResult],
+    );
+
+    // The scorecard, grouped the way its framework was written.
+    const sections = useMemo(() => {
+        const described = new Map(
+            evaluation.template_sections.map((section) => [
+                section.key,
+                section.description,
+            ]),
+        );
+
+        return result.sections.map((section) => ({
+            section,
+            description: described.get(section.key) ?? null,
+            lines: lines.filter(
+                (line) => (line.section_key || 'overall') === section.key,
+            ),
+        }));
+    }, [result.sections, evaluation.template_sections, lines]);
 
     const setScore = (id: number, score: number) =>
         setLines((prev) =>
-            prev.map((l) => (l.id === id ? { ...l, score } : l)),
+            prev.map((line) => (line.id === id ? { ...line, score } : line)),
         );
 
     const setRemark = (id: number, value: string) =>
         setLines((prev) =>
-            prev.map((l) => (l.id === id ? { ...l, remarks: value } : l)),
+            prev.map((line) =>
+                line.id === id ? { ...line, remarks: value } : line,
+            ),
         );
 
     const handlers = {
@@ -78,34 +99,38 @@ export default function PerformanceShow() {
             evaluation.hashid,
             {
                 remarks: remarks || null,
-                scores: lines.map((l) => ({
-                    id: l.id,
-                    score: l.score,
-                    remarks: l.remarks,
+                scores: lines.map((line) => ({
+                    id: line.id,
+                    score: line.score,
+                    remarks: line.remarks,
                 })),
             },
             handlers,
         );
 
+    const complete = result.total > 0 && result.scored === result.total;
+
     return (
         <>
             <Head
-                title={`Performance — ${employee?.full_name ?? 'Evaluation'}`}
+                title={`Appraisal — ${employee?.full_name ?? 'Performance'}`}
             />
 
             <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
                 <Link
-                    href={performanceRoutes.index}
+                    href={performanceRoutes.forPeriod(
+                        evaluation.period?.id ?? null,
+                    )}
                     className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <ArrowLeft className="size-4" />
-                    All evaluations
+                    Back to the cycle
                 </Link>
 
-                {/* Header */}
-                <div className="flex flex-col gap-5 rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 items-start gap-3">
+                {/* Who, which cycle, under which framework — then the result. */}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+                    <div className="rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
+                        <div className="flex min-w-0 items-start gap-3.5">
                             <PersonAvatar
                                 name={employee?.full_name ?? 'Unknown'}
                                 initials={employee?.initials ?? '?'}
@@ -128,115 +153,92 @@ export default function PerformanceShow() {
                                         ? ` · ${employee.department}`
                                         : ''}
                                 </p>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    <span className="font-medium text-foreground">
-                                        {evaluation.period?.name ?? '—'}
-                                    </span>
-                                    {evaluation.period && (
-                                        <span className="tabular-nums">
-                                            {' · '}
-                                            {formatDate(
-                                                evaluation.period.start_date,
-                                            )}{' '}
-                                            –{' '}
-                                            {formatDate(
-                                                evaluation.period.end_date,
-                                            )}
-                                        </span>
-                                    )}
-                                </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    {evaluation.evaluator
-                                        ? `Evaluator: ${evaluation.evaluator.name}`
-                                        : 'No evaluator on record'}
-                                    {evaluation.submitted_at &&
-                                        ` · Submitted ${formatTimestamp(evaluation.submitted_at)}`}
-                                    {evaluation.acknowledged_at &&
-                                        ` · Acknowledged ${formatTimestamp(evaluation.acknowledged_at)}`}
-                                </p>
                             </div>
                         </div>
 
-                        {/* Overall score */}
-                        <div className="shrink-0 sm:text-right">
-                            <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                                Overall score
-                            </span>
-                            <div className="flex items-baseline gap-1 sm:justify-end">
-                                <span
-                                    className={cn(
-                                        'text-3xl font-semibold tracking-tight tabular-nums',
-                                        scoreTone(liveOverall),
-                                    )}
-                                >
-                                    {formatScore(liveOverall)}
+                        <dl className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
+                            <Fact label="Review cycle">
+                                {evaluation.period?.name ?? '—'}
+                                {evaluation.period && (
+                                    <span className="block text-xs text-muted-foreground tabular-nums">
+                                        {formatDate(
+                                            evaluation.period.start_date,
+                                        )}{' '}
+                                        –{' '}
+                                        {formatDate(evaluation.period.end_date)}
+                                    </span>
+                                )}
+                            </Fact>
+                            <Fact label="Framework">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Layers className="size-3.5 shrink-0 text-muted-foreground" />
+                                    {evaluation.template_name ?? 'Standard'}
                                 </span>
-                                <span className="text-sm text-muted-foreground">
-                                    / 5.00
+                                <span className="block text-xs text-muted-foreground">
+                                    {evaluation.bands.length} rating bands
                                 </span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                                {ratingLabelForScore(liveOverall) ??
-                                    'Not yet scored'}
-                            </span>
-                            <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-muted sm:ml-auto">
-                                <div
-                                    className={cn(
-                                        'h-full rounded-full transition-all',
-                                        scoreBarTone(liveOverall),
-                                    )}
-                                    style={{
-                                        width: `${((liveOverall ?? 0) / 5) * 100}%`,
-                                    }}
-                                />
-                            </div>
-                        </div>
+                            </Fact>
+                            <Fact label="Evaluator">
+                                {evaluation.evaluator?.name ?? 'Not recorded'}
+                                {evaluation.submitted_at && (
+                                    <span className="block text-xs text-muted-foreground">
+                                        Submitted{' '}
+                                        {formatTimestamp(
+                                            evaluation.submitted_at,
+                                        )}
+                                    </span>
+                                )}
+                                {evaluation.acknowledged_at && (
+                                    <span className="block text-xs text-muted-foreground">
+                                        Signed off{' '}
+                                        {formatTimestamp(
+                                            evaluation.acknowledged_at,
+                                        )}
+                                    </span>
+                                )}
+                            </Fact>
+                        </dl>
                     </div>
+
+                    <ResultSummary
+                        result={result}
+                        bands={evaluation.bands}
+                        display={evaluation.result_display}
+                        live={editable}
+                    />
                 </div>
 
                 {/* Decision support: ML forecast, trajectory, strengths & gaps */}
                 <DecisionSupport support={support} scores={lines} />
 
-                {/* Scorecard */}
-                <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                        <p className="text-sm font-semibold">KPI scorecard</p>
-                        <span className="text-xs text-muted-foreground">
-                            {editable
-                                ? 'Rate each criterion on its scale'
-                                : `${lines.length} criteria`}
-                        </span>
-                    </div>
-                    <div className="divide-y divide-border">
-                        {lines.map((line) => (
-                            <ScoreRow
-                                key={line.id}
-                                label={line.label}
-                                weight={line.weight}
-                                score={line.score}
-                                scaleType={line.scale_type}
-                                scaleMin={line.scale_min}
-                                scaleMax={line.scale_max}
-                                scaleLevels={line.scale_levels}
-                                remarks={line.remarks}
-                                criterionActive={line.criterion_active}
-                                editable={editable}
-                                onScoreChange={(v) => setScore(line.id, v)}
-                                onRemarksChange={(v) => setRemark(line.id, v)}
-                            />
-                        ))}
-                    </div>
-                </div>
+                {/* The scorecard, section by weighted section. */}
+                {sections.map(
+                    ({ section, description, lines: sectionLines }) => (
+                        <SectionCard
+                            key={section.key}
+                            section={section}
+                            description={description}
+                            lines={sectionLines}
+                            editable={editable}
+                            onScoreChange={setScore}
+                            onRemarksChange={setRemark}
+                        />
+                    ),
+                )}
 
                 {/* Overall remarks */}
                 <div className="rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
-                    <p className="mb-2 text-sm font-semibold">
+                    <label
+                        htmlFor="overall-remarks"
+                        className="mb-2 block text-sm font-semibold"
+                    >
                         Overall remarks
-                    </p>
+                    </label>
                     {editable ? (
                         <textarea
+                            id="overall-remarks"
                             value={remarks}
-                            onChange={(e) => setRemarks(e.target.value)}
+                            onChange={(event) => setRemarks(event.target.value)}
                             rows={3}
                             placeholder="Summary, strengths and areas to develop (optional)"
                             className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
@@ -261,7 +263,7 @@ export default function PerformanceShow() {
                 {can.manage &&
                     (evaluation.status === 'draft' ||
                         evaluation.status === 'submitted') && (
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background/85 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
                             {evaluation.status === 'draft' ? (
                                 <>
                                     <Button
@@ -285,11 +287,11 @@ export default function PerformanceShow() {
                                         </Button>
                                         <Button
                                             onClick={() => setConfirm('submit')}
-                                            disabled={processing || !allScored}
+                                            disabled={processing || !complete}
                                             title={
-                                                allScored
+                                                complete
                                                     ? undefined
-                                                    : 'Score every criterion first'
+                                                    : `Rate all ${result.total} criteria first`
                                             }
                                         >
                                             <Send className="size-4" />
@@ -309,7 +311,7 @@ export default function PerformanceShow() {
                                         disabled={processing}
                                     >
                                         <BadgeCheck className="size-4" />
-                                        Acknowledge
+                                        Record sign-off
                                     </Button>
                                 </div>
                             )}
@@ -319,7 +321,7 @@ export default function PerformanceShow() {
                 {evaluation.status === 'acknowledged' && (
                     <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="size-4" />
-                        This evaluation has been acknowledged and is final.
+                        Signed off. This appraisal is final.
                     </div>
                 )}
             </div>
@@ -327,8 +329,12 @@ export default function PerformanceShow() {
             <ConfirmDialog
                 open={confirm === 'submit'}
                 onOpenChange={(open) => !open && setConfirm(null)}
-                title="Submit this evaluation?"
-                description="Submitting locks the scorecard and finalises the overall score. It can no longer be edited."
+                title="Submit this appraisal?"
+                description={
+                    result.band
+                        ? `It will be recorded as “${result.band.label}” and locked. Ratings can no longer be changed.`
+                        : 'Submitting locks the scorecard and finalises the result. It can no longer be edited.'
+                }
                 confirmLabel="Submit"
                 processing={processing}
                 onConfirm={() => submitEvaluation(evaluation.hashid, handlers)}
@@ -338,13 +344,30 @@ export default function PerformanceShow() {
                 open={confirm === 'delete'}
                 onOpenChange={(open) => !open && setConfirm(null)}
                 title="Delete this draft?"
-                description={`The draft evaluation for ${employee?.full_name ?? 'this employee'} will be permanently removed.`}
+                description={`The draft appraisal for ${employee?.full_name ?? 'this employee'} will be permanently removed.`}
                 confirmLabel="Delete"
                 destructive
                 processing={processing}
                 onConfirm={() => deleteEvaluation(evaluation.hashid, handlers)}
             />
         </>
+    );
+}
+
+function Fact({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="min-w-0">
+            <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                {label}
+            </dt>
+            <dd className="mt-0.5 text-sm font-medium">{children}</dd>
+        </div>
     );
 }
 

@@ -56,9 +56,7 @@ export default function OffboardingIndex() {
                 case 'type':
                     return a.type.localeCompare(b.type) * dir;
                 case 'clearance':
-                    return (
-                        (a.clearance.percent - b.clearance.percent) * dir
-                    );
+                    return (a.clearance.percent - b.clearance.percent) * dir;
                 case 'status':
                     return (
                         (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * dir

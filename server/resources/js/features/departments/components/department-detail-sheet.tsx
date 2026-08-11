@@ -86,7 +86,9 @@ export function DepartmentDetailSheet({
                                             variant="outline"
                                             size="icon"
                                             className="size-9 text-muted-foreground hover:text-destructive"
-                                            onClick={() => onArchive(department)}
+                                            onClick={() =>
+                                                onArchive(department)
+                                            }
                                             aria-label="Archive department"
                                         >
                                             <Archive className="size-4" />
@@ -102,7 +104,9 @@ export function DepartmentDetailSheet({
                                 <Meta
                                     icon={<Briefcase className="size-4" />}
                                     label="Parent"
-                                    value={department.parent?.name ?? 'Top level'}
+                                    value={
+                                        department.parent?.name ?? 'Top level'
+                                    }
                                 />
                                 <Meta
                                     icon={<Users className="size-4" />}
@@ -144,15 +148,17 @@ export function DepartmentDetailSheet({
                                 {department.positions &&
                                 department.positions.length > 0 ? (
                                     <div className="divide-y divide-border overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                                        {department.positions.map((position) => (
-                                            <PositionRow
-                                                key={position.id}
-                                                position={position}
-                                                canManage={canManage}
-                                                onEdit={onEditPosition}
-                                                onDelete={onDeletePosition}
-                                            />
-                                        ))}
+                                        {department.positions.map(
+                                            (position) => (
+                                                <PositionRow
+                                                    key={position.id}
+                                                    position={position}
+                                                    canManage={canManage}
+                                                    onEdit={onEditPosition}
+                                                    onDelete={onDeletePosition}
+                                                />
+                                            ),
+                                        )}
                                     </div>
                                 ) : (
                                     <p className="rounded-xl border border-dashed border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground dark:border-sidebar-border">

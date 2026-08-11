@@ -95,6 +95,12 @@ class EmployeeResource extends JsonResource
                     'hashid' => $evaluation->hashid,
                     'status' => $evaluation->status,
                     'overall_score' => $evaluation->overall_score === null ? null : (float) $evaluation->overall_score,
+                    // The rating in the company's own words, and the tone its
+                    // own model gave that band (see App\Support\Performance\RatingModel).
+                    'overall_percent' => $evaluation->overall_percent === null ? null : (float) $evaluation->overall_percent,
+                    'result_label' => $evaluation->result_label,
+                    'result_tone' => collect($evaluation->bandList())->firstWhere('key', $evaluation->result_band)['tone'] ?? null,
+                    'template_name' => $evaluation->template_name,
                     'submitted_at' => $evaluation->submitted_at?->toDateString(),
                     'period' => $evaluation->relationLoaded('period') && $evaluation->period ? [
                         'name' => $evaluation->period->name,
