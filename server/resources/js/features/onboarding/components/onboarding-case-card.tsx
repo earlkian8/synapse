@@ -44,17 +44,14 @@ export function OnboardingCaseCard({ case: c }: { case: OnboardingCase }) {
 
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium tabular-nums text-foreground">
+                    <span className="font-medium text-foreground tabular-nums">
                         {progress.resolved}/{progress.total} tasks
                     </span>
-                    <span className="tabular-nums text-muted-foreground">
+                    <span className="text-muted-foreground tabular-nums">
                         {progress.percent}%
                     </span>
                 </div>
-                <ProgressBar
-                    percent={progress.percent}
-                    muted={isCancelled}
-                />
+                <ProgressBar percent={progress.percent} muted={isCancelled} />
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">

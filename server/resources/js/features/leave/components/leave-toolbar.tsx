@@ -76,7 +76,7 @@ export function LeaveToolbar({
                             type="button"
                             onClick={() => onStatus(tab.value)}
                             className={cn(
-                                'relative whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                                'relative border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
                                 active
                                     ? 'border-[#0ABFBF] text-foreground'
                                     : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -126,7 +126,10 @@ export function LeaveToolbar({
                         <SelectContent>
                             <SelectItem value="all">All types</SelectItem>
                             {types.map((type) => (
-                                <SelectItem key={type.id} value={String(type.id)}>
+                                <SelectItem
+                                    key={type.id}
+                                    value={String(type.id)}
+                                >
                                     {type.name}
                                 </SelectItem>
                             ))}

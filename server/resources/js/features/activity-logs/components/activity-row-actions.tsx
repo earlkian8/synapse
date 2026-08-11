@@ -17,7 +17,12 @@ type Props = {
     onDelete: (log: ActivityLogEntry) => void;
 };
 
-export function ActivityRowActions({ log, canDelete, onView, onDelete }: Props) {
+export function ActivityRowActions({
+    log,
+    canDelete,
+    onView,
+    onDelete,
+}: Props) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>

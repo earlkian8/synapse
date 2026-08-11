@@ -21,11 +21,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { TYPE_OPTIONS } from '../constants';
 import { offboardingRoutes } from '../routes';
-import type {
-    EmployeeOption,
-    OffboardingType,
-    ProgramOption,
-} from '../types';
+import type { EmployeeOption, OffboardingType, ProgramOption } from '../types';
 
 type Props = {
     employees: EmployeeOption[];

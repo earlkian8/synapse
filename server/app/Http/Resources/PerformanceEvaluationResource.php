@@ -20,7 +20,21 @@ class PerformanceEvaluationResource extends JsonResource
             'id' => $this->id,
             'hashid' => $this->hashid,
             'status' => $this->status,
+
+            // The result, three ways: attainment on 0–100 (canonical), what this
+            // tenant's rating model calls it, and the 1–5 projection everything
+            // outside Performance reads.
+            'overall_percent' => $this->overall_percent === null ? null : (float) $this->overall_percent,
+            'result_band' => $this->result_band,
+            'result_label' => $this->result_label,
             'overall_score' => $this->overall_score === null ? null : (float) $this->overall_score,
+
+            // The framework snapshot this appraisal was conducted under.
+            'template_name' => $this->template_name,
+            'template_sections' => $this->template_sections ?? [],
+            'bands' => $this->bandList(),
+            'result_display' => $this->result_display ?? 'band',
+
             'submitted_at' => $this->submitted_at?->toIso8601String(),
             'acknowledged_at' => $this->acknowledged_at?->toIso8601String(),
             'remarks' => $this->remarks,

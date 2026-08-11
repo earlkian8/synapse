@@ -6,7 +6,10 @@ import { BalanceToolbar } from '@/features/leave/components/balance-toolbar';
 import { EmployeeBalanceCard } from '@/features/leave/components/employee-balance-card';
 import { LeaveNav } from '@/features/leave/components/leave-nav';
 import { leaveRoutes } from '@/features/leave/routes';
-import type { BalancesPageProps, EmployeeBalance } from '@/features/leave/types';
+import type {
+    BalancesPageProps,
+    EmployeeBalance,
+} from '@/features/leave/types';
 
 export default function LeaveBalances() {
     const { employees, year, years, options, can, filters } =

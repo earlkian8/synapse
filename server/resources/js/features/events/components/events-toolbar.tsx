@@ -55,7 +55,8 @@ export function EventsToolbar({
     onStatus,
     onView,
 }: Props) {
-    const filtering = search.trim() !== '' || type !== 'all' || status !== 'all';
+    const filtering =
+        search.trim() !== '' || type !== 'all' || status !== 'all';
 
     return (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -83,7 +84,9 @@ export function EventsToolbar({
 
                 <Select
                     value={type}
-                    onValueChange={(value) => onType(value as EventType | 'all')}
+                    onValueChange={(value) =>
+                        onType(value as EventType | 'all')
+                    }
                 >
                     <SelectTrigger
                         className="w-[130px]"

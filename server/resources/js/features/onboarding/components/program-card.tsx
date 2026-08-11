@@ -1,4 +1,10 @@
-import { ListChecks, MoreHorizontal, Pencil, Trash2, Users } from 'lucide-react';
+import {
+    ListChecks,
+    MoreHorizontal,
+    Pencil,
+    Trash2,
+    Users,
+} from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,

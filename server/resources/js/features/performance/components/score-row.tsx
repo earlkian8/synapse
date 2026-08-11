@@ -1,25 +1,19 @@
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { formatLineScore, scaleDescriptor, scaleFraction } from '../constants';
-import type { ScaleLevel, ScaleType } from '../types';
-import { ScaleInput } from './scale-input';
+import { formatLineScore, scaleFraction } from '../constants';
+import type { PerformanceScore } from '../types';
+import { RatingControl } from './rating-control';
 
 type Props = {
-    label: string;
-    weight: number;
-    score: number | null;
-    scaleType: ScaleType;
-    scaleMin: number;
-    scaleMax: number;
-    scaleLevels: ScaleLevel[] | null;
-    remarks: string | null;
-    criterionActive: boolean | null;
+    line: PerformanceScore;
+    /** The line's share of its section, as a percentage of the section total. */
+    share: number | null;
     editable: boolean;
     onScoreChange: (value: number) => void;
     onRemarksChange: (value: string) => void;
 };
 
-/** Colour a normalised (0–1) line fraction, matching the overall score tones. */
+/** Colour a normalised (0–1) line result, matching the band palette's ordering. */
 function fractionTone(fraction: number | null): string {
     if (fraction === null) {
         return 'text-muted-foreground';
@@ -41,74 +35,66 @@ function fractionTone(fraction: number | null): string {
 }
 
 /**
- * One criterion line of the scorecard: its label, weight and rating scale, the
- * rating control (scale-aware when editable, otherwise the captured score in its
- * own scale) and an optional comment.
+ * One criterion of the scorecard: what is being measured and what it counts for,
+ * the rating control shaped by its own scale, and the evaluator's comment.
+ *
+ * The weight is shown as its **share of the section**, not as a bare number —
+ * "24% of Capability" is a sentence an evaluator can act on; "35" is not.
  */
 export function ScoreRow({
-    label,
-    weight,
-    score,
-    scaleType,
-    scaleMin,
-    scaleMax,
-    scaleLevels,
-    remarks,
-    criterionActive,
+    line,
+    share,
     editable,
     onScoreChange,
     onRemarksChange,
 }: Props) {
-    const line = {
-        score,
-        scale_type: scaleType,
-        scale_min: scaleMin,
-        scale_max: scaleMax,
-        scale_levels: scaleLevels,
-    };
+    const fraction = scaleFraction(line);
 
     return (
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 sm:pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium">{label}</p>
-                    <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
-                        {weight}%
-                    </span>
-                    <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {scaleDescriptor(line)}
-                    </span>
-                    {criterionActive === false && (
+        <div className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] sm:gap-6">
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="text-sm font-medium">{line.label}</p>
+                    {line.criterion_active === false && (
                         <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            Archived
+                            Archived criterion
                         </span>
                     )}
                 </div>
+
+                {line.description && (
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {line.description}
+                    </p>
+                )}
+
+                <p className="mt-1.5 text-[11px] text-muted-foreground/80">
+                    {share === null
+                        ? 'Unweighted'
+                        : `${share.toFixed(0)}% of this section`}
+                    {' · rated on '}
+                    <span className="font-medium text-muted-foreground">
+                        {line.scale_name ?? line.scale_descriptor}
+                    </span>
+                </p>
             </div>
 
-            <div className="flex flex-col items-stretch gap-2 sm:w-[58%] sm:items-end">
+            <div className="flex flex-col gap-2.5">
                 {editable ? (
-                    <ScaleInput
-                        scaleType={scaleType}
-                        scaleMin={scaleMin}
-                        scaleMax={scaleMax}
-                        scaleLevels={scaleLevels}
-                        value={score}
-                        onChange={onScoreChange}
-                    />
+                    <RatingControl line={line} onChange={onScoreChange} />
                 ) : (
                     <div className="flex items-baseline gap-2">
                         <span
                             className={cn(
-                                'text-lg font-semibold tabular-nums',
-                                fractionTone(scaleFraction(line)),
+                                'text-lg font-semibold',
+                                fractionTone(fraction),
                             )}
                         >
                             {formatLineScore(line)}
                         </span>
-                        {score === null && (
+                        {line.score === null && (
                             <span className="text-xs text-muted-foreground">
-                                not scored
+                                not rated
                             </span>
                         )}
                     </div>
@@ -116,15 +102,18 @@ export function ScoreRow({
 
                 {editable ? (
                     <Input
-                        value={remarks ?? ''}
-                        onChange={(e) => onRemarksChange(e.target.value)}
-                        placeholder="Comment (optional)"
-                        className="sm:w-full"
+                        value={line.remarks ?? ''}
+                        onChange={(event) =>
+                            onRemarksChange(event.target.value)
+                        }
+                        placeholder="Evidence for this rating (optional)"
+                        aria-label={`Comment on ${line.label}`}
+                        className="h-9"
                     />
                 ) : (
-                    remarks && (
-                        <p className="text-sm text-muted-foreground sm:text-right">
-                            {remarks}
+                    line.remarks && (
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                            {line.remarks}
                         </p>
                     )
                 )}

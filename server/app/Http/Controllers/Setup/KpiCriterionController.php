@@ -82,8 +82,8 @@ class KpiCriterionController extends Controller
     {
         $model = $this->findTrashed($kpiCriterion);
 
-        if ($model->scores()->exists()) {
-            return $this->respond('This criterion is used by evaluations and cannot be permanently deleted.', 'warning');
+        if ($model->templateItems()->exists() || $model->scores()->exists()) {
+            return $this->respond('This criterion is used by a framework or an appraisal and cannot be permanently deleted.', 'warning');
         }
 
         $name = $model->name;

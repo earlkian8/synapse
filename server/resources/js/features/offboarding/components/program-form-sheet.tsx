@@ -120,9 +120,7 @@ function FormBody({
         is_default: program?.is_default ?? false,
         is_active: program?.is_active ?? true,
         items:
-            program && program.items?.length
-                ? toDraft(program)
-                : [emptyItem()],
+            program && program.items?.length ? toDraft(program) : [emptyItem()],
     });
 
     const setItem = (index: number, patch: Partial<ItemDraft>) => {
@@ -238,7 +236,9 @@ function FormBody({
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={ANY}>Any type</SelectItem>
+                                    <SelectItem value={ANY}>
+                                        Any type
+                                    </SelectItem>
                                     {TYPE_OPTIONS.map((o) => (
                                         <SelectItem
                                             key={o.value}

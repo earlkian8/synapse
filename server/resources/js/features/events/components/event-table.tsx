@@ -21,7 +21,12 @@ import { eventRoutes } from '../routes';
 import type { EventItem } from '../types';
 import { EventStatusBadge } from './event-status-badge';
 
-export type EventSort = 'title' | 'schedule' | 'location' | 'attendance' | 'status';
+export type EventSort =
+    | 'title'
+    | 'schedule'
+    | 'location'
+    | 'attendance'
+    | 'status';
 
 type Props = {
     events: EventItem[];
@@ -79,13 +84,17 @@ export function EventTable({ events, sort, direction, onSort }: Props) {
                     <TableBody>
                         {events.map((event) => {
                             const Icon =
-                                event.type === 'meeting' ? Video : CalendarClock;
+                                event.type === 'meeting'
+                                    ? Video
+                                    : CalendarClock;
 
                             return (
                                 <TableRow
                                     key={event.id}
                                     onClick={() =>
-                                        router.get(eventRoutes.show(event.hashid))
+                                        router.get(
+                                            eventRoutes.show(event.hashid),
+                                        )
                                     }
                                     className="cursor-pointer"
                                 >
@@ -124,7 +133,9 @@ export function EventTable({ events, sort, direction, onSort }: Props) {
                                         </span>
                                     </TableCell>
                                     <TableCell>
-                                        <EventStatusBadge status={event.status} />
+                                        <EventStatusBadge
+                                            status={event.status}
+                                        />
                                     </TableCell>
                                 </TableRow>
                             );

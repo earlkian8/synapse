@@ -75,7 +75,7 @@ export function LeaveTypeCard({ type, canManage, onEdit, onArchive }: Props) {
             </div>
 
             {type.description && (
-                <p className="mt-2 pl-2 text-xs text-muted-foreground line-clamp-2">
+                <p className="mt-2 line-clamp-2 pl-2 text-xs text-muted-foreground">
                     {type.description}
                 </p>
             )}
@@ -84,7 +84,9 @@ export function LeaveTypeCard({ type, canManage, onEdit, onArchive }: Props) {
                 <Flag>{type.is_paid ? 'Paid' : 'Unpaid'}</Flag>
                 {type.allow_half_day && <Flag>Half-day</Flag>}
                 <Flag>
-                    {type.requires_approval ? 'Needs approval' : 'Auto-approved'}
+                    {type.requires_approval
+                        ? 'Needs approval'
+                        : 'Auto-approved'}
                 </Flag>
                 {!type.is_active && <Flag muted>Inactive</Flag>}
             </div>

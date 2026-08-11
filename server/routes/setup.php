@@ -12,6 +12,8 @@ use App\Http\Controllers\Setup\KpiSetupController;
 use App\Http\Controllers\Setup\LeaveTypeController;
 use App\Http\Controllers\Setup\OffboardingProgramController;
 use App\Http\Controllers\Setup\PositionController;
+use App\Http\Controllers\Setup\RatingScaleController;
+use App\Http\Controllers\Setup\ReviewTemplateController;
 use App\Http\Controllers\Setup\ScheduleSetupController;
 use App\Http\Controllers\Setup\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -77,10 +79,23 @@ Route::middleware(['auth', 'verified'])
         Route::patch('leave-types/{leaveType}/restore', [LeaveTypeController::class, 'restore'])->middleware('can:setup.leave-types.manage')->name('leave-types.restore');
         Route::delete('leave-types/{leaveType}/force', [LeaveTypeController::class, 'forceDelete'])->middleware('can:setup.leave-types.manage')->name('leave-types.force-delete');
 
-        // KPI & Evaluation Criteria — the weighted criteria and review periods the
-        // Performance Management module evaluates against. Both addressed by hashid;
-        // restore / force take it as a string.
+        // Performance framework — the appraisal frameworks the Performance module
+        // conducts reviews against (ADR 0028), the rating scales they measure on,
+        // the criteria catalogue they draw from, and the review cycles they run
+        // in. All addressed by hashid; restore / force take it as a string.
         Route::get('kpi', [KpiSetupController::class, 'index'])->middleware('can:setup.kpi.view')->name('kpi.index');
+
+        Route::post('kpi/frameworks', [ReviewTemplateController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.frameworks.store');
+        Route::post('kpi/frameworks/{reviewTemplate}', [ReviewTemplateController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.frameworks.update');
+        Route::delete('kpi/frameworks/{reviewTemplate}', [ReviewTemplateController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.frameworks.destroy');
+        Route::patch('kpi/frameworks/{reviewTemplate}/restore', [ReviewTemplateController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.frameworks.restore');
+        Route::delete('kpi/frameworks/{reviewTemplate}/force', [ReviewTemplateController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.frameworks.force-delete');
+
+        Route::post('kpi/scales', [RatingScaleController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.scales.store');
+        Route::post('kpi/scales/{ratingScale}', [RatingScaleController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.scales.update');
+        Route::delete('kpi/scales/{ratingScale}', [RatingScaleController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.scales.destroy');
+        Route::patch('kpi/scales/{ratingScale}/restore', [RatingScaleController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.scales.restore');
+        Route::delete('kpi/scales/{ratingScale}/force', [RatingScaleController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.scales.force-delete');
 
         Route::post('kpi/criteria', [KpiCriterionController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.store');
         Route::post('kpi/criteria/{kpiCriterion}', [KpiCriterionController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.update');

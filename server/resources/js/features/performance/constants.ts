@@ -1,98 +1,75 @@
 import type {
+    BandTone,
     EvaluationStatus,
     PeriodStatus,
+    RatingBand,
     ScaleLevel,
     ScaleType,
+    ScoreResult,
+    SectionResult,
 } from './types';
 
-/** The inclusive bounds of the canonical overall scale, mirroring PerformanceScorer. */
+/**
+ * The client mirror of the server's scoring contract. Every number the scorecard
+ * shows while HR is still typing is derived here, on exactly the rules
+ * App\Support\Performance\PerformanceScorer applies when it saves — two-level
+ * weighting, each line read on its own scale, attainment on 0–100.
+ */
+
+/** The bounds of the canonical (projected) overall, mirroring PerformanceScorer. */
 export const RATING_MIN = 1;
 
 export const RATING_MAX = 5;
 
-/** The whole-number rating options offered by a legacy 1–5 scorecard. */
-export const RATING_VALUES = [1, 2, 3, 4, 5] as const;
-
-/** What each rating on the canonical 1–5 scale means (used for the overall). */
-export const RATING_LABELS: Record<number, string> = {
-    1: 'Needs Improvement',
-    2: 'Below Expectations',
-    3: 'Meets Expectations',
-    4: 'Exceeds Expectations',
-    5: 'Outstanding',
+/**
+ * A band's tone rendered. One palette across the whole module: the ladder, the
+ * chips, the distribution and the calibration table all read from here, so a
+ * band means the same colour wherever it appears.
+ */
+export const BAND_TONES: Record<
+    BandTone,
+    { text: string; fill: string; soft: string; border: string }
+> = {
+    positive: {
+        text: 'text-emerald-700 dark:text-emerald-300',
+        fill: 'bg-emerald-500',
+        soft: 'bg-emerald-500/10',
+        border: 'border-emerald-500/30',
+    },
+    good: {
+        text: 'text-[#0a7d82] dark:text-[#3fd6d6]',
+        fill: 'bg-[#0ABFBF]',
+        soft: 'bg-[#0ABFBF]/10',
+        border: 'border-[#0ABFBF]/30',
+    },
+    neutral: {
+        text: 'text-sky-700 dark:text-sky-300',
+        fill: 'bg-sky-500',
+        soft: 'bg-sky-500/10',
+        border: 'border-sky-500/30',
+    },
+    caution: {
+        text: 'text-amber-700 dark:text-amber-300',
+        fill: 'bg-amber-500',
+        soft: 'bg-amber-500/10',
+        border: 'border-amber-500/30',
+    },
+    critical: {
+        text: 'text-rose-700 dark:text-rose-300',
+        fill: 'bg-rose-500',
+        soft: 'bg-rose-500/10',
+        border: 'border-rose-500/30',
+    },
 };
 
-/** The minimal shape a scale helper needs from a score line. */
-export type ScaledLine = {
-    score: number | null;
-    scale_type: ScaleType;
-    scale_min: number;
-    scale_max: number;
-    scale_levels: ScaleLevel[] | null;
-};
-
-/** A short human descriptor of a line's rating scale, e.g. "1–5", "0–100%". */
-export function scaleDescriptor(line: {
-    scale_type: ScaleType;
-    scale_min: number;
-    scale_max: number;
-    scale_levels: ScaleLevel[] | null;
-}): string {
-    if (line.scale_type === 'percentage') {
-        return '0–100%';
-    }
-
-    if (line.scale_type === 'scale') {
-        const n = line.scale_levels?.length ?? 0;
-
-        return `${n} levels`;
-    }
-
-    return `${line.scale_min}–${line.scale_max}`;
-}
-
-/** Render a raw line score in its own scale, e.g. "4", "82%", "Proficient". */
-export function formatLineScore(line: ScaledLine): string {
-    if (line.score === null) {
-        return '—';
-    }
-
-    if (line.scale_type === 'percentage') {
-        return `${line.score}%`;
-    }
-
-    if (line.scale_type === 'scale') {
-        const level = line.scale_levels?.find((l) => l.value === line.score);
-
-        return level ? level.label : String(line.score);
-    }
-
-    return String(line.score);
-}
-
-/** A line's raw score as a 0–1 fraction of its own scale (null when unscored). */
-export function scaleFraction(line: {
-    score: number | null;
-    scale_min: number;
-    scale_max: number;
-}): number | null {
-    if (line.score === null) {
-        return null;
-    }
-
-    const span = line.scale_max - line.scale_min;
-
-    if (span <= 0) {
-        return 0;
-    }
-
-    return Math.max(0, Math.min(1, (line.score - line.scale_min) / span));
+export function bandTone(tone: BandTone | undefined) {
+    return BAND_TONES[tone ?? 'neutral'];
 }
 
 export const EVALUATION_STATUS_LABELS: Record<EvaluationStatus, string> = {
-    draft: 'Draft',
-    submitted: 'Submitted',
-    acknowledged: 'Acknowledged',
+    draft: 'In progress',
+    submitted: 'Awaiting sign-off',
+    acknowledged: 'Signed off',
 };
 
 export const EVALUATION_STATUS_STYLES: Record<EvaluationStatus, string> = {
@@ -115,64 +92,134 @@ export const PERIOD_STATUS_STYLES: Record<PeriodStatus, string> = {
     closed: 'border-border bg-muted text-muted-foreground',
 };
 
-/** Format an overall / line score on the 1–5 scale, e.g. "4.08". */
+/** The minimal shape a scale helper needs from a score line. */
+export type ScaledLine = {
+    score: number | null;
+    scale_type: ScaleType;
+    scale_min: number;
+    scale_max: number;
+    scale_levels: ScaleLevel[] | null;
+};
+
+/** Trim a number to its shortest honest form: 4, 4.5, 82. */
+export function trimNumber(value: number): string {
+    return String(Math.round(value * 100) / 100);
+}
+
+/** Render a raw line score in its own scale — "4", "82%", "Proficient". */
+export function formatLineScore(line: ScaledLine): string {
+    if (line.score === null) {
+        return '—';
+    }
+
+    if (line.scale_type === 'percentage') {
+        return `${trimNumber(line.score)}%`;
+    }
+
+    if (line.scale_type === 'levels') {
+        const level = line.scale_levels?.find((l) => l.value === line.score);
+
+        return level ? level.label : trimNumber(line.score);
+    }
+
+    return trimNumber(line.score);
+}
+
+/** A line's raw score as a 0–1 fraction of its own scale (null when unscored). */
+export function scaleFraction(line: {
+    score: number | null;
+    scale_min: number;
+    scale_max: number;
+}): number | null {
+    if (line.score === null) {
+        return null;
+    }
+
+    const span = line.scale_max - line.scale_min;
+
+    if (span <= 0) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(1, (line.score - line.scale_min) / span));
+}
+
+/** The values a scale can take, for the segmented rating control. */
+export function scaleOptions(line: {
+    scale_type: ScaleType;
+    scale_min: number;
+    scale_max: number;
+    scale_step: number;
+    scale_levels: ScaleLevel[] | null;
+}): ScaleLevel[] | null {
+    if (line.scale_type === 'levels') {
+        return line.scale_levels ?? null;
+    }
+
+    if (line.scale_type === 'percentage') {
+        return null;
+    }
+
+    const step = line.scale_step > 0 ? line.scale_step : 1;
+    const count = Math.round((line.scale_max - line.scale_min) / step) + 1;
+
+    // Above nine stops a segmented row stops being readable — the control falls
+    // back to a number field instead.
+    if (count > 9 || count < 2) {
+        return null;
+    }
+
+    return Array.from({ length: count }, (_, i) => {
+        const value = Math.round((line.scale_min + i * step) * 100) / 100;
+
+        return { value, label: trimNumber(value), description: null };
+    });
+}
+
+/** Format attainment on 0–100 — "72.5%", or an em dash when unscored. */
+export function formatPercent(percent: number | null, digits = 1): string {
+    return percent === null ? '—' : `${percent.toFixed(digits)}%`;
+}
+
+/** Format the 1–5 projection, e.g. "3.61". */
 export function formatScore(score: number | null): string {
     return score === null ? '—' : score.toFixed(2);
 }
 
-/** The nearest rating label for an overall (weighted) score. */
-export function ratingLabelForScore(score: number | null): string | null {
-    if (score === null) {
+/** The band a 0–100 attainment falls in — the highest cut it reaches. */
+export function bandFor(
+    percent: number | null,
+    bands: RatingBand[],
+): RatingBand | null {
+    if (percent === null) {
         return null;
     }
 
     return (
-        RATING_LABELS[
-            Math.max(RATING_MIN, Math.min(RATING_MAX, Math.round(score)))
-        ] ?? null
+        [...bands]
+            .sort((a, b) => b.min_percent - a.min_percent)
+            .find((band) => percent >= band.min_percent) ?? null
     );
 }
 
-/** Colour band for a score, from rose (low) to emerald (high). */
-export function scoreTone(score: number | null): string {
-    if (score === null) {
-        return 'text-muted-foreground';
-    }
-
-    if (score >= 4) {
-        return 'text-emerald-600 dark:text-emerald-400';
-    }
-
-    if (score >= 3) {
-        return 'text-[#0a8b91] dark:text-[#0ABFBF]';
-    }
-
-    if (score >= 2) {
-        return 'text-amber-600 dark:text-amber-400';
-    }
-
-    return 'text-rose-600 dark:text-rose-400';
+/** The rating model in reading order — the highest cut first. */
+export function orderedBands(bands: RatingBand[]): RatingBand[] {
+    return [...bands].sort((a, b) => b.min_percent - a.min_percent);
 }
 
-/** The fill colour for a score progress bar, matching {@see scoreTone}. */
-export function scoreBarTone(score: number | null): string {
-    if (score === null) {
-        return 'bg-muted-foreground/40';
-    }
+/** The span a band occupies on the 0–100 ladder. */
+export function bandSpan(
+    band: RatingBand,
+    bands: RatingBand[],
+): { from: number; to: number } {
+    const above = orderedBands(bands)
+        .filter((b) => b.min_percent > band.min_percent)
+        .map((b) => b.min_percent);
 
-    if (score >= 4) {
-        return 'bg-emerald-500';
-    }
-
-    if (score >= 3) {
-        return 'bg-[#0ABFBF]';
-    }
-
-    if (score >= 2) {
-        return 'bg-amber-500';
-    }
-
-    return 'bg-rose-500';
+    return {
+        from: band.min_percent,
+        to: above.length > 0 ? Math.min(...above) : 100,
+    };
 }
 
 /** Format an ISO date (YYYY-MM-DD) as "Jun 16, 2026". */
@@ -188,44 +235,113 @@ export function formatDate(iso: string | null): string {
     });
 }
 
-/**
- * Weighted overall on the canonical 1–5 scale (client mirror of PerformanceScorer):
- * each line is normalised to a 0–1 fraction of its own scale, weighted-averaged,
- * then projected back onto 1–5. Mixed scales combine coherently.
- */
-export function computeOverall(
-    lines: {
-        score: number | null;
-        weight: number;
-        scale_min: number;
-        scale_max: number;
-    }[],
-): number | null {
-    const scored = lines.filter((line) => line.score !== null);
+/** The line fields the client-side scorer reads. */
+type ScorableLine = ScaledLine & {
+    weight: number;
+    section_key: string;
+    section_name: string | null;
+    section_weight: number;
+};
 
-    if (scored.length === 0) {
-        return null;
+/**
+ * The live result for a scorecard being filled in — the client mirror of
+ * PerformanceScorer::score(). A section's attainment is the weighted mean of its
+ * scored lines' positions on their own scales; the overall is the weighted mean
+ * of the sections. A section carrying no weight of its own falls back to the
+ * weight of its lines, which makes an unsectioned card a flat weighted average.
+ */
+export function computeResult(
+    lines: ScorableLine[],
+    bands: RatingBand[],
+): ScoreResult {
+    const groups = new Map<string, ScorableLine[]>();
+
+    for (const line of lines) {
+        const key = line.section_key || 'overall';
+        groups.set(key, [...(groups.get(key) ?? []), line]);
     }
 
-    const fraction = (line: {
-        score: number | null;
-        scale_min: number;
-        scale_max: number;
-    }): number => scaleFraction(line) ?? 0;
+    const sections: SectionResult[] = [...groups.entries()].map(
+        ([key, group]) => {
+            const scored = group.filter((line) => line.score !== null);
+            const declared = Math.max(
+                ...group.map((line) => line.section_weight || 0),
+            );
+            const lineWeight = scored.reduce(
+                (sum, line) => sum + (line.weight || 0),
+                0,
+            );
 
-    const totalWeight = scored.reduce(
-        (sum, line) => sum + (line.weight || 0),
+            const fraction =
+                scored.length === 0
+                    ? null
+                    : lineWeight > 0
+                      ? scored.reduce(
+                            (sum, line) =>
+                                sum +
+                                (scaleFraction(line) ?? 0) * (line.weight || 0),
+                            0,
+                        ) / lineWeight
+                      : scored.reduce(
+                            (sum, line) => sum + (scaleFraction(line) ?? 0),
+                            0,
+                        ) / scored.length;
+
+            return {
+                key,
+                name: group[0].section_name,
+                weight: declared > 0 ? declared : lineWeight,
+                percent: fraction === null ? null : round(fraction * 100),
+                scored: scored.length,
+                total: group.length,
+            };
+        },
+    );
+
+    const contributing = sections.filter((section) => section.percent !== null);
+    const scored = sections.reduce((sum, section) => sum + section.scored, 0);
+
+    if (contributing.length === 0) {
+        return {
+            percent: null,
+            normalized: null,
+            band: null,
+            sections,
+            scored: 0,
+            total: lines.length,
+        };
+    }
+
+    const weight = contributing.reduce(
+        (sum, section) => sum + section.weight,
         0,
     );
 
-    const avgFraction =
-        totalWeight > 0
-            ? scored.reduce(
-                  (sum, line) => sum + fraction(line) * (line.weight || 0),
+    const percent = round(
+        weight > 0
+            ? contributing.reduce(
+                  (sum, section) =>
+                      sum + (section.percent ?? 0) * section.weight,
                   0,
-              ) / totalWeight
-            : scored.reduce((sum, line) => sum + fraction(line), 0) /
-              scored.length;
+              ) / weight
+            : contributing.reduce(
+                  (sum, section) => sum + (section.percent ?? 0),
+                  0,
+              ) / contributing.length,
+    );
 
-    return Math.round((1 + avgFraction * 4) * 100) / 100;
+    return {
+        percent,
+        normalized: round(
+            RATING_MIN + (percent / 100) * (RATING_MAX - RATING_MIN),
+        ),
+        band: bandFor(percent, bands),
+        sections,
+        scored,
+        total: lines.length,
+    };
+}
+
+function round(value: number): number {
+    return Math.round(value * 100) / 100;
 }

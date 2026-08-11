@@ -44,10 +44,7 @@ import { cn } from '@/lib/utils';
 import { bulkEnrollments } from '../api';
 import { formatDate, scoreTone } from '../constants';
 import { trainingRoutes } from '../routes';
-import type {
-    TrainingEnrollment,
-    TrainingEnrollmentStatus,
-} from '../types';
+import type { TrainingEnrollment, TrainingEnrollmentStatus } from '../types';
 import { EnrollmentStatusBadge } from './training-status-badge';
 
 type RosterSort = 'name' | 'status' | 'score' | 'enrolled';
@@ -388,7 +385,8 @@ export function RosterTable({
                                                         }
                                                         initials={
                                                             enrollment.employee
-                                                                ?.initials ?? '?'
+                                                                ?.initials ??
+                                                            '?'
                                                         }
                                                         photo={
                                                             enrollment.employee

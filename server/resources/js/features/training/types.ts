@@ -92,7 +92,9 @@ export type TrainingInsightUnavailable = {
     retryable: boolean;
 };
 
-export type TrainingInsightResult = TrainingInsight | TrainingInsightUnavailable;
+export type TrainingInsightResult =
+    | TrainingInsight
+    | TrainingInsightUnavailable;
 
 export type TrainingPermissions = { manage: boolean };
 

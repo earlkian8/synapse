@@ -56,7 +56,8 @@ export function ActivityDetailSheet({ log, open, onOpenChange }: Props) {
                                         {log.causer?.full_name ?? 'System'}
                                     </h2>
                                     <p className="truncate text-sm text-muted-foreground">
-                                        {log.causer?.email ?? 'Automated action'}
+                                        {log.causer?.email ??
+                                            'Automated action'}
                                     </p>
                                     <div className="mt-2">
                                         <ActivityEventBadge event={log.event} />
@@ -83,7 +84,9 @@ export function ActivityDetailSheet({ log, open, onOpenChange }: Props) {
                                         icon={Hash}
                                         label="Type"
                                         value={`${log.subject_type}${
-                                            log.subject_id ? ` #${log.subject_id}` : ''
+                                            log.subject_id
+                                                ? ` #${log.subject_id}`
+                                                : ''
                                         }`}
                                     />
                                 )}
@@ -97,7 +100,10 @@ export function ActivityDetailSheet({ log, open, onOpenChange }: Props) {
                                                 <Row
                                                     key={key}
                                                     icon={Hash}
-                                                    label={key.replace(/_/g, ' ')}
+                                                    label={key.replace(
+                                                        /_/g,
+                                                        ' ',
+                                                    )}
                                                     value={formatValue(value)}
                                                 />
                                             ),

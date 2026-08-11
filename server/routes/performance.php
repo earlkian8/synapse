@@ -1,15 +1,18 @@
 <?php
 
 use App\Http\Controllers\Performance\PerformanceController;
+use App\Http\Controllers\Performance\PerformanceCycleController;
 use App\Http\Controllers\Performance\PerformanceEvaluationController;
 use App\Http\Controllers\Performance\PerformanceExportController;
 use Illuminate\Support\Facades\Route;
 
 /*
-| Performance Management — the live appraisal program: an overview of every
-| evaluation with its score + status, and the KPI scorecard for one evaluation.
+| Performance Management — the live appraisal program: a cycle-scoped overview
+| (coverage, band distribution, per-department calibration) and the scorecard for
+| one appraisal, conducted against an appraisal framework (ADR 0028).
 | Evaluations are addressed by hashid. Viewing needs `performance.view`; opening,
-| scoring, submitting and acknowledging need `performance.manage`.
+| launching a cycle, scoring, submitting and acknowledging need
+| `performance.manage`.
 */
 Route::middleware(['auth', 'verified'])
     ->prefix('performance')
@@ -19,7 +22,10 @@ Route::middleware(['auth', 'verified'])
         Route::get('export', PerformanceExportController::class)->middleware('can:performance.view')->name('export');
         Route::post('/', [PerformanceEvaluationController::class, 'store'])->middleware('can:performance.manage')->name('store');
 
-        // A single evaluation and its scorecard.
+        // Open every appraisal of a cycle at once (idempotent — see the controller).
+        Route::post('cycles', [PerformanceCycleController::class, 'store'])->middleware('can:performance.manage')->name('cycles.store');
+
+        // A single appraisal and its scorecard.
         Route::get('{evaluation}', [PerformanceController::class, 'show'])->middleware('can:performance.view')->name('show');
         Route::post('{evaluation}/insights', [PerformanceController::class, 'insights'])->middleware('can:performance.view')->name('insights');
         Route::patch('{evaluation}', [PerformanceEvaluationController::class, 'update'])->middleware('can:performance.manage')->name('update');

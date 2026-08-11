@@ -1,3 +1,5 @@
+import type { BandTone } from '@/features/performance/types';
+
 export type EmploymentStatus =
     | 'active'
     | 'on_leave'
@@ -55,6 +57,10 @@ export type EmployeePerformanceEvaluation = {
     hashid: string;
     status: 'draft' | 'submitted' | 'acknowledged';
     overall_score: number | null;
+    overall_percent: number | null;
+    result_label: string | null;
+    result_tone: BandTone | null;
+    template_name: string | null;
     submitted_at: string | null;
     period: {
         name: string;

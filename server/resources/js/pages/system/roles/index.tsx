@@ -70,9 +70,8 @@ export default function RolesIndex() {
     // Built-in roles are protected server-side; reflect that in the bulk bar.
     const deletableCount = useMemo(
         () =>
-            roles.data.filter(
-                (r) => selected.includes(r.id) && !r.is_system,
-            ).length,
+            roles.data.filter((r) => selected.includes(r.id) && !r.is_system)
+                .length,
         [roles.data, selected],
     );
 

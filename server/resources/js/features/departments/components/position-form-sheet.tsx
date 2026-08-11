@@ -112,10 +112,7 @@ function FormBody({
                 </Field>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                        label="Salary (min)"
-                        error={errors.salary_grade_min}
-                    >
+                    <Field label="Salary (min)" error={errors.salary_grade_min}>
                         <Input
                             type="number"
                             min="0"
@@ -126,10 +123,7 @@ function FormBody({
                             }
                         />
                     </Field>
-                    <Field
-                        label="Salary (max)"
-                        error={errors.salary_grade_max}
-                    >
+                    <Field label="Salary (max)" error={errors.salary_grade_max}>
                         <Input
                             type="number"
                             min="0"

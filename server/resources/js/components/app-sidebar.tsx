@@ -193,7 +193,7 @@ const companySetupNavItems: GatedNavItem[] = [
         permission: 'setup.award-types.view',
     },
     {
-        title: 'KPI & Evaluation Criteria',
+        title: 'Performance Framework',
         href: '/setup/kpi',
         icon: Target,
         permission: 'setup.kpi.view',

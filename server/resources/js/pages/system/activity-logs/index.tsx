@@ -85,7 +85,11 @@ export default function ActivityLogsIndex() {
             description:
                 'This removes the entry from the audit trail and cannot be undone.',
             confirmLabel: 'Delete entry',
-            run: () => router.delete(activityLogRoutes.destroy(log.id), withProcessing),
+            run: () =>
+                router.delete(
+                    activityLogRoutes.destroy(log.id),
+                    withProcessing,
+                ),
         });
 
     const clearLogs = () =>
@@ -125,7 +129,9 @@ export default function ActivityLogsIndex() {
 
     const toggleRow = (id: number, checked: boolean) =>
         setSelected((current) =>
-            checked ? [...current, id] : current.filter((value) => value !== id),
+            checked
+                ? [...current, id]
+                : current.filter((value) => value !== id),
         );
 
     return (
@@ -138,8 +144,8 @@ export default function ActivityLogsIndex() {
                         Activity Logs
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        A chronological audit trail of actions performed across the
-                        system.
+                        A chronological audit trail of actions performed across
+                        the system.
                     </p>
                 </div>
 

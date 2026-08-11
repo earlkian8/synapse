@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { formatLineScore, formatScore, scaleFraction } from '../constants';
+import { formatLineScore, formatPercent, scaleFraction } from '../constants';
 import type {
     DecisionSupport as DecisionSupportData,
     ForecastBand,
@@ -49,19 +49,20 @@ type Props = {
 export function DecisionSupport({ support, scores }: Props) {
     const { history, forecast } = support;
 
+    // Attainment is the figure that survives a change of framework, so the
+    // trajectory is read on 0–100 rather than on any one cycle's rating model.
     const trend = useMemo(() => {
-        const scored = history.filter((h) => h.score !== null);
-
-        if (scored.length < 2) {
+        if (history.length < 2) {
             return null;
         }
 
         const delta =
-            scored[scored.length - 1].score - scored[scored.length - 2].score;
+            history[history.length - 1].percent -
+            history[history.length - 2].percent;
 
         return {
             delta,
-            direction: delta > 0.05 ? 'up' : delta < -0.05 ? 'down' : 'steady',
+            direction: delta > 1 ? 'up' : delta < -1 ? 'down' : 'steady',
         } as const;
     }, [history]);
 
@@ -79,8 +80,6 @@ export function DecisionSupport({ support, scores }: Props) {
                 .filter((r) => r.fraction < 0.75),
         };
     }, [scores]);
-
-    const maxScore = 5;
 
     return (
         <section className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
@@ -101,7 +100,7 @@ export function DecisionSupport({ support, scores }: Props) {
                 <div className="rounded-lg border border-border/60 bg-muted/20 p-3.5">
                     <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">
-                            Overall-score trajectory
+                            Attainment trajectory
                         </span>
                         {trend && (
                             <span
@@ -125,14 +124,14 @@ export function DecisionSupport({ support, scores }: Props) {
                                     <Minus className="size-3.5" />
                                 )}
                                 {trend.delta > 0 ? '+' : ''}
-                                {trend.delta.toFixed(2)}
+                                {trend.delta.toFixed(1)} pts
                             </span>
                         )}
                     </div>
 
                     {history.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
-                            No scored history yet.
+                            No rated history yet.
                         </p>
                     ) : (
                         <div className="flex h-24 items-end gap-1.5">
@@ -140,10 +139,10 @@ export function DecisionSupport({ support, scores }: Props) {
                                 <div
                                     key={index}
                                     className="flex min-w-0 flex-1 flex-col items-center gap-1"
-                                    title={`${point.period ?? 'Period'}: ${formatScore(point.score)}`}
+                                    title={`${point.period ?? 'Cycle'}: ${formatPercent(point.percent)}${point.label ? ` — ${point.label}` : ''}`}
                                 >
                                     <span className="text-[10px] text-muted-foreground tabular-nums">
-                                        {point.score.toFixed(1)}
+                                        {Math.round(point.percent)}
                                     </span>
                                     <div
                                         className={cn(
@@ -153,10 +152,7 @@ export function DecisionSupport({ support, scores }: Props) {
                                                 : 'bg-[#0ABFBF]/35',
                                         )}
                                         style={{
-                                            height: `${Math.max(
-                                                6,
-                                                (point.score / maxScore) * 100,
-                                            )}%`,
+                                            height: `${Math.max(6, point.percent)}%`,
                                         }}
                                     />
                                     <span className="w-full truncate text-center text-[9px] text-muted-foreground">

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\KpiCriterion;
+use App\Support\Performance\RatingScales;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,13 +23,15 @@ class KpiCriterionResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'weight' => (float) $this->weight,
-            'scale_type' => $this->scale_type,
-            'scale_min' => (float) $this->scale_min,
-            'scale_max' => (float) $this->scale_max,
-            'scale_levels' => $this->scale_levels,
+            'rating_scale_id' => $this->rating_scale_id,
+            'scale_name' => $this->ratingScale?->name,
+            'scale_descriptor' => $this->ratingScale
+                ? RatingScales::descriptor($this->ratingScale->definition())
+                : null,
             'is_active' => (bool) $this->is_active,
             'is_archived' => $this->deleted_at !== null,
-            'usage_count' => (int) ($this->scores_count ?? 0),
+            // How many frameworks draw on this criterion.
+            'usage_count' => (int) ($this->template_items_count ?? 0),
         ];
     }
 }

@@ -11,7 +11,7 @@ type Props = {
 
 export function EmployeeBalanceCard({ employee, canManage, onAdjust }: Props) {
     return (
-        <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm dark:border-sidebar-border sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm sm:flex-row sm:items-center dark:border-sidebar-border">
             <div className="flex min-w-0 items-center gap-3 sm:w-56 sm:shrink-0">
                 <PersonAvatar
                     name={employee.full_name}
@@ -30,7 +30,10 @@ export function EmployeeBalanceCard({ employee, canManage, onAdjust }: Props) {
 
             <div className="flex flex-1 flex-wrap gap-2">
                 {employee.balances.map((balance) => (
-                    <BalancePill key={balance.leave_type_id} balance={balance} />
+                    <BalancePill
+                        key={balance.leave_type_id}
+                        balance={balance}
+                    />
                 ))}
             </div>
 

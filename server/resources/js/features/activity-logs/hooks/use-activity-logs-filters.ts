@@ -28,7 +28,10 @@ export function useActivityLogsFilters(filters: ActivityFilters) {
                 query.sort = next.sort;
             }
 
-            if (next.direction && next.direction !== DEFAULT_FILTERS.direction) {
+            if (
+                next.direction &&
+                next.direction !== DEFAULT_FILTERS.direction
+            ) {
                 query.direction = next.direction;
             }
 

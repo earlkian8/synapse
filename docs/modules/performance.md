@@ -1,60 +1,124 @@
 # Performance Management
 
-Conduct employee appraisals against a set of **weighted KPI criteria** within a
-**review period**. Each evaluation scores every criterion on a 1–5 scale; the
-**overall score is derived** (weighted average) and follows a `draft → submitted →
-acknowledged` lifecycle. Criteria and periods are configured in Company Setup. Data
-model is ERD §8 (with the §2 config tables); everything is tenant-scoped (ADR 0005).
-See [ADR 0012](../decisions/0012-performance-management.md) for the design.
+Conduct appraisals against a tenant-defined **appraisal framework**: weighted
+sections, criteria measured on their own **rating scales**, and a result reported
+in the company's own **rating model** — its words, not a fixed 1–5. Everything is
+tenant-scoped (ADR 0005). See
+[ADR 0028](../decisions/0028-appraisal-frameworks-and-tenant-rating-models.md)
+for the design and [ADR 0012](../decisions/0012-performance-management.md) for
+the original cut.
 
 > Status: **Active** · Route prefix: `/performance` · Config: `/setup/kpi`
 > Sidebar: Workforce → Performance Management (gated by `performance.view`);
-> Company Setup → KPI & Evaluation Criteria (gated by `setup.kpi.view`)
+> Company Setup → Performance Framework (gated by `setup.kpi.view`)
+
+## The four concepts
+
+| Concept | Table | What it decides |
+| --- | --- | --- |
+| **Rating scale** | `rating_scales` | *How* something is rated — a numeric range with a step, a 0–100 percentage, or ordered named levels with behavioural anchors. |
+| **Criterion** | `kpi_criteria` | *What* can be measured — a catalogue entry naming a scale and a default weight. |
+| **Framework** | `review_templates` + `review_template_items` | *Who* is reviewed, on *which* weighted sections and criteria, and *how the result is reported*. |
+| **Rating model** | `review_templates.bands` | The ordered outcome bands a result is reported in — `{label, min_percent, description, tone}`, read top-down. |
+
+A framework's **eligibility rule** (`all` / `department` / `position` /
+`employment_type`) decides who it covers.
+`App\Support\Performance\TemplateResolver` picks the **narrowest** match
+(position → department → employment type → everyone), with the tenant's default
+breaking ties. A resolved framework is a suggestion — HR can always pick another.
 
 ## Surfaces
 
-- **`/performance`** — the **overview**: a KPI bar (total evaluations, in-progress
-  drafts, awaiting sign-off, average score) and a filterable list of evaluations
-  (search by employee, filter by period / status), each showing the employee, period,
-  overall score and status. HR can **open a new evaluation**.
-- **`/performance/{evaluation}`** — the **scorecard**: a header with the employee,
-  period, evaluator, status and the overall score (with a rating label + bar), then a
-  row per KPI criterion. While a **draft**, HR rates each criterion (1–5) and adds
-  optional comments, with the overall score updating live; **Save** persists, **Submit**
-  locks the card (every criterion must be scored), and a draft can be **Deleted**. Once
-  **submitted**, HR can **Acknowledge** it. An acknowledged evaluation is final and
-  read-only.
+- **`/performance`** — the **cycle overview**, scoped to one review cycle
+  (`?period=`, defaulting to the open one). Coverage against active headcount,
+  in-progress and awaiting-sign-off counts, average attainment; the **result
+  spread** across the tenant's own bands; **per-department calibration** as a
+  deviation from the cycle average; then the appraisal list, each row carrying
+  its rating and a miniature of the ladder it sits on. HR can **open one**
+  appraisal or **launch the cycle**.
+- **`/performance/{evaluation}`** — the **scorecard**: who, which cycle, which
+  framework, then the result — led with in whatever way the framework asks for —
+  above the **rating ladder** showing the whole model with the result standing on
+  it. Below: ML decision support, then one card per weighted section (its weight,
+  its running attainment, how much of it is rated) holding the criteria. While a
+  draft, each criterion is rated on its own scale — named levels show their
+  anchor, goal attainment gets a slider — and the result moves live. **Submit**
+  locks the card once every criterion is rated; a submitted appraisal can be
+  **signed off**; an acknowledged one is final.
 
-## The overall score
+## The result
 
-`App\Support\Performance\PerformanceScorer` is the single source of truth: the overall
-is the **weighted average of the scored lines** on the 1–5 scale —
-`Σ(score × weight) / Σ(weight)`, rounded to two decimals. Only scored lines contribute
-(so a draft shows a live running score); if every weight is zero it falls back to a
-simple mean. The score is recomputed on every save and on submit — it is never trusted
-from the client. Each line snapshots the criterion's **label and weight** when the
-evaluation is opened, so archiving a criterion later never changes a past appraisal.
+`App\Support\Performance\PerformanceScorer` is the single source of truth, and it
+scores in **two levels**, because that is how frameworks are written:
+
+1. Each line's raw rating is read as a position on **its own scale** (0–1).
+2. Lines are weighted **within their section** → the section's attainment.
+3. Sections are weighted **against each other** → the appraisal's attainment.
+
+The result is **`overall_percent` — attainment on 0–100**, the canonical figure,
+and the one the rating model is read from (`result_band` / `result_label`).
+`overall_score` (1–5) is kept as an affine projection of the same figure, because
+the ML forecast, attrition and promotion pipelines and the awards nominator are
+all built on it. Only rated lines contribute, so a draft carries a live running
+result; a section with nothing rated is left out entirely rather than dragging it
+down. A section carrying no weight of its own falls back to the weight of its
+lines — which makes a flat, unsectioned scorecard score **exactly** as it did
+before frameworks existed.
+
+The result is recomputed on every save and on submit, and is never trusted from
+the client. A rating is checked against **its own line's snapshot scale** on the
+way in: a level scale accepts only the values it defines.
+
+## Snapshots
+
+An appraisal freezes the framework it was opened under — its name, its sections
+and its rating model — and each score line freezes its section (key, name,
+weight), its own weight, its description and its full rating scale. Retuning a
+framework, retiring a criterion or changing a scale therefore changes the *next*
+appraisal, never a past one, and the whole result can be rebuilt from the lines
+alone.
+
+## Launching a cycle
+
+`POST /performance/cycles` opens appraisals for a whole population at once —
+everyone active, or the active staff of chosen departments — seeding each person
+from the framework that covers them unless one is pinned for the launch. It is
+**idempotent**: anyone already appraised in the cycle is skipped, so it is safe
+to re-run as people join. The toast reports what was opened *and* who was left
+out and why. Both this and the single-open action go through
+`App\Support\Performance\EvaluationOpener`, so a scorecard is built the same way
+however it was started.
 
 ## Configuration (`/setup/kpi`)
 
-Company Setup → **KPI & Evaluation Criteria** manages two lists:
+Company Setup → **Performance Framework**, four tabs:
 
-- **KPI criteria** — name, description, weight (%), active flag. The header shows the
-  total active weight (a gentle nudge toward 100%). Full lifecycle: create / edit /
-  archive (soft delete) / restore / permanent delete; each row shows how many
-  evaluations use it. A criterion used by an evaluation cannot be permanently deleted.
-- **Evaluation periods** — name, start / end dates, status (`draft | open | closed`).
-  Evaluations can only be opened while a period is **open**. Same archive lifecycle; a
-  period with evaluations cannot be permanently deleted.
+- **Frameworks** — sections and their weights, the criteria inside them (each on
+  its own scale), the eligibility rule, the rating model (drawn live as the
+  ladder the scorecard will show), and which reading the scorecard leads with.
+  Full archive lifecycle; a framework used for appraisals cannot be permanently
+  deleted.
+- **Rating scales** — the measurement instruments, one marked as the tenant's
+  default. A scale still in use cannot be permanently deleted.
+- **Criteria** — the catalogue: name, meaning, scale, default weight.
+- **Review cycles** — name, start / end, status (`draft | open | closed`).
+  Appraisals can only be opened while a cycle is **open**.
+
+## Export
+
+`GET /performance/export?period=` streams the shown cycle as CSV: employee,
+department, position, cycle, **framework**, status, **rating** (the company's own
+word), attainment (0–100), the 1–5 index, and the key dates.
 
 ## Permissions
 
-`performance.view` (overview & scorecards), `performance.manage` (open / score /
-submit / acknowledge / delete drafts); `setup.kpi.view` / `setup.kpi.manage` (the
-configuration surface). Built-in **HR Manager** gets all of them.
+`performance.view` (overview & scorecards), `performance.manage` (open, launch a
+cycle, score, submit, sign off, delete drafts); `setup.kpi.view` /
+`setup.kpi.manage` (the configuration surface). Built-in **HR Manager** gets all
+of them.
 
 ## Out of scope (this cut)
 
-Self / peer / 360 reviews, employee self-service acknowledgement, goal & competency
-libraries, feeding scores into pay or promotions, Training & Development (a separate
-module), and an assistant capability.
+Self / peer / 360 reviews, employee self-service acknowledgement, goal libraries
+with mid-cycle check-ins, forced distribution, calibration *sessions* (as opposed
+to the calibration view), feeding results into pay, and an assistant capability.

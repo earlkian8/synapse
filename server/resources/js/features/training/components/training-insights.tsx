@@ -86,9 +86,9 @@ function Intro({ onGenerate }: { onGenerate: () => void }) {
     return (
         <div className="flex flex-col items-start gap-3">
             <p className="text-sm text-muted-foreground">
-                Let AI read this program's completion rate, scores and dropouts —
-                and return what's working, the concerns, recommendations, and who
-                to follow up with.
+                Let AI read this program's completion rate, scores and dropouts
+                — and return what's working, the concerns, recommendations, and
+                who to follow up with.
             </p>
             <Button size="sm" onClick={onGenerate}>
                 <Sparkles className="size-4" />
@@ -170,7 +170,8 @@ function Body({ insight }: { insight: TrainingInsight }) {
 
             <p className="text-[11px] text-muted-foreground/70">
                 AI-generated from this roster{' '}
-                {formatStamp(insight.generated_at)} — verify before acting on it.
+                {formatStamp(insight.generated_at)} — verify before acting on
+                it.
             </p>
         </div>
     );

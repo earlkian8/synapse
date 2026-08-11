@@ -38,7 +38,11 @@ type Props = {
  * Edit one enrollment — its status, completion score and remarks. The employee
  * is fixed; enrolling people is handled by the bulk-enroll dialog.
  */
-export function EditEnrollmentDialog({ open, onOpenChange, enrollment }: Props) {
+export function EditEnrollmentDialog({
+    open,
+    onOpenChange,
+    enrollment,
+}: Props) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">

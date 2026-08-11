@@ -36,8 +36,9 @@ import { CaseStatusBadge as OffboardingStatusBadge } from '@/features/offboardin
 import { TypeBadge as OffboardingTypeBadge } from '@/features/offboarding/components/type-badge';
 import { formatDate as formatOffboardingDate } from '@/features/offboarding/constants';
 import { offboardingRoutes } from '@/features/offboarding/routes';
+import { BandChip } from '@/features/performance/components/band-chip';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
-import { formatScore, scoreTone } from '@/features/performance/constants';
+import { formatPercent } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
 import { EnrollmentStatusBadge as TrainingStatusBadge } from '@/features/training/components/training-status-badge';
 import { formatScore as formatTrainingScore } from '@/features/training/constants';
@@ -483,20 +484,24 @@ function PerformanceTab({ e }: { e: EmployeeDetail }) {
                             </span>
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium">
-                                    {evaluation.period?.name ?? 'Evaluation'}
+                                    {evaluation.period?.name ?? 'Appraisal'}
                                 </p>
-                                <p className="text-[11px] text-muted-foreground">
-                                    <span
-                                        className={cn(
-                                            'font-semibold tabular-nums',
-                                            scoreTone(evaluation.overall_score),
-                                        )}
-                                    >
-                                        {formatScore(evaluation.overall_score)}
-                                    </span>{' '}
-                                    / 5.00
+                                <p className="truncate text-[11px] text-muted-foreground">
+                                    {evaluation.template_name ?? 'Standard'}
+                                    {evaluation.overall_percent !== null && (
+                                        <span className="tabular-nums">
+                                            {' · '}
+                                            {formatPercent(
+                                                evaluation.overall_percent,
+                                            )}
+                                        </span>
+                                    )}
                                 </p>
                             </div>
+                            <BandChip
+                                label={evaluation.result_label}
+                                tone={evaluation.result_tone ?? undefined}
+                            />
                             <EvaluationStatusBadge status={evaluation.status} />
                         </Link>
                     </li>

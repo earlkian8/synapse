@@ -125,9 +125,7 @@ export default function TrainingIndex() {
                         (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * dir
                     );
                 default:
-                    return (
-                        (time(a.start_date) - time(b.start_date)) * dir
-                    );
+                    return (time(a.start_date) - time(b.start_date)) * dir;
             }
         });
     }, [filtered, sort, direction]);

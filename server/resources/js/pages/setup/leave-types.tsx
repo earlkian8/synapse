@@ -1,5 +1,11 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Archive, ArchiveRestore, CalendarRange, Plus, Trash2 } from 'lucide-react';
+import {
+    Archive,
+    ArchiveRestore,
+    CalendarRange,
+    Plus,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +13,10 @@ import { ConfirmDialog } from '@/features/leave-types/components/confirm-dialog'
 import { LeaveTypeCard } from '@/features/leave-types/components/leave-type-card';
 import { LeaveTypeFormSheet } from '@/features/leave-types/components/leave-type-form-sheet';
 import { leaveTypeRoutes } from '@/features/leave-types/routes';
-import type { LeaveType, LeaveTypesPageProps } from '@/features/leave-types/types';
+import type {
+    LeaveType,
+    LeaveTypesPageProps,
+} from '@/features/leave-types/types';
 import { cn } from '@/lib/utils';
 
 type ConfirmConfig = {
@@ -60,7 +69,10 @@ export default function SetupLeaveTypes() {
                 'The type is hidden from new requests. Existing leave keeps it; you can restore it later.',
             confirmLabel: 'Archive',
             run: () =>
-                router.delete(leaveTypeRoutes.type(type.hashid), withProcessing),
+                router.delete(
+                    leaveTypeRoutes.type(type.hashid),
+                    withProcessing,
+                ),
         });
 
     const restore = (type: LeaveType) =>
