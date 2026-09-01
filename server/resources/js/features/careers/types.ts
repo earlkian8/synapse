@@ -11,10 +11,7 @@ export type CareersOrg = {
 };
 
 export type EmploymentType =
-    | 'regular'
-    | 'probationary'
-    | 'contractual'
-    | 'part_time';
+    'regular' | 'probationary' | 'contractual' | 'part_time';
 
 export type PostingCard = {
     hashid: string;
@@ -27,9 +24,13 @@ export type PostingCard = {
     excerpt: string | null;
 };
 
+export type ScreeningQuestion = { id: number; label: string };
+
 export type PostingDetail = PostingCard & {
     description: string | null;
     requirements: string | null;
+    requires_resume: boolean;
+    screening_questions: ScreeningQuestion[];
 };
 
 export type DocumentTypeOption = { value: string; label: string };

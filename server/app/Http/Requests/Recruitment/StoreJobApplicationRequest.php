@@ -35,6 +35,10 @@ class StoreJobApplicationRequest extends FormRequest
             'expected_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'cover_note' => ['nullable', 'string', 'max:5000'],
             'rating' => ['nullable', 'integer', 'between:1,5'],
+
+            // Answers to the posting's own screening questions, keyed by question id.
+            'screening_answers' => ['nullable', 'array'],
+            'screening_answers.*' => ['boolean'],
         ];
     }
 }

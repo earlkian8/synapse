@@ -2,6 +2,7 @@
 
 use App\Models\Organization;
 use App\Models\Permission;
+use App\Models\RecruitmentPipeline;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionSyncer;
@@ -162,4 +163,21 @@ function assertToast(string $type, ?string $contains = null): void
     if ($contains !== null) {
         expect($toast['message'] ?? '')->toContain($contains);
     }
+}
+
+/**
+ * The current test tenant's default recruitment pipeline (the classic 6-stage
+ * flow), creating one if it doesn't already have one. Call after
+ * `actingAsSuperAdmin()`/`actingAsUserWith()` so it lands in the acting user's
+ * organisation, not a throwaway one of its own.
+ */
+function seedDefaultPipeline(): RecruitmentPipeline
+{
+    $organization = testOrganization();
+
+    return RecruitmentPipeline::where('organization_id', $organization->id)->where('is_default', true)->first()
+        ?? RecruitmentPipeline::factory()->withStandardStages()->create([
+            'organization_id' => $organization->id,
+            'is_default' => true,
+        ]);
 }

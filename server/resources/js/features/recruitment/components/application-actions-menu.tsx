@@ -15,13 +15,18 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { MOVABLE_STAGES } from '../constants';
-import type { Application, RecruitmentPermissions, Stage } from '../types';
+import type {
+    Application,
+    PipelineStage,
+    RecruitmentPermissions,
+} from '../types';
 
 type Props = {
     application: Application;
+    /** The posting's open-kind stages, in order. */
+    openStages: PipelineStage[];
     can: RecruitmentPermissions;
-    onMove: (application: Application, stage: Stage) => void;
+    onMove: (application: Application, stageId: number) => void;
     onHire: (application: Application) => void;
     onReject: (application: Application) => void;
     align?: 'start' | 'end';
@@ -31,11 +36,12 @@ type Props = {
 /**
  * The Move / Hire / Reject menu for a non-terminal application. Shared by the
  * board card and the pipeline table so both expose the same actions. Callers
- * guard terminal (hired/rejected) applications — this renders nothing useful for
+ * guard terminal (won/lost) applications — this renders nothing useful for
  * them.
  */
 export function ApplicationActionsMenu({
     application,
+    openStages,
     can,
     onMove,
     onHire,
@@ -43,8 +49,7 @@ export function ApplicationActionsMenu({
     align = 'end',
     triggerClassName,
 }: Props) {
-    const canHire =
-        can.hire && ['interview', 'offer'].includes(application.stage);
+    const canHire = can.hire && application.stage_kind === 'open';
 
     return (
         <DropdownMenu>
@@ -60,26 +65,26 @@ export function ApplicationActionsMenu({
                     <MoreHorizontal className="size-4" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align={align} className="w-44">
+            <DropdownMenuContent align={align} className="w-48">
                 {can.managePipeline && (
                     <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                             <MoveRight className="size-4" />
-                            Move to
+                            Move to…
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
-                            {MOVABLE_STAGES.filter(
-                                (s) => s.value !== application.stage,
-                            ).map((s) => (
-                                <DropdownMenuItem
-                                    key={s.value}
-                                    onSelect={() =>
-                                        onMove(application, s.value)
-                                    }
-                                >
-                                    {s.label}
-                                </DropdownMenuItem>
-                            ))}
+                            {openStages
+                                .filter((s) => s.id !== application.stage_id)
+                                .map((s) => (
+                                    <DropdownMenuItem
+                                        key={s.id}
+                                        onSelect={() =>
+                                            onMove(application, s.id)
+                                        }
+                                    >
+                                        {s.name}
+                                    </DropdownMenuItem>
+                                ))}
                         </DropdownMenuSubContent>
                     </DropdownMenuSub>
                 )}

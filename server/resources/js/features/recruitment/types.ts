@@ -1,39 +1,44 @@
 export type EmploymentType =
-    | 'regular'
-    | 'probationary'
-    | 'contractual'
-    | 'part_time';
+    'regular' | 'probationary' | 'contractual' | 'part_time';
 
 export type PostingStatus = 'draft' | 'open' | 'closed' | 'filled';
 
-export type Stage =
-    | 'applied'
-    | 'screening'
-    | 'interview'
-    | 'offer'
-    | 'hired'
-    | 'rejected';
+/** What a stage means to the business logic — never its (arbitrary) name. */
+export type StageKind = 'open' | 'won' | 'lost';
+
+/** One step in a pipeline. Custom-named; kind + position drive behaviour. */
+export type PipelineStage = {
+    id: number;
+    name: string;
+    kind: StageKind;
+    position: number;
+};
+
+/** A tenant-defined hiring process a posting is assigned to. */
+export type Pipeline = {
+    id: number;
+    hashid: string;
+    name: string;
+    stages: PipelineStage[] | null;
+};
+
+/** A pipeline as a lightweight select option (the posting form's picker). */
+export type PipelineOption = { id: number; name: string; is_default: boolean };
+
+export type ScreeningQuestion = { id: number; label: string };
 
 export type InterviewMode = 'onsite' | 'online' | 'phone';
 export type InterviewResult = 'pending' | 'passed' | 'failed';
 export type ApplicantSource =
-    | 'website'
-    | 'referral'
-    | 'linkedin'
-    | 'agency'
-    | 'walk_in'
-    | 'other';
+    'website' | 'referral' | 'linkedin' | 'agency' | 'walk_in' | 'other';
 
 export type SortDirection = 'asc' | 'desc';
 
 /** How the postings index is laid out: a dense table or a card grid. */
 export type PostingsView = 'table' | 'grid';
 
-/** How the pipeline is laid out: a flat table or a card grid. */
-export type PipelineView = 'table' | 'grid';
-
-/** The pipeline table's stage filter: a specific stage, or all of them. */
-export type StageFilter = Stage | 'all';
+/** How the pipeline is laid out: the sequential board, or a dense table. */
+export type PipelineView = 'board' | 'table';
 
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };
@@ -46,6 +51,8 @@ export type ManagedPosting = {
     requirements: string | null;
     min_years_experience: number | null;
     skills: string[];
+    requires_resume: boolean;
+    use_fit_scoring: boolean;
     employment_type: EmploymentType;
     openings: number;
     status: PostingStatus;
@@ -58,8 +65,11 @@ export type ManagedPosting = {
     department: DepartmentRef | null;
     position: PositionRef | null;
     posted_by: string | null;
+    pipeline: Pipeline | null;
+    screening_questions?: ScreeningQuestion[];
     department_id: number | null;
     position_id: number | null;
+    recruitment_pipeline_id: number;
     applications_count?: number;
     open_count?: number | null;
     hired_count?: number | null;
@@ -136,9 +146,11 @@ export type Fit = {
 /** A candidate's standing among the still-active applicants for a posting. */
 export type FitRank = { position: number; total: number };
 
-/** The recommended next step surfaced in the decision panel. */
+/** The recommended next step surfaced in the decision panel. `stage_id` only
+ *  carries a value when `action` is `advance`. */
 export type Recommendation = {
-    action: Stage | 'hire' | 'reject' | null;
+    action: 'advance' | 'hire' | 'reject' | null;
+    stage_id: number | null;
     label: string;
     tone: 'positive' | 'neutral' | 'caution';
     hint: string;
@@ -167,13 +179,13 @@ export type ApplicantInsightUnavailable = {
 
 /** The insights endpoint's payload: a usable read, or a reason it's unavailable. */
 export type ApplicantInsightResult =
-    | ApplicantInsight
-    | ApplicantInsightUnavailable;
+    ApplicantInsight | ApplicantInsightUnavailable;
 
 /** One of the candidate's applications to another posting. */
 export type OtherApplication = {
     id: number;
-    stage: Stage;
+    stage: string;
+    stage_kind: StageKind;
     rating: number | null;
     posting: string | null;
     posting_status: PostingStatus | null;
@@ -182,11 +194,14 @@ export type OtherApplication = {
 
 export type Application = {
     id: number;
-    stage: Stage;
+    stage: string;
+    stage_id: number;
+    stage_kind: StageKind;
     rating: number | null;
     expected_salary: string | null;
     cover_note: string | null;
     rejected_reason: string | null;
+    screening_answers: Record<number, boolean> | null;
     is_hired: boolean;
     fit: Fit | null;
     fit_rank: FitRank | null;
@@ -216,7 +231,7 @@ export type RecruitmentStats = {
     open_postings: number;
     total_applicants: number;
     in_pipeline: number;
-    offers: number;
+    final_stage: number;
     interviews_upcoming: number;
     hired_this_month: number;
 };
@@ -225,7 +240,7 @@ export type RecruitmentStats = {
 export type InsightTop = {
     name: string;
     fit: number;
-    stage?: Stage;
+    stage?: string;
 };
 
 /** Decision-support metrics for a single pipeline stage. */
@@ -235,7 +250,7 @@ export type StageInsight = {
     strong: number;
     ready: number;
     stalled: number;
-    next_stage: Stage | null;
+    next_stage: string | null;
     top: InsightTop | null;
 };
 
@@ -253,15 +268,17 @@ export type OverallInsight = {
     top: InsightTop | null;
 };
 
-/** The full pipeline insights payload, built server-side from fit scores. */
+/** The full pipeline insights payload, built server-side from fit scores —
+ *  `stages` is keyed by stage id (stage names are arbitrary per pipeline). */
 export type PipelineInsightsData = {
     overall: OverallInsight;
-    stages: Record<Stage, StageInsight>;
+    stages: Record<number, StageInsight>;
 };
 
 export type PostingOptions = {
     departments: DepartmentRef[];
     positions: { id: number; title: string; department_id: number | null }[];
+    pipelines: PipelineOption[];
 };
 
 export type InterviewerRef = { id: number; full_name: string };
@@ -335,9 +352,4 @@ export type PipelinePageProps = {
 
 /** How the pipeline candidates are ordered client-side. */
 export type PipelineSort =
-    | 'default'
-    | 'fit'
-    | 'rating'
-    | 'recent'
-    | 'oldest'
-    | 'name';
+    'default' | 'fit' | 'rating' | 'recent' | 'oldest' | 'name';

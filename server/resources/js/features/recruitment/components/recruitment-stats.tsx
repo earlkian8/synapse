@@ -37,8 +37,8 @@ const CARDS: Card[] = [
         accent: 'text-violet-600 bg-violet-500/10',
     },
     {
-        key: 'offers',
-        label: 'Offers out',
+        key: 'final_stage',
+        label: 'In final stage',
         icon: FileSignature,
         accent: 'text-amber-600 bg-amber-500/10',
     },

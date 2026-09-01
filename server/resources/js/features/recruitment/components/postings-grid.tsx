@@ -3,7 +3,10 @@ import { TYPE_LABELS } from '../constants';
 import type { ManagedPosting, RecruitmentPermissions } from '../types';
 import { PostingDeadline } from './posting-deadline';
 import { PostingRowActions } from './posting-row-actions';
-import { PostingStatusBadge } from './posting-status-badge';
+import {
+    PostingStatusBadge,
+    PostingStatusProgress,
+} from './posting-status-badge';
 
 type Handlers = {
     onView: (posting: ManagedPosting) => void;
@@ -122,6 +125,10 @@ export function PostingsGrid({ postings, can, ...handlers }: Props) {
                             </dd>
                         </div>
                     </dl>
+
+                    <div className="mt-4 border-t border-border pt-3">
+                        <PostingStatusProgress status={posting.status} />
+                    </div>
                 </div>
             ))}
         </div>

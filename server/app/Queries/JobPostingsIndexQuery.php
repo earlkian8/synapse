@@ -56,11 +56,13 @@ class JobPostingsIndexQuery
                 'department:id,name,code',
                 'position:id,title',
                 'postedBy:id,first_name,middle_name,last_name,suffix',
+                'pipeline:id,name',
             ])
             ->withCount([
                 'applications',
                 'applications as open_count' => fn (Builder $query) => $query->open(),
-                'applications as hired_count' => fn (Builder $query) => $query->where('stage', 'hired'),
+                'applications as hired_count' => fn (Builder $query) => $query
+                    ->whereHas('pipelineStage', fn (Builder $q) => $q->where('kind', 'won')),
             ])
             ->when($status !== 'all', fn (Builder $query) => $query->where('status', $status))
             ->when($department > 0, fn (Builder $query) => $query->where('department_id', $department))

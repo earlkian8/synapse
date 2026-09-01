@@ -25,6 +25,8 @@ class JobPostingResource extends JsonResource
             'requirements' => $this->requirements,
             'min_years_experience' => $this->min_years_experience,
             'skills' => $this->skills ?? [],
+            'requires_resume' => $this->requires_resume,
+            'use_fit_scoring' => $this->use_fit_scoring,
             'employment_type' => $this->employment_type,
             'openings' => $this->openings,
             'status' => $this->status,
@@ -45,9 +47,25 @@ class JobPostingResource extends JsonResource
                 'title' => $this->position->title,
             ] : null),
             'posted_by' => $this->whenLoaded('postedBy', fn () => $this->postedBy?->full_name),
+            'pipeline' => $this->whenLoaded('pipeline', fn () => $this->pipeline ? [
+                'id' => $this->pipeline->id,
+                'hashid' => $this->pipeline->hashid,
+                'name' => $this->pipeline->name,
+                'stages' => $this->pipeline->relationLoaded('stages') ? $this->pipeline->stages->map(fn ($stage) => [
+                    'id' => $stage->id,
+                    'name' => $stage->name,
+                    'kind' => $stage->kind,
+                    'position' => $stage->position,
+                ])->values() : null,
+            ] : null),
+            'screening_questions' => $this->whenLoaded('screeningQuestions', fn () => $this->screeningQuestions->map(fn ($question) => [
+                'id' => $question->id,
+                'label' => $question->label,
+            ])->values()),
 
             'department_id' => $this->department_id,
             'position_id' => $this->position_id,
+            'recruitment_pipeline_id' => $this->recruitment_pipeline_id,
 
             'applications_count' => $this->whenCounted('applications'),
             'open_count' => $this->open_count,

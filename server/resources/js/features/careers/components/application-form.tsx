@@ -23,6 +23,7 @@ type ApplicationData = {
     cover_note: string;
     resume: File | null;
     documents: DocumentRow[];
+    screening_answers: Record<number, boolean>;
     hp_field: string;
 };
 
@@ -50,7 +51,14 @@ export function ApplicationForm({
             cover_note: '',
             resume: null,
             documents: [],
+            screening_answers: {},
             hp_field: '',
+        });
+
+    const setAnswer = (questionId: number, value: boolean) =>
+        setData('screening_answers', {
+            ...data.screening_answers,
+            [questionId]: value,
         });
 
     const addDocument = () =>
@@ -210,7 +218,11 @@ export function ApplicationForm({
                 title="Your application"
                 description="Attach your CV and tell us why you're a fit."
             >
-                <Field label="Résumé / CV" required error={errors.resume}>
+                <Field
+                    label="Résumé / CV"
+                    required={posting.requires_resume}
+                    error={errors.resume}
+                >
                     <FileInput
                         file={data.resume}
                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
@@ -218,7 +230,9 @@ export function ApplicationForm({
                         onClear={() => setData('resume', null)}
                     />
                     <p className="mt-1.5 text-xs text-slate-500">
-                        PDF, DOC, DOCX, JPG or PNG · up to 10MB.
+                        {posting.requires_resume
+                            ? 'PDF, DOC, DOCX, JPG or PNG · up to 10MB.'
+                            : 'Optional for this role. PDF, DOC, DOCX, JPG or PNG · up to 10MB.'}
                     </p>
                 </Field>
 
@@ -249,6 +263,50 @@ export function ApplicationForm({
                     />
                 </Field>
             </Section>
+
+            {posting.screening_questions.length > 0 && (
+                <Section
+                    title="A few quick questions"
+                    description="Helps the hiring team screen applications for this role."
+                >
+                    <div className="space-y-2.5">
+                        {posting.screening_questions.map((question) => (
+                            <div
+                                key={question.id}
+                                className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3"
+                            >
+                                <span className="text-sm text-slate-700">
+                                    {question.label}
+                                </span>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                    <YesNoButton
+                                        label="Yes"
+                                        active={
+                                            data.screening_answers[
+                                                question.id
+                                            ] === true
+                                        }
+                                        onClick={() =>
+                                            setAnswer(question.id, true)
+                                        }
+                                    />
+                                    <YesNoButton
+                                        label="No"
+                                        active={
+                                            data.screening_answers[
+                                                question.id
+                                            ] === false
+                                        }
+                                        onClick={() =>
+                                            setAnswer(question.id, false)
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Section>
+            )}
 
             <Section
                 title="Supporting documents"
@@ -376,6 +434,31 @@ function Field({
             {children}
             <InputError message={error} className="mt-1.5" />
         </div>
+    );
+}
+
+function YesNoButton({
+    label,
+    active,
+    onClick,
+}: {
+    label: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={
+                active
+                    ? 'rounded-md bg-[#0F2044] px-3 py-1 text-xs font-semibold text-white'
+                    : 'rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:border-slate-400'
+            }
+        >
+            {label}
+        </button>
     );
 }
 

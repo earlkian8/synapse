@@ -50,7 +50,7 @@ class ApplicantScorer
             $this->experience($application, $posting),
             $this->skills($application, $posting),
             $this->interview($application),
-            $this->documents($application),
+            $this->documents($application, $posting),
         ]);
 
         $earned = array_sum(array_column($components, 'points'));
@@ -68,32 +68,58 @@ class ApplicantScorer
 
     /**
      * The recommended next step for HR, given the application and its fit score.
+     * Driven by the stage's `kind` and its position in the posting's own pipeline
+     * — never by a hardcoded stage name — so this works the same for any custom
+     * pipeline. `action` is a verb (`advance`/`hire`/`reject`/null); `stage_id`
+     * only carries a value when `action` is `advance`, naming exactly which stage.
      *
      * @param  array{value: int, band: string, breakdown: mixed}  $score
-     * @return array{action: string|null, label: string, tone: string, hint: string}
+     * @return array{action: string|null, stage_id: int|null, label: string, tone: string, hint: string}
      */
     public function recommendation(JobApplication $application, array $score): array
     {
+        $stage = $application->pipelineStage;
+        $pipeline = $application->jobPosting->pipeline;
         $fit = $score['value'];
         $interview = $this->interviewVerdict($application);
 
-        return match ($application->stage) {
-            'applied' => $fit >= 55
-                ? $this->rec('screening', 'Advance to screening', 'positive', 'Strong on-paper fit — move them forward to review.')
-                : $this->rec('screening', 'Screen this candidate', 'neutral', 'Review their profile before deciding.'),
-            'screening' => $fit >= 55
-                ? $this->rec('interview', 'Schedule an interview', 'positive', 'Looks promising — set up an interview.')
-                : $this->rec('reject', 'Consider rejecting', 'caution', 'Below the bar for this role on current signals.'),
-            'interview' => match ($interview) {
-                'passed' => $this->rec('offer', 'Move to offer', 'positive', 'Cleared interviews — extend an offer.'),
-                'failed' => $this->rec('reject', 'Consider rejecting', 'caution', 'Did not pass the interview.'),
-                default => $this->rec(null, 'Awaiting interview result', 'neutral', 'Record the interview outcome to proceed.'),
-            },
-            'offer' => $this->rec('hire', 'Hire candidate', 'positive', 'Ready to convert into an employee.'),
-            'hired' => $this->rec(null, 'Hired', 'positive', 'This candidate has joined the workforce.'),
-            'rejected' => $this->rec(null, 'Rejected', 'neutral', 'No further action.'),
-            default => $this->rec(null, 'Review candidate', 'neutral', ''),
-        };
+        if ($stage->kind === 'won') {
+            return $this->rec(null, null, 'Hired', 'positive', 'This candidate has joined the workforce.');
+        }
+
+        if ($stage->kind === 'lost') {
+            return $this->rec(null, null, 'Rejected', 'neutral', 'No further action.');
+        }
+
+        if ($interview === 'failed') {
+            return $this->rec('reject', null, 'Consider rejecting', 'caution', 'Did not pass the interview.');
+        }
+
+        $isEntryStage = $pipeline->entryStage()?->id === $stage->id;
+        $isLastOpenStage = $pipeline->isLastOpenStage($stage);
+        $hasInterviews = $application->relationLoaded('interviews') && $application->interviews->isNotEmpty();
+
+        if (! $isEntryStage && $interview === 'pending' && $hasInterviews) {
+            return $this->rec(null, null, 'Awaiting interview result', 'neutral', 'Record the interview outcome to proceed.');
+        }
+
+        if ($isLastOpenStage) {
+            return $fit >= 55
+                ? $this->rec('hire', null, 'Hire candidate', 'positive', 'Ready to convert into an employee.')
+                : $this->rec('reject', null, 'Consider rejecting', 'caution', 'Below the bar for this role on current signals.');
+        }
+
+        $next = $pipeline->nextOpenStageAfter($stage);
+
+        if ($isEntryStage) {
+            return $fit >= 55
+                ? $this->rec('advance', $next->id, "Advance to {$next->name}", 'positive', 'Strong on-paper fit — move them forward to review.')
+                : $this->rec('advance', $next->id, 'Screen this candidate', 'neutral', 'Review their profile before deciding.');
+        }
+
+        return $fit >= 55
+            ? $this->rec('advance', $next->id, "Advance to {$next->name}", 'positive', 'Strong on-paper fit — move them forward to review.')
+            : $this->rec('reject', null, 'Consider rejecting', 'caution', 'Below the bar for this role on current signals.');
     }
 
     // ── Components ───────────────────────────────────────────────────────────
@@ -175,9 +201,8 @@ class ApplicantScorer
     private function interview(JobApplication $application): ?array
     {
         $hasInterviews = $application->relationLoaded('interviews') && $application->interviews->isNotEmpty();
-        $reached = in_array($application->stage, ['interview', 'offer', 'hired'], true);
 
-        if (! $hasInterviews && ! $reached) {
+        if (! $hasInterviews) {
             return null;
         }
 
@@ -195,21 +220,27 @@ class ApplicantScorer
     /**
      * @return array{key: string, label: string, points: int, max: int, detail: string}
      */
-    private function documents(JobApplication $application): array
+    private function documents(JobApplication $application, ?JobPosting $posting): array
     {
         $max = self::WEIGHTS['documents'];
         $applicant = $application->applicant;
 
-        $hasResume = (bool) ($applicant?->resume);
+        // A posting that doesn't ask for a résumé shouldn't penalise a candidate
+        // for not having one — that portion counts as satisfied either way.
+        $resumeRequired = $posting?->requires_resume ?? true;
+        $hasResume = ! $resumeRequired || (bool) ($applicant?->resume);
+
         $supporting = (int) ($applicant?->documents_count
             ?? ($applicant?->relationLoaded('documents') ? $applicant->documents->count() : 0));
 
         $points = ($hasResume ? 6 : 0) + min($supporting, 4);
         $points = min($points, $max);
 
-        $detail = $hasResume
-            ? 'Résumé'.($supporting > 0 ? " + {$supporting} doc".($supporting === 1 ? '' : 's') : '')
-            : 'No résumé on file';
+        $detail = match (true) {
+            (bool) ($applicant?->resume) => 'Résumé'.($supporting > 0 ? " + {$supporting} doc".($supporting === 1 ? '' : 's') : ''),
+            ! $resumeRequired => 'No résumé required'.($supporting > 0 ? " · {$supporting} doc".($supporting === 1 ? '' : 's') : ''),
+            default => 'No résumé on file',
+        };
 
         return $this->component('documents', 'Documents', $points, $max, $detail);
     }
@@ -259,10 +290,10 @@ class ApplicantScorer
     }
 
     /**
-     * @return array{action: string|null, label: string, tone: string, hint: string}
+     * @return array{action: string|null, stage_id: int|null, label: string, tone: string, hint: string}
      */
-    private function rec(?string $action, string $label, string $tone, string $hint): array
+    private function rec(?string $action, ?int $stageId, string $label, string $tone, string $hint): array
     {
-        return ['action' => $action, 'label' => $label, 'tone' => $tone, 'hint' => $hint];
+        return ['action' => $action, 'stage_id' => $stageId, 'label' => $label, 'tone' => $tone, 'hint' => $hint];
     }
 }

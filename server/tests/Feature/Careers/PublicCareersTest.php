@@ -107,7 +107,7 @@ test('a guest can apply with a résumé and supporting documents', function () {
     $application = JobApplication::where('applicant_id', $applicant->id)->first();
     expect($application)->not->toBeNull()
         ->and($application->job_posting_id)->toBe($posting->id)
-        ->and($application->stage)->toBe('applied')
+        ->and($application->pipelineStage->name)->toBe('Applied')
         ->and($application->organization_id)->toBe($org->id);
 });
 
@@ -122,6 +122,43 @@ test('a public application requires a résumé', function () {
     ])->assertSessionHasErrors('resume');
 
     expect(Applicant::where('email', 'jane@example.com')->exists())->toBeFalse();
+});
+
+test('a posting that does not require a résumé accepts an application without one', function () {
+    $org = Organization::factory()->create(['slug' => 'acme']);
+    $posting = openPosting($org, ['requires_resume' => false]);
+
+    $this->post("/careers/acme/jobs/{$posting->hashid}/apply", [
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+        'email' => 'jane@example.com',
+    ])->assertSessionHasNoErrors();
+
+    expect(Applicant::where('email', 'jane@example.com')->exists())->toBeTrue();
+});
+
+test('a posting\'s screening questions are answered and saved on the application', function () {
+    Storage::fake('public');
+    $org = Organization::factory()->create(['slug' => 'acme']);
+    $posting = openPosting($org);
+    $question = $posting->screeningQuestions()->create([
+        'organization_id' => $org->id,
+        'label' => "Do you have a driver's license?",
+        'position' => 0,
+    ]);
+
+    $this->post("/careers/acme/jobs/{$posting->hashid}/apply", [
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+        'email' => 'jane@example.com',
+        'resume' => UploadedFile::fake()->create('cv.pdf', 120, 'application/pdf'),
+        'screening_answers' => [$question->id => true],
+    ])->assertSessionHasNoErrors();
+
+    $application = JobApplication::whereHas('applicant', fn ($q) => $q->where('email', 'jane@example.com'))->first();
+
+    expect($application->screening_answers)->not->toBeNull()
+        ->and((bool) ($application->screening_answers[$question->id] ?? false))->toBeTrue();
 });
 
 test('a filled honeypot is silently dropped without creating an application', function () {

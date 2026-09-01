@@ -23,7 +23,7 @@ class RecruitmentExportController extends Controller
         ];
 
         $columns = [
-            'Title', 'Department', 'Position', 'Employment Type', 'Openings',
+            'Title', 'Department', 'Position', 'Pipeline', 'Employment Type', 'Openings',
             'Status', 'Applications', 'Hired', 'Closing Date', 'Posted',
         ];
 
@@ -38,6 +38,7 @@ class RecruitmentExportController extends Controller
                         $posting->title,
                         $posting->department?->name,
                         $posting->position?->title,
+                        $posting->pipeline?->name,
                         $posting->employment_type,
                         $posting->openings,
                         $posting->status,

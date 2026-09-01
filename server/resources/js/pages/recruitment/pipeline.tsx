@@ -1,17 +1,23 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, LayoutGrid, List, Plus, Users2 } from 'lucide-react';
+import { ArrowLeft, KanbanSquare, List, Plus, Users2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AddCandidateDialog } from '@/features/recruitment/components/add-candidate-dialog';
 import { ApplicationDetailDialog } from '@/features/recruitment/components/application-detail-dialog';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
-import { PipelineGrid } from '@/features/recruitment/components/pipeline-grid';
+import { PipelineBoard } from '@/features/recruitment/components/pipeline-board';
 import { PipelineInsights } from '@/features/recruitment/components/pipeline-insights';
-import { PipelineStageTabs } from '@/features/recruitment/components/pipeline-stage-tabs';
 import { PipelineTable } from '@/features/recruitment/components/pipeline-table';
 import { PipelineToolbar } from '@/features/recruitment/components/pipeline-toolbar';
 import { PostingDeadline } from '@/features/recruitment/components/posting-deadline';
@@ -23,9 +29,8 @@ import type {
     Application,
     PipelinePageProps,
     PipelineSort,
+    PipelineStage,
     PipelineView,
-    Stage,
-    StageFilter,
 } from '@/features/recruitment/types';
 
 type ConfirmConfig = {
@@ -43,7 +48,16 @@ export default function RecruitmentPipeline() {
         usePage<PipelinePageProps>().props;
     const { view, changeView } = usePipelineView();
 
-    const [stage, setStage] = useState<StageFilter>('all');
+    const stages = useMemo(() => posting.pipeline?.stages ?? [], [posting]);
+    const openStages = useMemo(
+        () => stages.filter((s) => s.kind === 'open'),
+        [stages],
+    );
+
+    // Which stage the decision-support panel (and, in table view, the row
+    // filter) is focused on. The board itself always shows every stage at
+    // once — that's the point — so this never hides a column.
+    const [focus, setFocus] = useState<PipelineStage | 'all'>('all');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<PipelineSort>('default');
     const [detailApp, setDetailApp] = useState<Application | null>(null);
@@ -63,36 +77,21 @@ export default function RecruitmentPipeline() {
         setSendInvitation(value);
     };
 
-    const stageCounts = useMemo(() => {
-        const counts: Record<Stage, number> = {
-            applied: 0,
-            screening: 0,
-            interview: 0,
-            offer: 0,
-            hired: 0,
-            rejected: 0,
-        };
-
-        for (const application of applications) {
-            counts[application.stage] += 1;
-        }
-
-        return counts;
-    }, [applications]);
-
-    const stageApplications = useMemo(
+    // The board always shows every stage; the table (a bulk-scanning view)
+    // additionally narrows to the focused stage.
+    const scope = useMemo(
         () =>
-            stage === 'all'
-                ? applications
-                : applications.filter((a) => a.stage === stage),
-        [applications, stage],
+            view === 'table' && focus !== 'all'
+                ? applications.filter((a) => a.stage_id === focus.id)
+                : applications,
+        [applications, view, focus],
     );
 
     const visibleApplications = useMemo(() => {
         const term = search.trim().toLowerCase();
 
         const filtered = term
-            ? stageApplications.filter((a) => {
+            ? scope.filter((a) => {
                   const applicant = a.applicant;
 
                   return [
@@ -103,7 +102,7 @@ export default function RecruitmentPipeline() {
                       .filter(Boolean)
                       .some((field) => field!.toLowerCase().includes(term));
               })
-            : stageApplications;
+            : scope;
 
         if (sort === 'default') {
             return filtered;
@@ -130,7 +129,7 @@ export default function RecruitmentPipeline() {
                     return 0;
             }
         });
-    }, [stageApplications, search, sort]);
+    }, [scope, search, sort]);
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);
@@ -151,10 +150,10 @@ export default function RecruitmentPipeline() {
         setDetailOpen(true);
     };
 
-    const move = (application: Application, stage: Stage) =>
+    const move = (application: Application, stageId: number) =>
         router.patch(
             recruitmentRoutes.applicationStage(application.id),
-            { stage },
+            { stage_id: stageId },
             { preserveScroll: true },
         );
 
@@ -179,7 +178,7 @@ export default function RecruitmentPipeline() {
         askConfirm({
             title: `Reject ${application.applicant?.full_name}?`,
             description:
-                'The candidate will be moved to the Rejected column. You can add a reason from the candidate drawer instead.',
+                "The candidate will be moved to the pipeline's rejected stage. You can add a reason from the candidate drawer instead.",
             confirmLabel: 'Reject',
             destructive: true,
             run: () =>
@@ -211,7 +210,17 @@ export default function RecruitmentPipeline() {
                             </Link>
                         </Button>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">
+                                <Link
+                                    href={recruitmentRoutes.index}
+                                    className="hover:text-foreground hover:underline"
+                                >
+                                    Recruitment
+                                </Link>
+                                {' / '}
+                                <span>{posting.title}</span>
+                            </p>
+                            <div className="mt-0.5 flex items-center gap-2">
                                 <h1 className="text-xl font-semibold tracking-tight">
                                     {posting.title}
                                 </h1>
@@ -222,6 +231,9 @@ export default function RecruitmentPipeline() {
                                     {posting.department?.name ??
                                         'No department'}{' '}
                                     · {TYPE_LABELS[posting.employment_type]}
+                                    {posting.pipeline
+                                        ? ` · ${posting.pipeline.name}`
+                                        : ''}
                                 </span>
                                 <span aria-hidden>·</span>
                                 <span className="inline-flex items-center gap-1">
@@ -268,16 +280,16 @@ export default function RecruitmentPipeline() {
                             aria-label="Switch layout"
                         >
                             <ToggleGroupItem
+                                value="board"
+                                aria-label="Board view"
+                            >
+                                <KanbanSquare className="size-4" />
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
                                 value="table"
                                 aria-label="Table view"
                             >
                                 <List className="size-4" />
-                            </ToggleGroupItem>
-                            <ToggleGroupItem
-                                value="grid"
-                                aria-label="Card view"
-                            >
-                                <LayoutGrid className="size-4" />
                             </ToggleGroupItem>
                         </ToggleGroup>
 
@@ -291,20 +303,43 @@ export default function RecruitmentPipeline() {
                 </div>
 
                 <div className="flex flex-col gap-4">
-                    <PipelineStageTabs
-                        value={stage}
-                        counts={stageCounts}
-                        total={applications.length}
-                        onChange={setStage}
-                    />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <Select
+                            value={focus === 'all' ? 'all' : String(focus.id)}
+                            onValueChange={(value) =>
+                                setFocus(
+                                    value === 'all'
+                                        ? 'all'
+                                        : (stages.find(
+                                              (s) => String(s.id) === value,
+                                          ) ?? 'all'),
+                                )
+                            }
+                        >
+                            <SelectTrigger
+                                className="w-[190px]"
+                                aria-label="Focus a stage"
+                            >
+                                <SelectValue placeholder="All stages" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All stages</SelectItem>
+                                {stages.map((s) => (
+                                    <SelectItem key={s.id} value={String(s.id)}>
+                                        {s.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                    <PipelineInsights insights={insights} stage={stage} />
+                    <PipelineInsights insights={insights} stage={focus} />
 
                     <PipelineToolbar
                         search={search}
                         sort={sort}
                         shown={visibleApplications.length}
-                        total={stageApplications.length}
+                        total={scope.length}
                         canExport={can.export}
                         exportUrl={recruitmentRoutes.pipelineExport(
                             posting.hashid,
@@ -313,8 +348,9 @@ export default function RecruitmentPipeline() {
                         onSort={setSort}
                     />
 
-                    {view === 'grid' ? (
-                        <PipelineGrid
+                    {view === 'board' ? (
+                        <PipelineBoard
+                            stages={stages}
                             applications={visibleApplications}
                             can={can}
                             onOpen={openDetail}
@@ -325,6 +361,7 @@ export default function RecruitmentPipeline() {
                     ) : (
                         <PipelineTable
                             applications={visibleApplications}
+                            openStages={openStages}
                             can={can}
                             onOpen={openDetail}
                             onMove={move}
@@ -347,6 +384,7 @@ export default function RecruitmentPipeline() {
                 open={detailOpen}
                 can={can}
                 interviewers={options.interviewers}
+                openStages={openStages}
                 onOpenChange={setDetailOpen}
             />
 

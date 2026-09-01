@@ -18,7 +18,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { TYPE_LABELS } from '../constants';
 import type { ManagedPosting, RecruitmentPermissions } from '../types';
-import { PostingStatusBadge } from './posting-status-badge';
+import {
+    PostingStatusBadge,
+    PostingStatusProgress,
+} from './posting-status-badge';
 
 type Props = {
     posting: ManagedPosting | null;
@@ -79,6 +82,8 @@ export function PostingDetailDialog({
                 />
 
                 <ModalBody className="space-y-6">
+                    <PostingStatusProgress status={posting.status} />
+
                     {/* Pipeline summary */}
                     <div className="grid grid-cols-3 gap-3">
                         <Stat

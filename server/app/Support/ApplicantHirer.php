@@ -33,7 +33,7 @@ class ApplicantHirer
      */
     public static function hire(JobApplication $application, User $actor, bool $sendInvitation = true): Employee
     {
-        $application->loadMissing(['applicant', 'jobPosting']);
+        $application->loadMissing(['applicant', 'jobPosting.pipeline.stages']);
 
         if ($application->hired_employee_id !== null) {
             throw new RuntimeException('This candidate has already been hired.');
@@ -62,14 +62,16 @@ class ApplicantHirer
             // Seed the new hire's onboarding from the best-matching program.
             OnboardingProvisioner::start($employee);
 
+            $wonStage = $posting->pipeline->wonStage();
+
             $application->update([
-                'stage' => 'hired',
+                'recruitment_pipeline_stage_id' => $wonStage->id,
                 'hired_employee_id' => $employee->id,
                 'decided_at' => now(),
             ]);
 
             // Auto-fill the posting once all openings are taken.
-            $hired = $posting->applications()->where('stage', 'hired')->count();
+            $hired = $posting->applications()->where('recruitment_pipeline_stage_id', $wonStage->id)->count();
 
             if ($posting->status === 'open' && $hired >= $posting->openings) {
                 $posting->update(['status' => 'filled']);

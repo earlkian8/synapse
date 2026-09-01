@@ -40,6 +40,7 @@ class PermissionRegistry
             'recruitment.schedule-interviews' => 'Schedule & record interviews',
             'recruitment.hire' => 'Hire applicants (create employees)',
             'recruitment.export' => 'Export recruitment data',
+            'recruitment.configure-pipelines' => 'Configure pipeline templates (stages)',
         ],
         'Onboarding' => [
             'onboarding.view' => 'View onboarding',

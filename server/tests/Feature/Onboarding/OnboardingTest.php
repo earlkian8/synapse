@@ -261,10 +261,9 @@ test('hiring an applicant starts their onboarding', function () {
         'status' => 'open',
     ]);
     $applicant = Applicant::factory()->create();
-    $application = JobApplication::factory()->create([
+    $application = JobApplication::factory()->stage('offer')->create([
         'job_posting_id' => $posting->id,
         'applicant_id' => $applicant->id,
-        'stage' => 'offer',
     ]);
 
     $this->post(route('recruitment.applications.hire', $application))

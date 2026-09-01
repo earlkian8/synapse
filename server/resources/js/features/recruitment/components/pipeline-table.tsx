@@ -8,7 +8,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import type { Application, RecruitmentPermissions, Stage } from '../types';
+import type {
+    Application,
+    PipelineStage,
+    RecruitmentPermissions,
+} from '../types';
 import { ApplicationActionsMenu } from './application-actions-menu';
 import { FitBadge } from './fit-score';
 import { RatingStars } from './rating-stars';
@@ -16,14 +20,21 @@ import { StageBadge } from './stage-badge';
 
 type Props = {
     applications: Application[];
+    /** The posting's open-kind stages, in order — feeds the actions menu. */
+    openStages: PipelineStage[];
     can: RecruitmentPermissions;
     onOpen: (application: Application) => void;
-    onMove: (application: Application, stage: Stage) => void;
+    onMove: (application: Application, stageId: number) => void;
     onHire: (application: Application) => void;
     onReject: (application: Application) => void;
 };
 
-export function PipelineTable({ applications, can, ...handlers }: Props) {
+export function PipelineTable({
+    applications,
+    openStages,
+    can,
+    ...handlers
+}: Props) {
     return (
         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
             <Table>
@@ -60,9 +71,7 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
 
                     {applications.map((application) => {
                         const applicant = application.applicant;
-                        const terminal =
-                            application.stage === 'hired' ||
-                            application.stage === 'rejected';
+                        const terminal = application.stage_kind !== 'open';
 
                         return (
                             <TableRow key={application.id}>
@@ -99,7 +108,10 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <StageBadge stage={application.stage} />
+                                    <StageBadge
+                                        name={application.stage}
+                                        kind={application.stage_kind}
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     <RatingStars value={application.rating} />
@@ -128,6 +140,7 @@ export function PipelineTable({ applications, can, ...handlers }: Props) {
                                     {!terminal && (
                                         <ApplicationActionsMenu
                                             application={application}
+                                            openStages={openStages}
                                             can={can}
                                             onMove={handlers.onMove}
                                             onHire={handlers.onHire}

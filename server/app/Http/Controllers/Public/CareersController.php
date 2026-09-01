@@ -72,7 +72,7 @@ class CareersController extends Controller
     {
         $this->ensureOpenPosting($organization, $jobPosting);
 
-        $jobPosting->load(['department:id,name', 'position:id,title']);
+        $jobPosting->load(['department:id,name', 'position:id,title', 'screeningQuestions']);
 
         return Inertia::render('careers/show', [
             'organization' => $this->organizationPayload($organization),
@@ -130,9 +130,10 @@ class CareersController extends Controller
 
             $application = $jobPosting->applications()->create([
                 'applicant_id' => $applicant->id,
-                'stage' => 'applied',
+                'recruitment_pipeline_stage_id' => $jobPosting->pipeline->entryStage()->id,
                 'expected_salary' => $data['expected_salary'] ?? null,
                 'cover_note' => $data['cover_note'] ?? null,
+                'screening_answers' => $data['screening_answers'] ?? null,
                 'applied_at' => now(),
             ]);
 
@@ -230,6 +231,11 @@ class CareersController extends Controller
             ...$this->postingCard($posting),
             'description' => $posting->description,
             'requirements' => $posting->requirements,
+            'requires_resume' => $posting->requires_resume,
+            'screening_questions' => $posting->screeningQuestions->map(fn ($question) => [
+                'id' => $question->id,
+                'label' => $question->label,
+            ])->values(),
         ];
     }
 

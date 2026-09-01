@@ -8,6 +8,7 @@ use App\Http\Resources\JobApplicationResource;
 use App\Models\Applicant;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
+use App\Models\RecruitmentPipelineStage;
 use App\Support\ActivityLogger;
 use App\Support\Notifier;
 use App\Support\Recruitment\ApplicantInsights;
@@ -35,10 +36,11 @@ class JobApplicationController extends Controller
 
         $jobPosting->applications()->create([
             'applicant_id' => $applicant->id,
-            'stage' => 'applied',
+            'recruitment_pipeline_stage_id' => $jobPosting->pipeline->entryStage()->id,
             'expected_salary' => $data['expected_salary'] ?? null,
             'cover_note' => $data['cover_note'] ?? null,
             'rating' => $data['rating'] ?? null,
+            'screening_answers' => $data['screening_answers'] ?? null,
             'applied_at' => now(),
         ]);
 
@@ -71,14 +73,19 @@ class JobApplicationController extends Controller
     {
         $application->load([
             'applicant.documents',
-            'jobPosting:id,title,min_years_experience,skills',
+            'jobPosting.pipeline.stages',
+            'jobPosting.screeningQuestions',
+            'pipelineStage',
             'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no',
             'interviews' => fn ($query) => $query->with('interviewer:id,first_name,middle_name,last_name,suffix')->latest('scheduled_at'),
         ]);
 
-        $score = $scorer->score($application, $application->jobPosting);
-        $application->fit = $score;
-        $application->recommendation = $scorer->recommendation($application, $score);
+        if ($application->jobPosting->use_fit_scoring) {
+            $score = $scorer->score($application, $application->jobPosting);
+            $application->fit = $score;
+            $application->recommendation = $scorer->recommendation($application, $score);
+        }
+
         $application->other_applications = $this->otherApplications($application);
 
         return new JobApplicationResource($application);
@@ -94,7 +101,7 @@ class JobApplicationController extends Controller
     {
         $application->load([
             'applicant.documents',
-            'jobPosting:id,title,description,requirements,min_years_experience,skills',
+            'jobPosting:id,title,description,requirements,min_years_experience,skills,requires_resume',
             'interviews' => fn ($query) => $query->latest('scheduled_at'),
         ]);
 
@@ -128,12 +135,13 @@ class JobApplicationController extends Controller
         return JobApplication::query()
             ->where('applicant_id', $application->applicant_id)
             ->whereKeyNot($application->id)
-            ->with('jobPosting:id,title,status')
+            ->with(['jobPosting:id,title,status', 'pipelineStage:id,name,kind'])
             ->latest('applied_at')
             ->get()
             ->map(fn (JobApplication $other): array => [
                 'id' => $other->id,
-                'stage' => $other->stage,
+                'stage' => $other->pipelineStage->name,
+                'stage_kind' => $other->pipelineStage->kind,
                 'rating' => $other->rating,
                 'posting' => $other->jobPosting?->title,
                 'posting_status' => $other->jobPosting?->status,
@@ -143,39 +151,64 @@ class JobApplicationController extends Controller
     }
 
     /**
-     * Move an application to another (non-terminal) pipeline stage. Terminal
-     * stages have dedicated actions, so `hired` and `rejected` are refused here.
+     * Move an application to another open (non-terminal) stage of its own
+     * pipeline. Terminal stages have dedicated actions, so a `won`/`lost` target
+     * is refused here.
      */
     public function stage(Request $request, JobApplication $application): RedirectResponse
     {
+        $pipeline = $application->jobPosting->pipeline;
+
         $validated = $request->validate([
-            'stage' => ['required', Rule::in(JobApplication::OPEN_STAGES)],
+            'stage_id' => [
+                'required',
+                'integer',
+                Rule::exists('recruitment_pipeline_stages', 'id')
+                    ->where('recruitment_pipeline_id', $pipeline->id)
+                    ->where('kind', 'open'),
+            ],
         ]);
 
-        $application->moveTo($validated['stage']);
+        $stage = RecruitmentPipelineStage::findOrFail($validated['stage_id']);
+        $application->moveTo($stage);
 
         ActivityLogger::log(
             event: 'updated',
-            description: "Moved {$application->applicant->full_name} to {$validated['stage']}",
+            description: "Moved {$application->applicant->full_name} to {$stage->name}",
             subject: $application->jobPosting,
-            properties: ['stage' => $validated['stage']],
+            properties: ['stage' => $stage->name],
             logName: 'recruitment',
             subjectLabel: $application->applicant->full_name,
         );
 
-        return $this->respond('Candidate moved to '.$validated['stage'].'.');
+        return $this->respond('Candidate moved to '.$stage->name.'.');
     }
 
     /**
-     * Reject an application, recording an optional reason.
+     * Reject an application, recording an optional reason. Defaults to the
+     * pipeline's primary "lost" stage; a pipeline with several (e.g. "Rejected"
+     * and "Withdrawn") lets the caller name which one.
      */
     public function reject(Request $request, JobApplication $application): RedirectResponse
     {
+        $pipeline = $application->jobPosting->pipeline;
+
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:1000'],
+            'lost_stage_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('recruitment_pipeline_stages', 'id')
+                    ->where('recruitment_pipeline_id', $pipeline->id)
+                    ->where('kind', 'lost'),
+            ],
         ]);
 
-        $application->rejectWith($validated['reason'] ?? null);
+        $lostStage = isset($validated['lost_stage_id'])
+            ? RecruitmentPipelineStage::findOrFail($validated['lost_stage_id'])
+            : null;
+
+        $application->rejectWith($lostStage, $validated['reason'] ?? null);
 
         ActivityLogger::log(
             event: 'updated',

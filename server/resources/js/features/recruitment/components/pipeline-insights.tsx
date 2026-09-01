@@ -12,11 +12,11 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
-import { RECOMMENDATION_STYLES, STAGE_LABELS } from '../constants';
+import { RECOMMENDATION_STYLES } from '../constants';
 import type {
     OverallInsight,
     PipelineInsightsData,
-    StageFilter,
+    PipelineStage,
     StageInsight,
 } from '../types';
 
@@ -59,7 +59,7 @@ const SIGNAL_ICON_STYLES: Record<Tone, string> = {
     caution: 'text-amber-600 dark:text-amber-400',
 };
 
-const fit = (value: number | null) => (value === null ? '—' : `${value}`);
+const fitValue = (value: number | null) => (value === null ? '—' : `${value}`);
 
 /** Build the tiles + decision signal for the whole-pipeline (All) view. */
 function overallView(o: OverallInsight): View {
@@ -67,7 +67,7 @@ function overallView(o: OverallInsight): View {
         { label: 'Active', value: o.active, icon: Users, accent: ACCENTS.teal },
         {
             label: 'Avg fit',
-            value: fit(o.avg_fit),
+            value: fitValue(o.avg_fit),
             icon: TrendingUp,
             accent: ACCENTS.sky,
         },
@@ -113,7 +113,7 @@ function overallView(o: OverallInsight): View {
             icon: CheckCircle2,
             title: `${o.ready} candidate${o.ready === 1 ? '' : 's'} ready to advance`,
             detail: o.top
-                ? `${o.top.name} leads at ${o.top.fit}% fit${o.top.stage ? ` in ${STAGE_LABELS[o.top.stage]}` : ''}. Move standouts forward to keep momentum.`
+                ? `${o.top.name} leads at ${o.top.fit}% fit${o.top.stage ? ` in ${o.top.stage}` : ''}. Move standouts forward to keep momentum.`
                 : 'Move the strongest candidates to their next stage.',
         };
     } else if (o.stalled > 0) {
@@ -135,11 +135,10 @@ function overallView(o: OverallInsight): View {
     return { heading: 'Pipeline overview', tiles, signal };
 }
 
-/** Build the tiles + decision signal for a single stage tab. */
-function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
-    const label = STAGE_LABELS[stage];
-    const nextLabel = s.next_stage ? STAGE_LABELS[s.next_stage] : null;
-    const terminal = stage === 'hired' || stage === 'rejected';
+/** Build the tiles + decision signal for a single stage. */
+function stageView(stage: PipelineStage, s: StageInsight): View {
+    const label = stage.name;
+    const terminal = stage.kind !== 'open';
 
     const tiles: Tile[] = [
         {
@@ -150,7 +149,7 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
         },
         {
             label: 'Avg fit',
-            value: fit(s.avg_fit),
+            value: fitValue(s.avg_fit),
             icon: TrendingUp,
             accent: ACCENTS.sky,
         },
@@ -165,7 +164,7 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
     if (!terminal) {
         tiles.push(
             {
-                label: nextLabel ? `Ready → ${nextLabel}` : 'Ready',
+                label: s.next_stage ? `Ready → ${s.next_stage}` : 'Ready',
                 value: s.ready,
                 icon: CheckCircle2,
                 accent: ACCENTS.violet,
@@ -182,7 +181,7 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
             label: 'Top fit',
             value: `${s.top.fit}`,
             icon: Trophy,
-            accent: stage === 'hired' ? ACCENTS.emerald : ACCENTS.slate,
+            accent: stage.kind === 'won' ? ACCENTS.emerald : ACCENTS.slate,
         });
     }
 
@@ -195,14 +194,14 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
             title: `No candidates in ${label}`,
             detail: 'Nothing to action in this stage right now.',
         };
-    } else if (stage === 'hired') {
+    } else if (stage.kind === 'won') {
         signal = {
             tone: 'positive',
             icon: UserCheck,
             title: `${s.count} candidate${s.count === 1 ? '' : 's'} hired`,
             detail: 'Converted into employees and copied into the 201 file.',
         };
-    } else if (stage === 'rejected') {
+    } else if (stage.kind === 'lost') {
         signal = {
             tone: 'neutral',
             icon: Users,
@@ -213,7 +212,7 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
         signal = {
             tone: 'positive',
             icon: CheckCircle2,
-            title: `${s.ready} ready to move${nextLabel ? ` to ${nextLabel}` : ' forward'}`,
+            title: `${s.ready} ready to move${s.next_stage ? ` to ${s.next_stage}` : ' forward'}`,
             detail: s.top
                 ? `${s.top.name} leads this stage at ${s.top.fit}% fit — a strong candidate to advance next.`
                 : 'The scorer flags these as strong enough for the next step.',
@@ -242,19 +241,20 @@ function stageView(stage: Exclude<StageFilter, 'all'>, s: StageInsight): View {
 /**
  * The decision-support panel above the pipeline board — a compact strip of
  * contextual stats plus an ML-driven "what to do next" signal that re-derives
- * itself from the fit scores whenever the recruiter switches stage tabs.
+ * itself from the fit scores whenever the recruiter switches stage.
  */
 export function PipelineInsights({
     insights,
     stage,
 }: {
     insights: PipelineInsightsData;
-    stage: StageFilter;
+    /** The selected stage, or 'all' for the whole-pipeline view. */
+    stage: PipelineStage | 'all';
 }) {
     const view =
         stage === 'all'
             ? overallView(insights.overall)
-            : stageView(stage, insights.stages[stage]);
+            : stageView(stage, insights.stages[stage.id]);
 
     const SignalIcon = view.signal.icon;
 

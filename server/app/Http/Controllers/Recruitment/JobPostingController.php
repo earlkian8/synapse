@@ -13,6 +13,7 @@ use App\Models\Department;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Position;
+use App\Models\RecruitmentPipeline;
 use App\Models\User;
 use App\Queries\JobPostingsIndexQuery;
 use App\Queries\RecruitmentStatistics;
@@ -21,6 +22,7 @@ use App\Support\Recruitment\ApplicantScorer;
 use App\Support\Recruitment\PipelineInsights;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,11 +57,18 @@ class JobPostingController extends Controller
      */
     public function show(Request $request, JobPosting $jobPosting, ApplicantScorer $scorer, PipelineInsights $insights): Response
     {
-        $jobPosting->load(['department:id,name,code', 'position:id,title', 'postedBy:id,first_name,middle_name,last_name,suffix'])
+        $jobPosting->load([
+            'department:id,name,code',
+            'position:id,title',
+            'postedBy:id,first_name,middle_name,last_name,suffix',
+            'pipeline.stages',
+            'screeningQuestions',
+        ])
             ->loadCount([
                 'applications',
                 'applications as open_count' => fn ($query) => $query->open(),
-                'applications as hired_count' => fn ($query) => $query->where('stage', 'hired'),
+                'applications as hired_count' => fn ($query) => $query
+                    ->whereHas('pipelineStage', fn ($q) => $q->where('kind', 'won')),
             ]);
 
         $applications = $jobPosting->applications()
@@ -67,30 +76,46 @@ class JobPostingController extends Controller
                 'applicant' => fn ($query) => $query->withCount('documents'),
                 'hiredEmployee:id,first_name,middle_name,last_name,suffix,employee_no',
                 'interviews:id,job_application_id,result',
+                'pipelineStage',
             ])
             ->withCount('interviews')
-            ->get();
+            ->get()
+            ->each(fn (JobApplication $application) => $application->setRelation('jobPosting', $jobPosting));
 
         $applications = $this->withFitScores($applications, $jobPosting, $scorer);
 
         return Inertia::render('recruitment/pipeline', [
             'posting' => (new JobPostingResource($jobPosting))->resolve($request),
             'applications' => JobApplicationResource::collection($applications)->resolve($request),
-            'insights' => $insights->build($applications),
+            'insights' => $insights->build($applications, $jobPosting->pipeline),
             'options' => $this->pipelineOptions($jobPosting),
             'can' => $this->permissions($request),
         ]);
     }
 
     /**
-     * Score each application, rank the active candidates by fit, and return the
-     * collection ordered so the strongest still-in-the-running candidates lead.
+     * Score each application (unless the posting turned automatic ranking off),
+     * rank the active candidates by fit, and return the collection ordered so
+     * the strongest still-in-the-running candidates lead — or, with ranking off,
+     * the newest applications first.
      *
      * @param  Collection<int, JobApplication>  $applications
      * @return Collection<int, JobApplication>
      */
     private function withFitScores($applications, JobPosting $posting, ApplicantScorer $scorer)
     {
+        if (! $posting->use_fit_scoring) {
+            $applications->each(fn (JobApplication $application) => $application->unsetRelation('interviews'));
+
+            return $applications
+                ->sortByDesc(fn (JobApplication $application): string => sprintf(
+                    '%d-%011d',
+                    $application->isOpen() ? 1 : 0,
+                    $application->applied_at?->timestamp ?? 0,
+                ))
+                ->values();
+        }
+
         $applications->each(function (JobApplication $application) use ($scorer, $posting): void {
             $score = $scorer->score($application, $posting);
             $application->fit = $score;
@@ -130,9 +155,11 @@ class JobPostingController extends Controller
     public function store(StoreJobPostingRequest $request): RedirectResponse
     {
         $posting = JobPosting::create([
-            ...$request->validated(),
+            ...Arr::except($request->validated(), 'screening_questions'),
             'posted_by' => $request->user()->id,
         ]);
+
+        $posting->syncScreeningQuestions($request->input('screening_questions', []));
 
         ActivityLogger::log(
             event: 'created',
@@ -150,7 +177,8 @@ class JobPostingController extends Controller
      */
     public function update(UpdateJobPostingRequest $request, JobPosting $jobPosting): RedirectResponse
     {
-        $jobPosting->update($request->validated());
+        $jobPosting->update(Arr::except($request->validated(), 'screening_questions'));
+        $jobPosting->syncScreeningQuestions($request->input('screening_questions', []));
 
         ActivityLogger::log(
             event: 'updated',
@@ -211,6 +239,7 @@ class JobPostingController extends Controller
         return [
             'departments' => Department::orderBy('name')->get(['id', 'name', 'code']),
             'positions' => Position::orderBy('title')->get(['id', 'title', 'department_id']),
+            'pipelines' => RecruitmentPipeline::orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'is_default']),
         ];
     }
 

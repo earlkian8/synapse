@@ -1,18 +1,18 @@
 import type { PipelineView } from '../types';
 import { useStoredView } from './use-stored-view';
 
-const ALLOWED: readonly PipelineView[] = ['table', 'grid'];
+const ALLOWED: readonly PipelineView[] = ['board', 'table'];
 
 /**
- * Remembers whether the recruiter prefers the flat table or the card grid on a
- * posting's pipeline, persisting the choice across visits.
+ * Remembers whether the recruiter prefers the sequential Kanban board or the
+ * dense table on a posting's pipeline, persisting the choice across visits.
  */
 export function usePipelineView() {
-    // Keyed `.v2` so the table default takes effect for everyone, retiring any
-    // stale grid preference persisted under the previous key.
+    // Keyed `.v3` so the board becomes the default for everyone, retiring any
+    // stale table/grid preference persisted under previous keys.
     return useStoredView<PipelineView>(
-        'recruitment.pipeline.view.v2',
+        'recruitment.pipeline.view.v3',
         ALLOWED,
-        'table',
+        'board',
     );
 }

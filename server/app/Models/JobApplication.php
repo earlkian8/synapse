@@ -9,34 +9,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use InvalidArgumentException;
 
 class JobApplication extends Model
 {
     /** @use HasFactory<JobApplicationFactory> */
     use BelongsToOrganization, HasFactory;
-
-    /**
-     * The ordered pipeline stages an application moves through.
-     *
-     * @var list<string>
-     */
-    public const STAGES = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
-
-    /**
-     * The non-terminal stages: a candidate is still in the running, and these are
-     * the only stages an application may be *moved* to (hiring and rejecting have
-     * dedicated actions with their own side effects).
-     *
-     * @var list<string>
-     */
-    public const OPEN_STAGES = ['applied', 'screening', 'interview', 'offer'];
-
-    /**
-     * The stages that end an application's journey.
-     *
-     * @var list<string>
-     */
-    public const TERMINAL_STAGES = ['hired', 'rejected'];
 
     /**
      * How long an open application may sit untouched before it counts as stalled.
@@ -47,11 +25,12 @@ class JobApplication extends Model
         'organization_id',
         'job_posting_id',
         'applicant_id',
-        'stage',
+        'recruitment_pipeline_stage_id',
         'rating',
         'expected_salary',
         'cover_note',
         'rejected_reason',
+        'screening_answers',
         'hired_employee_id',
         'applied_at',
         'decided_at',
@@ -65,6 +44,7 @@ class JobApplication extends Model
             'applied_at' => 'datetime',
             'decided_at' => 'datetime',
             'ai_insights' => 'array',
+            'screening_answers' => 'array',
         ];
     }
 
@@ -84,6 +64,16 @@ class JobApplication extends Model
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(Applicant::class);
+    }
+
+    /**
+     * Where this application currently sits in its posting's pipeline.
+     *
+     * @return BelongsTo<RecruitmentPipelineStage, $this>
+     */
+    public function pipelineStage(): BelongsTo
+    {
+        return $this->belongsTo(RecruitmentPipelineStage::class, 'recruitment_pipeline_stage_id');
     }
 
     /**
@@ -111,7 +101,7 @@ class JobApplication extends Model
      */
     public function isHired(): bool
     {
-        return $this->stage === 'hired' && $this->hired_employee_id !== null;
+        return $this->pipelineStage?->kind === 'won' && $this->hired_employee_id !== null;
     }
 
     /**
@@ -119,19 +109,29 @@ class JobApplication extends Model
      */
     public function isOpen(): bool
     {
-        return ! in_array($this->stage, self::TERMINAL_STAGES, true);
+        return $this->pipelineStage?->kind === 'open';
     }
 
     /**
-     * Move the application to a non-terminal stage, clearing any earlier decision
-     * (a rejected candidate brought back into the pipeline is no longer rejected).
-     * The one place a stage move happens, so the board, the public flow and the
-     * assistant can never drift apart.
+     * Move the application to an open (non-terminal) stage of its own pipeline,
+     * clearing any earlier decision (a rejected candidate brought back into the
+     * pipeline is no longer rejected). The one place a forward/lateral stage move
+     * happens, so the board, the public flow and the assistant can never drift
+     * apart. Hiring and rejecting are dedicated actions with their own side
+     * effects — see {@see rejectWith()} and `App\Support\ApplicantHirer`.
      */
-    public function moveTo(string $stage): void
+    public function moveTo(RecruitmentPipelineStage $stage): void
     {
+        if ($stage->kind !== 'open') {
+            throw new InvalidArgumentException('moveTo() only accepts an open-kind stage — use rejectWith() or the hire action instead.');
+        }
+
+        if ($stage->recruitment_pipeline_id !== $this->jobPosting->recruitment_pipeline_id) {
+            throw new InvalidArgumentException('That stage belongs to a different pipeline than this application\'s posting.');
+        }
+
         $this->update([
-            'stage' => $stage,
+            'recruitment_pipeline_stage_id' => $stage->id,
             'rejected_reason' => null,
             'decided_at' => null,
         ]);
@@ -139,12 +139,16 @@ class JobApplication extends Model
 
     /**
      * Turn the candidate down, recording the optional reason and stamping the
-     * decision.
+     * decision. Defaults to the pipeline's primary `lost` stage when the caller
+     * doesn't name one (a pipeline with several — "Rejected," "Withdrawn" — lets
+     * the caller pick).
      */
-    public function rejectWith(?string $reason = null): void
+    public function rejectWith(?RecruitmentPipelineStage $lostStage = null, ?string $reason = null): void
     {
+        $lostStage ??= $this->jobPosting->pipeline->defaultLostStage();
+
         $this->update([
-            'stage' => 'rejected',
+            'recruitment_pipeline_stage_id' => $lostStage->id,
             'rejected_reason' => $reason,
             'decided_at' => now(),
         ]);
@@ -167,7 +171,7 @@ class JobApplication extends Model
      */
     public function scopeOpen(Builder $query): void
     {
-        $query->whereNotIn('stage', self::TERMINAL_STAGES);
+        $query->whereHas('pipelineStage', fn (Builder $query) => $query->where('kind', 'open'));
     }
 
     /**

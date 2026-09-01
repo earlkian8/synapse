@@ -29,6 +29,7 @@ import {
     UserRoundCheck,
     UserRoundMinus,
     Users,
+    Workflow,
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
@@ -197,6 +198,12 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/kpi',
         icon: Target,
         permission: 'setup.kpi.view',
+    },
+    {
+        title: 'Recruitment Pipelines',
+        href: '/setup/recruitment-pipelines',
+        icon: Workflow,
+        permission: 'recruitment.configure-pipelines',
     },
     {
         title: 'Onboarding Programs',

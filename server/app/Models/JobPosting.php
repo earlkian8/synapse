@@ -18,6 +18,7 @@ class JobPosting extends Model
 
     protected $fillable = [
         'organization_id',
+        'recruitment_pipeline_id',
         'title',
         'department_id',
         'position_id',
@@ -25,6 +26,8 @@ class JobPosting extends Model
         'requirements',
         'min_years_experience',
         'skills',
+        'requires_resume',
+        'use_fit_scoring',
         'employment_type',
         'openings',
         'status',
@@ -38,11 +41,33 @@ class JobPosting extends Model
             'openings' => 'integer',
             'min_years_experience' => 'integer',
             'skills' => 'array',
+            'requires_resume' => 'boolean',
+            'use_fit_scoring' => 'boolean',
             'closing_date' => 'date',
         ];
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
+
+    /**
+     * The hiring process this posting's candidates move through.
+     *
+     * @return BelongsTo<RecruitmentPipeline, $this>
+     */
+    public function pipeline(): BelongsTo
+    {
+        return $this->belongsTo(RecruitmentPipeline::class, 'recruitment_pipeline_id');
+    }
+
+    /**
+     * The posting's own yes/no screening questions, in display order.
+     *
+     * @return HasMany<JobPostingScreeningQuestion, $this>
+     */
+    public function screeningQuestions(): HasMany
+    {
+        return $this->hasMany(JobPostingScreeningQuestion::class)->orderBy('position')->orderBy('id');
+    }
 
     /**
      * @return BelongsTo<Department, $this>
@@ -79,6 +104,25 @@ class JobPosting extends Model
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Replace the posting's screening questions wholesale — the form always sends
+     * the full ordered list, same principle as
+     * {@see RecruitmentPipeline::syncStages()}.
+     *
+     * @param  array<int, array{label: string}>  $questions
+     */
+    public function syncScreeningQuestions(array $questions): void
+    {
+        $this->screeningQuestions()->delete();
+
+        foreach (array_values($questions) as $index => $question) {
+            $this->screeningQuestions()->create([
+                'label' => $question['label'],
+                'position' => $index,
+            ]);
+        }
+    }
 
     /**
      * Whether an open posting has passed its closing date and should no longer

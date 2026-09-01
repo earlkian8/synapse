@@ -18,11 +18,14 @@ class JobApplicationResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'stage' => $this->stage,
+            'stage' => $this->pipelineStage->name,
+            'stage_id' => $this->pipelineStage->id,
+            'stage_kind' => $this->pipelineStage->kind,
             'rating' => $this->rating,
             'expected_salary' => $this->expected_salary,
             'cover_note' => $this->cover_note,
             'rejected_reason' => $this->rejected_reason,
+            'screening_answers' => $this->screening_answers ?? null,
             'is_hired' => $this->isHired(),
 
             // Decision-support signals, attached by the controller via the

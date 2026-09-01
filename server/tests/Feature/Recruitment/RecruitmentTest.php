@@ -39,9 +39,11 @@ test('it filters postings by status', function () {
 
 test('it creates a job posting', function () {
     actingAsSuperAdmin();
+    $pipeline = seedDefaultPipeline();
 
     $this->post(route('recruitment.store'), [
         'title' => 'Backend Engineer',
+        'recruitment_pipeline_id' => $pipeline->id,
         'employment_type' => 'regular',
         'openings' => 2,
         'status' => 'open',
@@ -53,9 +55,11 @@ test('it creates a job posting', function () {
 
 test('an open posting requires a closing date', function () {
     actingAsSuperAdmin();
+    $pipeline = seedDefaultPipeline();
 
     $this->post(route('recruitment.store'), [
         'title' => 'No Deadline',
+        'recruitment_pipeline_id' => $pipeline->id,
         'employment_type' => 'regular',
         'openings' => 1,
         'status' => 'open',
@@ -64,6 +68,7 @@ test('an open posting requires a closing date', function () {
     // A draft may omit it.
     $this->post(route('recruitment.store'), [
         'title' => 'Draft Role',
+        'recruitment_pipeline_id' => $pipeline->id,
         'employment_type' => 'regular',
         'openings' => 1,
         'status' => 'draft',
@@ -74,7 +79,7 @@ test('it validates required fields when creating a posting', function () {
     actingAsSuperAdmin();
 
     $this->post(route('recruitment.store'), [])
-        ->assertSessionHasErrors(['title', 'employment_type', 'openings', 'status']);
+        ->assertSessionHasErrors(['title', 'recruitment_pipeline_id', 'employment_type', 'openings', 'status']);
 });
 
 test('it updates and deletes a posting', function () {
@@ -83,6 +88,7 @@ test('it updates and deletes a posting', function () {
 
     $this->post(route('recruitment.update', $posting), [
         'title' => 'Renamed Role',
+        'recruitment_pipeline_id' => $posting->recruitment_pipeline_id,
         'employment_type' => 'contractual',
         'openings' => 1,
         'status' => 'open',
@@ -125,10 +131,11 @@ test('the pipeline board renders', function () {
 test('the pipeline board carries decision-support insights', function () {
     actingAsSuperAdmin();
     $posting = JobPosting::factory()->create();
-    JobApplication::factory()->count(3)->create([
-        'job_posting_id' => $posting->id,
-        'stage' => 'applied',
-    ]);
+    JobApplication::factory()->count(3)->stage('applied')->create(['job_posting_id' => $posting->id]);
+
+    $stages = $posting->pipeline->stages;
+    $appliedStageId = $stages->firstWhere('name', 'Applied')->id;
+    $hiredStageId = $stages->firstWhere('name', 'Hired')->id;
 
     $this->get(route('recruitment.show', $posting))
         ->assertOk()
@@ -137,8 +144,8 @@ test('the pipeline board carries decision-support insights', function () {
                 ->where('total', 3)
                 ->where('active', 3)
                 ->etc())
-            ->has('insights.stages.applied')
-            ->has('insights.stages.hired'));
+            ->has("insights.stages.{$appliedStageId}")
+            ->has("insights.stages.{$hiredStageId}"));
 });
 
 test('it exports a posting pipeline as csv', function () {
@@ -163,8 +170,10 @@ test('it adds a new applicant to the pipeline', function () {
     ])->assertSessionHasNoErrors();
 
     $applicant = Applicant::where('last_name', 'Candidate')->first();
+    $entryStage = $posting->pipeline->entryStage();
+
     expect($applicant)->not->toBeNull()
-        ->and($posting->applications()->where('applicant_id', $applicant->id)->where('stage', 'applied')->exists())->toBeTrue();
+        ->and($posting->applications()->where('applicant_id', $applicant->id)->where('recruitment_pipeline_stage_id', $entryStage->id)->exists())->toBeTrue();
 });
 
 test('it adds an existing applicant to the pipeline', function () {
@@ -197,47 +206,66 @@ test('it prevents a duplicate application for the same posting', function () {
 
 test('it moves an application to another stage', function () {
     actingAsSuperAdmin();
-    $application = JobApplication::factory()->create(['stage' => 'applied']);
+    $application = JobApplication::factory()->stage('applied')->create();
+    $screening = $application->jobPosting->pipeline->stages->firstWhere('name', 'Screening');
 
-    $this->patch(route('recruitment.applications.stage', $application), ['stage' => 'screening'])
+    $this->patch(route('recruitment.applications.stage', $application), ['stage_id' => $screening->id])
         ->assertSessionHasNoErrors();
 
-    expect($application->fresh()->stage)->toBe('screening');
+    expect($application->fresh()->pipelineStage->name)->toBe('Screening');
 });
 
 test('it cannot move an application straight to hired via the stage endpoint', function () {
     actingAsSuperAdmin();
-    $application = JobApplication::factory()->create(['stage' => 'offer']);
+    $application = JobApplication::factory()->stage('offer')->create();
+    $hired = $application->jobPosting->pipeline->stages->firstWhere('name', 'Hired');
 
-    $this->patch(route('recruitment.applications.stage', $application), ['stage' => 'hired'])
-        ->assertSessionHasErrors('stage');
+    $this->patch(route('recruitment.applications.stage', $application), ['stage_id' => $hired->id])
+        ->assertSessionHasErrors('stage_id');
 });
 
 test('it rejects an application with a reason', function () {
     actingAsSuperAdmin();
-    $application = JobApplication::factory()->create(['stage' => 'screening']);
+    $application = JobApplication::factory()->stage('screening')->create();
 
     $this->patch(route('recruitment.applications.reject', $application), ['reason' => 'Withdrew'])
         ->assertSessionHasNoErrors();
 
     $fresh = $application->fresh();
-    expect($fresh->stage)->toBe('rejected')
+    expect($fresh->pipelineStage->name)->toBe('Rejected')
         ->and($fresh->rejected_reason)->toBe('Withdrew');
 });
 
 // ── Interviews ────────────────────────────────────────────────────────────────
 
-test('scheduling an interview advances the application to the interview stage', function () {
+test('scheduling an interview advances the application by one open stage, by default', function () {
     actingAsSuperAdmin();
-    $application = JobApplication::factory()->create(['stage' => 'applied']);
+    $application = JobApplication::factory()->stage('applied')->create();
 
     $this->post(route('recruitment.interviews.store', $application), [
         'scheduled_at' => now()->addDays(2)->toDateTimeString(),
         'mode' => 'online',
     ])->assertSessionHasNoErrors();
 
+    // Generic behaviour: one step forward (Applied -> Screening) rather than a
+    // hardcoded jump to a stage named "Interview" — a custom pipeline has no
+    // such privileged stage. Naming a target explicitly (below) still works.
     expect($application->interviews()->count())->toBe(1)
-        ->and($application->fresh()->stage)->toBe('interview');
+        ->and($application->fresh()->pipelineStage->name)->toBe('Screening');
+});
+
+test('scheduling an interview can target a named stage explicitly', function () {
+    actingAsSuperAdmin();
+    $application = JobApplication::factory()->stage('applied')->create();
+    $interviewStage = $application->jobPosting->pipeline->stages->firstWhere('name', 'Interview');
+
+    $this->post(route('recruitment.interviews.store', $application), [
+        'scheduled_at' => now()->addDays(2)->toDateTimeString(),
+        'mode' => 'online',
+        'stage_id' => $interviewStage->id,
+    ])->assertSessionHasNoErrors();
+
+    expect($application->fresh()->pipelineStage->name)->toBe('Interview');
 });
 
 test('it records an interview result', function () {
@@ -265,10 +293,9 @@ test('hiring an applicant creates a linked employee and fills the posting', func
         'status' => 'open',
     ]);
     $applicant = Applicant::factory()->create(['first_name' => 'Future', 'last_name' => 'Hire']);
-    $application = JobApplication::factory()->create([
+    $application = JobApplication::factory()->stage('offer')->create([
         'job_posting_id' => $posting->id,
         'applicant_id' => $applicant->id,
-        'stage' => 'offer',
     ]);
 
     $this->post(route('recruitment.applications.hire', $application))
@@ -280,7 +307,7 @@ test('hiring an applicant creates a linked employee and fills the posting', func
     expect($employee)->not->toBeNull()
         ->and($employee->department_id)->toBe($department->id)
         ->and($employee->position_id)->toBe($position->id)
-        ->and($fresh->stage)->toBe('hired')
+        ->and($fresh->pipelineStage->name)->toBe('Hired')
         ->and($fresh->hired_employee_id)->toBe($employee->id)
         ->and($posting->fresh()->status)->toBe('filled');
 });
@@ -288,8 +315,7 @@ test('hiring an applicant creates a linked employee and fills the posting', func
 test('an applicant cannot be hired twice', function () {
     actingAsSuperAdmin();
     $employee = Employee::factory()->create();
-    $application = JobApplication::factory()->create([
-        'stage' => 'hired',
+    $application = JobApplication::factory()->stage('hired')->create([
         'hired_employee_id' => $employee->id,
     ]);
 

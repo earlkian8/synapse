@@ -3,45 +3,35 @@
 namespace App\Support\Recruitment;
 
 use App\Models\JobApplication;
+use App\Models\RecruitmentPipeline;
+use App\Models\RecruitmentPipelineStage;
 use Illuminate\Support\Collection;
 
 /**
  * Turns a posting's already-scored applications into pipeline-level decision
  * support: an overall read plus per-stage metrics — average fit, strong
  * matches, candidates ready to advance, stalled cards, and the standout
- * candidate. The recruiter sees a contextual summary for whichever stage tab
+ * candidate. The recruiter sees a contextual summary for whichever stage
  * they're viewing.
  *
  * It reuses the {@see ApplicantScorer} fit + recommendation the controller has
- * already attached to each application, so no scoring is repeated here.
+ * already attached to each application, so no scoring is repeated here. Driven
+ * entirely by the posting's own pipeline (its actual stages, in order) rather
+ * than a hardcoded list, so it works the same for any custom pipeline.
  */
 class PipelineInsights
 {
-    /** Non-terminal stages a candidate can still advance through. */
-    private const OPEN_STAGES = JobApplication::OPEN_STAGES;
-
-    /** The stage each open stage advances into (for "ready to advance" copy). */
-    private const NEXT_STAGE = [
-        'applied' => 'screening',
-        'screening' => 'interview',
-        'interview' => 'offer',
-        'offer' => 'hired',
-    ];
-
     /**
      * Build the full insights payload for the pipeline board.
      *
      * @param  Collection<int, JobApplication>  $applications  Already scored.
      * @return array<string, mixed>
      */
-    public function build($applications): array
+    public function build(Collection $applications, RecruitmentPipeline $pipeline): array
     {
-        $active = $applications->filter(
-            fn (JobApplication $a): bool => in_array($a->stage, self::OPEN_STAGES, true)
-        );
-
-        $hired = $applications->where('stage', 'hired');
-        $rejected = $applications->where('stage', 'rejected');
+        $active = $applications->filter(fn (JobApplication $a): bool => $a->pipelineStage->kind === 'open');
+        $hired = $applications->filter(fn (JobApplication $a): bool => $a->pipelineStage->kind === 'won');
+        $rejected = $applications->filter(fn (JobApplication $a): bool => $a->pipelineStage->kind === 'lost');
         $total = $applications->count();
         $decided = $hired->count() + $rejected->count();
 
@@ -58,9 +48,13 @@ class PipelineInsights
                 'conversion' => $decided > 0 ? (int) round($hired->count() / $decided * 100) : null,
                 'top' => $this->topCandidate($active, withStage: true),
             ],
-            'stages' => collect(['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'])
-                ->mapWithKeys(fn (string $stage): array => [
-                    $stage => $this->stage($applications->where('stage', $stage), $stage),
+            'stages' => $pipeline->stages
+                ->mapWithKeys(fn (RecruitmentPipelineStage $stage): array => [
+                    $stage->id => $this->stage(
+                        $applications->where('recruitment_pipeline_stage_id', $stage->id),
+                        $stage,
+                        $pipeline,
+                    ),
                 ])
                 ->all(),
         ];
@@ -72,9 +66,10 @@ class PipelineInsights
      * @param  Collection<int, JobApplication>  $apps
      * @return array<string, mixed>
      */
-    private function stage($apps, string $stage): array
+    private function stage(Collection $apps, RecruitmentPipelineStage $stage, RecruitmentPipeline $pipeline): array
     {
-        $open = in_array($stage, self::OPEN_STAGES, true);
+        $open = $stage->kind === 'open';
+        $next = $open ? $pipeline->nextOpenStageAfter($stage) : null;
 
         return [
             'count' => $apps->count(),
@@ -82,7 +77,7 @@ class PipelineInsights
             'strong' => $this->strongCount($apps),
             'ready' => $open ? $this->readyCount($apps) : 0,
             'stalled' => $open ? $this->stalledCount($apps) : 0,
-            'next_stage' => self::NEXT_STAGE[$stage] ?? null,
+            'next_stage' => $next?->name,
             'top' => $this->topCandidate($apps),
         ];
     }
@@ -93,7 +88,7 @@ class PipelineInsights
      *
      * @param  Collection<int, JobApplication>  $apps
      */
-    private function averageFit($apps): ?int
+    private function averageFit(Collection $apps): ?int
     {
         $values = $apps
             ->map(fn (JobApplication $a): ?int => $a->fit['value'] ?? null)
@@ -107,18 +102,18 @@ class PipelineInsights
      *
      * @param  Collection<int, JobApplication>  $apps
      */
-    private function strongCount($apps): int
+    private function strongCount(Collection $apps): int
     {
         return $apps->filter(fn (JobApplication $a): bool => ($a->fit['band'] ?? null) === 'strong')->count();
     }
 
     /**
      * How many applications the scorer flags as ready for their next step (a
-     * positive recommendation with an actionable target stage).
+     * positive recommendation with an actionable target).
      *
      * @param  Collection<int, JobApplication>  $apps
      */
-    private function readyCount($apps): int
+    private function readyCount(Collection $apps): int
     {
         return $apps->filter(fn (JobApplication $a): bool => ($a->recommendation['tone'] ?? null) === 'positive'
             && ($a->recommendation['action'] ?? null) !== null)->count();
@@ -130,7 +125,7 @@ class PipelineInsights
      *
      * @param  Collection<int, JobApplication>  $apps
      */
-    private function stalledCount($apps): int
+    private function stalledCount(Collection $apps): int
     {
         return $apps->filter(
             fn (JobApplication $a): bool => $a->daysInPipeline() >= JobApplication::STALL_DAYS
@@ -139,12 +134,12 @@ class PipelineInsights
 
     /**
      * The standout candidate in a set — the highest fit, with an optional stage
-     * so the overall banner can point recruiters at the right column.
+     * name so the overall banner can point recruiters at the right column.
      *
      * @param  Collection<int, JobApplication>  $apps
      * @return array<string, mixed>|null
      */
-    private function topCandidate($apps, bool $withStage = false): ?array
+    private function topCandidate(Collection $apps, bool $withStage = false): ?array
     {
         $top = $apps
             ->filter(fn (JobApplication $a): bool => ($a->fit['value'] ?? null) !== null)
@@ -158,7 +153,7 @@ class PipelineInsights
         return array_filter([
             'name' => $top->applicant->full_name,
             'fit' => $top->fit['value'],
-            'stage' => $withStage ? $top->stage : null,
+            'stage' => $withStage ? $top->pipelineStage->name : null,
         ], fn ($v): bool => $v !== null);
     }
 }

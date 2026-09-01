@@ -13,6 +13,8 @@ use App\Models\Interview;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Position;
+use App\Models\RecruitmentPipeline;
+use App\Models\RecruitmentPipelineStage;
 use App\Models\User;
 use App\Queries\RecruitmentStatistics;
 use App\Services\Assistant\ToolResult;
@@ -152,18 +154,21 @@ class RecruitmentModule extends Module
         $positions = Position::orderBy('title')->pluck('title')->implode(', ') ?: 'none';
         $postingTypes = implode(', ', StoreJobPostingRequest::EMPLOYMENT_TYPES);
         $sources = implode(', ', StoreApplicantRequest::SOURCES);
-        $stages = implode(' → ', JobApplication::STAGES);
-        $movable = implode(', ', JobApplication::OPEN_STAGES);
+        $defaultPipeline = $this->defaultPipeline();
+        $stages = $defaultPipeline ? $defaultPipeline->stages->pluck('name')->implode(' → ') : null;
+        $movable = $defaultPipeline ? $defaultPipeline->stages->where('kind', 'open')->pluck('name')->implode(', ') : null;
 
         $lines = [
-            "RECRUITMENT — the applicant tracking system: job postings and the hiring pipeline ({$stages}).",
+            $stages
+                ? "RECRUITMENT — the applicant tracking system: job postings and the hiring pipeline. The organisation's default pipeline is {$stages} — but every posting can use a different, custom pipeline, so ALWAYS use the exact stage names a tool returned for that posting (in find_job_postings, find_applications, a candidate's profile) rather than assuming these names apply everywhere."
+                : 'RECRUITMENT — the applicant tracking system: job postings and the hiring pipeline. This organisation has not configured a hiring pipeline yet (Company Setup → Recruitment Pipelines) — creating a posting will fail until one exists; tell the user to set one up first.',
             '- Reading: find_job_postings, find_applicants (the candidate pool), find_applications (the pipeline), find_interviews.',
             '- Decision support: recruitment_summary (org-wide, or one posting\'s pipeline health), rank_candidates (best-fit shortlist for a posting), candidate_profile (one candidate\'s fit breakdown, rating, interviews and recommended next step).',
             '- candidate_insights asks the LLM to READ the candidate\'s actual résumé and documents. It costs a model call, so use it only when the user explicitly wants an AI read/opinion of a candidate; the saved read is returned unless they ask to refresh it.',
         ];
 
         if ($this->allows($user, 'recruitment.create')) {
-            $lines[] = '- create_job_posting opens a vacancy (an `open` posting needs a closing date). add_applicant puts someone in the pool without a vacancy; add_application puts a candidate into a posting\'s pipeline (creating the applicant if new).';
+            $lines[] = '- create_job_posting opens a vacancy on the organisation\'s default pipeline (an `open` posting needs a closing date). add_applicant puts someone in the pool without a vacancy; add_application puts a candidate into a posting\'s pipeline, at its first stage (creating the applicant if new).';
         }
 
         if ($this->allows($user, 'recruitment.update')) {
@@ -171,7 +176,7 @@ class RecruitmentModule extends Module
         }
 
         if ($this->allows($user, 'recruitment.manage-pipeline')) {
-            $lines[] = "- move_application moves a candidate to a named stage ({$movable}); advance_application takes whatever the system recommends as their next step. reject_application turns them down; withdraw_application removes the card from the pipeline entirely.";
+            $lines[] = '- move_application moves a candidate to a named stage of their own posting\'s pipeline'.($movable ? " (on the default pipeline: {$movable})" : '').'; advance_application takes whatever the system recommends as their next step. reject_application turns them down; withdraw_application removes the card from the pipeline entirely.';
         }
 
         if ($this->allows($user, 'recruitment.schedule-interviews')) {
@@ -323,7 +328,7 @@ class RecruitmentModule extends Module
                     'properties' => [
                         'query' => ['type' => 'STRING', 'description' => 'Candidate name.'],
                         'posting' => $postingArg,
-                        'stage' => ['type' => 'STRING', 'enum' => JobApplication::STAGES],
+                        'stage' => ['type' => 'STRING', 'description' => 'Exact stage name — use what a posting\'s own pipeline calls it (stages vary by posting).'],
                         'stalled' => ['type' => 'BOOLEAN', 'description' => 'Only candidates sitting untouched past the stall threshold.'],
                     ],
                 ],
@@ -348,7 +353,7 @@ class RecruitmentModule extends Module
                     'type' => 'OBJECT',
                     'properties' => [
                         'applicant' => $applicantArg,
-                        'stage' => ['type' => 'STRING', 'enum' => JobApplication::OPEN_STAGES],
+                        'stage' => ['type' => 'STRING', 'description' => 'Exact name of an open (non-terminal) stage on the candidate\'s posting\'s pipeline.'],
                         'posting' => ['type' => 'STRING', 'description' => 'Narrow to one posting when the candidate applied to several.'],
                     ],
                     'required' => ['applicant', 'stage'],
@@ -442,6 +447,7 @@ class RecruitmentModule extends Module
                         'interviewer' => ['type' => 'STRING', 'description' => 'Interviewer name (a system user).'],
                         'location' => ['type' => 'STRING'],
                         'notes' => ['type' => 'STRING'],
+                        'stage' => ['type' => 'STRING', 'description' => 'Which pipeline stage to move the candidate to once scheduled. Defaults to the pipeline\'s next open stage.'],
                     ],
                     'required' => ['applicant', 'scheduled_at', 'mode'],
                 ],
@@ -490,7 +496,7 @@ class RecruitmentModule extends Module
                     'type' => 'OBJECT',
                     'properties' => [
                         'posting' => $postingArg,
-                        'stage' => ['type' => 'STRING', 'enum' => JobApplication::STAGES, 'description' => 'Only candidates in this stage.'],
+                        'stage' => ['type' => 'STRING', 'description' => 'Only candidates in this exact stage name (this posting\'s pipeline).'],
                         'limit' => ['type' => 'INTEGER', 'description' => 'How many to return (default 5, max 10).'],
                     ],
                     'required' => ['posting'],
@@ -564,6 +570,14 @@ class RecruitmentModule extends Module
             return $this->denied('create job postings');
         }
 
+        $pipeline = $this->defaultPipeline();
+        if ($pipeline === null) {
+            return ToolResult::error(
+                'Checked the hiring pipeline',
+                'This organisation has not set up a hiring pipeline yet — configure one in Company Setup → Recruitment Pipelines first.',
+            );
+        }
+
         $department = $this->resolveLabel(Department::query(), 'name', $this->firstFilled($args, ['department', 'department_name']));
         if ($department instanceof ToolResult) {
             return $department;
@@ -576,6 +590,7 @@ class RecruitmentModule extends Module
 
         $data = [
             'title' => trim((string) ($args['title'] ?? '')),
+            'recruitment_pipeline_id' => $pipeline->id,
             'department_id' => $department,
             'position_id' => $position,
             'description' => $args['description'] ?? null,
@@ -621,6 +636,7 @@ class RecruitmentModule extends Module
 
         $data = [
             'title' => $this->firstFilled($args, ['title', 'new_title']) ?? $posting->title,
+            'recruitment_pipeline_id' => $posting->recruitment_pipeline_id,
             'department_id' => $posting->department_id,
             'position_id' => $posting->position_id,
             'description' => array_key_exists('description', $args) ? $args['description'] : $posting->description,
@@ -854,7 +870,7 @@ class RecruitmentModule extends Module
             return ToolResult::error('Looked up the candidate', 'No matching candidate found.');
         }
 
-        if ($applicant->applications()->where('stage', 'hired')->exists()) {
+        if ($applicant->applications()->whereHas('pipelineStage', fn (Builder $q) => $q->where('kind', 'won'))->exists()) {
             return ToolResult::error("Checked {$applicant->full_name}", 'That candidate has already been hired — their record is part of the employee’s history.');
         }
 
@@ -877,21 +893,43 @@ class RecruitmentModule extends Module
     private function findApplications(User $user, array $args): ToolResult
     {
         $query = trim((string) $this->firstFilled($args, ['query', 'applicant', 'match']));
-        $stage = $this->normaliseStage($args['stage'] ?? null, JobApplication::STAGES);
         $posting = $this->locatePosting($args);
         $stalled = (bool) ($args['stalled'] ?? false);
+        $stageName = $this->firstFilled($args, ['stage']);
+        $stageIds = null;
+
+        if ($stageName !== null && $posting !== null) {
+            $stage = $this->resolveStageByName($posting->pipeline, $stageName);
+
+            if ($stage === null) {
+                return ToolResult::error(
+                    'Checked the stage',
+                    'No stage named “'.$stageName.'” on that posting\'s pipeline. Valid stages: '.$posting->pipeline->stages->pluck('name')->implode(', ').'.',
+                );
+            }
+
+            $stageIds = [$stage->id];
+        } elseif ($stageName !== null) {
+            // No posting named — match the stage by name across every pipeline
+            // in the tenant, since more than one may share a stage name.
+            $stageIds = RecruitmentPipelineStage::whereRaw('lower(name) = ?', [mb_strtolower($stageName)])->pluck('id');
+
+            if ($stageIds->isEmpty()) {
+                return ToolResult::error('Checked the stage', 'No stage named “'.$stageName.'” found.');
+            }
+        }
 
         $applications = JobApplication::query()
-            ->with(['applicant', 'jobPosting'])
+            ->with(['applicant', 'jobPosting', 'pipelineStage'])
             ->when($query !== '', fn (Builder $q) => $q->whereHas('applicant', fn (Builder $a) => $this->matchByTokens($a, $query)))
             ->when($posting, fn (Builder $q) => $q->where('job_posting_id', $posting->id))
-            ->when($stage, fn (Builder $q) => $q->where('stage', $stage))
+            ->when($stageIds, fn (Builder $q) => $q->whereIn('recruitment_pipeline_stage_id', $stageIds))
             ->when($stalled, fn (Builder $q) => $q->stalled())
             ->latest('applied_at')
             ->limit(self::FIND_LIMIT)
             ->get();
 
-        $cards = $applications->map(fn (JobApplication $a): array => $this->applicationCard($a, 'find', 'neutral', ucfirst($a->stage)))->all();
+        $cards = $applications->map(fn (JobApplication $a): array => $this->applicationCard($a, 'find', 'neutral', ucfirst($a->pipelineStage->name)))->all();
 
         $label = match (true) {
             $stalled => 'Looked for stalled candidates',
@@ -942,10 +980,12 @@ class RecruitmentModule extends Module
             return ToolResult::error('Validated the application', $details->errors()->first());
         }
 
+        $entryStage = $posting->pipeline->entryStage();
+
         $application = $posting->applications()->create([
             ...$details->validated(),
             'applicant_id' => $applicant->id,
-            'stage' => 'applied',
+            'recruitment_pipeline_stage_id' => $entryStage->id,
             'applied_at' => now(),
         ]);
 
@@ -962,7 +1002,9 @@ class RecruitmentModule extends Module
 
         $application->setRelation('applicant', $applicant)->setRelation('jobPosting', $posting);
 
-        return ToolResult::ok("Added {$applicant->full_name} to “{$posting->title}”", null, $this->applicationCard($application, 'add', 'positive', 'Applied'));
+        $application->setRelation('pipelineStage', $entryStage);
+
+        return ToolResult::ok("Added {$applicant->full_name} to “{$posting->title}”", null, $this->applicationCard($application, 'add', 'positive', $entryStage->name));
     }
 
     /**
@@ -974,11 +1016,6 @@ class RecruitmentModule extends Module
             return $this->denied('move applications');
         }
 
-        $stage = $this->normaliseStage($args['stage'] ?? null, JobApplication::OPEN_STAGES);
-        if ($stage === null) {
-            return ToolResult::error('Moved the application', 'Stage must be one of: '.implode(', ', JobApplication::OPEN_STAGES).'.');
-        }
-
         // Fall back to a decided application so a rejected candidate can be
         // brought back into the pipeline; a hire is final and stays that way.
         $application = $this->locateApplication($args) ?? $this->locateApplication($args, activeOnly: false);
@@ -987,25 +1024,34 @@ class RecruitmentModule extends Module
             return ToolResult::error('Looked up the candidate', 'No application found for that candidate.');
         }
 
-        if ($application->stage === 'hired') {
+        if ($application->pipelineStage->kind === 'won') {
             return ToolResult::error("Checked {$application->applicant->full_name}", 'That candidate has already been hired.');
         }
 
-        $reinstated = $application->stage === 'rejected';
+        $pipeline = $application->jobPosting->pipeline;
+        $stage = $this->resolveStageByName($pipeline, $args['stage'] ?? null, kind: 'open');
+
+        if ($stage === null) {
+            $openNames = $pipeline->stages->where('kind', 'open')->pluck('name')->implode(', ');
+
+            return ToolResult::error('Moved the application', "Stage must be one of: {$openNames}.");
+        }
+
+        $reinstated = $application->pipelineStage->kind === 'lost';
         $application->moveTo($stage);
 
         $this->log(
             'updated',
-            ($reinstated ? "Reinstated {$application->applicant->full_name} at " : "Moved {$application->applicant->full_name} to ")."{$stage} via assistant",
+            ($reinstated ? "Reinstated {$application->applicant->full_name} at " : "Moved {$application->applicant->full_name} to ")."{$stage->name} via assistant",
             $application->jobPosting,
             $application->applicant->full_name,
-            ['stage' => $stage],
+            ['stage' => $stage->name],
         );
 
         return ToolResult::ok(
-            ($reinstated ? "Reinstated {$application->applicant->full_name} at " : "Moved {$application->applicant->full_name} to ").$stage,
+            ($reinstated ? "Reinstated {$application->applicant->full_name} at " : "Moved {$application->applicant->full_name} to ").$stage->name,
             null,
-            $this->applicationCard($application->fresh(['applicant', 'jobPosting']), 'move', 'info', ucfirst($stage)),
+            $this->applicationCard($application->fresh(['applicant', 'jobPosting', 'pipelineStage']), 'move', 'info', ucfirst($stage->name)),
         );
     }
 
@@ -1036,21 +1082,22 @@ class RecruitmentModule extends Module
             return ToolResult::error("Reviewed {$name}", $recommendation['label'].' — '.$recommendation['hint']);
         }
 
-        if (! in_array($action, JobApplication::OPEN_STAGES, true)) {
+        if ($action !== 'advance') {
             return ToolResult::error(
                 "Reviewed {$name}",
                 "The recommended next step is “{$recommendation['label']}” — tell me to do that explicitly and I will.",
             );
         }
 
-        $application->moveTo($action);
+        $stage = RecruitmentPipelineStage::findOrFail($recommendation['stage_id']);
+        $application->moveTo($stage);
 
-        $this->log('updated', "Advanced {$name} to {$action} via assistant", $application->jobPosting, $name, ['stage' => $action]);
+        $this->log('updated', "Advanced {$name} to {$stage->name} via assistant", $application->jobPosting, $name, ['stage' => $stage->name]);
 
         return ToolResult::ok(
-            "Advanced {$name} to {$action}",
+            "Advanced {$name} to {$stage->name}",
             $recommendation['hint'],
-            $this->applicationCard($application->fresh(['applicant', 'jobPosting']), 'move', 'positive', ucfirst($action)),
+            $this->applicationCard($application->fresh(['applicant', 'jobPosting', 'pipelineStage']), 'move', 'positive', ucfirst($stage->name)),
         );
     }
 
@@ -1094,7 +1141,7 @@ class RecruitmentModule extends Module
         return ToolResult::ok(
             "Updated {$name}'s application",
             $detail,
-            $this->applicationCard($application->fresh(['applicant', 'jobPosting']), 'edit', 'info', 'Updated'),
+            $this->applicationCard($application->fresh(['applicant', 'jobPosting', 'pipelineStage']), 'edit', 'info', 'Updated'),
         );
     }
 
@@ -1112,7 +1159,7 @@ class RecruitmentModule extends Module
             return ToolResult::error('Looked up the candidate', 'No active application found for that candidate.');
         }
 
-        $application->rejectWith($this->firstFilled($args, ['reason', 'rejected_reason']));
+        $application->rejectWith(reason: $this->firstFilled($args, ['reason', 'rejected_reason']));
 
         $name = $application->applicant->full_name;
         $this->log('updated', "Rejected {$name} via assistant", $application->jobPosting, $name);
@@ -1120,7 +1167,7 @@ class RecruitmentModule extends Module
         return ToolResult::ok(
             "Rejected {$name}",
             null,
-            $this->applicationCard($application->fresh(['applicant', 'jobPosting']), 'reject', 'danger', 'Rejected'),
+            $this->applicationCard($application->fresh(['applicant', 'jobPosting', 'pipelineStage']), 'reject', 'danger', 'Rejected'),
         );
     }
 
@@ -1242,6 +1289,17 @@ class RecruitmentModule extends Module
             return ToolResult::error('Looked up the candidate', 'No active application found for that candidate.');
         }
 
+        $targetStage = null;
+        if (filled($args['stage'] ?? null)) {
+            $targetStage = $this->resolveStageByName($application->jobPosting->pipeline, $args['stage'], kind: 'open');
+
+            if ($targetStage === null) {
+                $openNames = $application->jobPosting->pipeline->stages->where('kind', 'open')->pluck('name')->implode(', ');
+
+                return ToolResult::error('Scheduled the interview', "No open stage named “{$args['stage']}” — try one of: {$openNames}.");
+            }
+        }
+
         $data = [
             'interviewer_id' => $this->resolveInterviewer($args),
             'scheduled_at' => $this->dateTime($args['scheduled_at'] ?? null),
@@ -1250,18 +1308,18 @@ class RecruitmentModule extends Module
             'notes' => $args['notes'] ?? null,
         ];
 
-        $validator = Validator::make($data, (new StoreInterviewRequest)->rules());
+        $validator = Validator::make($data, collect((new StoreInterviewRequest)->rules())->only(array_keys($data))->all());
 
         if ($validator->fails()) {
             return ToolResult::error('Validated the interview', $validator->errors()->first());
         }
 
-        $interview = InterviewScheduler::book($application, $validator->validated());
+        $interview = InterviewScheduler::book($application, $validator->validated(), $targetStage);
 
         $name = $application->applicant->full_name;
         $this->log('created', "Scheduled an interview for {$name} via assistant", $application->jobPosting, $name);
 
-        $interview->setRelation('application', $application->fresh(['applicant', 'jobPosting']));
+        $interview->setRelation('application', $application->fresh(['applicant', 'jobPosting', 'pipelineStage']));
 
         return ToolResult::ok(
             "Scheduled interview for {$name}",
@@ -1367,8 +1425,9 @@ class RecruitmentModule extends Module
             return $this->organisationSummary();
         }
 
+        $posting->loadMissing('pipeline.stages');
         $applications = $this->scoredApplications($posting);
-        $insights = $this->pipeline->build($applications);
+        $insights = $this->pipeline->build($applications, $posting->pipeline);
         $overall = $insights['overall'];
 
         $top = $overall['top'] ?? null;
@@ -1410,11 +1469,12 @@ class RecruitmentModule extends Module
             return ToolResult::error('Looked up the posting', 'No matching job posting found.');
         }
 
-        $stage = $this->normaliseStage($args['stage'] ?? null, JobApplication::STAGES);
+        $posting->loadMissing('pipeline.stages');
+        $stage = $this->resolveStageByName($posting->pipeline, $args['stage'] ?? null);
         $limit = min(max((int) ($args['limit'] ?? self::RANK_DEFAULT), 1), self::RANK_MAX);
 
         $ranked = $this->scoredApplications($posting)
-            ->when($stage !== null, fn ($apps) => $apps->where('stage', $stage))
+            ->when($stage !== null, fn ($apps) => $apps->where('recruitment_pipeline_stage_id', $stage->id))
             // Terminal cards keep their score but are out of contention, so an
             // unfiltered shortlist only ranks candidates still in the running.
             ->when($stage === null, fn ($apps) => $apps->filter(fn (JobApplication $a): bool => $a->isOpen()))
@@ -1436,7 +1496,7 @@ class RecruitmentModule extends Module
                 badge: '#'.($index + 1),
                 title: $applicant?->full_name ?? 'Candidate',
                 subtitle: "Fit {$application->fit['value']}/100 · {$application->fit['band']}",
-                meta: [ucfirst($application->stage), $application->recommendation['label']],
+                meta: [ucfirst($application->pipelineStage->name), $application->recommendation['label']],
                 avatar: $applicant
                     ? ['name' => $applicant->full_name, 'initials' => $applicant->initials(), 'photo' => null]
                     : null,
@@ -1480,7 +1540,7 @@ class RecruitmentModule extends Module
         ];
 
         $subtitle = collect([
-            ucfirst($application->stage).' on '.($application->jobPosting?->title ?? 'a posting'),
+            ucfirst($application->pipelineStage->name).' on '.($application->jobPosting?->title ?? 'a posting'),
             $applicant?->headline,
             $application->applied_at ? 'applied '.$application->applied_at->diffForHumans() : null,
         ])->filter()->implode(' · ');
@@ -1569,7 +1629,7 @@ class RecruitmentModule extends Module
             .", {$stats['in_pipeline']} candidate".($stats['in_pipeline'] === 1 ? '' : 's').' in the pipeline';
 
         $meta = [
-            $stats['offers'].' at offer',
+            $stats['final_stage'].' at their final stage',
             $stats['interviews_upcoming'].' interview'.($stats['interviews_upcoming'] === 1 ? '' : 's').' upcoming',
             $stats['hired_this_month'].' hired this month',
             $stalled > 0 ? "{$stalled} stalled" : null,
@@ -1633,10 +1693,13 @@ class RecruitmentModule extends Module
      */
     private function scoredApplications(JobPosting $posting): EloquentCollection
     {
+        $posting->loadMissing('pipeline.stages');
+
         $applications = $posting->applications()
             ->with([
                 'applicant' => fn ($query) => $query->withCount('documents'),
                 'interviews:id,job_application_id,result',
+                'pipelineStage',
             ])
             ->get();
 
@@ -1656,7 +1719,7 @@ class RecruitmentModule extends Module
      */
     private function score(JobApplication $application): array
     {
-        $application->loadMissing(['jobPosting', 'interviews']);
+        $application->loadMissing(['jobPosting.pipeline.stages', 'interviews', 'pipelineStage']);
 
         if (! $application->relationLoaded('applicant') || $application->applicant?->documents_count === null) {
             $application->load(['applicant' => fn ($query) => $query->withCount('documents')]);
@@ -1736,7 +1799,7 @@ class RecruitmentModule extends Module
         $posting = $this->locatePosting($args);
 
         $applications = JobApplication::query()
-            ->with(['applicant', 'jobPosting'])
+            ->with(['applicant', 'jobPosting.pipeline.stages', 'pipelineStage'])
             ->where('applicant_id', $applicant->id)
             ->when($posting, fn (Builder $q) => $q->where('job_posting_id', $posting->id));
 
@@ -1930,13 +1993,33 @@ class RecruitmentModule extends Module
     }
 
     /**
-     * @param  list<string>  $allowed
+     * The organisation's default pipeline (with its stages loaded) — the one
+     * create_job_posting uses, and what guidance() describes as "the" pipeline
+     * when talking generally. Individual postings may use a different one.
      */
-    private function normaliseStage(mixed $stage, array $allowed): ?string
+    private function defaultPipeline(): ?RecruitmentPipeline
     {
-        $stage = strtolower(trim((string) $stage));
+        return RecruitmentPipeline::where('is_default', true)->with('stages')->first();
+    }
 
-        return in_array($stage, $allowed, true) ? $stage : null;
+    /**
+     * Resolve a stage name the model sent against a specific pipeline's real
+     * stages — case-insensitive exact match, optionally narrowed to one `kind`
+     * (e.g. only `open` stages, for a move). Returns null when there's no
+     * pipeline, no name, or nothing matches — the caller decides what that
+     * means (not filtered vs. an error).
+     */
+    private function resolveStageByName(?RecruitmentPipeline $pipeline, ?string $name, ?string $kind = null): ?RecruitmentPipelineStage
+    {
+        $name = trim((string) $name);
+
+        if ($pipeline === null || $name === '') {
+            return null;
+        }
+
+        return $pipeline->stages
+            ->when($kind !== null, fn ($stages) => $stages->where('kind', $kind))
+            ->first(fn (RecruitmentPipelineStage $stage): bool => mb_strtolower($stage->name) === mb_strtolower($name));
     }
 
     private function date(mixed $value): ?string
@@ -2046,7 +2129,7 @@ class RecruitmentModule extends Module
             title: $applicant?->full_name ?? 'Candidate',
             subtitle: $application->jobPosting?->title,
             meta: [
-                ucfirst($application->stage),
+                ucfirst($application->pipelineStage->name),
                 $application->rating ? $application->rating.'/5' : null,
             ],
             avatar: $applicant

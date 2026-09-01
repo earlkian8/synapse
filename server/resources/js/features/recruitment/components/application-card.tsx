@@ -1,21 +1,29 @@
-import { CalendarClock, Clock } from 'lucide-react';
+import { CalendarClock, ChevronRight, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import type { Application, RecruitmentPermissions, Stage } from '../types';
+import { Button } from '@/components/ui/button';
+import type {
+    Application,
+    PipelineStage,
+    RecruitmentPermissions,
+} from '../types';
 import { ApplicationActionsMenu } from './application-actions-menu';
 import { FitBadge } from './fit-score';
 import { RatingStars } from './rating-stars';
 
 type Props = {
     application: Application;
+    /** The posting's open-kind stages, in order — drives the "Advance" quick action. */
+    openStages: PipelineStage[];
     can: RecruitmentPermissions;
     onOpen: (application: Application) => void;
-    onMove: (application: Application, stage: Stage) => void;
+    onMove: (application: Application, stageId: number) => void;
     onHire: (application: Application) => void;
     onReject: (application: Application) => void;
 };
 
 export function ApplicationCard({
     application,
+    openStages,
     can,
     onOpen,
     onMove,
@@ -23,8 +31,10 @@ export function ApplicationCard({
     onReject,
 }: Props) {
     const applicant = application.applicant;
-    const terminal =
-        application.stage === 'hired' || application.stage === 'rejected';
+    const terminal = application.stage_kind !== 'open';
+    const currentPosition =
+        openStages.find((s) => s.id === application.stage_id)?.position ?? -1;
+    const nextStage = openStages.find((s) => s.position > currentPosition);
 
     return (
         <div className="group rounded-lg border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
@@ -58,6 +68,7 @@ export function ApplicationCard({
                 {!terminal && (
                     <ApplicationActionsMenu
                         application={application}
+                        openStages={openStages}
                         can={can}
                         onMove={onMove}
                         onHire={onHire}
@@ -87,6 +98,19 @@ export function ApplicationCard({
                     )}
                 </div>
             </div>
+
+            {!terminal && can.managePipeline && nextStage && (
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2.5 h-7 w-full gap-1 text-xs"
+                    onClick={() => onMove(application, nextStage.id)}
+                >
+                    Advance to {nextStage.name}
+                    <ChevronRight className="size-3.5" />
+                </Button>
+            )}
         </div>
     );
 }

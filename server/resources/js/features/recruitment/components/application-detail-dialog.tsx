@@ -44,9 +44,9 @@ import type {
     ApplicationDetail,
     InterviewerRef,
     InterviewMode,
+    PipelineStage,
     Recommendation,
     RecruitmentPermissions,
-    Stage,
 } from '../types';
 import { ApplicantInsights } from './applicant-insights';
 import { FitMeter } from './fit-score';
@@ -59,6 +59,8 @@ type Props = {
     open: boolean;
     can: RecruitmentPermissions;
     interviewers: InterviewerRef[];
+    /** The posting's open-kind stages, in order — feeds the stage stepper. */
+    openStages: PipelineStage[];
     onOpenChange: (open: boolean) => void;
 };
 
@@ -72,6 +74,7 @@ export function ApplicationDetailDialog({
     open,
     can,
     interviewers,
+    openStages,
     onOpenChange,
 }: Props) {
     const [detail, setDetail] = useState<ApplicationDetail | null>(null);
@@ -114,10 +117,10 @@ export function ApplicationDetailDialog({
 
     const applicant = current.applicant;
 
-    const move = (stage: Stage) =>
+    const move = (stageId: number) =>
         router.patch(
             recruitmentRoutes.applicationStage(current.id),
-            { stage },
+            { stage_id: stageId },
             { preserveScroll: true, onSuccess: load },
         );
 
@@ -153,8 +156,8 @@ export function ApplicationDetailDialog({
             hire();
         } else if (rec.action === 'reject') {
             reject('');
-        } else if (rec.action) {
-            move(rec.action);
+        } else if (rec.action === 'advance' && rec.stage_id !== null) {
+            move(rec.stage_id);
         }
     };
 
@@ -162,7 +165,7 @@ export function ApplicationDetailDialog({
         rec.action !== null &&
         (rec.action === 'hire' ? can.hire : can.managePipeline);
 
-    const terminal = current.stage === 'hired' || current.stage === 'rejected';
+    const terminal = current.stage_kind !== 'open';
 
     return (
         <Modal open={open} onOpenChange={onOpenChange}>
@@ -181,7 +184,10 @@ export function ApplicationDetailDialog({
                     description={applicant?.headline ?? 'No headline given'}
                     meta={
                         <>
-                            <StageBadge stage={current.stage} />
+                            <StageBadge
+                                name={current.stage}
+                                kind={current.stage_kind}
+                            />
                             <span className="text-xs text-muted-foreground">
                                 {applicant
                                     ? `via ${SOURCE_LABELS[applicant.source]}`
@@ -300,7 +306,8 @@ export function ApplicationDetailDialog({
                         {!terminal && (
                             <ModalSection title="Pipeline stage">
                                 <StageStepper
-                                    stage={current.stage}
+                                    stages={openStages}
+                                    currentStageId={current.stage_id}
                                     canMove={can.managePipeline}
                                     onMove={move}
                                 />
@@ -465,7 +472,8 @@ export function ApplicationDetailDialog({
                                                             'Unknown role'}
                                                     </span>
                                                     <StageBadge
-                                                        stage={other.stage}
+                                                        name={other.stage}
+                                                        kind={other.stage_kind}
                                                     />
                                                 </li>
                                             ),
@@ -478,10 +486,7 @@ export function ApplicationDetailDialog({
 
                 {!terminal && (
                     <DecisionBar
-                        canHire={
-                            can.hire &&
-                            ['interview', 'offer'].includes(current.stage)
-                        }
+                        canHire={can.hire}
                         canManage={can.managePipeline}
                         onHire={hire}
                         onReject={reject}

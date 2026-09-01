@@ -36,7 +36,7 @@ test('it generates, persists, and reads documents — excluding the government I
         'recommendation' => 'Advance to an interview.',
     ]))]);
 
-    $application = JobApplication::factory()->create(['stage' => 'screening']);
+    $application = JobApplication::factory()->stage('screening')->create();
 
     Storage::disk('public')->put('applicant-resumes/cv.pdf', '%PDF-1.4 fake');
     Storage::disk('public')->put('applicant-documents/cover.pdf', '%PDF-1.4 cover');

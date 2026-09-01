@@ -1,27 +1,31 @@
 import { cn } from '@/lib/utils';
-import { MOVABLE_STAGES } from '../constants';
-import type { Stage } from '../types';
+import type { PipelineStage } from '../types';
 
 /**
  * The hiring pipeline as a stepper: where this candidate stands, and — for
- * anyone who may manage the pipeline — the control that moves them. Terminal
- * candidates (hired, rejected) are never shown one; they have left the pipeline.
+ * anyone who may manage the pipeline — the control that moves them. Built
+ * from the posting's own pipeline, so it reads correctly for any custom stage
+ * list. Terminal candidates (won/lost) are never shown one; they have left
+ * the open pipeline.
  */
 export function StageStepper({
-    stage,
+    stages,
+    currentStageId,
     canMove,
     onMove,
 }: {
-    stage: Stage;
+    /** The posting's open-kind stages, in order. */
+    stages: PipelineStage[];
+    currentStageId: number;
     canMove: boolean;
-    onMove: (stage: Stage) => void;
+    onMove: (stageId: number) => void;
 }) {
-    const currentIndex = MOVABLE_STAGES.findIndex((s) => s.value === stage);
+    const currentIndex = stages.findIndex((s) => s.id === currentStageId);
 
     return (
         <ol className="flex items-stretch gap-1 rounded-xl border border-border bg-muted/40 p-1">
-            {MOVABLE_STAGES.map((step, index) => {
-                const isCurrent = step.value === stage;
+            {stages.map((step, index) => {
+                const isCurrent = step.id === currentStageId;
                 const isPast = currentIndex > -1 && index < currentIndex;
 
                 const classes = cn(
@@ -35,21 +39,21 @@ export function StageStepper({
                 );
 
                 return (
-                    <li key={step.value} className="flex-1">
+                    <li key={step.id} className="flex-1">
                         {canMove && !isCurrent ? (
                             <button
                                 type="button"
                                 className={cn(classes, 'cursor-pointer')}
-                                onClick={() => onMove(step.value)}
+                                onClick={() => onMove(step.id)}
                             >
-                                {step.label}
+                                {step.name}
                             </button>
                         ) : (
                             <span
                                 className={cn(classes, 'block')}
                                 aria-current={isCurrent ? 'step' : undefined}
                             >
-                                {step.label}
+                                {step.name}
                             </span>
                         )}
                     </li>

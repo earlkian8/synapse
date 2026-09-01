@@ -25,6 +25,7 @@ class StoreJobPostingRequest extends FormRequest
     {
         return [
             'title' => ['required', 'string', 'max:255'],
+            'recruitment_pipeline_id' => ['required', 'integer', Rule::exists('recruitment_pipelines', 'id')],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
             'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
             'description' => ['nullable', 'string', 'max:5000'],
@@ -33,6 +34,12 @@ class StoreJobPostingRequest extends FormRequest
             'min_years_experience' => ['nullable', 'integer', 'min:0', 'max:50'],
             'skills' => ['nullable', 'array', 'max:20'],
             'skills.*' => ['string', 'max:40'],
+            'requires_resume' => ['boolean'],
+            'use_fit_scoring' => ['boolean'],
+            // Free-form yes/no screening questions — the generic complement to
+            // min_years_experience/skills for anything those don't cover.
+            'screening_questions' => ['array', 'max:20'],
+            'screening_questions.*.label' => ['required', 'string', 'max:255'],
             'employment_type' => ['required', Rule::in(self::EMPLOYMENT_TYPES)],
             'openings' => ['required', 'integer', 'min:1', 'max:999'],
             'status' => ['required', Rule::in(self::STATUSES)],

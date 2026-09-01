@@ -1,8 +1,16 @@
 import { useForm } from '@inertiajs/react';
-import { BriefcaseBusiness, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+    BriefcaseBusiness,
+    ChevronDown,
+    ChevronUp,
+    Plus,
+    Trash2,
+    X,
+} from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { FormSelect } from '@/components/form-select';
+import InputError from '@/components/input-error';
 import {
     Modal,
     ModalBody,
@@ -13,7 +21,9 @@ import {
 } from '@/components/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { EMPLOYMENT_TYPE_OPTIONS, POSTING_STATUS_OPTIONS } from '../constants';
 import { recruitmentRoutes } from '../routes';
 import type {
@@ -22,6 +32,8 @@ import type {
     PostingOptions,
     PostingStatus,
 } from '../types';
+
+type ScreeningQuestionDraft = { label: string };
 
 type Props = {
     posting: ManagedPosting | null;
@@ -85,8 +97,17 @@ function FormBody({
 }) {
     const isEditing = Boolean(posting);
 
+    const defaultPipeline = useMemo(
+        () =>
+            options.pipelines.find((p) => p.is_default) ?? options.pipelines[0],
+        [options.pipelines],
+    );
+
     const { data, setData, post, processing, errors, transform } = useForm({
         title: posting?.title ?? '',
+        recruitment_pipeline_id: str(
+            posting?.recruitment_pipeline_id ?? defaultPipeline?.id,
+        ),
         department_id: str(posting?.department_id),
         position_id: str(posting?.position_id),
         employment_type: posting?.employment_type ?? 'regular',
@@ -95,11 +116,53 @@ function FormBody({
         closing_date: posting?.closing_date ?? '',
         min_years_experience: str(posting?.min_years_experience),
         skills: posting?.skills ?? [],
+        requires_resume: posting?.requires_resume ?? true,
+        use_fit_scoring: posting?.use_fit_scoring ?? true,
+        screening_questions: (posting?.screening_questions ?? []).map(
+            (q): ScreeningQuestionDraft => ({ label: q.label }),
+        ),
         description: posting?.description ?? '',
         requirements: posting?.requirements ?? '',
     });
 
     const closingRequired = data.status === 'open';
+
+    const setQuestion = (index: number, label: string) =>
+        setData(
+            'screening_questions',
+            data.screening_questions.map((q, i) =>
+                i === index ? { label } : q,
+            ),
+        );
+
+    const addQuestion = () =>
+        setData('screening_questions', [
+            ...data.screening_questions,
+            { label: '' },
+        ]);
+
+    const removeQuestion = (index: number) =>
+        setData(
+            'screening_questions',
+            data.screening_questions.filter((_, i) => i !== index),
+        );
+
+    /** Swap a question with its neighbour — the list order is the position. */
+    const moveQuestion = (index: number, direction: -1 | 1) => {
+        const target = index + direction;
+
+        if (target < 0 || target >= data.screening_questions.length) {
+            return;
+        }
+
+        const reordered = [...data.screening_questions];
+        [reordered[index], reordered[target]] = [
+            reordered[target],
+            reordered[index],
+        ];
+
+        setData('screening_questions', reordered);
+    };
 
     const positions = useMemo(() => {
         const deptId = data.department_id ? Number(data.department_id) : null;
@@ -133,6 +196,9 @@ function FormBody({
                 }
             }
 
+            cleaned.recruitment_pipeline_id = Number(
+                payload.recruitment_pipeline_id,
+            );
             cleaned.openings = Number(payload.openings) || 1;
             cleaned.min_years_experience =
                 cleaned.min_years_experience === null
@@ -141,6 +207,9 @@ function FormBody({
             cleaned.skills = payload.skills
                 .map((skill) => skill.trim())
                 .filter((skill) => skill.length > 0);
+            cleaned.screening_questions = payload.screening_questions
+                .map((q) => ({ label: q.label.trim() }))
+                .filter((q) => q.label.length > 0);
 
             return cleaned;
         });
@@ -265,6 +334,46 @@ function FormBody({
                 </Section>
 
                 <Section
+                    title="Hiring process"
+                    subtitle="Which pipeline this posting runs on, and how candidates apply."
+                >
+                    <FormField
+                        label="Pipeline"
+                        required
+                        error={errors.recruitment_pipeline_id}
+                        hint="The stages a candidate moves through for this role. Manage pipelines from Company Setup."
+                    >
+                        <FormSelect
+                            value={data.recruitment_pipeline_id}
+                            onChange={(v) =>
+                                setData('recruitment_pipeline_id', v)
+                            }
+                            options={options.pipelines.map((p) => ({
+                                value: String(p.id),
+                                label: p.is_default
+                                    ? `${p.name} (default)`
+                                    : p.name,
+                            }))}
+                        />
+                    </FormField>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Toggle
+                            label="Require a résumé"
+                            hint="Turn off for roles where a CV isn't the norm (e.g. drivers, warehouse staff)."
+                            checked={data.requires_resume}
+                            onChange={(v) => setData('requires_resume', v)}
+                        />
+                        <Toggle
+                            label="Rank candidates automatically"
+                            hint="Scores and sorts applicants by fit. Turn off to review everyone in application order."
+                            checked={data.use_fit_scoring}
+                            onChange={(v) => setData('use_fit_scoring', v)}
+                        />
+                    </div>
+                </Section>
+
+                <Section
                     title="Screening criteria"
                     subtitle="Optional — sharpens the automatic candidate ranking for this role."
                 >
@@ -300,6 +409,55 @@ function FormBody({
                             />
                         </FormField>
                     </div>
+
+                    <FormField
+                        label="Screening questions"
+                        error={
+                            errors['screening_questions'] ??
+                            errors['screening_questions.0.label']
+                        }
+                        hint="Yes/No questions candidates answer on the application form — e.g. 'Valid driver's license?' or 'Available for night shift?'"
+                        group
+                    >
+                        {data.screening_questions.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+                                No screening questions yet.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {data.screening_questions.map((q, index) => (
+                                    <QuestionRow
+                                        key={index}
+                                        index={index}
+                                        question={q}
+                                        total={data.screening_questions.length}
+                                        error={
+                                            (errors as Record<string, string>)[
+                                                `screening_questions.${index}.label`
+                                            ]
+                                        }
+                                        onChange={(label) =>
+                                            setQuestion(index, label)
+                                        }
+                                        onMove={(direction) =>
+                                            moveQuestion(index, direction)
+                                        }
+                                        onRemove={() => removeQuestion(index)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2.5"
+                            onClick={addQuestion}
+                        >
+                            <Plus className="size-4" />
+                            Add question
+                        </Button>
+                    </FormField>
                 </Section>
 
                 <Section
@@ -359,6 +517,110 @@ function FormBody({
 
 const TEXTAREA_CLASS =
     'flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20';
+
+function Toggle({
+    label,
+    hint,
+    checked,
+    onChange,
+}: {
+    label: string;
+    hint: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}) {
+    const id = useId();
+
+    return (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+            <div className="min-w-0">
+                <Label htmlFor={id} className="cursor-pointer">
+                    {label}
+                </Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+            </div>
+            <Switch
+                id={id}
+                checked={checked}
+                onCheckedChange={onChange}
+                className="shrink-0"
+            />
+        </div>
+    );
+}
+
+/**
+ * One screening question. The row's position *is* the order candidates see
+ * it in — the same click-based reorder as the onboarding checklist, no
+ * drag-and-drop dependency.
+ */
+function QuestionRow({
+    index,
+    question,
+    total,
+    error,
+    onChange,
+    onMove,
+    onRemove,
+}: {
+    index: number;
+    question: ScreeningQuestionDraft;
+    total: number;
+    error?: string;
+    onChange: (label: string) => void;
+    onMove: (direction: -1 | 1) => void;
+    onRemove: () => void;
+}) {
+    const position = `Question ${index + 1}`;
+
+    return (
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
+            <div className="flex shrink-0 flex-col items-center">
+                <button
+                    type="button"
+                    onClick={() => onMove(-1)}
+                    disabled={index === 0}
+                    className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-30 disabled:hover:text-muted-foreground"
+                    aria-label={`Move ${position} up`}
+                >
+                    <ChevronUp className="size-3.5" />
+                </button>
+                <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                    {index + 1}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onMove(1)}
+                    disabled={index === total - 1}
+                    className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-30 disabled:hover:text-muted-foreground"
+                    aria-label={`Move ${position} down`}
+                >
+                    <ChevronDown className="size-3.5" />
+                </button>
+            </div>
+
+            <div className="flex-1">
+                <Input
+                    value={question.label}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder="e.g. Do you have a valid driver's license?"
+                    aria-label={position}
+                    aria-invalid={error ? true : undefined}
+                />
+                <InputError message={error} role="alert" className="mt-1" />
+            </div>
+
+            <button
+                type="button"
+                onClick={onRemove}
+                className="mt-1.5 rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                aria-label={`Remove ${position}`}
+            >
+                <Trash2 className="size-4" />
+            </button>
+        </div>
+    );
+}
 
 function Section({
     title,

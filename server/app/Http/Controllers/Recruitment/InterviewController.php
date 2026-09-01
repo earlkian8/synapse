@@ -6,22 +6,27 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Recruitment\StoreInterviewRequest;
 use App\Models\Interview;
 use App\Models\JobApplication;
+use App\Models\RecruitmentPipelineStage;
 use App\Support\ActivityLogger;
 use App\Support\Recruitment\InterviewScheduler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class InterviewController extends Controller
 {
     /**
-     * Schedule an interview for an application. Advances an early-stage
-     * application into the interview stage.
+     * Schedule an interview for an application. Advances the application to the
+     * chosen stage (or the pipeline's next open stage, by default).
      */
     public function store(StoreInterviewRequest $request, JobApplication $application): RedirectResponse
     {
-        InterviewScheduler::book($application, $request->validated());
+        $data = $request->validated();
+        $targetStage = isset($data['stage_id']) ? RecruitmentPipelineStage::find($data['stage_id']) : null;
+
+        InterviewScheduler::book($application, Arr::except($data, 'stage_id'), $targetStage);
 
         ActivityLogger::log(
             event: 'created',

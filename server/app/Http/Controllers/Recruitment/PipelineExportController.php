@@ -17,6 +17,8 @@ class PipelineExportController extends Controller
      */
     public function __invoke(JobPosting $jobPosting, ApplicantScorer $scorer): StreamedResponse
     {
+        $jobPosting->loadMissing('pipeline.stages');
+
         $slug = Str::slug($jobPosting->title) ?: 'pipeline';
         $filename = "{$slug}-pipeline-".now()->format('Y-m-d-His').'.csv';
 
@@ -35,13 +37,19 @@ class PipelineExportController extends Controller
             fputcsv($handle, $columns);
 
             $jobPosting->applications()
-                ->with(['applicant' => fn ($q) => $q->withCount('documents'), 'interviews:id,job_application_id,result'])
+                ->with([
+                    'applicant' => fn ($q) => $q->withCount('documents'),
+                    'interviews:id,job_application_id,result',
+                    'pipelineStage',
+                ])
                 ->chunk(200, function ($applications) use ($handle, $scorer, $jobPosting) {
                     /** @var JobApplication $application */
                     foreach ($applications as $application) {
-                        $fit = $scorer->score($application, $jobPosting);
-                        $recommendation = $scorer->recommendation($application, $fit);
+                        $application->setRelation('jobPosting', $jobPosting);
                         $applicant = $application->applicant;
+
+                        $fit = $jobPosting->use_fit_scoring ? $scorer->score($application, $jobPosting) : null;
+                        $recommendation = $fit ? $scorer->recommendation($application, $fit) : null;
 
                         fputcsv($handle, [
                             $applicant?->full_name,
@@ -50,11 +58,11 @@ class PipelineExportController extends Controller
                             $applicant?->headline,
                             $applicant?->years_experience,
                             $applicant?->source,
-                            $application->stage,
-                            $fit['value'],
-                            $fit['band'],
+                            $application->pipelineStage->name,
+                            $fit['value'] ?? null,
+                            $fit['band'] ?? null,
                             $application->rating,
-                            $recommendation['label'],
+                            $recommendation['label'] ?? null,
                             $application->applied_at?->toDateString(),
                             $application->applied_at ? (int) $application->applied_at->diffInDays() : null,
                         ]);

@@ -111,6 +111,7 @@ test('it finds postings by status and closing window', function () {
 
 test('it creates a posting with screening criteria', function () {
     $user = recruiter();
+    seedDefaultPipeline();
     $department = Department::factory()->create(['name' => 'Engineering']);
     $position = Position::factory()->create(['title' => 'Backend Engineer', 'department_id' => $department->id]);
 
@@ -138,6 +139,7 @@ test('it creates a posting with screening criteria', function () {
 
 test('it refuses to open a posting without a closing date, and to guess a department', function () {
     $user = recruiter();
+    seedDefaultPipeline();
 
     $noDeadline = agent($user, 'create_job_posting', ['title' => 'No Deadline', 'status' => 'open']);
     expect($noDeadline->failed())->toBeTrue()
@@ -265,7 +267,7 @@ test('it removes a candidate, but never one who was hired', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
     Applicant::factory()->create(['first_name' => 'Hired', 'last_name' => 'Person'])
-        ->applications()->save(JobApplication::factory()->make(['stage' => 'hired']));
+        ->applications()->save(JobApplication::factory()->stage('hired')->make());
 
     expect(agent($user, 'delete_applicant', ['applicant' => 'Jane Doe'])->failed())->toBeFalse()
         ->and(Applicant::find($applicant->id))->toBeNull();
@@ -280,19 +282,17 @@ test('it removes a candidate, but never one who was hired', function () {
 test('it lists a pipeline and can single out the stalled candidates', function () {
     $user = recruiter();
     $posting = JobPosting::factory()->create(['title' => 'Backend Engineer']);
-    JobApplication::factory()->create([
+    JobApplication::factory()->stage('screening')->create([
         'job_posting_id' => $posting->id,
-        'stage' => 'screening',
         'applied_at' => now()->subDays(30),
     ]);
-    JobApplication::factory()->create([
+    JobApplication::factory()->stage('applied')->create([
         'job_posting_id' => $posting->id,
-        'stage' => 'applied',
         'applied_at' => now()->subDay(),
     ]);
 
     expect(agent($user, 'find_applications', ['posting' => 'Backend Engineer'])->cards)->toHaveCount(2)
-        ->and(agent($user, 'find_applications', ['stage' => 'screening'])->cards)->toHaveCount(1)
+        ->and(agent($user, 'find_applications', ['stage' => 'Screening'])->cards)->toHaveCount(1)
         ->and(agent($user, 'find_applications', ['stalled' => true])->cards)->toHaveCount(1);
 });
 
@@ -314,7 +314,7 @@ test('it adds a candidate to a pipeline, reusing the pool entry by email', funct
 
     expect($result->failed())->toBeFalse()
         ->and(Applicant::count())->toBe(1)
-        ->and($application->stage)->toBe('applied')
+        ->and($application->pipelineStage->name)->toBe('Applied')
         ->and($application->rating)->toBe(4);
 
     // A second attempt on the same posting is refused rather than duplicated.
@@ -332,56 +332,59 @@ test('it adds a candidate to a pipeline, reusing the pool entry by email', funct
 test('it moves a candidate, reinstates a rejected one, and never un-hires', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    $application = JobApplication::factory()->create(['applicant_id' => $applicant->id, 'stage' => 'applied']);
+    $application = JobApplication::factory()->stage('applied')->create(['applicant_id' => $applicant->id]);
+    $stages = $application->jobPosting->pipeline->stages;
 
-    agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'interview']);
-    expect($application->fresh()->stage)->toBe('interview');
+    agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'Interview']);
+    expect($application->fresh()->pipelineStage->name)->toBe('Interview');
 
-    $application->rejectWith('Not a fit');
-    agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'screening']);
-    expect($application->fresh()->stage)->toBe('screening')
+    $application->rejectWith(reason: 'Not a fit');
+    agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'Screening']);
+    expect($application->fresh()->pipelineStage->name)->toBe('Screening')
         ->and($application->fresh()->rejected_reason)->toBeNull();
 
     $employee = Employee::factory()->create();
-    $application->update(['stage' => 'hired', 'hired_employee_id' => $employee->id]);
+    $application->update([
+        'recruitment_pipeline_stage_id' => $stages->firstWhere('name', 'Hired')->id,
+        'hired_employee_id' => $employee->id,
+    ]);
 
-    $blocked = agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'offer']);
+    $blocked = agent($user, 'move_application', ['applicant' => 'Jane Doe', 'stage' => 'Offer']);
     expect($blocked->failed())->toBeTrue()
-        ->and($application->fresh()->stage)->toBe('hired');
+        ->and($application->fresh()->pipelineStage->name)->toBe('Hired');
 });
 
 test('it takes the recommended next step, but stops short of rejecting or hiring', function () {
     $user = recruiter();
     $strong = Applicant::factory()->create(['first_name' => 'Strong', 'last_name' => 'Candidate', 'years_experience' => 10]);
-    $application = JobApplication::factory()->create([
+    $application = JobApplication::factory()->stage('applied')->create([
         'applicant_id' => $strong->id,
-        'stage' => 'applied',
         'rating' => 5,
     ]);
+    $stages = $application->jobPosting->pipeline->stages;
 
     $advanced = agent($user, 'advance_application', ['applicant' => 'Strong Candidate']);
     expect($advanced->failed())->toBeFalse()
-        ->and($application->fresh()->stage)->toBe('screening');
+        ->and($application->fresh()->pipelineStage->name)->toBe('Screening');
 
-    // At offer stage the recommendation is to hire — an irreversible step the
-    // agent reports back instead of taking on its own.
-    $application->update(['stage' => 'offer']);
+    // At the last open stage the recommendation is to hire — an irreversible
+    // step the agent reports back instead of taking on its own.
+    $application->update(['recruitment_pipeline_stage_id' => $stages->firstWhere('name', 'Offer')->id]);
     $atOffer = agent($user, 'advance_application', ['applicant' => 'Strong Candidate']);
     expect($atOffer->failed())->toBeTrue()
         ->and($atOffer->detail)->toContain('Hire candidate')
-        ->and($application->fresh()->stage)->toBe('offer');
+        ->and($application->fresh()->pipelineStage->name)->toBe('Offer');
 
     // A weak candidate in screening is recommended for rejection — also refused.
     $weak = Applicant::factory()->create(['first_name' => 'Weak', 'last_name' => 'Candidate', 'years_experience' => null]);
-    $weakApplication = JobApplication::factory()->create([
+    $weakApplication = JobApplication::factory()->stage('screening')->create([
         'applicant_id' => $weak->id,
-        'stage' => 'screening',
         'rating' => null,
     ]);
 
     $rejectSuggested = agent($user, 'advance_application', ['applicant' => 'Weak Candidate']);
     expect($rejectSuggested->failed())->toBeTrue()
-        ->and($weakApplication->fresh()->stage)->toBe('screening');
+        ->and($weakApplication->fresh()->pipelineStage->name)->toBe('Screening');
 });
 
 test('it rates an application and refuses a rating with nothing to set', function () {
@@ -400,11 +403,11 @@ test('it rejects and withdraws applications', function () {
     $user = recruiter();
     $jane = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
     $mark = Applicant::factory()->create(['first_name' => 'Mark', 'last_name' => 'Reyes']);
-    $rejected = JobApplication::factory()->create(['applicant_id' => $jane->id, 'stage' => 'screening']);
-    $withdrawn = JobApplication::factory()->create(['applicant_id' => $mark->id, 'stage' => 'applied']);
+    $rejected = JobApplication::factory()->stage('screening')->create(['applicant_id' => $jane->id]);
+    $withdrawn = JobApplication::factory()->stage('applied')->create(['applicant_id' => $mark->id]);
 
     agent($user, 'reject_application', ['applicant' => 'Jane Doe', 'reason' => 'Withdrew from the process']);
-    expect($rejected->fresh()->stage)->toBe('rejected')
+    expect($rejected->fresh()->pipelineStage->name)->toBe('Rejected')
         ->and($rejected->fresh()->rejected_reason)->toBe('Withdrew from the process');
 
     agent($user, 'withdraw_application', ['applicant' => 'Mark Reyes']);
@@ -424,10 +427,9 @@ test('it hires a candidate through the shared hire bridge', function () {
         'status' => 'open',
     ]);
     $applicant = Applicant::factory()->create(['first_name' => 'Future', 'last_name' => 'Hire']);
-    $application = JobApplication::factory()->create([
+    $application = JobApplication::factory()->stage('offer')->create([
         'job_posting_id' => $posting->id,
         'applicant_id' => $applicant->id,
-        'stage' => 'offer',
     ]);
 
     $result = agent($user, 'hire_applicant', ['applicant' => 'Future Hire', 'send_invitation' => false]);
@@ -452,10 +454,10 @@ test('it lists upcoming interviews', function () {
         ->and(agent($user, 'find_interviews', ['when' => 'all'])->cards)->toHaveCount(2);
 });
 
-test('scheduling an interview pulls the candidate into the interview stage', function () {
+test('scheduling an interview pulls the candidate into the named stage', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    $application = JobApplication::factory()->create(['applicant_id' => $applicant->id, 'stage' => 'applied']);
+    $application = JobApplication::factory()->stage('applied')->create(['applicant_id' => $applicant->id]);
 
     $result = agent($user, 'schedule_interview', [
         'applicant' => 'Jane Doe',
@@ -463,20 +465,36 @@ test('scheduling an interview pulls the candidate into the interview stage', fun
         'mode' => 'online',
         'interviewer' => $user->full_name,
         'location' => 'Google Meet',
+        'stage' => 'Interview',
     ]);
 
     $interview = $application->interviews()->first();
 
     expect($result->failed())->toBeFalse()
-        ->and($application->fresh()->stage)->toBe('interview')
+        ->and($application->fresh()->pipelineStage->name)->toBe('Interview')
         ->and($interview->mode)->toBe('online')
         ->and($interview->interviewer_id)->toBe($user->id);
+});
+
+test('scheduling an interview with no stage named advances one open stage forward', function () {
+    $user = recruiter();
+    $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
+    $application = JobApplication::factory()->stage('applied')->create(['applicant_id' => $applicant->id]);
+
+    $result = agent($user, 'schedule_interview', [
+        'applicant' => 'Jane Doe',
+        'scheduled_at' => now()->addDays(3)->setTime(14, 0)->toDateTimeString(),
+        'mode' => 'online',
+    ]);
+
+    expect($result->failed())->toBeFalse()
+        ->and($application->fresh()->pipelineStage->name)->toBe('Screening');
 });
 
 test('it reschedules an interview and records its outcome', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    $application = JobApplication::factory()->create(['applicant_id' => $applicant->id, 'stage' => 'interview']);
+    $application = JobApplication::factory()->stage('interview')->create(['applicant_id' => $applicant->id]);
     $interview = Interview::factory()->create([
         'job_application_id' => $application->id,
         'scheduled_at' => now()->addDays(2),
@@ -508,7 +526,7 @@ test('it reschedules an interview and records its outcome', function () {
 test('it cancels a scheduled interview', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    $application = JobApplication::factory()->create(['applicant_id' => $applicant->id, 'stage' => 'interview']);
+    $application = JobApplication::factory()->stage('interview')->create(['applicant_id' => $applicant->id]);
     $interview = Interview::factory()->create([
         'job_application_id' => $application->id,
         'scheduled_at' => now()->addDays(2),
@@ -523,8 +541,8 @@ test('it cancels a scheduled interview', function () {
 test('it summarises recruitment org-wide and per posting', function () {
     $user = recruiter();
     $posting = JobPosting::factory()->create(['title' => 'Backend Engineer', 'status' => 'open']);
-    JobApplication::factory()->create(['job_posting_id' => $posting->id, 'stage' => 'offer', 'applied_at' => now()->subDays(3)]);
-    JobApplication::factory()->create(['job_posting_id' => $posting->id, 'stage' => 'applied', 'applied_at' => now()->subDays(40)]);
+    JobApplication::factory()->stage('offer')->create(['job_posting_id' => $posting->id, 'applied_at' => now()->subDays(3)]);
+    JobApplication::factory()->stage('applied')->create(['job_posting_id' => $posting->id, 'applied_at' => now()->subDays(40)]);
 
     $overall = agent($user, 'recruitment_summary');
     expect($overall->failed())->toBeFalse()
@@ -546,9 +564,9 @@ test('it ranks a posting\'s candidates by fit', function () {
     $strong = Applicant::factory()->create(['first_name' => 'Strong', 'last_name' => 'Fit', 'years_experience' => 8]);
     $weak = Applicant::factory()->create(['first_name' => 'Weak', 'last_name' => 'Fit', 'years_experience' => 0]);
 
-    JobApplication::factory()->create(['job_posting_id' => $posting->id, 'applicant_id' => $strong->id, 'rating' => 5, 'stage' => 'screening']);
-    JobApplication::factory()->create(['job_posting_id' => $posting->id, 'applicant_id' => $weak->id, 'rating' => 1, 'stage' => 'screening']);
-    JobApplication::factory()->create(['job_posting_id' => $posting->id, 'stage' => 'rejected', 'rating' => 5]);
+    JobApplication::factory()->stage('screening')->create(['job_posting_id' => $posting->id, 'applicant_id' => $strong->id, 'rating' => 5]);
+    JobApplication::factory()->stage('screening')->create(['job_posting_id' => $posting->id, 'applicant_id' => $weak->id, 'rating' => 1]);
+    JobApplication::factory()->stage('rejected')->create(['job_posting_id' => $posting->id, 'rating' => 5]);
 
     $result = agent($user, 'rank_candidates', ['posting' => 'Backend Engineer']);
 
@@ -563,10 +581,9 @@ test('it reads out one candidate profile with fit, rank and the next step', func
     $user = recruiter();
     $posting = JobPosting::factory()->create(['title' => 'Backend Engineer']);
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    JobApplication::factory()->create([
+    JobApplication::factory()->stage('screening')->create([
         'job_posting_id' => $posting->id,
         'applicant_id' => $applicant->id,
-        'stage' => 'screening',
         'rating' => 4,
     ]);
 
@@ -586,9 +603,8 @@ test('it reads out one candidate profile with fit, rank and the next step', func
 test('it returns the saved AI read without spending a model call, and refreshes on request', function () {
     $user = recruiter();
     $applicant = Applicant::factory()->create(['first_name' => 'Jane', 'last_name' => 'Doe']);
-    $application = JobApplication::factory()->create([
+    $application = JobApplication::factory()->stage('screening')->create([
         'applicant_id' => $applicant->id,
-        'stage' => 'screening',
         'ai_insights' => [
             'available' => true,
             'headline' => 'Saved verdict',

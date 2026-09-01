@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Onboarding\OnboardingProgramController;
+use App\Http\Controllers\Recruitment\RecruitmentPipelineController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DepartmentController;
@@ -116,6 +117,14 @@ Route::middleware(['auth', 'verified'])
         Route::post('onboarding', [OnboardingProgramController::class, 'store'])->middleware('can:onboarding.manage-programs')->name('onboarding.store');
         Route::post('onboarding/{program}', [OnboardingProgramController::class, 'update'])->middleware('can:onboarding.manage-programs')->name('onboarding.update');
         Route::delete('onboarding/{program}', [OnboardingProgramController::class, 'destroy'])->middleware('can:onboarding.manage-programs')->name('onboarding.destroy');
+
+        // Recruitment Pipelines — the named, ordered hiring stages a job posting
+        // picks from (ADR 0029). Every organisation that predates this feature
+        // already has one ("Standard Hiring"); addressed by hashid.
+        Route::get('recruitment-pipelines', [RecruitmentPipelineController::class, 'index'])->middleware('can:recruitment.configure-pipelines')->name('recruitment-pipelines.index');
+        Route::post('recruitment-pipelines', [RecruitmentPipelineController::class, 'store'])->middleware('can:recruitment.configure-pipelines')->name('recruitment-pipelines.store');
+        Route::post('recruitment-pipelines/{pipeline}', [RecruitmentPipelineController::class, 'update'])->middleware('can:recruitment.configure-pipelines')->name('recruitment-pipelines.update');
+        Route::delete('recruitment-pipelines/{pipeline}', [RecruitmentPipelineController::class, 'destroy'])->middleware('can:recruitment.configure-pipelines')->name('recruitment-pipelines.destroy');
 
         // Offboarding Programs — reusable clearance templates that seed each
         // exit's checklist. Configured here; instantiated by the Offboarding
