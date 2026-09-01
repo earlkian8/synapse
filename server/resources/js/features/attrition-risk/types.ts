@@ -25,7 +25,6 @@ export type RiskRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
-    model_version: string | null;
     employees_scored: number;
     high_count: number;
     medium_count: number;

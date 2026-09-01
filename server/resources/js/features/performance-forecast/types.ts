@@ -59,10 +59,13 @@ export type RunSummary = {
     average_rating: number | null;
 };
 
+/**
+ * Only liveness: whether a new forecast can be run right now. The model's
+ * identity and accuracy metrics are deliberately not sent to the browser — this
+ * is an HR screen, not a model dashboard.
+ */
 export type ServiceInfo = {
     connected: boolean;
-    model_version: string | null;
-    metrics: Record<string, number | string> | null;
 };
 
 export type PerformanceForecastPermissions = { manage: boolean };

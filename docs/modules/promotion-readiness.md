@@ -14,8 +14,8 @@ and [promotion-readiness tables](../database/promotion-readiness-tables.md) for 
 
 ## Surfaces
 
-- **`/analytics/promotion-readiness`** — the overview: a connectivity strip for the
-  inference service, headline metric cards (assessed, promotion-ready, developing,
+- **`/analytics/promotion-readiness`** — the overview: headline metric cards
+  (assessed, promotion-ready, developing,
   average readiness), then the **ranked roster** — every active employee by readiness
   score, with their tier and strongest positive factor. Search by employee, filter by
   tier, and pick a past run from the history selector. HR can **run a new assessment**
@@ -42,9 +42,15 @@ promotion readiness":
    score, tier, factors, and a snapshot of the features sent, for audit). The run is
    activity-logged.
 
-If the inference service is unreachable, the action degrades gracefully — a friendly
-toast with the start command, no run recorded — and the page shows an offline banner;
-existing assessments stay visible.
+If the inference service is unreachable, the action degrades gracefully — a plain
+"temporarily unavailable, try again shortly" toast, no run recorded — and the page
+shows the same message as a banner; existing assessments stay visible.
+
+Nothing about the model itself reaches the browser. `ServiceBanner` renders **only**
+when the service is down, the page's `service` prop carries liveness and nothing
+else, and an `MlException`'s message is written for the person who clicked the
+button — never a shell command, a status code, or the service's response body,
+which are logged server-side instead. This is an HR screen, not a model dashboard.
 
 ## The model
 

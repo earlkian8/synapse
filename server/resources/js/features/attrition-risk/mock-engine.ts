@@ -317,7 +317,6 @@ function generateRun(): RiskRun {
         id: timestamp,
         hashid: `demo-${timestamp.toString(36)}-${Math.floor(rng() * 1e6).toString(36)}`,
         status: 'completed',
-        model_version: 'Simulated · demo scoring',
         employees_scored: scores.length,
         high_count,
         medium_count,

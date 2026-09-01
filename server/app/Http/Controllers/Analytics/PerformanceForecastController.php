@@ -53,11 +53,10 @@ class PerformanceForecastController extends Controller
                 'exceeds_count' => (int) $run->exceeds_count,
                 'average_rating' => $run->average_rating === null ? null : (float) $run->average_rating,
             ])->all(),
-            'service' => [
-                'connected' => $health !== null,
-                'model_version' => $health['models']['performance']['version'] ?? null,
-                'metrics' => $health['models']['performance']['metrics'] ?? null,
-            ],
+            // Liveness only. The model's version and accuracy metrics stay
+            // server-side: they are for whoever tunes the model, not for the HR
+            // user reading this page.
+            'service' => ['connected' => $health !== null],
             'can' => ['manage' => $request->user()->can('analytics.performance.manage')],
         ]);
     }

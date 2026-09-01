@@ -18,8 +18,8 @@ schema.
 
 ## Surfaces
 
-- **`/analytics/performance-forecast`** — the overview: a connectivity strip for
-  the inference service, headline metric cards (forecasted, exceeding, average
+- **`/analytics/performance-forecast`** — the overview: headline metric cards
+  (forecasted, exceeding, average
   rating, average confidence), the **target period** being forecast, then the
   **ranked roster** — every active employee by predicted rating, with their band
   and movement vs. their last cycle. Search by employee, filter by band, and pick a
@@ -50,9 +50,15 @@ performance":
    employee (predicted rating, confidence, band, a feature snapshot for audit, and
    the rating history for the trajectory chart). The run is activity-logged.
 
-If the inference service is unreachable, the action degrades gracefully — a
-friendly toast with the start command, no run recorded — and the page shows an
-offline banner; existing forecasts stay visible.
+If the inference service is unreachable, the action degrades gracefully — a plain
+"temporarily unavailable, try again shortly" toast, no run recorded — and the page
+shows the same message as a banner; existing forecasts stay visible.
+
+Nothing about the model itself reaches the browser. `ServiceBanner` renders **only**
+when the service is down, the page's `service` prop carries liveness and nothing
+else, and an `MlException`'s message is written for the person who clicked the
+button — never a shell command, a status code, or the service's response body,
+which are logged server-side instead. This is an HR screen, not a model dashboard.
 
 ## The model
 

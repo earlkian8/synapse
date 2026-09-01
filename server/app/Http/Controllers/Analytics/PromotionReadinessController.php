@@ -51,11 +51,10 @@ class PromotionReadinessController extends Controller
                 'high_count' => (int) $run->high_count,
                 'average_score' => $run->average_score === null ? null : (float) $run->average_score,
             ])->all(),
-            'service' => [
-                'connected' => $health !== null,
-                'model_version' => $health['models']['promotion']['version'] ?? null,
-                'metrics' => $health['models']['promotion']['metrics'] ?? null,
-            ],
+            // Liveness only. The model's version and accuracy metrics stay
+            // server-side: they are for whoever tunes the model, not for the HR
+            // user reading this page.
+            'service' => ['connected' => $health !== null],
             'can' => ['manage' => $request->user()->can('analytics.promotion.manage')],
         ]);
     }
