@@ -87,7 +87,7 @@ export function EmployeeDetailDialog({
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                {TIER_DESCRIPTIONS[score.tier]} · model
+                                {TIER_DESCRIPTIONS[score.tier]} · simulated
                                 probability of leaving{' '}
                                 {(score.probability * 100).toFixed(1)}%
                             </p>
@@ -100,8 +100,9 @@ export function EmployeeDetailDialog({
                                     {confidenceLabel(score.confidence)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                    {formatConfidence(score.confidence)} of the
-                                    score rests on this employee's recorded data
+                                    {formatConfidence(score.confidence)}{' '}
+                                    simulated confidence, based on this demo
+                                    employee's tenure
                                 </span>
                             </div>
                             <div className="flex w-24 flex-col gap-1">
@@ -123,11 +124,11 @@ export function EmployeeDetailDialog({
                             </h3>
                             <FeatureGrid features={score.features} />
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Only signals grounded in real HR data are shown;
-                                anything missing is imputed by the model. Pay
-                                rates, equity, engagement surveys and
-                                demographic / protected attributes are never
-                                used.
+                                These are simulated signals for a fabricated
+                                employee — not real HR data. Pay rates, equity,
+                                engagement surveys and demographic / protected
+                                attributes are deliberately excluded, mirroring
+                                what a real deployment would omit.
                             </p>
                         </div>
                     </>

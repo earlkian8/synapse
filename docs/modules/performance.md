@@ -58,8 +58,8 @@ scores in **two levels**, because that is how frameworks are written:
 The result is **`overall_percent` — attainment on 0–100**, the canonical figure,
 and the one the rating model is read from (`result_band` / `result_label`).
 `overall_score` (1–5) is kept as an affine projection of the same figure, because
-the ML forecast, attrition and promotion pipelines and the awards nominator are
-all built on it. Only rated lines contribute, so a draft carries a live running
+the ML forecast and promotion pipelines and the awards nominator are all built on
+it. Only rated lines contribute, so a draft carries a live running
 result; a section with nothing rated is left out entirely rather than dragging it
 down. A section carrying no weight of its own falls back to the weight of its
 lines — which makes a flat, unsectioned scorecard score **exactly** as it did

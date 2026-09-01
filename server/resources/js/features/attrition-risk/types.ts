@@ -15,8 +15,8 @@ export type RiskScore = {
     score: number; // 0–100 (higher = more likely to leave)
     probability: number; // 0–1
     tier: RiskTier;
-    confidence: number; // 0–1 — share of the model's key inputs grounded in real data
-    /** Snapshot of the grounded features sent to the model (audit / transparency). */
+    confidence: number; // 0–1 — simulated confidence (see mock-engine.ts)
+    /** Snapshot of the simulated feature values behind this score. */
     features: Record<string, number | string>;
     employee: RiskEmployee | null;
 };
@@ -44,19 +44,4 @@ export type RunSummary = {
     employees_scored: number;
     high_count: number;
     average_score: number | null;
-};
-
-export type ServiceInfo = {
-    connected: boolean;
-    model_version: string | null;
-    metrics: Record<string, number | string> | null;
-};
-
-export type AttritionRiskPermissions = { manage: boolean };
-
-export type AttritionRiskPageProps = {
-    run: RiskRun | null;
-    runs: RunSummary[];
-    service: ServiceInfo;
-    can: AttritionRiskPermissions;
 };

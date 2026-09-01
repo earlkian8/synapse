@@ -180,7 +180,6 @@ class OrganizationProvisioner
                     'leave.view', 'leave.manage',
                     'performance.view', 'performance.manage',
                     // Decision support (view-only) for their people
-                    'analytics.attrition.view',
                     'analytics.performance.view',
                     'analytics.promotion.view',
                 ],

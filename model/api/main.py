@@ -3,7 +3,7 @@ Synapse ML Inference Service (FastAPI).
 
 A thin, stateless HTTP layer over the trained scikit-learn pipelines. The Laravel
 app calls it server-side to score employees for promotion readiness (and, in the
-same shape, attrition risk and performance forecasting).
+same shape, performance forecasting).
 
 Run from the ``model/`` directory inside the venv::
 
@@ -15,7 +15,7 @@ or simply::
 
 Endpoints:
     GET  /health                 — liveness + which models are loaded
-    POST /predict/{model_name}   — score a batch of instances (promotion|attrition|performance)
+    POST /predict/{model_name}   — score a batch of instances (promotion|performance)
 """
 
 from __future__ import annotations

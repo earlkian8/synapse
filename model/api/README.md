@@ -3,7 +3,7 @@
 A thin, stateless HTTP layer that serves the trained scikit-learn pipelines in
 `../artifacts/` to the Laravel app. Laravel calls it **server-side** (never the
 browser) to score employees for **promotion readiness** — and, in the same shape,
-attrition risk and performance forecasting.
+performance forecasting.
 
 ## Run
 
@@ -32,7 +32,7 @@ Liveness plus which models are loaded and their headline metrics.
 ```
 
 ### `POST /predict/{model_name}`
-`model_name` ∈ `promotion | attrition | performance`. Send a batch of instances;
+`model_name` ∈ `promotion | performance`. Send a batch of instances;
 each carries a caller `ref` (echoed back) and whatever `features` are known —
 **missing features are imputed by the pipeline**, so partial inputs are fine.
 

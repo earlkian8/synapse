@@ -17,8 +17,8 @@ use Illuminate\Support\Collection;
  * the words that company reports in.
  *
  * The 1–5 `normalized` overall is kept as an affine projection of the same
- * figure so the ML forecast pipeline, attrition features and analytics keep one
- * stable meaning of "overall" across every framework.
+ * figure so the ML forecast pipeline and analytics keep one stable meaning of
+ * "overall" across every framework.
  *
  * Pure math — given the score lines it returns the result; controllers reuse it
  * rather than re-deriving the formula. A card with no sections is one section, so

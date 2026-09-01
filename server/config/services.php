@@ -46,7 +46,7 @@ return [
 
     /*
     | Synapse ML inference service (FastAPI) — serves the trained promotion /
-    | attrition / performance models. Called server-side only; the URL points at
+    | performance models. Called server-side only; the URL points at
     | the local FastAPI process (see model/api). When it is unreachable the
     | Predictive Analytics surfaces degrade gracefully.
     */

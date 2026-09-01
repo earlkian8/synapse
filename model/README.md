@@ -1,19 +1,22 @@
 # Synapse HR-ERP — Machine Learning Models
 
-Three **Predictive Workforce Analytics** models that complement the Synapse HR modules. Each
+Two **Predictive Workforce Analytics** models that complement the Synapse HR modules. Each
 task uses a deliberately chosen algorithm (rationale in the git-ignored
 `MODEL-JUSTIFICATION.md`):
 
 | # | Notebook | Algorithm | Task | Target | Dataset |
 |---|----------|-----------|------|--------|---------|
-| 1 | `notebooks/01_attrition_model.ipynb` | **Random Forest** | Attrition risk scoring + high-risk flags | `Attrition` | `attrition-v2.csv` |
-| 2 | `notebooks/02_performance_model.ipynb` | **Gradient Boosting** | Performance forecasting (40–100) | `performance_score` | `employee_promotion_prediction.csv` |
-| 3 | `notebooks/03_promotion_model.ipynb` | **Logistic Regression** | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
+| 1 | `notebooks/02_performance_model.ipynb` | **Gradient Boosting** | Performance forecasting (40–100) | `performance_score` | `employee_promotion_prediction.csv` |
+| 2 | `notebooks/03_promotion_model.ipynb` | **Logistic Regression** | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
 
 Each notebook runs the same disciplined flow: **EDA → preprocessing → model (CV) →
 evaluation → (threshold tuning) → risk/readiness scoring → persistence.** Gradient boosting
 uses scikit-learn's native `HistGradientBoostingRegressor`, so there is **no xgboost/lightgbm
 dependency** and the environment installs cleanly on Python 3.14 without a build toolchain.
+
+Attrition Risk is **not** one of these — it's a frontend-only demo surface in the HR app
+that generates illustrative scores client-side; there is no attrition model, dataset or
+notebook. See `../docs/decisions/0030-attrition-risk-frontend-only.md`.
 
 ## Setup
 
@@ -40,7 +43,7 @@ To re-run everything headlessly (no UI):
 
 ```bash
 .venv/Scripts/python.exe -m nbconvert --to notebook --execute --inplace \
-    notebooks/01_attrition_model.ipynb
+    notebooks/02_performance_model.ipynb
 ```
 
 ## Logging — nothing disappears
@@ -78,23 +81,9 @@ The notebooks are generated from a single reviewable definition so they stay con
 
 ## Notes on the data
 
-- **Attrition** and **promotion** targets are **imbalanced** (~16% and ~10% positive). Both
-  classifiers use `class_weight="balanced"` and are evaluated with ROC-AUC / PR-AUC rather
-  than accuracy, plus a decision-threshold sweep tuned for recall on the minority class.
+- The **promotion** target is **imbalanced** (~10% positive). The classifier uses
+  `class_weight="balanced"` and is evaluated with ROC-AUC / PR-AUC rather than accuracy,
+  plus a decision-threshold sweep tuned for recall on the minority class.
 - **Leakage guards:** the promotion model drops `salary_increase_percent` (a raise is part
   of a promotion). The performance model drops the `promoted` outcome and keeps historical
   performance as legitimate predictors.
-- **Attrition** trains on `attrition-v2.csv` (IBM HR Analytics Employee Attrition — 1,470
-  rows, ~16% leave), a genuinely-labelled dataset replacing the earlier bundled synthetic set
-  (whose target was close to random, ROC-AUC ≈ 0.5). To keep the model **deployable inside the
-  Synapse ERP**, it is trained on **only the 17 columns the ERP can actually supply at
-  inference time** (`Age, Department, JobRole, JobLevel, MonthlyIncome, OverTime,
-  PerformanceRating, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion,
-  YearsWithCurrManager, TotalWorkingYears, TrainingTimesLastYear, Education, EducationField,
-  NumCompaniesWorked, DistanceFromHome`). Pay-rate/equity/travel columns, the survey-only
-  satisfaction scores, the protected attributes `Gender`/`MaritalStatus` (fairness), and the
-  constant book-keeping columns are deliberately excluded. This ERP-servable model scores
-  **test ROC-AUC ≈ 0.74** (vs ≈ 0.80 for the full 30-column set) — the accuracy traded for a
-  model whose input contract matches live ERP data. The exact contract (columns, levels, tuned
-  threshold, tier cut-points) is written to `artifacts/attrition/feature_contract.json` and
-  consumed by the Laravel serving layer.

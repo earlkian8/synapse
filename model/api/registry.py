@@ -29,7 +29,6 @@ ARTIFACTS = MODEL_DIR / "artifacts"
 # Which artifacts to serve, and how each is scored.
 _SPECS = {
     "promotion": "classifier",
-    "attrition": "classifier",
     "performance": "regressor",
 }
 

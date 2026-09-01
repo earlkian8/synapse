@@ -1,41 +1,43 @@
-import { router } from '@inertiajs/react';
-import { attritionRiskRoutes } from './routes';
+import * as mock from './mock-engine';
+import type { RiskRun } from './types';
 
-type Handlers = {
+type RunHandlers = {
+    onStart?: () => void;
+    onFinish?: () => void;
+    onSuccess?: (run: RiskRun) => void;
+};
+
+type DeleteHandlers = {
     onStart?: () => void;
     onFinish?: () => void;
     onSuccess?: () => void;
 };
 
-/** Run a fresh attrition-risk assessment across all active employees. */
-export function runAssessment(h: Handlers = {}): void {
-    router.post(
-        attritionRiskRoutes.store,
-        {},
-        {
-            preserveScroll: true,
-            onStart: h.onStart,
-            onFinish: h.onFinish,
-            onSuccess: h.onSuccess,
-        },
-    );
+/**
+ * A short artificial delay so "Run assessment" still feels like it's doing
+ * work — Attrition Risk is a frontend-only demo (see mock-engine.ts), so the
+ * scoring itself is instant.
+ */
+const SIMULATED_DELAY_MS = 650;
+
+/** Run a fresh (simulated) attrition-risk assessment across the demo roster. */
+export function runAssessment(h: RunHandlers = {}): void {
+    h.onStart?.();
+
+    window.setTimeout(() => {
+        const run = mock.runAssessment();
+        h.onFinish?.();
+        h.onSuccess?.(run);
+    }, SIMULATED_DELAY_MS);
 }
 
-/** Switch the viewed run (history selector); preserves scroll + UI state. */
-export function viewRun(hashid: string): void {
-    router.get(
-        attritionRiskRoutes.index,
-        { run: hashid },
-        { preserveScroll: true, preserveState: true },
-    );
-}
+/** Delete a historical (simulated) assessment run. */
+export function deleteRun(hashid: string, h: DeleteHandlers = {}): void {
+    h.onStart?.();
 
-/** Delete a historical assessment run. */
-export function deleteRun(hashid: string, h: Handlers = {}): void {
-    router.delete(attritionRiskRoutes.destroy(hashid), {
-        preserveScroll: true,
-        onStart: h.onStart,
-        onFinish: h.onFinish,
-        onSuccess: h.onSuccess,
-    });
+    window.setTimeout(() => {
+        mock.deleteRun(hashid);
+        h.onFinish?.();
+        h.onSuccess?.();
+    }, 250);
 }

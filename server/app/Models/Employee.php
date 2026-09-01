@@ -264,16 +264,6 @@ class Employee extends Model
     }
 
     /**
-     * This employee's attrition-risk scores (one per assessment run).
-     *
-     * @return HasMany<AttritionRiskScore, $this>
-     */
-    public function attritionRiskScores(): HasMany
-    {
-        return $this->hasMany(AttritionRiskScore::class);
-    }
-
-    /**
      * This employee's training-program enrollments.
      *
      * @return HasMany<TrainingEnrollment, $this>

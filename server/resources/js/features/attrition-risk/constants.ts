@@ -124,15 +124,6 @@ export function formatRelative(iso: string | null): string {
     return formatDateTime(iso);
 }
 
-/** Humanize the model version string "RandomForestClassifier@2026-…" → algorithm only. */
-export function modelAlgorithm(version: string | null): string | null {
-    if (!version) {
-        return null;
-    }
-
-    return version.split('@')[0] ?? version;
-}
-
 /**
  * The grounded features we surface in the detail dialog, with friendly labels
  * and formatters. Only those present in the snapshot are shown — the rest were

@@ -1,17 +1,24 @@
 # 0021 — Attrition Risk: the third analytics surface, and an ERP-servable model
 
-- **Status:** Accepted
-- **Date:** 2026-06-28
+- **Status:** Superseded — the trained model, its FastAPI slot, and the
+  `attrition_risk_runs` / `attrition_risk_scores` tables were **removed**; Attrition
+  Risk is now a frontend-only demo surface. See
+  [ADR 0030](./0030-attrition-risk-frontend-only.md).
+- **Date:** 2026-06-28 (superseded 2026-09-02)
 - **Related:** [Attrition Risk module](../modules/attrition-risk.md),
-  [attrition-risk tables](../database/attrition-risk-tables.md),
   [ERD §10](../database/erd.md),
   [0017 — Predictive Analytics & ML inference](./0017-predictive-analytics-and-ml-inference.md)
   (establishes the FastAPI service, `MlClient`, the assessor/mapper pattern and the
-  header-plus-lines shape this reuses),
+  header-plus-lines shape this reused),
   [0018 — Performance Forecasting](./0018-performance-forecasting.md) (the
   non-linear-model precedent: derived confidence in lieu of factor attribution),
   Attendance ([ADR 0010](./0010-attendance-and-mobile-api.md)) — source of the
   overtime signal.
+
+> This ADR is retained as a tombstone so historical cross-references still resolve.
+> The architecture it recorded (trained Random Forest, persisted runs/scores, a
+> Laravel assessor calling the FastAPI service) no longer exists — see
+> [ADR 0030](./0030-attrition-risk-frontend-only.md) for why and what replaced it.
 
 ## Context
 

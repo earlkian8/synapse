@@ -1,11 +1,13 @@
 """
-Generate the three Synapse HR-ERP "Predictive Workforce Analytics" notebooks with nbformat.
+Generate the two Synapse HR-ERP "Predictive Workforce Analytics" notebooks with nbformat.
 
 Run once (inside the venv) to (re)create:
 
-    notebooks/01_attrition_model.ipynb     — Random Forest attrition-risk prediction
     notebooks/02_performance_model.ipynb   — Gradient Boosting performance forecasting
     notebooks/03_promotion_model.ipynb     — Logistic Regression promotion-readiness assessment
+
+Attrition Risk is not one of these — it's a frontend-only demo surface in the HR app with
+no trained model. See docs/decisions/0030-attrition-risk-frontend-only.md.
 
 Each notebook is built around the algorithm chosen for that task (see MODEL-JUSTIFICATION.md).
 Keeping the notebooks under source control as generated artifacts means we can always rebuild
@@ -83,296 +85,7 @@ preprocess = ColumnTransformer([
 
 
 # ======================================================================================
-# 1) ATTRITION  — Random Forest classification (risk scoring)
-# ======================================================================================
-
-
-def build_attrition() -> nbf.NotebookNode:
-    nb = new_notebook()
-    cells = []
-
-    cells.append(md("""
-# 01 · Attrition Risk Prediction — Random Forest
-
-**Goal** — generate an **attrition risk score** for every employee and flag the high-risk
-ones for early HR intervention. The model learns from overtime (`OverTime`), satisfaction
-(`JobSatisfaction`, `EnvironmentSatisfaction`, `RelationshipSatisfaction`), tenure
-(`YearsAtCompany`, `YearsSinceLastPromotion`, `TotalWorkingYears`), compensation
-(`MonthlyIncome`, `StockOptionLevel`) and role/travel context. This dataset has **no
-absence-count feature** — the pipeline is column-agnostic, so it simply trains on the
-columns present.
-
-**Algorithm — Random Forest** (`RandomForestClassifier`). Chosen for its robustness to the
-mixed, noisy, weakly-correlated HR features here, its insensitivity to feature scaling/outliers,
-and the out-of-the-box feature-importance it gives HR. Rationale + citations in
-`../MODEL-JUSTIFICATION.md`. Binary classification on `attrition-v2.csv` (IBM HR Analytics
-Employee Attrition, 1,470 rows, ~16% leave) — a genuinely-labelled dataset replacing the
-near-random synthetic set used previously.
-
-**ERP-servable feature set (deliberate).** We train on **only the columns the Synapse ERP can
-actually supply at inference time**, so the model's input contract matches live ERP data. That
-means we *exclude*:
-- pay-rate / equity columns the ERP doesn't track (`DailyRate`, `MonthlyRate`, `HourlyRate`,
-  `PercentSalaryHike`, `StockOptionLevel`),
-- `BusinessTravel` (not tracked),
-- the survey-only satisfaction scores (`JobSatisfaction`, `EnvironmentSatisfaction`,
-  `RelationshipSatisfaction`, `JobInvolvement`, `WorkLifeBalance`) — Synapse runs no engagement survey,
-- the **protected attributes** `Gender` and `MaritalStatus` — they must not drive an attrition
-  flag (adverse-impact / fairness), consistent with the fairness stance in `MODEL-JUSTIFICATION.md`,
-- the three constant book-keeping columns (`EmployeeCount`, `Over18`, `StandardHours`) and the
-  `EmployeeNumber` id.
-
-This costs a little accuracy versus the full 30-column model (test ROC-AUC ≈ 0.80 → ≈ 0.74) in
-exchange for a model that is **fully servable by the ERP and fairness-defensible** — the right
-trade for production. The pipeline is column-agnostic, so the kept set is the single source of truth.
-
-Everything is logged to `logs/attrition*.log`; artifacts (model, metrics, plots, scored
-roster) under `artifacts/attrition/`.
-"""))
-
-    cells.append(code(SETUP_CELL.format(model_name="attrition")))
-
-    cells.append(md("## 1 · Load data"))
-    cells.append(code("""
-# encoding="utf-8-sig" strips the BOM the source CSV carries on its first header.
-df = run.load_csv("attrition-v2.csv", encoding="utf-8-sig")
-print(df.shape)
-df.head()
-"""))
-    cells.append(code("""
-import io
-_info = io.StringIO()
-df.info(buf=_info)
-log.info("dataframe info:\\n%s", _info.getvalue())
-df.describe(include="all").T
-"""))
-
-    cells.append(md("## 2 · Target & exploratory analysis"))
-    cells.append(code("""
-TARGET = "Attrition"
-
-# ---- ERP-servable feature set -------------------------------------------------------
-# The model is trained on ONLY these columns so its input contract == what the Synapse
-# ERP can produce at inference time (see the markdown above for what is excluded and why).
-# This list is the single source of truth for the model's features.
-FEATURES = [
-    "Age", "Department", "JobRole", "JobLevel", "MonthlyIncome", "OverTime",
-    "PerformanceRating", "YearsAtCompany", "YearsInCurrentRole",
-    "YearsSinceLastPromotion", "YearsWithCurrManager", "TotalWorkingYears",
-    "TrainingTimesLastYear", "Education", "EducationField",
-    "NumCompaniesWorked", "DistanceFromHome",
-]
-
-y = (df[TARGET].astype(str).str.strip().str.lower() == "yes").astype(int)
-rate = y.mean()
-log.info("target=%s · positive rate=%.3f (%d of %d)", TARGET, rate, y.sum(), len(y))
-
-fig, ax = plt.subplots(figsize=(4, 3))
-y.value_counts().sort_index().plot(kind="bar", ax=ax, color=["#4c72b0", "#dd8452"])
-ax.set_xticklabels(["Stayed (0)", "Left (1)"], rotation=0)
-ax.set_title(f"Attrition class balance · positive={rate:.1%}")
-run.save_fig(fig, "01_class_balance"); plt.show()
-"""))
-    cells.append(code("""
-# Attrition rate across the drivers the model is meant to read.
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-for ax, col in zip(axes, ["OverTime", "JobSatisfaction", "Department"]):
-    rates = df.assign(_y=y).groupby(col)["_y"].mean().sort_values(ascending=False)
-    log.info("attrition rate by %s:\\n%s", col, rates.to_string())
-    rates.plot(kind="bar", ax=ax, color="#c44e52")
-    ax.set_title(f"Attrition rate by {col}"); ax.set_ylabel("rate")
-    ax.tick_params(axis="x", rotation=45)
-fig.tight_layout(); run.save_fig(fig, "02_attrition_by_driver"); plt.show()
-"""))
-    cells.append(code("""
-num_df = df[FEATURES].select_dtypes("number").assign(_attr=y)
-corr = num_df.corr()["_attr"].drop("_attr").sort_values()
-log.info("numeric correlation with attrition:\\n%s", corr.to_string())
-
-fig, ax = plt.subplots(figsize=(6, 6))
-corr.plot(kind="barh", ax=ax, color=np.where(corr > 0, "#dd8452", "#4c72b0"))
-ax.set_title("Correlation of numeric features with attrition")
-run.save_fig(fig, "03_numeric_correlation"); plt.show()
-"""))
-
-    cells.append(md("""
-## 3 · Preprocessing & stratified split
-
-A `ColumnTransformer` median-imputes + scales numerics and mode-imputes + one-hot-encodes
-categoricals. (Random Forests don't need scaling, but a single shared recipe keeps the three
-notebooks consistent and harmless here.) Stratified split preserves the ~16% leave rate.
-"""))
-    cells.append(code(PREPROCESS_IMPORTS + """
-X = df[FEATURES]
-numeric_cols, categorical_cols = sm.split_feature_types(df[FEATURES + [TARGET]], target=TARGET)
-log.info("numeric=%d %s", len(numeric_cols), numeric_cols)
-log.info("categorical=%d %s", len(categorical_cols), categorical_cols)
-""" + PREPROCESS_DEF + """
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42)
-log.info("split · train=%s test=%s", X_train.shape, X_test.shape)
-"""))
-
-    cells.append(md("""
-## 4 · Random Forest model
-
-`class_weight="balanced_subsample"` re-weights each bootstrap to counter the imbalance.
-Quality is read from 5-fold ROC-AUC before the final fit on all training data.
-"""))
-    cells.append(code("""
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold
-
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-model = Pipeline([
-    ("prep", preprocess),
-    ("clf", RandomForestClassifier(
-        n_estimators=500, max_depth=None, min_samples_leaf=2,
-        max_features="sqrt", class_weight="balanced_subsample",
-        n_jobs=-1, random_state=42)),
-])
-
-cv_auc = cross_val_score(model, X_train, y_train, cv=cv, scoring="roc_auc", n_jobs=-1)
-log.info("CV ROC-AUC = %.4f (+/- %.4f)", cv_auc.mean(), cv_auc.std())
-model.fit(X_train, y_train)
-log.info("fitted RandomForest on %d rows", len(X_train))
-"""))
-
-    cells.append(md("## 5 · Evaluation"))
-    cells.append(code("""
-from sklearn.metrics import (roc_auc_score, average_precision_score, classification_report,
-                             confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay,
-                             PrecisionRecallDisplay)
-
-proba = model.predict_proba(X_test)[:, 1]
-pred = (proba >= 0.5).astype(int)
-roc = roc_auc_score(y_test, proba)
-pr_auc = average_precision_score(y_test, proba)
-report = classification_report(y_test, pred, target_names=["Stayed", "Left"], digits=3)
-log.info("test ROC-AUC=%.4f · PR-AUC=%.4f", roc, pr_auc)
-log.info("classification report @0.5:\\n%s", report)
-print(report)
-"""))
-    cells.append(code("""
-fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-ConfusionMatrixDisplay(confusion_matrix(y_test, pred),
-                       display_labels=["Stayed", "Left"]).plot(ax=axes[0], colorbar=False)
-axes[0].set_title("Confusion matrix @ 0.5")
-RocCurveDisplay.from_predictions(y_test, proba, ax=axes[1])
-axes[1].set_title(f"ROC (AUC={roc:.3f})"); axes[1].plot([0, 1], [0, 1], "k--", lw=0.8)
-PrecisionRecallDisplay.from_predictions(y_test, proba, ax=axes[2])
-axes[2].set_title(f"Precision-Recall (AP={pr_auc:.3f})")
-fig.tight_layout(); run.save_fig(fig, "04_evaluation_curves"); plt.show()
-"""))
-    cells.append(code("""
-# Random Forest impurity importances (native) — what drives the risk score.
-ohe = model.named_steps["prep"].named_transformers_["cat"].named_steps["ohe"]
-feat_names = numeric_cols + list(ohe.get_feature_names_out(categorical_cols))
-importances = pd.Series(model.named_steps["clf"].feature_importances_, index=feat_names)
-top = importances.sort_values().tail(15)
-log.info("top RF feature importances:\\n%s", top.sort_values(ascending=False).to_string())
-
-fig, ax = plt.subplots(figsize=(7, 6))
-top.plot(kind="barh", ax=ax, color="#55a868")
-ax.set_title("Random Forest feature importance · top 15")
-run.save_fig(fig, "05_feature_importance"); plt.show()
-"""))
-
-    cells.append(md("""
-## 6 · Decision-threshold tuning
-
-Missing a leaver (false negative) is the costly error, so we pick the threshold maximising F1
-on the "Left" class instead of defaulting to 0.5.
-"""))
-    cells.append(code("""
-from sklearn.metrics import precision_recall_curve
-
-prec, rec, thr = precision_recall_curve(y_test, proba)
-f1s = 2 * prec * rec / (prec + rec + 1e-12)
-best_idx = int(np.nanargmax(f1s[:-1]))
-best_thr = float(thr[best_idx])
-log.info("tuned threshold=%.3f · F1=%.3f · recall=%.3f · precision=%.3f",
-         best_thr, f1s[best_idx], rec[best_idx], prec[best_idx])
-print(classification_report(y_test, (proba >= best_thr).astype(int),
-                            target_names=["Stayed", "Left"], digits=3))
-
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.plot(thr, prec[:-1], label="precision"); ax.plot(thr, rec[:-1], label="recall")
-ax.plot(thr, f1s[:-1], label="F1")
-ax.axvline(best_thr, color="k", ls="--", lw=0.8, label=f"best={best_thr:.2f}")
-ax.set_xlabel("threshold"); ax.set_title("Threshold sweep (Left class)"); ax.legend()
-run.save_fig(fig, "06_threshold_sweep"); plt.show()
-"""))
-
-    cells.append(md("""
-## 7 · Risk scoring & high-risk flags
-
-The headline deliverable: turn probabilities into a 0–100 **attrition risk score** and bucket
-employees into Low / Medium / High tiers for HR. The scored test roster is checkpointed to
-`artifacts/attrition/`.
-"""))
-    cells.append(code("""
-scored = X_test.copy()
-scored["risk_score"] = (proba * 100).round(1)
-scored["actual_attrition"] = y_test.values
-scored["risk_tier"] = pd.cut(proba, bins=[-0.01, 0.33, 0.66, 1.01],
-                             labels=["Low", "Medium", "High"])
-tier_counts = scored["risk_tier"].value_counts().sort_index()
-log.info("risk tier distribution:\\n%s", tier_counts.to_string())
-
-high_risk = scored.sort_values("risk_score", ascending=False).head(10)
-log.info("top-10 highest-risk employees:\\n%s",
-         high_risk[["risk_score", "risk_tier", "actual_attrition"]].to_string())
-run.checkpoint_df(scored.reset_index(names="row_id"), "scored_test_roster")
-high_risk[["risk_score", "risk_tier", "actual_attrition"]]
-"""))
-
-    cells.append(md("""
-## 8 · Persist model, metrics & serving contract
-
-Besides the fitted pipeline and headline metrics we write a **`feature_contract.json`** — the
-exact ordered feature columns, the categorical levels seen in training, the tuned decision
-threshold and the risk-tier cut-points. The Laravel serving layer (`MlClient` + the attrition
-feature mapper) reads this so the ERP feeds the model exactly what it was trained on.
-"""))
-    cells.append(code("""
-run.save_model(model, "attrition_model")
-run.save_metrics({
-    "algorithm": "RandomForestClassifier",
-    "cv_roc_auc": float(cv_auc.mean()),
-    "test_roc_auc": roc,
-    "test_pr_auc": pr_auc,
-    "tuned_threshold": best_thr,
-    "tuned_recall_left": float(rec[best_idx]),
-    "tuned_precision_left": float(prec[best_idx]),
-    "positive_rate": float(rate),
-    "high_risk_count": int((scored["risk_tier"] == "High").sum()),
-    "n_train": int(len(X_train)), "n_test": int(len(X_test)),
-    "n_features": len(FEATURES),
-})
-
-# Serving contract — the source of truth for what the ERP must send at inference time.
-contract = {
-    "target": TARGET,
-    "feature_columns": list(FEATURES),
-    "numeric_columns": list(numeric_cols),
-    "categorical_columns": list(categorical_cols),
-    "categorical_levels": {c: sorted(map(str, df[c].dropna().unique())) for c in categorical_cols},
-    "tuned_threshold": best_thr,
-    "risk_tier_bins": {"low_max": 0.33, "medium_max": 0.66},
-    "positive_rate": float(rate),
-}
-run.save_metrics(contract, name="feature_contract")
-log.info("serving contract written · %d features", len(FEATURES))
-run.finish(summary=f"RandomForest (ERP-servable {len(FEATURES)} feats): test ROC-AUC={roc:.3f}, PR-AUC={pr_auc:.3f}, tuned thr={best_thr:.2f}")
-"""))
-
-    nb.cells = cells
-    return nb
-
-
-# ======================================================================================
-# 2) PERFORMANCE — Gradient Boosting regression
+# 1) PERFORMANCE — Gradient Boosting regression
 # ======================================================================================
 
 
@@ -554,7 +267,7 @@ run.finish(summary=f"GradientBoosting: test R2={r2:.3f}, MAE={mae:.2f}, RMSE={rm
 
 
 # ======================================================================================
-# 3) PROMOTION — Logistic Regression classification (readiness scoring)
+# 2) PROMOTION — Logistic Regression classification (readiness scoring)
 # ======================================================================================
 
 
@@ -786,7 +499,6 @@ run.finish(summary=f"LogisticRegression: test ROC-AUC={roc:.3f}, PR-AUC={pr_auc:
 # ======================================================================================
 
 BUILDERS = {
-    "01_attrition_model.ipynb": build_attrition,
     "02_performance_model.ipynb": build_performance,
     "03_promotion_model.ipynb": build_promotion,
 }

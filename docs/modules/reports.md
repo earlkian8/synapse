@@ -42,9 +42,12 @@ Three layers turn a table into a decision:
    the *whole* result set (not the page on screen); the runner draws them with the same
    hand-rolled SVG primitives as the dashboard.
 2. **ML signals** (`MlSignals`) — for workforce/attendance reports, the latest **persisted**
-   attrition, promotion-readiness and performance-forecast run summaries ride along as
-   chips linking to their analytics surfaces. Reading the stored runs (not the live
+   promotion-readiness and performance-forecast run summaries ride along as chips
+   linking to their analytics surfaces. Reading the stored runs (not the live
    inference service) keeps signals available even when the model API is offline.
+   (Attrition Risk isn't included — it's a frontend-only demo with no persisted,
+   real data to report on; see
+   [ADR 0030](../decisions/0030-attrition-risk-frontend-only.md).)
 3. **AI insights** (`ReportInsights` → `GeminiClient`) — on demand, the LLM is handed a
    compact digest (totals, chart aggregates, ML signals, a row sample — never the full
    table) and answers in strict JSON: a headline, *what's happening*, *what changed*,

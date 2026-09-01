@@ -92,7 +92,7 @@ class ReportInsights
         - "headline": a short title (max ~8 words).
         - "whats_happening": the current state, 1-2 sentences, specific and numeric.
         - "what_happened": the notable change, trend or outlier in this data, 1-2 sentences.
-        - "why": the likely drivers. Reference the ML signals (attrition / promotion /
+        - "why": the likely drivers. Reference the ML signals (promotion /
           performance) when they are relevant.
         - "recommendations": 2-4 concrete next actions, each a single imperative sentence.
         - Ground every claim ONLY in the digest. Do not invent figures. No markdown, no

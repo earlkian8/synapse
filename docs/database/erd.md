@@ -822,17 +822,15 @@ coverage) and a **rating trajectory**. See
 [Performance Forecast](../modules/performance-forecast.md) and
 [ADR 0018](../decisions/0018-performance-forecasting.md).
 
-**Built (Attrition Risk)** — `attrition_risk_runs` + `attrition_risk_scores`, the
-third surface on the same service. Maps the ERD's `ATTRITION_PREDICTION`
-(`risk_score` → `probability`/`score`, `risk_level` → `tier`, `features`) onto the
-proven header-plus-lines shape (model recorded as a `model_version` string). Two
-intended deviations: the model is a **Random Forest** that exposes no per-instance
-contributions, so the ERD's `factors` is **dropped** in favour of a Laravel-derived
-**confidence** (data coverage) + the grounded feature snapshot — matching the
-Performance Forecast precedent; and it is trained on only the **ERP-servable** subset
-of columns so its inputs match what the HR system can supply at inference. See
-[Attrition Risk](../modules/attrition-risk.md) and
-[ADR 0021](../decisions/0021-attrition-risk.md).
+> **Attrition Risk removed as a persisted table (2026-09-02).** `attrition_risk_runs`
+> and `attrition_risk_scores` — along with their model, controllers, mapper/assessor
+> and the trained artifact — are gone; the surface is now a **frontend-only demo**
+> that fabricates a roster and computes illustrative scores in the browser (nothing
+> persists server-side). The `ATTRITION_PREDICTION` entity below is kept in the
+> diagram only as the original proposed shape, for reference. See
+> [Attrition Risk](../modules/attrition-risk.md),
+> [ADR 0021](../decisions/0021-attrition-risk.md) (historical) and
+> [ADR 0030](../decisions/0030-attrition-risk-frontend-only.md).
 
 ```mermaid
 erDiagram

@@ -1,7 +1,7 @@
 """
 synapse_ml — shared plumbing for the Synapse HR-ERP modelling notebooks.
 
-The three notebooks (attrition / performance / promotion) all import this module so
+The two notebooks (performance / promotion) all import this module so
 they share one consistent way to:
 
 * **log everything** — every run opens a timestamped log file under ``logs/`` *and*
@@ -15,11 +15,11 @@ they share one consistent way to:
 Usage from a notebook::
 
     import synapse_ml as sm
-    run = sm.start_run("attrition")        # opens logging + artifact dir
-    df  = run.load_csv("employee_attrition_dataset_10000.csv")
+    run = sm.start_run("promotion")        # opens logging + artifact dir
+    df  = run.load_csv("employee_promotion_prediction.csv")
     ...
     run.save_metrics({"roc_auc": 0.87})
-    run.save_model(pipeline, "attrition_model")
+    run.save_model(pipeline, "promotion_model")
     run.save_fig(fig, "confusion_matrix")
 """
 
