@@ -29,8 +29,8 @@ The app talks to the Laravel server in `../server`.
    php artisan serve --host 0.0.0.0      # 0.0.0.0 so your phone can reach it
    ```
 
-   Seeding links demo accounts to employees — sign in with
-   `dev@synapse.com` / `password`, or `mock.staff1@synapse.test` / `password`.
+   Seeding links the demo account to an employee — sign in with
+   `earlkian.dev@gmail.com` / `password`.
 
 2. **Point the app at your machine.** Find your computer's LAN IP (`ipconfig` on
    Windows, e.g. `192.168.1.23`) and set it in `app.json`:

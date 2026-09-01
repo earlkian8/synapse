@@ -13,6 +13,18 @@ use Illuminate\Support\Facades\Hash;
 class DatabaseSeeder extends Seeder
 {
     /**
+     * The one login the seeded workspace ships with. Everything else — the roster,
+     * the applicants, the approvers — is data, not an account: alpha testers sign
+     * in as this identity and see the whole system through it. Referenced by
+     * {@see RolePermissionSeeder} so the Super Admin grant can never drift from it.
+     */
+    public const ACCOUNT_EMAIL = 'earlkian.dev@gmail.com';
+
+    public const ACCOUNT_FIRST_NAME = 'Earl Kian';
+
+    public const ACCOUNT_LAST_NAME = 'Bancayrin';
+
+    /**
      * Seed the application's database for a single demo organisation (tenant).
      *
      * Reuses the "Default Organization" created during the multi-tenancy migration
@@ -26,23 +38,23 @@ class DatabaseSeeder extends Seeder
         // Bind the tenant so every scoped model below lands in this organisation.
         app(Tenancy::class)->set($organization);
 
-        $dev = User::firstOrCreate(
-            ['email' => 'dev@synapse.com'],
+        $owner = User::firstOrCreate(
+            ['email' => self::ACCOUNT_EMAIL],
             [
-                'first_name' => 'Test',
+                'first_name' => self::ACCOUNT_FIRST_NAME,
                 'middle_name' => null,
-                'last_name' => 'User',
+                'last_name' => self::ACCOUNT_LAST_NAME,
                 'password' => Hash::make('password'),
                 'is_active' => true,
                 'email_verified_at' => now(),
             ],
         );
 
-        // dev@ is a member of (and lands in) this organisation by default (ADR 0023).
-        OrganizationProvisioner::addMember($organization, $dev, default: true);
+        // The owner is a member of (and lands in) this organisation by default (ADR 0023).
+        OrganizationProvisioner::addMember($organization, $owner, default: true);
 
         // Permission catalogue, this organisation's built-in roles, and the
-        // Super Admin grant for dev@synapse.com.
+        // Super Admin grant for the owner account.
         $this->call(RolePermissionSeeder::class);
 
         // Organisation foundation (departments, positions, schedules) + employees.
@@ -87,16 +99,16 @@ class DatabaseSeeder extends Seeder
         $this->call(SystemSeeder::class);
 
         // A second company so the workspace switcher is demoable end-to-end:
-        // dev@synapse.com belongs to both and can switch between them.
-        $this->seedSecondaryTenant($dev, $organization);
+        // the owner account belongs to both and can switch between them.
+        $this->seedSecondaryTenant($owner, $organization);
     }
 
     /**
-     * Stand up a small second tenant that dev@synapse.com also belongs to, so the
+     * Stand up a small second tenant the owner account also belongs to, so the
      * one-identity-many-companies switching (ADR 0023) can be demonstrated. Gives it
-     * its own foundation and links the dev account to an employee there too.
+     * its own foundation and links the account to an employee there too.
      */
-    private function seedSecondaryTenant(User $dev, Organization $primary): void
+    private function seedSecondaryTenant(User $owner, Organization $primary): void
     {
         if (Organization::where('name', 'SYNAPSE Labs')->exists()) {
             return;
@@ -104,8 +116,8 @@ class DatabaseSeeder extends Seeder
 
         [$labs, $labsSuperAdmin] = OrganizationProvisioner::create('SYNAPSE Labs');
 
-        OrganizationProvisioner::addMember($labs, $dev); // a second, non-default membership
-        $dev->roles()->syncWithoutDetaching([$labsSuperAdmin->id]);
+        OrganizationProvisioner::addMember($labs, $owner); // a second, non-default membership
+        $owner->roles()->syncWithoutDetaching([$labsSuperAdmin->id]);
 
         $tenancy = app(Tenancy::class);
         $tenancy->set($labs);
@@ -114,12 +126,12 @@ class DatabaseSeeder extends Seeder
         // the second company shows a populated workspace rather than an empty one.
         $this->call(OrganizationSeeder::class);
 
-        // Link dev@ to an employee here too, so the mobile app resolves a self record
-        // in either workspace (one identity → one employee per organisation).
+        // Link the account to an employee here too, so the mobile app resolves a self
+        // record in either workspace (one identity → one employee per organisation).
         $employee = Employee::whereNull('user_id')->orderBy('id')->first();
 
         if ($employee) {
-            $employee->forceFill(['user_id' => $dev->id])->save();
+            $employee->forceFill(['user_id' => $owner->id])->save();
         }
 
         $tenancy->set($primary); // restore the primary tenant for anything after.

@@ -8,31 +8,25 @@ use App\Models\Organization;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\SystemNotification;
-use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * The System surfaces the operational module seeders don't touch: a small roster
- * of extra login accounts (so User Management & Roles have data), a believable
- * Activity-Log trail, and a few in-app Notifications attributed to the tenant's
- * primary (super-admin) account.
+ * The System surfaces the operational module seeders don't touch: a believable
+ * Activity-Log trail and a few in-app Notifications, both attributed to the
+ * tenant's one account.
+ *
+ * The workspace ships with a **single login** ({@see DatabaseSeeder::ACCOUNT_EMAIL}).
+ * User Management is demoable through it plus the invitation and join-code flows
+ * (ADR 0026) — seeding extra fake logins would only put credentials nobody owns
+ * in front of alpha testers.
  *
  * Tenant-aware and idempotent — runs within the tenant bound by the calling
  * seeder, and falls back to the first organisation when invoked on its own.
  */
 class SystemSeeder extends Seeder
 {
-    /** Extra login accounts (one HR Manager, one Department Head, two Staff). */
-    private const ACCOUNTS = [
-        ['email' => 'mock.hr@synapse.test', 'first' => 'Hannah', 'last' => 'Reyes', 'role' => 'hr-manager'],
-        ['email' => 'mock.head@synapse.test', 'first' => 'Diego', 'last' => 'Santos', 'role' => 'department-head'],
-        ['email' => 'mock.staff1@synapse.test', 'first' => 'Sam', 'last' => 'Cruz', 'role' => 'staff'],
-        ['email' => 'mock.staff2@synapse.test', 'first' => 'Jamie', 'last' => 'Lim', 'role' => 'staff'],
-    ];
-
     public function run(): void
     {
         $tenancy = app(Tenancy::class);
@@ -47,79 +41,39 @@ class SystemSeeder extends Seeder
             $tenancy->set($organization);
         }
 
-        // Resolve the primary account before adding the extra roster, so the
-        // activity / notification trail is always attributed to the super admin.
+        // The trail is always attributed to the account that owns the workspace.
         $primaryUser = User::query()
             ->whereHas('roles', fn ($query) => $query->where('name', Role::SUPER_ADMIN))
             ->orderBy('id')
             ->first()
             ?? User::query()->orderBy('id')->first();
 
-        $this->seedUsers();
-
-        // Link the demo login accounts to employee records so the mobile app
-        // (self-service DTR, leave, awards, profile) is demoable on first sign-in.
-        $this->linkEmployeeAccounts();
-
-        if ($primaryUser) {
-            $this->seedActivityLogs($primaryUser);
-            $this->seedNotifications($primaryUser);
+        if (! $primaryUser) {
+            return;
         }
+
+        // Link the login to an employee record so the mobile app (self-service
+        // DTR, leave, awards, profile) is demoable on first sign-in.
+        $this->linkEmployeeAccount($primaryUser);
+
+        $this->seedActivityLogs($primaryUser);
+        $this->seedNotifications($primaryUser);
     }
 
     /**
-     * Give the seeded login accounts a linked Employee so they resolve a self
-     * record in the mobile API. `dev@synapse.com` (Super Admin) and the two Staff
-     * accounts each adopt a distinct still-unlinked employee. Idempotent: an
-     * account that already has an employee is left alone.
+     * Give the account a linked Employee so it resolves a self record in the
+     * mobile API. Idempotent: an account that already has one is left alone.
      */
-    private function linkEmployeeAccounts(): void
+    private function linkEmployeeAccount(User $user): void
     {
-        $emails = ['dev@synapse.com', 'mock.staff1@synapse.test', 'mock.staff2@synapse.test'];
-
-        foreach ($emails as $email) {
-            $user = User::where('email', $email)->first();
-
-            if (! $user || $user->employee()->exists()) {
-                continue;
-            }
-
-            $employee = Employee::whereNull('user_id')->orderBy('id')->first();
-
-            if ($employee) {
-                $employee->forceFill(['user_id' => $user->id])->save();
-            }
+        if ($user->employee()->exists()) {
+            return;
         }
-    }
 
-    /**
-     * A small roster of additional accounts so the User Management + Roles
-     * surfaces have data. Idempotent.
-     */
-    private function seedUsers(): void
-    {
-        $organization = app(Tenancy::class)->organization();
+        $employee = Employee::whereNull('user_id')->orderBy('id')->first();
 
-        foreach (self::ACCOUNTS as $account) {
-            $user = User::firstOrCreate(
-                ['email' => $account['email']],
-                [
-                    'first_name' => $account['first'],
-                    'last_name' => $account['last'],
-                    'password' => Hash::make('password'),
-                    'is_active' => true,
-                    'email_verified_at' => now(),
-                ],
-            );
-
-            // Make them a member of this tenant (their first membership is default).
-            OrganizationProvisioner::addMember($organization, $user, default: ! $user->memberships()->exists());
-
-            $role = Role::where('name', $account['role'])->first();
-
-            if ($role) {
-                $user->roles()->syncWithoutDetaching([$role->id]);
-            }
+        if ($employee) {
+            $employee->forceFill(['user_id' => $user->id])->save();
         }
     }
 

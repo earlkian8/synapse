@@ -13,7 +13,7 @@ class RolePermissionSeeder extends Seeder
 {
     /**
      * Sync the global permission catalogue, provision the current organisation's
-     * built-in roles, and grant the seeded developer account Super Admin.
+     * built-in roles, and grant the seeded owner account Super Admin.
      *
      * Runs within the tenant bound by {@see DatabaseSeeder}; falls back to the
      * first organisation when invoked on its own.
@@ -36,8 +36,8 @@ class RolePermissionSeeder extends Seeder
         // 2. Provision this organisation's built-in roles.
         $superAdmin = OrganizationProvisioner::provisionRoles($organization);
 
-        // 3. Grant the seeded developer account Super Admin.
-        User::where('email', 'dev@synapse.com')->first()
+        // 3. Grant the seeded owner account Super Admin.
+        User::where('email', DatabaseSeeder::ACCOUNT_EMAIL)->first()
             ?->roles()->syncWithoutDetaching([$superAdmin->id]);
     }
 }

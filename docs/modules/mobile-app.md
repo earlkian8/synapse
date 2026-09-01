@@ -97,7 +97,7 @@ require approval — identical to the web `LeaveRequestController`.
 
 1. **Server:** `php artisan serve --host 0.0.0.0` (so a phone on the LAN can reach
    it). Seed first with `php artisan migrate:fresh --seed` — this links the demo
-   accounts (`dev@synapse.com` / `password`, and `mock.staff*`) to employees.
+   account (`earlkian.dev@gmail.com` / `password`) to an employee.
 2. **Point the app at your machine:** set `expo.extra.apiUrl` in
    `mobile/app.json` to `http://<your-LAN-IP>:8000/api`, or export
    `EXPO_PUBLIC_API_URL`. (Find your IP with `ipconfig`.)

@@ -96,7 +96,7 @@ get them via the all-permissions grant.
 
 ## Seeding
 
-`OffboardingSeeder` (in `DatabaseSeeder` + `MockSeeder`) seeds 5 exits across the
+`OffboardingSeeder` (in `DatabaseSeeder`) seeds 5 exits across the
 lifecycle — completed (employee separated), in clearance, in clearance with a flagged
 item, just initiated, and cancelled — each with the standard 10-item clearance
 checklist. Idempotent (only seeds when no cases exist).

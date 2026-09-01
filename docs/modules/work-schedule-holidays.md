@@ -68,7 +68,7 @@ both; Super Admin / Administrator via the all-permissions grant. The sidebar ite
 
 ## Seeding
 
-`HolidaySeeder` (in `DatabaseSeeder` + `MockSeeder`) seeds the Philippine statutory calendar:
+`HolidaySeeder` (in `DatabaseSeeder`) seeds the Philippine statutory calendar:
 fixed regular and special non-working holidays as recurring entries, plus the movable National
 Heroes Day (last Monday of August). Work schedules (Day / Night Shift) are seeded by
 `OrganizationSeeder`. Idempotent.

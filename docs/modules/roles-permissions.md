@@ -182,7 +182,8 @@ foreach (PermissionRegistry::names() as $permission) {
 | HR Manager | `hr-manager` | no | User view/create/update, status, password reset, export; roles.view; activity-logs view/export; notifications.send. |
 | Staff | `staff` | no | None (baseline). |
 
-`dev@synapse.com` is granted **Super Admin** by `RolePermissionSeeder`.
+The seeded account (`DatabaseSeeder::ACCOUNT_EMAIL`) is granted **Super Admin** by
+`RolePermissionSeeder`.
 
 > ⚠️ Because every `/system/*` route is now permission-gated, an authenticated
 > account **with no role** receives `403`. Assign roles via User Management (the

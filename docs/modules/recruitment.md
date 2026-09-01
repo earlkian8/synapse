@@ -352,6 +352,33 @@ Admin / Administrator (all) and HR Manager (all of recruitment).
 pipelines and their stages — a recruiter can run hiring day-to-day without being able
 to redesign the process.
 
+## Seeding
+
+`RecruitmentSeeder` (in `DatabaseSeeder`) stands the module up for the demo tenant.
+It seeds **two pipelines**, deliberately: `Standard Hiring` (the default — the
+classic Applied → Screening → Interview → Offer → Hired → Rejected flow) and
+`Operations Hiring`, a shorter process whose stages (`Trial Shift`,
+`Supervisor Sign-off`, `Onboarded`, `Not Selected`, `Withdrew`) share no names with
+it. One pipeline would hide the point of ADR 0029; two prove the board, the fit
+scorer and the assistant read a stage's **kind and position**, never its name — and
+the seeder itself follows that rule, placing candidates by offset into a pipeline's
+own `open` stages rather than by looking a stage up by name.
+
+On top of that it seeds five postings covering the shapes the module has to
+survive: the ranked office role, one that asks its own screening question, an
+`Operations Associate` that opted out of **both** the résumé requirement and
+automatic ranking (the generic case), a `filled` posting whose hire is linked to a
+roster line the way the hire bridge leaves it, and a `draft` that was never
+published — so the postings grid shows the whole lifecycle. 24 applicants are
+spread across them, with interviews for anyone past the entry stage and answers
+recorded against each posting's screening questions.
+
+Pipelines are configuration rather than demo traffic, so they are seeded even into
+a tenant that already has postings; everything else only seeds when the tenant has
+no postings yet. A **second** organisation (`SYNAPSE Labs`) is seeded without any
+recruitment data at all, which is what makes the module's empty state — the
+"start from template" prompt a brand-new organisation sees — demoable.
+
 ## Tests
 
 - `tests/Feature/Recruitment/RecruitmentTest.php` — postings CRUD + status + filters,

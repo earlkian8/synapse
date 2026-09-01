@@ -56,6 +56,7 @@ const PAGES = [
     'setup.schedule.index' => 'setup/schedule',
     'setup.onboarding.index' => 'setup/onboarding',
     'setup.offboarding.index' => 'setup/offboarding',
+    'setup.recruitment-pipelines.index' => 'setup/recruitment-pipelines',
 
     // System
     'system.users.index' => 'system/users/index',
