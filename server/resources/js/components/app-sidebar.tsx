@@ -18,6 +18,7 @@ import {
     ListChecks,
     Mail,
     Medal,
+    Milestone,
     Network,
     ScrollText,
     ShieldCheck,
@@ -147,6 +148,13 @@ const analyticsNavItems: GatedNavItem[] = [
         href: '/analytics/promotion-readiness',
         icon: Medal,
         permission: 'analytics.promotion.view',
+    },
+    {
+        // A frontend-only demo surface (no permission behind it) — see
+        // docs/decisions/0031-model-graduation-frontend-only.md.
+        title: 'Model Graduation',
+        href: '/analytics/model-graduation',
+        icon: Milestone,
     },
     {
         title: 'Reports',
