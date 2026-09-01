@@ -1,9 +1,10 @@
 import { Form, Head, setLayoutProps } from '@inertiajs/react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
+import { KeyRound, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import IconInput from '@/components/icon-input';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
     InputOTP,
     InputOTPGroup,
@@ -54,17 +55,24 @@ export default function TwoFactorChallenge() {
             <Head title="Two-factor authentication — SYNAPSE" />
 
             <div className="space-y-6">
+                <div className="flex justify-center">
+                    <div className="flex size-12 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
+                        <ShieldCheck className="size-5" />
+                    </div>
+                </div>
+
                 <Form
                     {...store.form()}
-                    className="space-y-4"
+                    className="space-y-5"
                     resetOnError
                     resetOnSuccess={!showRecoveryInput}
                 >
                     {({ errors, processing, clearErrors }) => (
                         <>
                             {showRecoveryInput ? (
-                                <>
-                                    <Input
+                                <div className="grid gap-2">
+                                    <IconInput
+                                        icon={KeyRound}
                                         name="recovery_code"
                                         type="text"
                                         placeholder="Enter recovery code"
@@ -74,10 +82,10 @@ export default function TwoFactorChallenge() {
                                     <InputError
                                         message={errors.recovery_code}
                                     />
-                                </>
+                                </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center space-y-3 text-center">
-                                    <div className="flex w-full items-center justify-center">
+                                    <div className="flex w-full items-center justify-center rounded-xl focus-within:ring-2 focus-within:ring-[#0ABFBF]/30">
                                         <InputOTP
                                             name="code"
                                             maxLength={OTP_MAX_LENGTH}
@@ -87,13 +95,14 @@ export default function TwoFactorChallenge() {
                                             pattern={REGEXP_ONLY_DIGITS}
                                             autoFocus
                                         >
-                                            <InputOTPGroup>
+                                            <InputOTPGroup className="gap-2">
                                                 {Array.from(
                                                     { length: OTP_MAX_LENGTH },
                                                     (_, index) => (
                                                         <InputOTPSlot
                                                             key={index}
                                                             index={index}
+                                                            className="h-11 w-10 rounded-lg border border-input text-base font-semibold"
                                                         />
                                                     ),
                                                 )}

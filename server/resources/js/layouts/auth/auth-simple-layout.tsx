@@ -1,15 +1,11 @@
 import { Link } from '@inertiajs/react';
-import { Bell, BrainCircuit, ShieldCheck, TrendingUp } from 'lucide-react';
+import { BrainCircuit, ShieldCheck, TrendingUp } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
+import SynapseField from '@/components/synapse-field';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { home } from '@/routes';
 import type { AuthLayoutProps } from '@/types';
 
@@ -39,7 +35,7 @@ export default function AuthSimpleLayout({
     const year = new Date().getFullYear();
 
     return (
-        <TooltipProvider>
+        <>
             <div className="flex min-h-svh">
                 {/* ── Left Intelligence Panel ── */}
                 <aside
@@ -49,62 +45,7 @@ export default function AuthSimpleLayout({
                             'linear-gradient(160deg, #0F2044 0%, #0a1730 100%)',
                     }}
                 >
-                    {/* Dot-grid texture */}
-                    <div
-                        className="pointer-events-none absolute inset-0"
-                        style={{
-                            backgroundImage:
-                                'radial-gradient(circle, rgba(10,191,191,0.18) 1px, transparent 1px)',
-                            backgroundSize: '30px 30px',
-                        }}
-                    />
-
-                    {/* Teal glow blobs */}
-                    <div
-                        className="pointer-events-none absolute -right-40 -bottom-40 h-[500px] w-[500px] rounded-full"
-                        style={{
-                            background:
-                                'radial-gradient(circle, rgba(10,191,191,0.12) 0%, transparent 65%)',
-                        }}
-                    />
-                    <div
-                        className="pointer-events-none absolute top-1/4 -left-20 h-[300px] w-[300px] rounded-full"
-                        style={{
-                            background:
-                                'radial-gradient(circle, rgba(10,191,191,0.07) 0%, transparent 65%)',
-                        }}
-                    />
-
-                    {/* Decorative corner line-art */}
-                    <svg
-                        className="pointer-events-none absolute top-0 right-0 opacity-[0.04]"
-                        width="320"
-                        height="320"
-                        viewBox="0 0 320 320"
-                        fill="none"
-                    >
-                        <circle
-                            cx="320"
-                            cy="0"
-                            r="200"
-                            stroke="#0ABFBF"
-                            strokeWidth="1"
-                        />
-                        <circle
-                            cx="320"
-                            cy="0"
-                            r="140"
-                            stroke="#0ABFBF"
-                            strokeWidth="1"
-                        />
-                        <circle
-                            cx="320"
-                            cy="0"
-                            r="80"
-                            stroke="#0ABFBF"
-                            strokeWidth="1"
-                        />
-                    </svg>
+                    <SynapseField />
 
                     <div className="relative z-10 flex h-full flex-col px-10 py-10 xl:px-12">
                         {/* Brand mark */}
@@ -157,17 +98,8 @@ export default function AuthSimpleLayout({
                                         key={label}
                                         className="flex items-start gap-3.5"
                                     >
-                                        <div
-                                            className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-                                            style={{
-                                                background:
-                                                    'rgba(10,191,191,0.12)',
-                                            }}
-                                        >
-                                            <Icon
-                                                className="h-3.5 w-3.5"
-                                                style={{ color: '#0ABFBF' }}
-                                            />
+                                        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/[0.12] text-[#0ABFBF]">
+                                            <Icon className="h-3.5 w-3.5" />
                                         </div>
                                         <div>
                                             <p className="text-[13px] leading-snug font-medium text-white/80">
@@ -211,38 +143,7 @@ export default function AuthSimpleLayout({
 
                         {/* Right actions */}
                         <div className="ml-auto flex items-center gap-3">
-                            {/* System status badge */}
-                            <Badge
-                                variant="outline"
-                                className="hidden items-center gap-1.5 rounded-full border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium tracking-wider text-emerald-600 uppercase sm:inline-flex dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                            >
-                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                                All Systems Normal
-                            </Badge>
-
-                            {/* Notification bell */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Notifications"
-                                        className="relative flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors duration-150 hover:bg-black/[0.06] hover:text-[#0F2044] dark:hover:bg-white/[0.08] dark:hover:text-white"
-                                    >
-                                        <Bell className="h-[15px] w-[15px]" />
-                                        {/* Unread dot */}
-                                        <span
-                                            className="absolute top-[7px] right-[7px] h-[7px] w-[7px] rounded-full border-2 border-white dark:border-[#0d1120]"
-                                            style={{ background: '#0ABFBF' }}
-                                        />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="bottom"
-                                    className="text-xs"
-                                >
-                                    Notifications
-                                </TooltipContent>
-                            </Tooltip>
+                            <ThemeToggle />
                         </div>
                     </header>
 
@@ -301,6 +202,6 @@ export default function AuthSimpleLayout({
                     </footer>
                 </div>
             </div>
-        </TooltipProvider>
+        </>
     );
 }

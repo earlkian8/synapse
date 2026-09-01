@@ -155,7 +155,11 @@
 [data-sonner-toast] {
     --toast-accent: var(--border);
     border-inline-start: 3px solid var(--toast-accent) !important;
-    background: color-mix(in oklab, var(--toast-accent) 8%, var(--popover)) !important;
+    background: color-mix(
+        in oklab,
+        var(--toast-accent) 8%,
+        var(--popover)
+    ) !important;
 }
 
 [data-sonner-toast][data-type='success'] {
@@ -193,7 +197,11 @@
    Subtle by default, brightens to the brand teal on hover. */
 [data-slot='sidebar-content'] {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--sidebar-foreground) 22%, transparent)
+    scrollbar-color: color-mix(
+            in oklab,
+            var(--sidebar-foreground) 22%,
+            transparent
+        )
         transparent;
 }
 
@@ -209,12 +217,20 @@
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: padding-box;
-    background-color: color-mix(in oklab, var(--sidebar-foreground) 22%, transparent);
+    background-color: color-mix(
+        in oklab,
+        var(--sidebar-foreground) 22%,
+        transparent
+    );
     transition: background-color 150ms ease;
 }
 
 [data-slot='sidebar-content']:hover::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklab, var(--sidebar-foreground) 32%, transparent);
+    background-color: color-mix(
+        in oklab,
+        var(--sidebar-foreground) 32%,
+        transparent
+    );
 }
 
 [data-slot='sidebar-content']::-webkit-scrollbar-thumb:hover {
@@ -254,4 +270,26 @@
 
 .synapse-row-flash {
     animation: synapse-row-flash 2.4s ease-out;
+}
+
+/* ── SynapseField backdrop (workspace picker + auth screens) ────────────────
+   A slow pulse on each node of the neural-network backdrop. */
+@keyframes synapse-node {
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 0.85;
+    }
+}
+
+.synapse-node {
+    animation: synapse-node 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .synapse-node {
+        animation: none;
+    }
 }
