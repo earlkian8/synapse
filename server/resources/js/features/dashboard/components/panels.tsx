@@ -178,7 +178,7 @@ export function RecruitmentPanel({
     const bars = [
         { label: 'Applicants', value: recruitment.total_applicants },
         { label: 'In pipeline', value: recruitment.in_pipeline },
-        { label: 'Offers out', value: recruitment.offers },
+        { label: 'In final stage', value: recruitment.final_stage },
         { label: 'Hired this month', value: recruitment.hired_this_month },
     ];
 

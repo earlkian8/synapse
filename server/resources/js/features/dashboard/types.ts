@@ -40,7 +40,7 @@ export type Recruitment = {
     open_postings: number;
     total_applicants: number;
     in_pipeline: number;
-    offers: number;
+    final_stage: number;
     interviews_upcoming: number;
     hired_this_month: number;
 };
