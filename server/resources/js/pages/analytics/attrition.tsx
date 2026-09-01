@@ -37,6 +37,7 @@ import {
     toSummary,
 } from '@/features/attrition-risk/mock-engine';
 import type { RiskScore, RiskTier } from '@/features/attrition-risk/types';
+import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
 import { cn } from '@/lib/utils';
 
 const TIER_FILTERS: { value: RiskTier | 'all'; label: string }[] = [
@@ -142,6 +143,8 @@ export default function AttritionRisk() {
                 </div>
 
                 <DemoBanner />
+
+                <ModelProvenance model="attrition" />
 
                 {!run ? (
                     <EmptyState processing={processing} onRun={handleRun} />

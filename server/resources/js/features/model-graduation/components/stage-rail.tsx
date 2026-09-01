@@ -1,6 +1,6 @@
 import { Check, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { STAGE_LABELS, STAGE_ORDER, STAGE_SUMMARIES } from '../constants';
+import { STAGE_LABELS, STAGE_ORDER } from '../constants';
 import type { Stage } from '../types';
 
 type Position = 'done' | 'current' | 'locked';
@@ -24,20 +24,27 @@ function positionFor(stage: Stage, active: Stage): Position {
  * The gate on the connector into the final stage is drawn closed whenever the
  * model has not graduated, because that closure is the point of the surface.
  */
-export function StageRail({ stage }: { stage: Stage }) {
+export function StageRail({
+    stage,
+    summaries,
+}: {
+    stage: Stage;
+    summaries: Record<Stage, string>;
+}) {
     const lastIndex = STAGE_ORDER.length - 1;
 
     return (
-        <div className="rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm sm:p-5 dark:border-sidebar-border">
+        <div>
             <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Model lifecycle
+                Lifecycle
             </span>
 
-            <ol className="mt-4 flex flex-col md:grid md:grid-cols-3">
+            <ol className="mt-3 flex flex-col md:grid md:grid-cols-3">
                 {STAGE_ORDER.map((item, index) => (
                     <StageNode
                         key={item}
                         stage={item}
+                        summary={summaries[item]}
                         position={positionFor(item, stage)}
                         isLast={index === lastIndex}
                         /* The connector out of the second-to-last stage is the gate. */
@@ -51,11 +58,13 @@ export function StageRail({ stage }: { stage: Stage }) {
 
 function StageNode({
     stage,
+    summary,
     position,
     isLast,
     gated,
 }: {
     stage: Stage;
+    summary: string;
     position: Position;
     isLast: boolean;
     gated: boolean;
@@ -88,9 +97,7 @@ function StageNode({
                         </span>
                     )}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                    {STAGE_SUMMARIES[stage]}
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{summary}</p>
             </div>
         </li>
     );

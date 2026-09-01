@@ -60,6 +60,28 @@ else, and an `MlException`'s message is written for the person who clicked the
 button — never a shell command, a status code, or the service's response body,
 which are logged server-side instead. This is an HR screen, not a model dashboard.
 
+## Where these scores come from (model graduation)
+
+The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
+in one line that these forecasts come from a general workforce dataset rather than this
+organisation’s own appraisal history. Expanded, it shows the
+three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
+retraining gate drawn closed, the requirement furthest from satisfied, and the
+full requirement ledger — each row opening a drill-down with the statistical
+justification for its threshold.
+
+This surface learns from **cycle-to-cycle comparisons** rather than from people,
+so its headline requirement is 200 of them. Its distinctive requirement is **30
+people with three or more appraisals**: a trajectory needs three points, and with
+two every forecast is really last cycle restated. Its current stage is
+`collecting`.
+
+The panel is **frontend-only**: counts are fabricated in the browser and persisted
+to `localStorage`, and no retraining runs behind it. Only the counts are
+simulated — the thresholds and their reasoning are real. Shared implementation
+lives in `resources/js/features/model-graduation/`; see
+[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
+
 ## The model
 
 A **Gradient-Boosting regressor** (`HistGradientBoostingRegressor`) that predicts

@@ -1,74 +1,78 @@
-# Model Graduation: say where the model came from, and refuse to retrain early
+# Each predictive surface says where its scores came from
 
-Adds a new Analytics surface, **Model Graduation**, that makes the provenance of
-the two predictive models explicit — they are trained on a general public dataset
-whose `city_tier` column is the Indian metropolitan classification, not on the
-deploying organisation's records — and tracks the seven conditions under which a
-locally trained model would become possible. It refuses to retrain until every
-one of them holds, and says why.
+Adds a **`ModelProvenance`** panel to Promotion Readiness, Performance Forecast
+and Attrition Risk. Each states, beneath its own header, that its scores come from
+a general workforce dataset rather than from this organisation's records — and
+tracks the conditions under which a locally built model would become possible,
+refusing to retrain until every one of them holds.
 
 Frontend-only, following the Attrition Risk precedent: no controller, no
-migration, no permission, no retraining job. See
-[ADR 0031](../decisions/0031-model-graduation-frontend-only.md) and the
-[module doc](../modules/model-graduation.md).
+migration, no permission, no retraining job, no route. See
+[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
 
 ## Highlights
 
-- **The refusal leads.** The verdict panel opens with "Retraining locked" and a
-  `2/7` count rather than with progress, then names the **single requirement
-  furthest from satisfied** and projects when it would be met at the observed rate
-  — currently promotion outcomes at 14 of 120, around 2042. A closed gate is the
-  system working, so the palette stays neutral and teal rather than reaching for a
-  destructive red.
-- **A lifecycle rail** — Provisional → Collecting → Graduated — with the gate
-  drawn closed on the connector into the final stage. Order carries real meaning
-  here (a model cannot graduate before it has collected), so it is a genuine
-  sequence rather than decorative numbering.
-- **Every threshold is defended.** Each of the seven requirements opens a dialog
-  giving its statistical justification and where the count comes from. "120
-  promotions" is not a magic number on screen — it is 10–20 recorded outcomes per
-  input across the promotion model's 12 inputs.
+- **The panel lives in each module, not in a page of its own.** Graduation is a
+  property *of* a prediction, not a workspace someone visits — the question it
+  answers is only asked while looking at the scores, so the answer sits beside
+  them. Collapsed, it is one line of provenance, a stage badge and an `n of m met`
+  count; expanded, it opens into the full lifecycle and ledger.
+- **Requirements are per surface, because the surfaces learn different things.**
+  Promotion needs **120 promotions on record**; Performance needs **200
+  cycle-to-cycle comparisons** plus **30 people with three or more appraisals** (a
+  trajectory needs three points — with two, every forecast is last cycle
+  restated); Attrition needs **80 recorded departures**, each carrying a reason,
+  since a resignation and a redundancy are opposite events.
+- **Attrition reads `provisional` where the other two read `collecting`.** Its
+  scores are generated in the browser and never stored, so its
+  prediction-to-outcome link sits at zero — and that, not elapsed time, is what
+  blocks it. Waiting does not move that requirement.
+- **The blocker is always something you can act on.** Held-out rows and outcome
+  balance rise on their own as records accumulate, so they are flagged `derived`
+  and excluded from the "furthest from ready" selection — naming one would point
+  at something nobody can act on.
+- **The number and the sentence explaining it always match.** Each actionable
+  requirement carries its own outlook, and the panel renders the blocker's own —
+  so "Promotions on record 14 / 120" is explained by the promotions projection,
+  never by a neighbouring requirement's.
+- **Every threshold is defended one click away.** "120 promotions" is not a magic
+  number on screen — the drill-down gives 10–20 recorded outcomes per input across
+  the 12 the readiness score uses, and where the count comes from.
 - **One requirement documents a tension in our own design.** Appraisal frameworks
-  are configurable per tenant (ADR 0028), which is right for the product but means
-  scores are not automatically comparable across cycles — so "consecutive cycles on
-  one appraisal form" is a requirement rather than an assumption.
-- **A now/after comparison** of the provisional and local models, so the payoff of
-  graduating is concrete: the difference is not accuracy, it is whose workforce the
-  predictions describe.
+  are configurable per organisation (ADR 0028), which is right for the product but
+  means ratings are not automatically comparable across cycles — so "cycles on one
+  appraisal form" is a requirement rather than an assumption.
 
 ## Frontend
 
 - **New feature folder** `resources/js/features/model-graduation/` — `types.ts`,
-  `constants.ts` (stage/status/group vocabularies, progress and date formatters),
-  `mock-engine.ts`, `api.ts`, and five components (`demo-banner`, `stage-rail`,
-  `gate-verdict`, `model-summary`, `requirement-ledger`, `requirement-dialog`).
-- **`mock-engine.ts`** derives all seven requirements from three counters, so every
-  number on the page stays consistent with every other — held-out rows follow from
-  review cycles, outcome balance follows from promotion count. Checks persist to
-  `localStorage` (`synapse:model-graduation:checks`, capped at 10) and are read
-  through `useSyncExternalStore`, matching the Attrition Risk demo: the server
-  snapshot returns the empty array so the SSR pass and first client render agree
-  and no hydration mismatch is possible.
+  `constants.ts` (stage/status/group vocabularies and per-surface copy),
+  `mock-engine.ts`, and four components: `model-provenance`, `stage-rail`,
+  `requirement-ledger`, `requirement-dialog`.
+- **`mock-engine.ts`** holds a separate requirement builder per surface, each
+  derived from that surface's own counters so every number stays consistent with
+  every other. Checks persist per surface to `localStorage`
+  (`synapse:model-graduation:<surface>`) and are read through
+  `useSyncExternalStore`; the subscribe and snapshot functions are bound once per
+  surface and handed back from a map, since `useSyncExternalStore` resubscribes
+  whenever the subscribe identity changes.
 - **`stage-rail.tsx`** renders one rail that runs vertically on mobile and
-  horizontally from `md` up, with the gate badge centred on its connector in both
+  horizontally from `md` up, with the closed gate centred on its connector in both
   orientations.
-- **New page** `resources/js/pages/analytics/model-graduation.tsx`.
-- **Sidebar** — a new Analytics & AI entry using `Milestone` (`GraduationCap` was
-  already taken by Training & Development).
-
-## Backend
-
-- **`routes/analytics.php`** — one line:
-  `Route::inertia('model-graduation', 'analytics/model-graduation')`, ungated like
-  Attrition Risk. The file's header comment now names both frontend-only surfaces.
+- **Wired into** `pages/analytics/{promotion-readiness,performance-forecast,attrition}.tsx`,
+  each immediately below the existing banner.
 
 ## Notes
 
-- **Only the counts are simulated.** The demo banner separates the two: record
-  counts are generated in the browser, while the thresholds and the reasoning for
-  each are the real ones. The page is a specification of the gate a real
-  implementation would enforce.
-- **Promotion Readiness and Performance Forecast are untouched** — same
-  controllers, permissions and FastAPI inference service.
-- Verified in a real browser (Chromium, compiled assets) in light and dark themes
-  at 1440px and 390px, plus the requirement dialog; no console errors.
+- **The visible copy stays out of model internals** — which algorithm runs and how
+  it tested remain hidden, consistent with each surface's `ServiceBanner`. The
+  statistical reasoning is one click into the drill-down, for the reader who wants
+  it.
+- **Only the record counts are simulated.** The panel says so, and the thresholds
+  and their reasoning are the real ones.
+- **Promotion Readiness and Performance Forecast are otherwise untouched** — same
+  controllers, permissions, props and FastAPI inference service.
+- Verified in a real browser (Chromium, compiled assets) across all three surfaces
+  in light and dark themes, collapsed and expanded. The only console errors are
+  pre-existing: seeded avatars point at `randomuser.me`, which the app's own
+  `img-src` CSP blocks.

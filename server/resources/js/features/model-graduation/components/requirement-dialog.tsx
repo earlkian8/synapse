@@ -1,4 +1,4 @@
-import { Database, Ruler } from 'lucide-react';
+import { CalendarClock, Database, Ruler } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -54,6 +54,13 @@ export function RequirementDialog({
                             label="Where the count comes from"
                             body={requirement.source}
                         />
+                        {requirement.outlook && (
+                            <Note
+                                icon={CalendarClock}
+                                label="What would close the gap"
+                                body={requirement.outlook}
+                            />
+                        )}
                     </>
                 )}
             </DialogContent>

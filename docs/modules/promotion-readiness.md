@@ -52,6 +52,27 @@ else, and an `MlException`'s message is written for the person who clicked the
 button — never a shell command, a status code, or the service's response body,
 which are logged server-side instead. This is an HR screen, not a model dashboard.
 
+## Where these scores come from (model graduation)
+
+The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
+in one line that these readiness scores come from a general workforce dataset rather than
+this organisation’s own promotion history. Expanded, it shows the
+three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
+retraining gate drawn closed, the requirement furthest from satisfied, and the
+full requirement ledger — each row opening a drill-down with the statistical
+justification for its threshold.
+
+This surface's headline requirement is **120 promotions on record** — roughly 10
+to 20 recorded outcomes for each of the 12 inputs the readiness score draws on.
+Its current stage is `collecting`: stored scores are matched back to who was
+actually promoted, so time spent now counts toward a future local model.
+
+The panel is **frontend-only**: counts are fabricated in the browser and persisted
+to `localStorage`, and no retraining runs behind it. Only the counts are
+simulated — the thresholds and their reasoning are real. Shared implementation
+lives in `resources/js/features/model-graduation/`; see
+[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
+
 ## The model
 
 A **Logistic Regression** promotion classifier (chosen for calibrated probabilities and

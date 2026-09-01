@@ -1,8 +1,13 @@
-import type { RequirementGroup, RequirementStatus, Stage } from './types';
+import type {
+    ModelKey,
+    RequirementGroup,
+    RequirementStatus,
+    Stage,
+} from './types';
 
 /**
- * The three stages, in order. A model starts on a borrowed dataset, spends a
- * long time collecting local history, and only then trains on it.
+ * The three stages, in order. A surface starts on a borrowed model, spends a long
+ * time collecting local history, and only then trains on it.
  */
 export const STAGE_ORDER: Stage[] = ['provisional', 'collecting', 'graduated'];
 
@@ -12,18 +17,60 @@ export const STAGE_LABELS: Record<Stage, string> = {
     graduated: 'Graduated',
 };
 
-export const STAGE_SUMMARIES: Record<Stage, string> = {
-    provisional:
-        'Scoring with a model trained on a general public dataset. Every prediction is labelled provisional.',
-    collecting:
-        'Still scoring provisionally, but now recording each prediction against what actually happened.',
-    graduated:
-        'Retrained on this organisation’s own records. Predictions describe this workforce, not a borrowed one.',
+/**
+ * Per-surface copy. Deliberately free of model internals — which algorithm runs
+ * and how accurate it tested are implementation details this screen's audience is
+ * not meant to reason about (see the surfaces' own ServiceBanner). What an HR
+ * reader *does* need is whose workforce the scores actually describe.
+ */
+export const MODEL_COPY: Record<
+    ModelKey,
+    { title: string; provenance: string; stages: Record<Stage, string> }
+> = {
+    promotion: {
+        title: 'Where these readiness scores come from',
+        provenance:
+            'A general workforce dataset — not this organisation’s own promotion history.',
+        stages: {
+            provisional:
+                'Scoring from a general workforce dataset. Every score is marked provisional.',
+            collecting:
+                'Still scoring provisionally, but now recording each score against who was actually promoted.',
+            graduated:
+                'Built from this organisation’s own promotion history. Scores describe this workforce.',
+        },
+    },
+    performance: {
+        title: 'Where these forecasts come from',
+        provenance:
+            'A general workforce dataset — not this organisation’s own appraisal history.',
+        stages: {
+            provisional:
+                'Forecasting from a general workforce dataset. Every forecast is marked provisional.',
+            collecting:
+                'Still forecasting provisionally, but now recording each forecast against the rating that followed.',
+            graduated:
+                'Built from this organisation’s own appraisal history. Forecasts describe this workforce.',
+        },
+    },
+    attrition: {
+        title: 'Where these risk scores come from',
+        provenance:
+            'An illustrative calculation — there is no model behind this surface yet.',
+        stages: {
+            provisional:
+                'Scores are illustrative only. Nothing is being recorded that a model could later learn from.',
+            collecting:
+                'Still illustrative, but now recording each score against who actually left.',
+            graduated:
+                'Built from this organisation’s own departure history. Scores describe this workforce.',
+        },
+    },
 };
 
 /**
- * A locked gate is the system working, not an error — so the palette stays in
- * the neutral/teal family and never reaches for a destructive red.
+ * A locked gate is the system working, not an error — so the palette stays in the
+ * neutral/teal family and never reaches for a destructive red.
  */
 export const STATUS_LABELS: Record<RequirementStatus, string> = {
     met: 'Met',
@@ -47,16 +94,9 @@ export const STATUS_BARS: Record<RequirementStatus, string> = {
 };
 
 export const GROUP_LABELS: Record<RequirementGroup, string> = {
-    volume: 'Enough data',
-    quality: 'Trustworthy data',
+    volume: 'Enough history',
+    quality: 'History that means the same thing',
     system: 'System readiness',
-};
-
-export const GROUP_SUMMARIES: Record<RequirementGroup, string> = {
-    volume: 'Whether there is simply enough history to learn anything from.',
-    quality:
-        'Whether that history means the same thing from one cycle to the next.',
-    system: 'Whether the application is set up to train and store a model safely.',
 };
 
 /** Groups in display order. */
@@ -74,21 +114,6 @@ export function completion(current: number, required: number): number {
     }
 
     return Math.min(100, Math.round((current / required) * 100));
-}
-
-/** Format an ISO timestamp as a friendly absolute date-time. */
-export function formatDateTime(iso: string | null): string {
-    if (!iso) {
-        return '—';
-    }
-
-    return new Date(iso).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
 }
 
 /** Compact relative time, e.g. "3h ago", "2d ago". */
@@ -121,27 +146,9 @@ export function formatRelative(iso: string | null): string {
         return `${days}d ago`;
     }
 
-    return formatDateTime(iso);
-}
-
-/**
- * How long the projection is away, in words — "about 15 years away". Kept vague
- * on purpose: the projection is a straight-line estimate, not a forecast.
- */
-export function projectionDistance(year: number | null): string {
-    if (year === null) {
-        return 'not estimable yet';
-    }
-
-    const years = year - new Date().getFullYear();
-
-    if (years <= 0) {
-        return 'reachable now';
-    }
-
-    if (years === 1) {
-        return 'about a year away';
-    }
-
-    return `about ${years} years away`;
+    return new Date(iso).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
 }

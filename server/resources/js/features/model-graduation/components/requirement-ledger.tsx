@@ -5,7 +5,6 @@ import {
     formatProgress,
     GROUP_LABELS,
     GROUP_ORDER,
-    GROUP_SUMMARIES,
     STATUS_BARS,
     STATUS_LABELS,
     STATUS_STYLES,
@@ -13,9 +12,12 @@ import {
 import type { Requirement } from '../types';
 
 /**
- * Every graduation requirement, grouped by the kind of problem it guards
- * against. The groups are categories rather than steps, so they carry no
- * ordinal markers — nothing here happens in sequence.
+ * Every requirement behind the gate, grouped by the kind of problem it guards
+ * against. The groups are categories rather than steps, so they carry no ordinal
+ * markers — nothing here happens in sequence.
+ *
+ * Each row states the shortfall in plain language; the statistical justification
+ * for the threshold lives one click away, in the drill-down.
  */
 export function RequirementLedger({
     requirements,
@@ -38,30 +40,23 @@ export function RequirementLedger({
                 const met = rows.filter((r) => r.status === 'met').length;
 
                 return (
-                    <section
-                        key={group}
-                        className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border"
-                    >
-                        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-sidebar-border/70 px-4 py-3 dark:border-sidebar-border">
-                            <div className="min-w-0">
-                                <h3 className="text-sm font-medium">
-                                    {GROUP_LABELS[group]}
-                                </h3>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                    {GROUP_SUMMARIES[group]}
-                                </p>
-                            </div>
-                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    <section key={group}>
+                        <header className="flex items-baseline justify-between gap-4 px-1">
+                            <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                {GROUP_LABELS[group]}
+                            </h4>
+                            <span className="text-xs text-muted-foreground tabular-nums">
                                 {met} of {rows.length} met
                             </span>
                         </header>
 
-                        <ul className="divide-y divide-border">
-                            {rows.map((requirement) => (
+                        <ul className="mt-2 overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
+                            {rows.map((requirement, index) => (
                                 <RequirementRow
                                     key={requirement.key}
                                     requirement={requirement}
                                     isBinding={requirement.key === bindingKey}
+                                    isFirst={index === 0}
                                     onOpen={() => onOpen(requirement)}
                                 />
                             ))}
@@ -76,18 +71,26 @@ export function RequirementLedger({
 function RequirementRow({
     requirement,
     isBinding,
+    isFirst,
     onOpen,
 }: {
     requirement: Requirement;
     isBinding: boolean;
+    isFirst: boolean;
     onOpen: () => void;
 }) {
     const percent = completion(requirement.current, requirement.required);
     const isMet = requirement.status === 'met';
 
     return (
-        <li className="relative">
-            {/* Ties this row back to the "holding this back" panel above. */}
+        <li
+            className={cn(
+                'relative',
+                !isFirst &&
+                    'border-t border-sidebar-border/70 dark:border-sidebar-border',
+            )}
+        >
+            {/* Ties this row back to the "furthest from ready" panel above. */}
             {isBinding && (
                 <span
                     className="absolute inset-y-0 left-0 w-0.5 bg-[#0ABFBF]"
@@ -98,7 +101,7 @@ function RequirementRow({
             <button
                 type="button"
                 onClick={onOpen}
-                className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/50"
+                className="flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors hover:bg-muted/50"
             >
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

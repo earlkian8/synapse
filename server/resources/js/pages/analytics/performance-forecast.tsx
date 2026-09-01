@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
 import {
     deleteRun,
     runForecast,
@@ -132,6 +133,8 @@ export default function PerformanceForecast() {
                 </div>
 
                 <ServiceBanner service={service} />
+
+                <ModelProvenance model="performance" />
 
                 {!run ? (
                     <EmptyState

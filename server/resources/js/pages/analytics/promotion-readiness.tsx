@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
 import {
     deleteRun,
     runAssessment,
@@ -130,6 +131,8 @@ export default function PromotionReadiness() {
                 </div>
 
                 <ServiceBanner service={service} />
+
+                <ModelProvenance model="promotion" />
 
                 {!run ? (
                     <EmptyState

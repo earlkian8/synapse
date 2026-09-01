@@ -45,6 +45,28 @@ A `DemoBanner` on the page says plainly that the data is simulated and generated
 in the browser; the detail dialog's copy was reworded ("simulated probability",
 "simulated confidence") so nothing implies a live model or real HR data.
 
+## Where these scores come from (model graduation)
+
+The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
+in one line that there is no trained model behind this surface at all. Expanded, it shows the
+three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
+retraining gate drawn closed, the requirement furthest from satisfied, and the
+full requirement ledger — each row opening a drill-down with the statistical
+justification for its threshold.
+
+Attrition is the honest outlier of the three. Because scores are generated in the
+browser and never stored, the prediction-to-outcome link sits at **zero** — and
+that, rather than elapsed time, is what blocks it. Waiting does not move that
+requirement, so this surface reads `provisional` where the other two read
+`collecting`. Its headline requirement is **80 recorded departures**, which a
+stable organisation produces slowest of all.
+
+The panel is **frontend-only**: counts are fabricated in the browser and persisted
+to `localStorage`, and no retraining runs behind it. Only the counts are
+simulated — the thresholds and their reasoning are real. Shared implementation
+lives in `resources/js/features/model-graduation/`; see
+[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
+
 ## What was removed
 
 Everything server-side: `AttritionRiskController` / `AttritionRiskRunController`,

@@ -13,18 +13,18 @@ use Illuminate\Support\Facades\Route;
 | Viewing needs the surface's `*.view` permission; triggering or deleting a run
 | needs its `*.manage` permission.
 |
-| Attrition Risk and Model Graduation are NOT these — they are frontend-only
-| demo surfaces (no controller, no persisted data, no permission) that generate
-| their own illustrative figures client-side. See
-| docs/decisions/0030-attrition-risk-frontend-only.md and
-| docs/decisions/0031-model-graduation-frontend-only.md.
+| Attrition Risk is NOT one of these — it's a frontend-only demo surface (no
+| controller, no persisted data, no permission) that generates its own
+| illustrative scores client-side. See docs/decisions/0030-attrition-risk-frontend-only.md.
+|
+| All three surfaces embed their own model-graduation panel, which is likewise
+| frontend-only. See docs/decisions/0031-model-graduation-frontend-only.md.
 */
 Route::middleware(['auth', 'verified'])
     ->prefix('analytics')
     ->name('analytics.')
     ->group(function () {
         Route::inertia('attrition', 'analytics/attrition')->name('attrition.index');
-        Route::inertia('model-graduation', 'analytics/model-graduation')->name('model-graduation.index');
 
         Route::prefix('promotion-readiness')
             ->name('promotion-readiness.')
