@@ -8,6 +8,8 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Support\Attendance\AttendanceCalculator;
 use App\Support\Attendance\DayRules;
+use App\Support\Attendance\ResolvedShift;
+use App\Support\Attendance\ShiftResolver;
 use App\Support\HolidayCalendar;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
@@ -28,6 +30,8 @@ use Illuminate\Support\Collection;
  */
 class AttendanceRangeQuery
 {
+    public function __construct(private readonly ShiftResolver $shifts = new ShiftResolver) {}
+
     /**
      * Eligible employees paired with their ordered day-cells for [start, end].
      *
@@ -40,7 +44,7 @@ class AttendanceRangeQuery
         $today = CarbonImmutable::parse(OrganizationClock::today());
 
         $employees = Employee::query()
-            ->with(['department:id,name', 'workSchedule'])
+            ->with(['department:id,name'])
             ->when($department, fn (Builder $q) => $q->where('department_id', $department))
             ->when($search !== '', fn (Builder $q) => $q->search($search))
             ->orderBy('first_name')
@@ -67,15 +71,29 @@ class AttendanceRangeQuery
         // The window's holidays, loaded once and keyed by date.
         $holidays = HolidayCalendar::inRange($startDate, $endDate);
 
+        // Every shift in the window, resolved in a fixed number of queries
+        // however wide the range is (ADR 0037).
+        $shifts = $this->shifts->forMany($employees, $startDate->toDateString(), $endDate->toDateString());
+
         return $employees
-            ->map(function (Employee $employee) use ($records, $leaves, $holidays, $startDate, $endDate, $today): array {
+            ->map(function (Employee $employee) use ($records, $leaves, $holidays, $shifts, $startDate, $endDate, $today): array {
                 $own = $records->get($employee->id) ?? collect();
                 $ownLeaves = $leaves->get($employee->id) ?? collect();
+                $ownShifts = $shifts[$employee->id] ?? [];
 
                 $cells = [];
 
                 for ($day = $startDate; $day->lte($endDate); $day = $day->addDay()) {
-                    $cells[] = $this->cell($day, $today, $employee, $own, $ownLeaves, $holidays[$day->format('Y-m-d')] ?? null);
+                    $date = $day->format('Y-m-d');
+
+                    $cells[] = $this->cell(
+                        $day,
+                        $today,
+                        $ownShifts[$date] ?? ResolvedShift::fallback($date),
+                        $own,
+                        $ownLeaves,
+                        $holidays[$date] ?? null,
+                    );
                 }
 
                 return ['employee' => $employee, 'cells' => $cells];
@@ -94,7 +112,7 @@ class AttendanceRangeQuery
     private function cell(
         CarbonImmutable $day,
         CarbonImmutable $today,
-        Employee $employee,
+        ResolvedShift $shift,
         Collection $records,
         Collection $leaves,
         ?Holiday $holiday,
@@ -119,13 +137,15 @@ class AttendanceRangeQuery
                 'holiday' => $record->rules['holiday_name'] ?? null,
                 'hashid' => $record->hashid,
                 'is_future' => false,
+                'shift' => $shift->label(),
+                'shift_source' => $shift->source,
             ];
         }
 
         $status = $isFuture
             ? null
             : AttendanceCalculator::noPunchStatus(
-                DayRules::fromSchedule($employee->workSchedule, $date, $holiday),
+                DayRules::fromShift($shift, $holiday),
                 $this->onLeave($leaves, $day),
             );
 
@@ -141,6 +161,8 @@ class AttendanceRangeQuery
             'holiday' => $holiday?->name,
             'hashid' => null,
             'is_future' => $isFuture,
+            'shift' => $shift->label(),
+            'shift_source' => $shift->source,
         ];
     }
 

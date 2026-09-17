@@ -1,10 +1,7 @@
 export type CaseStatus = 'initiated' | 'clearance' | 'completed' | 'cancelled';
 
 export type OffboardingType =
-    | 'resignation'
-    | 'termination'
-    | 'retirement'
-    | 'end_of_contract';
+    'resignation' | 'termination' | 'retirement' | 'end_of_contract';
 
 /** A clearance item's own state. */
 export type ClearanceStatus = 'pending' | 'cleared' | 'flagged';
@@ -13,17 +10,10 @@ export type ClearanceStatus = 'pending' | 'cleared' | 'flagged';
 export type DerivedClearanceStatus = 'pending' | 'in_progress' | 'cleared';
 
 export type EmploymentType =
-    | 'regular'
-    | 'probationary'
-    | 'contractual'
-    | 'part_time';
+    'regular' | 'probationary' | 'contractual' | 'part_time';
 
 export type EmploymentStatus =
-    | 'active'
-    | 'on_leave'
-    | 'suspended'
-    | 'resigned'
-    | 'terminated';
+    'active' | 'on_leave' | 'suspended' | 'resigned' | 'terminated';
 
 export type ClearanceSummary = {
     total: number;

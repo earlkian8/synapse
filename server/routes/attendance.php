@@ -3,11 +3,13 @@
 use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\Attendance\AttendanceExportController;
 use App\Http\Controllers\Attendance\MyAttendanceController;
+use App\Http\Controllers\Attendance\ShiftRosterController;
 use Illuminate\Support\Facades\Route;
 
 /*
-| Attendance — the Daily Time Record (DTR). The HR board (everyone's day) and the
-| employee self-service clock live here; records are addressed by hashid. The
+| Attendance — the Daily Time Record (DTR). The HR board (everyone's day), the
+| shift roster (everyone's plan) and the employee self-service clock live here;
+| records and roster entries are addressed by hashid. The
 | literal `me` / `records` segments are declared before the `{attendanceRecord}`
 | wildcard so they resolve correctly. Every route is permission-gated. The
 | mobile-facing equivalents are token-authenticated in routes/api.php.
@@ -24,6 +26,12 @@ Route::middleware(['auth', 'verified'])
         Route::get('export', AttendanceExportController::class)->middleware('can:attendance.view')->name('export');
         Route::patch('approve-all', [AttendanceController::class, 'approveAll'])->middleware('can:attendance.manage')->name('approve-all');
         Route::patch('reapply-schedule', [AttendanceController::class, 'reapplyRange'])->middleware('can:attendance.manage')->name('reapply-range');
+
+        // The roster — who is due to work what (ADR 0037). Literal segments, so
+        // they are declared with the other board-wide actions.
+        Route::post('roster/entries', [ShiftRosterController::class, 'store'])->middleware('can:attendance.roster.manage')->name('roster.store');
+        Route::delete('roster/entries/{shiftRosterEntry}', [ShiftRosterController::class, 'destroy'])->middleware('can:attendance.roster.manage')->name('roster.destroy');
+        Route::post('roster/assign', [ShiftRosterController::class, 'assign'])->middleware('can:attendance.roster.manage')->name('roster.assign');
 
         // Self-service (any authenticated user linked to an employee).
         Route::get('me', [MyAttendanceController::class, 'index'])->name('me');

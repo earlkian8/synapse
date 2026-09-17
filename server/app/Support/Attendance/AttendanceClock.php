@@ -31,7 +31,10 @@ use Illuminate\Support\Facades\DB;
  *  - **A rejected punch writes nothing.** The day's state is checked against a
  *    record that is only saved once the punch has been accepted.
  *
- * A day is judged by the rules frozen onto it when it opened ({@see DayRules});
+ * Which shift a day is judged against is never read off the employee's record:
+ * it comes from {@see ShiftResolver}, which walks roster override → dated
+ * assignment → department → organisation → fallback (ADR 0037). A day is then
+ * judged by the rules frozen onto it when it opened ({@see DayRules});
  * {@see reapplySchedule()} is the one deliberate way those change.
  */
 class AttendanceClock
@@ -47,6 +50,8 @@ class AttendanceClock
      * How long before a shift starts a clock-in still counts towards it.
      */
     public const EARLY_CLOCK_IN_HOURS = 4;
+
+    public function __construct(private readonly ShiftResolver $shifts = new ShiftResolver) {}
 
     /**
      * Record a punch for an employee and return the (recomputed, saved) day record.
@@ -276,12 +281,14 @@ class AttendanceClock
      */
     public function reapplySchedule(AttendanceRecord $record, ?array $holidays = null): bool
     {
-        $record->loadMissing('employee.workSchedule');
+        $record->loadMissing('employee');
         $date = $record->work_date->toDateString();
 
         $this->snapshot(
             $record,
-            $record->employee?->workSchedule,
+            $record->employee !== null
+                ? $this->shifts->for($record->employee, $date)
+                : ResolvedShift::fallback($date),
             $holidays !== null ? ($holidays[$date] ?? null) : HolidayCalendar::on($date),
         );
         $this->evaluate($record);
@@ -293,22 +300,73 @@ class AttendanceClock
     }
 
     /**
-     * Freeze a schedule onto a record: which schedule applied, its clock-face
-     * times, the instants those times fall on for this work date in the
-     * organisation's zone, and the rules the day is judged by.
+     * Re-judge a whole chunk of days by the schedules that apply to them now,
+     * resolving every employee's shifts across the chunk's range in one go.
+     * Returns how many days actually moved. The caller logs it.
+     *
+     * Doing this record by record would ask the resolver the same five questions
+     * for every row; a period-wide re-apply over a month of a 200-person company
+     * is 6,000 days.
+     *
+     * @param  EloquentCollection<int, AttendanceRecord>  $records  With `employee` loaded.
+     * @param  array<string, Holiday>  $holidays  The range's holidays keyed by "Y-m-d".
      */
-    public function snapshot(AttendanceRecord $record, ?WorkSchedule $schedule, ?Holiday $holiday): void
+    public function reapplyMany(EloquentCollection $records, array $holidays): int
     {
-        $date = $record->work_date->toDateString();
+        if ($records->isEmpty()) {
+            return 0;
+        }
 
-        [$start, $end] = self::shiftInstants($date, $schedule?->start_time, $schedule?->end_time);
+        $dates = $records->map(fn (AttendanceRecord $record): string => $record->work_date->toDateString());
+        $employees = $records->pluck('employee')->filter()->unique('id')->values();
+        $shifts = $this->shifts->forMany($employees, (string) $dates->min(), (string) $dates->max());
 
-        $record->work_schedule_id = $schedule?->id;
-        $record->scheduled_start = $schedule?->start_time;
-        $record->scheduled_end = $schedule?->end_time;
-        $record->scheduled_start_at = $start;
-        $record->scheduled_end_at = $end;
-        $record->rules = DayRules::fromSchedule($schedule, $date, $holiday)->toArray();
+        $changed = 0;
+
+        foreach ($records as $record) {
+            $date = $record->work_date->toDateString();
+
+            $this->snapshot(
+                $record,
+                $shifts[$record->employee_id][$date] ?? ResolvedShift::fallback($date),
+                $holidays[$date] ?? null,
+            );
+            $this->evaluate($record);
+
+            if ($record->isDirty()) {
+                $changed++;
+            }
+
+            $record->save();
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Freeze a resolved shift onto a record: which schedule applied, its
+     * clock-face edges, the instants they fall on for this work date in the
+     * organisation's zone, and the rules the day is judged by. For a split shift
+     * the edges are the first segment's start and the last segment's end; the
+     * segments themselves live in the rules.
+     */
+    public function snapshot(AttendanceRecord $record, ResolvedShift $shift, ?Holiday $holiday): void
+    {
+        $record->work_schedule_id = $shift->scheduleId;
+        $record->scheduled_start = $shift->startTime();
+        $record->scheduled_end = $shift->endTime();
+        $record->scheduled_start_at = $shift->startsAt();
+        $record->scheduled_end_at = $shift->endsAt();
+        $record->rules = DayRules::fromShift($shift, $holiday)->toArray();
+    }
+
+    /**
+     * The shift an employee is due to work on a date — the resolver's answer,
+     * reached through the engine so callers need only one collaborator.
+     */
+    public function shiftFor(Employee $employee, string $date): ResolvedShift
+    {
+        return $this->shifts->for($employee, $date);
     }
 
     /**
@@ -334,12 +392,9 @@ class AttendanceClock
         }
 
         if ($record->rules === null) {
-            $schedule = $record->work_schedule_id !== null
-                ? WorkSchedule::withTrashed()->find($record->work_schedule_id)
-                : null;
             $holiday = $holidays !== null ? ($holidays[$date] ?? null) : HolidayCalendar::on($date);
 
-            $record->rules = DayRules::fromSchedule($schedule, $date, $holiday)->toArray();
+            $record->rules = DayRules::fromShift($this->legacyShift($record, $date), $holiday)->toArray();
             $filled = true;
         }
 
@@ -476,13 +531,16 @@ class AttendanceClock
         $record = $this->findRecord($employee->id, $date);
 
         if ($record?->scheduled_start_at !== null && $record->scheduled_end_at !== null) {
+            // The day is already open: judge it by what it was opened with.
             $start = $record->scheduled_start_at;
             $end = $record->scheduled_end_at;
             $working = $this->rulesFor($record)->isWorkingDay;
         } else {
-            $schedule = $employee->workSchedule;
-            [$start, $end] = self::shiftInstants($date, $schedule?->start_time, $schedule?->end_time);
-            $working = AttendanceCalculator::isWorkingDay(CarbonImmutable::parse($date), $schedule);
+            $shift = $this->shifts->for($employee, $date);
+            // A flexible schedule states the window it accepts punches in; every
+            // other type is judged against the shift itself.
+            [$start, $end] = $shift->acceptWindow();
+            $working = $shift->isWorkingDay;
         }
 
         if (! $working || $start === null || $end === null) {
@@ -491,6 +549,38 @@ class AttendanceClock
 
         return $at->getTimestamp() >= $start->getTimestamp() - self::EARLY_CLOCK_IN_HOURS * 3600
             && $at->getTimestamp() <= $end->getTimestamp();
+    }
+
+    /**
+     * The shift a record from before the resolver existed was judged by — read
+     * from what it copied onto itself, never from the employee's schedule today.
+     */
+    private function legacyShift(AttendanceRecord $record, string $date): ResolvedShift
+    {
+        $start = WorkSchedule::clockFace($record->scheduled_start);
+        $end = WorkSchedule::clockFace($record->scheduled_end);
+        $schedule = $record->work_schedule_id !== null
+            ? WorkSchedule::withTrashed()->find($record->work_schedule_id)
+            : null;
+
+        if ($start === null || $end === null) {
+            return ResolvedShift::fallback($date);
+        }
+
+        return new ResolvedShift(
+            date: $date,
+            type: 'fixed',
+            isWorkingDay: true,
+            segments: [['start' => $start, 'end' => $end]],
+            requiredMinutes: $schedule?->required_hours !== null
+                ? (int) round((float) $schedule->required_hours * 60)
+                : DayRules::DEFAULT_REQUIRED_MINUTES,
+            graceMinutes: (int) ($schedule?->grace_minutes ?? 0),
+            unpaidBreakMinutes: 0,
+            source: $schedule !== null ? 'employee' : 'fallback',
+            scheduleId: $schedule?->id,
+            scheduleName: $schedule?->name,
+        );
     }
 
     /**
@@ -525,7 +615,7 @@ class AttendanceClock
             'status' => 'absent',
         ]);
 
-        $this->snapshot($record, $employee->workSchedule, HolidayCalendar::on($date));
+        $this->snapshot($record, $this->shifts->for($employee, $date), HolidayCalendar::on($date));
         $record->setRelation('punches', new EloquentCollection);
 
         return $record;

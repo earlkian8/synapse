@@ -21,13 +21,14 @@ import {
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { departmentRoutes } from '../routes';
-import type { Department, EmployeeOption } from '../types';
+import type { Department, EmployeeOption, ScheduleOption } from '../types';
 
 type Props = {
     department: Department | null;
     parentDefault: Department | null;
     departments: Department[];
     employees: EmployeeOption[];
+    schedules: ScheduleOption[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -69,6 +70,7 @@ export function DepartmentFormSheet({
     parentDefault,
     departments,
     employees,
+    schedules,
     open,
     onOpenChange,
 }: Props) {
@@ -101,6 +103,7 @@ export function DepartmentFormSheet({
                         parentDefault={parentDefault}
                         departments={departments}
                         employees={employees}
+                        schedules={schedules}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -114,12 +117,14 @@ function FormBody({
     parentDefault,
     departments,
     employees,
+    schedules,
     onDone,
 }: {
     department: Department | null;
     parentDefault: Department | null;
     departments: Department[];
     employees: EmployeeOption[];
+    schedules: ScheduleOption[];
     onDone: () => void;
 }) {
     const isEditing = Boolean(department);
@@ -136,6 +141,9 @@ function FormBody({
         parent_id:
             String(department?.parent_id ?? parentDefault?.id ?? '') || NONE,
         head_id: department?.head_id ? String(department.head_id) : NONE,
+        default_work_schedule_id: department?.default_work_schedule_id
+            ? String(department.default_work_schedule_id)
+            : NONE,
         description: department?.description ?? '',
     });
 
@@ -147,6 +155,10 @@ function FormBody({
             parent_id:
                 payload.parent_id === NONE ? null : Number(payload.parent_id),
             head_id: payload.head_id === NONE ? null : Number(payload.head_id),
+            default_work_schedule_id:
+                payload.default_work_schedule_id === NONE
+                    ? null
+                    : Number(payload.default_work_schedule_id),
             description: payload.description || null,
         }));
 
@@ -228,6 +240,36 @@ function FormBody({
                     </Select>
                 </Field>
 
+                <Field
+                    label="Default work schedule"
+                    error={errors.default_work_schedule_id}
+                    hint="The hours anyone in this department works unless they are assigned their own."
+                >
+                    <Select
+                        value={data.default_work_schedule_id}
+                        onValueChange={(v) =>
+                            setData('default_work_schedule_id', v)
+                        }
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a schedule…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={NONE}>
+                                The company default
+                            </SelectItem>
+                            {schedules.map((schedule) => (
+                                <SelectItem
+                                    key={schedule.id}
+                                    value={String(schedule.id)}
+                                >
+                                    {schedule.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </Field>
+
                 <Field label="Description" error={errors.description}>
                     <textarea
                         value={data.description ?? ''}
@@ -262,11 +304,13 @@ function Field({
     label,
     required = false,
     error,
+    hint,
     children,
 }: {
     label: string;
     required?: boolean;
     error?: string;
+    hint?: string;
     children: React.ReactNode;
 }) {
     return (
@@ -276,6 +320,9 @@ function Field({
                 {required && <span className="ml-0.5 text-destructive">*</span>}
             </Label>
             {children}
+            {hint && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
+            )}
             <InputError message={error} className="mt-1.5" />
         </div>
     );

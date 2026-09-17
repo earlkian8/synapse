@@ -10,10 +10,12 @@ use App\Http\Resources\AttendanceRecordResource;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\WorkSchedule;
 use App\Queries\AttendanceMonthlyReport;
 use App\Queries\AttendanceRecordsIndexQuery;
 use App\Queries\AttendanceStatistics;
 use App\Queries\AttendanceWeeklyQuery;
+use App\Queries\ShiftRosterQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\HolidayCalendar;
@@ -34,9 +36,9 @@ class AttendanceController extends Controller
     public function __construct(private readonly AttendanceClock $clock) {}
 
     /**
-     * The attendance workspace: a daily log, a weekly grid and a monthly report
-     * over the same roster. Only the active tab's dataset is built — the weekly
-     * and monthly closures stay cheap on the (default) daily tab and are fetched
+     * The attendance workspace: a daily log, a weekly grid, a monthly report and
+     * the shift roster over the same team. Only the active tab's dataset is built
+     * — the other closures stay cheap on the (default) daily tab and are fetched
      * on demand via Inertia partial reloads when the tab changes.
      */
     public function index(
@@ -45,6 +47,7 @@ class AttendanceController extends Controller
         AttendanceStatistics $statistics,
         AttendanceWeeklyQuery $weekly,
         AttendanceMonthlyReport $monthly,
+        ShiftRosterQuery $roster,
     ): Response {
         $date = $query->date($request);
         $tab = $this->tab($request);
@@ -60,6 +63,11 @@ class AttendanceController extends Controller
                 : null,
             'report' => fn () => $tab === 'monthly'
                 ? $monthly->toArray($date, $department, $search)
+                : null,
+            // The plan rather than the record: what each person is due to work
+            // this week, and why (ADR 0037).
+            'roster' => fn () => $tab === 'roster' && $request->user()->can('attendance.roster.view')
+                ? $roster->toArray($date, $department, $search)
                 : null,
             'stats' => $statistics->toArray($date),
             'options' => $this->indexOptions(),
@@ -81,7 +89,7 @@ class AttendanceController extends Controller
     {
         $tab = $request->string('tab')->toString();
 
-        return in_array($tab, ['today', 'weekly', 'monthly'], true) ? $tab : 'today';
+        return in_array($tab, ['today', 'weekly', 'monthly', 'roster'], true) ? $tab : 'today';
     }
 
     /**
@@ -214,15 +222,10 @@ class AttendanceController extends Controller
                 'employee',
                 fn (Builder $employee) => $employee->where('department_id', $department),
             ))
-            ->with('employee.workSchedule')
+            ->with('employee')
             ->chunkById(200, function ($records) use ($holidays, &$total, &$changed): void {
-                foreach ($records as $record) {
-                    $total++;
-
-                    if ($this->clock->reapplySchedule($record, $holidays)) {
-                        $changed++;
-                    }
-                }
+                $total += $records->count();
+                $changed += $this->clock->reapplyMany($records, $holidays);
             });
 
         $period = CarbonImmutable::parse($from)->format('M j').($from === $to ? '' : ' – '.CarbonImmutable::parse($to)->format('M j'));
@@ -304,6 +307,8 @@ class AttendanceController extends Controller
         return [
             'manage' => $user->can('attendance.manage'),
             'clock' => $user->can('attendance.clock'),
+            'viewRoster' => $user->can('attendance.roster.view'),
+            'manageRoster' => $user->can('attendance.roster.manage'),
         ];
     }
 
@@ -314,6 +319,16 @@ class AttendanceController extends Controller
     {
         return [
             'departments' => Department::orderBy('name')->get(['id', 'name']),
+            // The templates the roster's override and assign dialogs choose from.
+            'schedules' => WorkSchedule::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'cycle_length_days'])
+                ->map(fn (WorkSchedule $schedule): array => [
+                    'id' => $schedule->id,
+                    'name' => $schedule->name,
+                    'type' => $schedule->type,
+                    'cycle_length_days' => (int) $schedule->cycle_length_days,
+                ]),
             'employees' => Employee::query()
                 ->orderBy('first_name')
                 ->limit(500)

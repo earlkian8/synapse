@@ -25,9 +25,7 @@ export async function importUsers(file: File): Promise<ImportResult> {
     });
 
     const data = (await response.json().catch(() => null)) as
-        | (ImportResult & { message?: string })
-        | { message?: string }
-        | null;
+        (ImportResult & { message?: string }) | { message?: string } | null;
 
     if (!response.ok) {
         // 422 validation (bad file) surfaces Laravel's message; anything else is generic.

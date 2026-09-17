@@ -22,11 +22,7 @@ import { CaseStatusBadge } from './case-status-badge';
 import { ProgressBar } from './progress-bar';
 
 export type CaseSort =
-    | 'employee'
-    | 'type'
-    | 'last_day'
-    | 'clearance'
-    | 'status';
+    'employee' | 'type' | 'last_day' | 'clearance' | 'status';
 
 type Props = {
     cases: OffboardingCase[];

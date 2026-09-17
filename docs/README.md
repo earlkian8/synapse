@@ -61,6 +61,7 @@ commit history rather than repeating them.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
 - [attendance tables](./database/attendance-tables.md) — punch events, daily records, import batches.
+- [scheduling tables](./database/scheduling-tables.md) — shift day patterns, dated assignments, roster overrides.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.
 - [awards tables](./database/awards-tables.md) — award types (catalogue) + employee awards (recognition feed).

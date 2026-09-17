@@ -12,10 +12,7 @@ export type TaskCategory =
     | 'other';
 
 export type EmploymentType =
-    | 'regular'
-    | 'probationary'
-    | 'contractual'
-    | 'part_time';
+    'regular' | 'probationary' | 'contractual' | 'part_time';
 
 export type CaseProgress = {
     total: number;

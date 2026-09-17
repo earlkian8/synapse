@@ -6,6 +6,7 @@ import type {
     AttendanceTab,
     PunchSource,
     PunchType,
+    ShiftSource,
 } from './types';
 
 export const DEFAULT_STATUS = 'all';
@@ -84,6 +85,24 @@ export const STATUS_TILE: Record<AttendanceStatus, string> = {
     incomplete:
         'bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:ring-sky-500/40',
 };
+
+/**
+ * Why a shift applies, said the way somebody would say it (ADR 0037). The
+ * denormalised pointer and a dated assignment mean the same thing to a reader,
+ * so they read the same.
+ */
+export const SHIFT_SOURCE_LABELS: Record<ShiftSource, string> = {
+    roster: 'One-off override',
+    assignment: 'Assigned shift',
+    employee: 'Assigned shift',
+    department: 'Department default',
+    organization: 'Company default',
+    fallback: 'Default hours',
+};
+
+/** A one-off override is the only source worth marking on the grid. */
+export const SHIFT_SOURCE_IS_OVERRIDE = (source: ShiftSource): boolean =>
+    source === 'roster';
 
 /** A late arrival at or over this many minutes is surfaced as an exception. */
 export const LATE_EXCEPTION_MINUTES = 30;
@@ -266,7 +285,7 @@ export function periodRange(
         };
     }
 
-    if (tab === 'weekly') {
+    if (tab === 'weekly' || tab === 'roster') {
         const start = new Date(anchor);
         start.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
         const end = new Date(start);

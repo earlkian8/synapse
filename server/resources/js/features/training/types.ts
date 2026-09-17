@@ -93,8 +93,7 @@ export type TrainingInsightUnavailable = {
 };
 
 export type TrainingInsightResult =
-    | TrainingInsight
-    | TrainingInsightUnavailable;
+    TrainingInsight | TrainingInsightUnavailable;
 
 export type TrainingPermissions = { manage: boolean };
 

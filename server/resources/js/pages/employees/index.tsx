@@ -321,6 +321,7 @@ export default function EmployeesIndex() {
                 open={detailOpen}
                 canEdit={can.update}
                 canManageDocuments={can.manageDocuments}
+                schedules={options.schedules}
                 onOpenChange={setDetailOpen}
                 onEdit={openEdit}
             />

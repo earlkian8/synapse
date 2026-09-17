@@ -5,26 +5,32 @@ const TABS: { value: AttendanceTab; label: string }[] = [
     { value: 'today', label: "Today's Log" },
     { value: 'weekly', label: 'Weekly View' },
     { value: 'monthly', label: 'Monthly Report' },
+    { value: 'roster', label: 'Roster' },
 ];
 
 /**
- * The workspace's primary tabs — a daily log, a weekly grid and a monthly
- * report over the same roster. Uses the shared underline tab style.
+ * The workspace's primary tabs — what happened (a daily log, a weekly grid, a
+ * monthly report) and what is meant to (the roster). Uses the shared underline
+ * tab style. The roster is only offered to someone who may see it.
  */
 export function AttendanceViewTabs({
     value,
+    canViewRoster,
     onChange,
 }: {
     value: AttendanceTab;
+    canViewRoster: boolean;
     onChange: (value: AttendanceTab) => void;
 }) {
+    const tabs = TABS.filter((tab) => tab.value !== 'roster' || canViewRoster);
+
     return (
         <div
             className="-mb-px flex items-center gap-1 overflow-x-auto border-b border-border"
             role="tablist"
             aria-label="Attendance view"
         >
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
                 const active = value === tab.value;
 
                 return (

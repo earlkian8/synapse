@@ -25,6 +25,9 @@ export type Department = {
     description: string | null;
     parent_id: number | null;
     head_id: number | null;
+    /** The hours anyone in this department works unless assigned their own. */
+    default_work_schedule_id: number | null;
+    default_work_schedule?: { id: number; name: string } | null;
     is_archived: boolean;
     head: DepartmentHead | null;
     parent?: { id: number; name: string } | null;
@@ -43,6 +46,8 @@ export type DepartmentStats = {
     unheaded: number;
 };
 
+export type ScheduleOption = { id: number; name: string };
+
 export type EmployeeOption = {
     id: number;
     full_name: string;
@@ -57,6 +62,6 @@ export type DepartmentsPageProps = {
     departments: Department[];
     archived: Department[];
     stats: DepartmentStats;
-    options: { employees: EmployeeOption[] };
+    options: { employees: EmployeeOption[]; schedules: ScheduleOption[] };
     can: DepartmentPermissions;
 };

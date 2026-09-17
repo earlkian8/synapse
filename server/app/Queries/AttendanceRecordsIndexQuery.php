@@ -7,8 +7,9 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Support\Attendance\AttendanceCalculator;
-use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\DayRules;
+use App\Support\Attendance\ResolvedShift;
+use App\Support\Attendance\ShiftResolver;
 use App\Support\HolidayCalendar;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
@@ -18,6 +19,8 @@ use Illuminate\Http\Request;
 
 class AttendanceRecordsIndexQuery
 {
+    public function __construct(private readonly ShiftResolver $shifts = new ShiftResolver) {}
+
     /**
      * Statuses the daily board can be filtered by (plus `all`).
      *
@@ -58,12 +61,16 @@ class AttendanceRecordsIndexQuery
     public function roster(string $date, ?int $department = null, string $search = ''): Collection
     {
         $employees = Employee::query()
-            ->with(['department:id,name', 'position:id,title', 'workSchedule'])
+            ->with(['department:id,name', 'position:id,title'])
             ->when($department, fn (Builder $q) => $q->where('department_id', $department))
             ->when($search !== '', fn (Builder $q) => $q->search($search))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
+
+        // Every shift for the whole board in a fixed number of queries (ADR 0037),
+        // so a row without a record still knows what the person was due to work.
+        $shifts = $this->shifts->forMany($employees, $date, $date);
 
         $records = AttendanceRecord::query()
             ->with('punches')
@@ -82,8 +89,13 @@ class AttendanceRecordsIndexQuery
         $holiday = HolidayCalendar::on($date);
 
         return $employees
-            ->map(function (Employee $employee) use ($records, $date, $onLeave, $holiday): AttendanceRecord {
-                $record = $records->get($employee->id) ?? $this->synthesize($employee, $date, $onLeave->has($employee->id), $holiday);
+            ->map(function (Employee $employee) use ($records, $date, $onLeave, $holiday, $shifts): AttendanceRecord {
+                $record = $records->get($employee->id) ?? $this->synthesize(
+                    $employee,
+                    $shifts[$employee->id][$date] ?? ResolvedShift::fallback($date),
+                    $onLeave->has($employee->id),
+                    $holiday,
+                );
                 $record->setRelation('employee', $employee);
 
                 return $record;
@@ -93,23 +105,21 @@ class AttendanceRecordsIndexQuery
 
     /**
      * A transient (unsaved) record for an employee with no punches on the date,
-     * carrying the rules a real record would have frozen, and the status those
-     * rules give a day without punches.
+     * carrying the rules a real record would have frozen from the same resolved
+     * shift, and the status those rules give a day without punches.
      */
-    private function synthesize(Employee $employee, string $date, bool $onLeave, ?Holiday $holiday): AttendanceRecord
+    private function synthesize(Employee $employee, ResolvedShift $shift, bool $onLeave, ?Holiday $holiday): AttendanceRecord
     {
-        $schedule = $employee->workSchedule;
-        $rules = DayRules::fromSchedule($schedule, $date, $holiday);
-        [$start, $end] = AttendanceClock::shiftInstants($date, $schedule?->start_time, $schedule?->end_time);
+        $rules = DayRules::fromShift($shift, $holiday);
 
         $record = new AttendanceRecord([
             'employee_id' => $employee->id,
-            'work_date' => $date,
-            'work_schedule_id' => $schedule?->id,
-            'scheduled_start' => $schedule?->start_time,
-            'scheduled_end' => $schedule?->end_time,
-            'scheduled_start_at' => $start,
-            'scheduled_end_at' => $end,
+            'work_date' => $shift->date,
+            'work_schedule_id' => $shift->scheduleId,
+            'scheduled_start' => $shift->startTime(),
+            'scheduled_end' => $shift->endTime(),
+            'scheduled_start_at' => $shift->startsAt(),
+            'scheduled_end_at' => $shift->endsAt(),
             'rules' => $rules->toArray(),
             'status' => AttendanceCalculator::noPunchStatus($rules, $onLeave),
         ]);

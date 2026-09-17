@@ -45,17 +45,24 @@ class MyAttendanceController extends Controller
             ->orderByDesc('work_date')
             ->get();
 
+        $shift = $this->clock->shiftFor($employee, $record->work_date->toDateString());
+
         return Inertia::render('attendance/me', [
             'employee' => [
                 'full_name' => $employee->full_name,
                 'initials' => $employee->initials(),
                 'photo' => $employee->photo_url,
                 'employee_no' => $employee->employee_no,
-                'schedule' => $employee->workSchedule ? [
-                    'name' => $employee->workSchedule->name,
-                    'start_time' => $employee->workSchedule->start_time ? substr((string) $employee->workSchedule->start_time, 0, 5) : null,
-                    'end_time' => $employee->workSchedule->end_time ? substr((string) $employee->workSchedule->end_time, 0, 5) : null,
-                ] : null,
+                // The shift for the day on the card — the one the resolver says
+                // applies, which a roster override can change for today alone.
+                'schedule' => [
+                    'name' => $shift->scheduleName ?? 'Default hours',
+                    'start_time' => $shift->startTime(),
+                    'end_time' => $shift->endTime(),
+                    'hours' => $shift->label(),
+                    'source' => $shift->source,
+                    'is_working_day' => $shift->isWorkingDay,
+                ],
             ],
             'today' => (new AttendanceRecordResource($record))->resolve($request),
             'nextExpected' => $this->clock->nextExpected($record),
@@ -106,7 +113,7 @@ class MyAttendanceController extends Controller
      */
     private function employee(Request $request): Employee
     {
-        $employee = $request->user()->employee()->with('workSchedule')->first();
+        $employee = $request->user()->employee()->first();
 
         if (! $employee) {
             throw new HttpException(403, 'Your account is not linked to an employee record.');

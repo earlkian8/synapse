@@ -119,8 +119,7 @@ export type PerformanceInsightUnavailable = {
 };
 
 export type PerformanceInsightResult =
-    | PerformanceInsight
-    | PerformanceInsightUnavailable;
+    PerformanceInsight | PerformanceInsightUnavailable;
 
 export type PerformanceEvaluation = {
     id: number;

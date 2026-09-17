@@ -3,10 +3,7 @@ export type EventType = 'event' | 'meeting';
 export type EventStatus = 'upcoming' | 'ongoing' | 'past';
 
 export type AttendeeResponse =
-    | 'invited'
-    | 'accepted'
-    | 'declined'
-    | 'tentative';
+    'invited' | 'accepted' | 'declined' | 'tentative';
 
 export type EventEmployee = {
     id: number;

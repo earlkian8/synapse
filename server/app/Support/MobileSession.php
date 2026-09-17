@@ -2,8 +2,10 @@
 
 namespace App\Support;
 
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Attendance\ShiftResolver;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -85,7 +87,7 @@ class MobileSession
 
         $employee = $organization === null
             ? null
-            : $user->employee()->with('workSchedule')->first();
+            : $user->employee()->first();
 
         $memberships = $user->memberships()
             ->orderByDesc('organization_user.is_default')
@@ -115,9 +117,32 @@ class MobileSession
                 'full_name' => $employee->full_name,
                 'employee_no' => $employee->employee_no,
                 'photo' => $employee->photo_url,
-                'schedule' => $employee->workSchedule?->only(['name', 'start_time', 'end_time', 'grace_minutes', 'required_hours']),
+                // The shift the app shows on its clock card: today's, as the
+                // resolver says it (ADR 0037) — a roster override included.
+                'schedule' => $this->shiftPayload($employee),
             ] : null,
             'can_clock' => $organization !== null && $user->can('attendance.clock'),
+        ];
+    }
+
+    /**
+     * The employee's shift for the organisation's today, as the mobile app reads
+     * it: the schedule's name, the day's edges, and what it asks for.
+     *
+     * @return array<string, mixed>
+     */
+    private function shiftPayload(Employee $employee): array
+    {
+        $shift = app(ShiftResolver::class)->for($employee, OrganizationClock::today());
+
+        return [
+            'name' => $shift->scheduleName ?? 'Default hours',
+            'start_time' => $shift->startTime(),
+            'end_time' => $shift->endTime(),
+            'hours' => $shift->label(),
+            'grace_minutes' => $shift->graceMinutes,
+            'required_hours' => round($shift->requiredMinutes / 60, 2),
+            'is_working_day' => $shift->isWorkingDay,
         ];
     }
 

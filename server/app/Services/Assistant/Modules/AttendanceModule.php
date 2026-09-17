@@ -5,6 +5,7 @@ namespace App\Services\Assistant\Modules;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\WorkSchedule;
 use App\Queries\AttendanceRangeQuery;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Retrieval\ContextSection;
@@ -13,18 +14,28 @@ use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Attendance\ResolvedShift;
+use App\Support\Attendance\RosterWriter;
+use App\Support\Attendance\ShiftResolver;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
 /**
- * Attendance capability: look up an employee's Daily Time Records and record a
- * clock punch on their behalf. Every punch goes through {@see AttendanceClock} —
- * the same engine the web and mobile API use — so totals and status stay correct.
+ * Attendance capability: look up an employee's Daily Time Records, record a
+ * clock punch on their behalf, read the shift roster and override one day of it.
+ *
+ * Every punch goes through {@see AttendanceClock} and every override through
+ * {@see RosterWriter} — the same engine and writer the web and mobile API use —
+ * so totals, status and history stay correct whoever asked for the change.
  */
 class AttendanceModule extends Module implements ContributesContext
 {
-    public function __construct(private readonly AttendanceClock $clock) {}
+    public function __construct(
+        private readonly AttendanceClock $clock,
+        private readonly ShiftResolver $shifts,
+        private readonly RosterWriter $roster,
+    ) {}
 
     public function key(): string
     {
@@ -41,6 +52,8 @@ class AttendanceModule extends Module implements ContributesContext
         return [
             'find_attendance' => 'findAttendance',
             'record_punch' => 'recordPunch',
+            'find_shifts' => 'findShifts',
+            'set_roster_entry' => 'setRosterEntry',
         ];
     }
 
@@ -54,6 +67,29 @@ class AttendanceModule extends Module implements ContributesContext
 
     /** Statuses that mean the employee showed up. */
     private const PRESENT_STATUSES = ['present', 'late', 'undertime', 'incomplete'];
+
+    /** The widest range one roster read-out covers. */
+    private const MAX_ROSTER_DAYS = 31;
+
+    /** How many people an un-narrowed roster read-out looks at. */
+    private const MAX_ROSTER_PEOPLE = 200;
+
+    /** How many shifts one read-out returns, so a whole month cannot flood the reply. */
+    private const MAX_ROSTER_CARDS = 40;
+
+    /**
+     * Why a shift applies, said the way somebody would say it.
+     *
+     * @var array<string, string>
+     */
+    private const SOURCE_LABELS = [
+        'roster' => 'One-off override',
+        'assignment' => 'Assigned shift',
+        'employee' => 'Assigned shift',
+        'department' => 'Department default',
+        'organization' => 'Company default',
+        'fallback' => 'Default hours',
+    ];
 
     /**
      * How this person has actually been turning up — the closest thing the
@@ -153,6 +189,8 @@ class AttendanceModule extends Module implements ContributesContext
         ATTENDANCE — Daily Time Records (DTR): one record per employee per day, built from clock in/out and break punches. Worked hours, lateness, undertime and overtime are computed server-side against the employee's work schedule.
         - find_attendance lists an employee's recent records (pass `date` as YYYY-MM-DD for one specific day).
         - record_punch logs a clock punch for an employee: type is clock_in, clock_out, break_start or break_end. Punch order is validated (you can't clock out before clocking in). Punches are timed on the organisation's clock and filed under the shift they belong to — a night shift's clock-out after midnight closes the previous evening's day.
+        - find_shifts answers "who works Saturday?" and "what is Ana's shift next week?" — it reads the roster (the plan), not the records (what happened). Pass `date` for one day, or `from` and `to` for a range; pass `employee` to narrow it to one person. Each shift says where it came from: a one-off roster override, a dated assignment, a department or company default, or the built-in Mon–Fri fallback.
+        - set_roster_entry puts one person on different hours for one date — a swap, a Saturday call-in, or a day off. Either name a `schedule` to borrow for that day, or give `start` and `end` times, or set `rest_day` to true. It overwrites any existing override for that person and date.
         - Pass `employee` as a name or employee number.
         TXT;
     }
@@ -182,6 +220,37 @@ class AttendanceModule extends Module implements ContributesContext
                         'type' => ['type' => 'STRING', 'enum' => ['clock_in', 'clock_out', 'break_start', 'break_end']],
                     ],
                     'required' => ['employee', 'type'],
+                ],
+            ],
+            [
+                'name' => 'find_shifts',
+                'description' => 'Read the shift roster: who is due to work what, on a date or across a range.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number, to narrow it to one person (optional).'],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD for a single day.'],
+                        'from' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the first day of a range.'],
+                        'to' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the last day of a range.'],
+                        'working_only' => ['type' => 'BOOLEAN', 'description' => 'Leave out rest days (default true).'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'set_roster_entry',
+                'description' => "Override one employee's shift for one date.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or employee number.'],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the date to override.'],
+                        'schedule' => ['type' => 'STRING', 'description' => "A work schedule's name, to borrow its hours for that date."],
+                        'start' => ['type' => 'STRING', 'description' => 'HH:MM start time, when giving the day its own hours.'],
+                        'end' => ['type' => 'STRING', 'description' => 'HH:MM end time.'],
+                        'rest_day' => ['type' => 'BOOLEAN', 'description' => 'Make it a day off instead.'],
+                        'reason' => ['type' => 'STRING', 'description' => 'Why (optional).'],
+                    ],
+                    'required' => ['employee', 'date'],
                 ],
             ],
         ];
@@ -255,6 +324,134 @@ class AttendanceModule extends Module implements ContributesContext
         );
     }
 
+    /**
+     * Who is due to work what. Reads the roster through {@see ShiftResolver}, so
+     * the answer is the same one the board shows — including *why* a shift
+     * applies, which is usually the real question behind "why is Ben on nights?".
+     *
+     * Capped at {@see MAX_ROSTER_DAYS} days and {@see MAX_ROSTER_CARDS} cards so a
+     * careless "show me the roster" cannot return the whole quarter.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function findShifts(User $user, array $args): ToolResult
+    {
+        $employee = $this->locateEmployee($args);
+        $isSelf = $employee !== null && $employee->id === $user->employee?->id;
+
+        if (! $isSelf && $user->cannot('attendance.roster.view')) {
+            return $this->denied('view the shift roster');
+        }
+
+        $from = $this->date($args['from'] ?? $args['date'] ?? null) ?? OrganizationClock::today();
+        $to = $this->date($args['to'] ?? $args['date'] ?? null) ?? $from;
+
+        if ($to < $from) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $to = min($to, CarbonImmutable::parse($from)->addDays(self::MAX_ROSTER_DAYS - 1)->toDateString());
+
+        $employees = $employee !== null
+            ? collect([$employee])
+            : Employee::query()->orderBy('first_name')->orderBy('last_name')->limit(self::MAX_ROSTER_PEOPLE)->get();
+
+        if ($employees->isEmpty()) {
+            return ToolResult::error('Read the roster', 'No matching employee found.');
+        }
+
+        $shifts = $this->shifts->forMany($employees, $from, $to);
+        $workingOnly = ! array_key_exists('working_only', $args) || (bool) $args['working_only'];
+
+        $cards = [];
+
+        foreach ($employees as $person) {
+            foreach ($shifts[$person->id] ?? [] as $shift) {
+                if ($workingOnly && ! $shift->isWorkingDay) {
+                    continue;
+                }
+
+                $cards[] = $this->shiftCard($person, $shift);
+
+                if (count($cards) >= self::MAX_ROSTER_CARDS) {
+                    break 2;
+                }
+            }
+        }
+
+        $period = $from === $to
+            ? CarbonImmutable::parse($from)->format('D, M j')
+            : CarbonImmutable::parse($from)->format('M j').' – '.CarbonImmutable::parse($to)->format('M j');
+
+        if ($cards === []) {
+            return ToolResult::found("Roster for {$period}", $workingOnly ? 'Nobody is scheduled' : 'Nothing rostered', []);
+        }
+
+        return ToolResult::found(
+            ($employee !== null ? "{$employee->full_name}'s shifts" : 'Roster')." for {$period}",
+            count($cards).' shift'.(count($cards) === 1 ? '' : 's'),
+            $cards,
+        );
+    }
+
+    /**
+     * Put somebody on different hours for one date, through the same writer the
+     * roster board uses.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function setRosterEntry(User $user, array $args): ToolResult
+    {
+        if ($user->cannot('attendance.roster.manage')) {
+            return $this->denied('change the shift roster');
+        }
+
+        $employee = $this->locateEmployee($args);
+
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', 'No matching employee found.');
+        }
+
+        $date = $this->date($args['date'] ?? null);
+
+        if ($date === null) {
+            return ToolResult::error('Set the shift', 'Give the date to override, as YYYY-MM-DD.');
+        }
+
+        $isRestDay = (bool) ($args['rest_day'] ?? false);
+        $schedule = $isRestDay ? null : $this->locateSchedule($args['schedule'] ?? null);
+        $segments = $isRestDay ? null : $this->segment($args['start'] ?? null, $args['end'] ?? null);
+
+        if (! $isRestDay && $schedule === null && $segments === null) {
+            return ToolResult::error('Set the shift', 'Name a schedule to borrow, give start and end times, or make it a rest day.');
+        }
+
+        $entry = $this->roster->set($employee, $date, [
+            'work_schedule_id' => $schedule?->id,
+            'segments' => $segments,
+            'is_rest_day' => $isRestDay,
+            'reason' => $args['reason'] ?? null,
+        ], $user->id);
+
+        ActivityLogger::log(
+            event: 'updated',
+            description: "Rostered {$employee->full_name} for ".($isRestDay ? 'a rest day' : 'a different shift')
+                .' on '.CarbonImmutable::parse($date)->format('M j').' via assistant',
+            subject: $entry,
+            properties: ['date' => $date, 'reason' => $entry->reason],
+            logName: 'attendance',
+            subjectLabel: $employee->full_name,
+        );
+
+        $shift = $this->shifts->for($employee->refresh(), $date);
+
+        return ToolResult::ok(
+            "{$employee->full_name} on ".CarbonImmutable::parse($date)->format('D, M j'),
+            $shift->label(),
+            $this->shiftCard($employee, $shift, 'add', 'positive'),
+        );
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
@@ -265,6 +462,70 @@ class AttendanceModule extends Module implements ContributesContext
         $needle = $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']);
 
         return $needle ? $this->matchByTokens(Employee::query(), $needle)->first() : null;
+    }
+
+    /**
+     * The schedule the model named. An exact (case-insensitive) name first, so
+     * "Day Shift" never lands on "Day Shift (Manila)"; failing that, the closest
+     * name containing what was asked for.
+     */
+    private function locateSchedule(mixed $name): ?WorkSchedule
+    {
+        $needle = trim((string) $name);
+
+        if ($needle === '') {
+            return null;
+        }
+
+        $id = $this->resolveId(WorkSchedule::query(), 'name', $needle);
+
+        if ($id !== null) {
+            return WorkSchedule::find($id);
+        }
+
+        $query = WorkSchedule::query();
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        return $query->where('name', $like, '%'.$needle.'%')->orderBy('name')->first();
+    }
+
+    /**
+     * A start and end the model gave as one segment, or null when it gave neither.
+     *
+     * @return list<array{start: string, end: string}>|null
+     */
+    private function segment(mixed $start, mixed $end): ?array
+    {
+        $start = trim((string) $start);
+        $end = trim((string) $end);
+
+        if ($start === '' || $end === '') {
+            return null;
+        }
+
+        return [['start' => substr($start, 0, 5), 'end' => substr($end, 0, 5)]];
+    }
+
+    /**
+     * One rostered day as a card: whose it is, when, and why it applies.
+     *
+     * @return array<string, mixed>
+     */
+    private function shiftCard(Employee $employee, ResolvedShift $shift, string $kind = 'find', string $tone = 'neutral'): array
+    {
+        return $this->card(
+            kind: $kind,
+            tone: $shift->isWorkingDay ? $tone : 'neutral',
+            badge: $shift->isWorkingDay ? $shift->label() : 'Rest day',
+            title: $employee->full_name,
+            subtitle: CarbonImmutable::parse($shift->date)->format('D, M j').' · '.($shift->scheduleName ?? 'Default hours'),
+            meta: [
+                self::SOURCE_LABELS[$shift->source] ?? $shift->source,
+                $shift->isWorkingDay ? $this->hours($shift->requiredMinutes) : '',
+            ],
+            avatar: ['name' => $employee->full_name, 'initials' => $employee->initials(), 'photo' => $employee->photo_url],
+            id: $employee->id,
+        );
     }
 
     private function date(mixed $value): ?string

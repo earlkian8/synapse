@@ -64,6 +64,7 @@ class EmployeeController extends Controller
     {
         $employee->load([
             'department', 'position', 'manager', 'workSchedule', 'user',
+            'scheduleAssignments.workSchedule:id,name,type', 'scheduleAssignments.assigner:id,first_name,middle_name,last_name,suffix',
             'documents.uploader', 'certifications',
             'promotions.fromPosition', 'promotions.toPosition',
             'performanceEvaluations.period:id,name,start_date,end_date',
@@ -235,7 +236,7 @@ class EmployeeController extends Controller
         return [
             'departments' => Department::orderBy('name')->get(['id', 'name', 'code']),
             'positions' => Position::orderBy('title')->get(['id', 'title', 'department_id']),
-            'schedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
+            'schedules' => WorkSchedule::orderBy('name')->get(['id', 'name', 'type', 'cycle_length_days']),
             'managers' => Employee::orderBy('first_name')
                 ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'employee_no'])
                 ->map(fn (Employee $e): array => [

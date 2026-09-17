@@ -28,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { AssignScheduleDialog } from '@/features/attendance/components/assign-schedule-dialog';
 import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
 import { ResponseBadge } from '@/features/events/components/event-status-badge';
 import { formatDateTime as formatEventDate } from '@/features/events/constants';
@@ -50,6 +51,7 @@ import type {
     EmployeeDetail,
     EmployeeDetailResponse,
     ManagedEmployee,
+    ScheduleRef,
 } from '../types';
 import { EmployeeAvatar } from './employee-avatar';
 import { EmployeeStatusBadge } from './employee-status-badge';
@@ -59,6 +61,8 @@ type Props = {
     open: boolean;
     canEdit: boolean;
     canManageDocuments: boolean;
+    /** The templates "Assign a schedule" offers. */
+    schedules: ScheduleRef[];
     onOpenChange: (open: boolean) => void;
     onEdit: (employee: ManagedEmployee) => void;
 };
@@ -91,6 +95,7 @@ export function EmployeeDetailDialog({
     open,
     canEdit,
     canManageDocuments,
+    schedules,
     onOpenChange,
     onEdit,
 }: Props) {
@@ -177,7 +182,13 @@ export function EmployeeDetailDialog({
                     role="tabpanel"
                     aria-labelledby={`employee-tab-${tab}`}
                 >
-                    {tab === 'profile' && <ProfileTab e={current} />}
+                    {tab === 'profile' && (
+                        <ProfileTab
+                            e={current}
+                            canEdit={canEdit}
+                            schedules={schedules}
+                        />
+                    )}
 
                     {tab !== 'profile' && !detail && (
                         <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
@@ -308,7 +319,15 @@ function TabStrip({
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
-function ProfileTab({ e }: { e: EmployeeDetail }) {
+function ProfileTab({
+    e,
+    canEdit,
+    schedules,
+}: {
+    e: EmployeeDetail;
+    canEdit: boolean;
+    schedules: ScheduleRef[];
+}) {
     const money = (v: string | null) =>
         v
             ? `₱${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -320,12 +339,21 @@ function ProfileTab({ e }: { e: EmployeeDetail }) {
                 <Row label="Department" value={e.department?.name} />
                 <Row label="Position" value={e.position?.title} />
                 <Row label="Manager" value={e.manager?.full_name} />
-                <Row label="Work schedule" value={e.work_schedule?.name} />
+                <Row
+                    label="Work schedule"
+                    value={e.work_schedule?.name ?? 'Department default'}
+                />
                 <Row label="Type" value={TYPE_LABELS[e.employment_type]} />
                 <Row label="Date hired" value={e.date_hired} />
                 <Row label="Date regularized" value={e.date_regularized} />
                 <Row label="Tenure" value={e.tenure_human} />
             </Group>
+
+            <ScheduleHistoryGroup
+                employee={e}
+                canEdit={canEdit}
+                schedules={schedules}
+            />
 
             <Group icon={Briefcase} title="Personal">
                 <Row label="Birth date" value={e.birth_date} />
@@ -360,6 +388,136 @@ function ProfileTab({ e }: { e: EmployeeDetail }) {
             )}
         </div>
     );
+}
+
+/**
+ * Which shift this person has worked, and from when (ADR 0037).
+ *
+ * The list is the point: a schedule change is dated, so the months before it
+ * keep the hours they were actually judged against. Assigning a new one closes
+ * whatever is open the day before.
+ */
+function ScheduleHistoryGroup({
+    employee,
+    canEdit,
+    schedules,
+}: {
+    employee: EmployeeDetail;
+    canEdit: boolean;
+    schedules: ScheduleRef[];
+}) {
+    const [assignOpen, setAssignOpen] = useState(false);
+    const [withdrawing, setWithdrawing] = useState<string | null>(null);
+    const history = employee.schedule_history ?? [];
+
+    const withdraw = (hashid: string) =>
+        router.delete(employeeRoutes.scheduleDestroy(employee.id, hashid), {
+            preserveScroll: true,
+            onStart: () => setWithdrawing(hashid),
+            onFinish: () => setWithdrawing(null),
+        });
+
+    return (
+        <section>
+            <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    <CalendarClock className="size-3.5" />
+                    Schedule history
+                </h3>
+                {canEdit && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAssignOpen(true)}
+                    >
+                        Assign a schedule
+                    </Button>
+                )}
+            </div>
+
+            {history.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+                    No schedule of their own. They work their department's
+                    default hours, or the company's.
+                </p>
+            ) : (
+                <ul className="space-y-1.5">
+                    {history.map((assignment) => (
+                        <li
+                            key={assignment.hashid}
+                            className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {assignment.schedule.name ??
+                                        'Archived schedule'}
+                                </p>
+                                <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                                    {formatRange(
+                                        assignment.effective_from,
+                                        assignment.effective_to,
+                                    )}
+                                    {assignment.assigned_by
+                                        ? ` · by ${assignment.assigned_by}`
+                                        : ''}
+                                </p>
+                            </div>
+                            {assignment.effective_to === null && (
+                                <span className="shrink-0 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0a8b91] dark:text-[#0ABFBF]">
+                                    Current
+                                </span>
+                            )}
+                            {canEdit && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                                    onClick={() => withdraw(assignment.hashid)}
+                                    disabled={withdrawing === assignment.hashid}
+                                    aria-label="Withdraw this assignment"
+                                >
+                                    {withdrawing === assignment.hashid ? (
+                                        <Spinner />
+                                    ) : (
+                                        <Trash2 className="size-3.5" />
+                                    )}
+                                </Button>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            <AssignScheduleDialog
+                employees={[{ id: employee.id, full_name: employee.full_name }]}
+                schedules={schedules.map((schedule) => ({
+                    id: schedule.id,
+                    name: schedule.name,
+                    type: schedule.type ?? 'fixed',
+                    cycle_length_days: schedule.cycle_length_days ?? 7,
+                }))}
+                action={employeeRoutes.scheduleStore(employee.id)}
+                sendEmployeeIds={false}
+                open={assignOpen}
+                onOpenChange={setAssignOpen}
+            />
+        </section>
+    );
+}
+
+/** "From Sep 1, 2026" / "Sep 1 – Sep 30, 2026". */
+function formatRange(from: string, to: string | null): string {
+    const format = (date: string) =>
+        new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+
+    return to === null
+        ? `From ${format(from)}`
+        : `${format(from)} – ${format(to)}`;
 }
 
 function Group({

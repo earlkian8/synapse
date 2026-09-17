@@ -7,6 +7,7 @@ use App\Http\Resources\HolidayResource;
 use App\Http\Resources\WorkScheduleResource;
 use App\Models\Holiday;
 use App\Models\WorkSchedule;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,6 +18,9 @@ use Inertia\Response;
  * assigned to (read by Attendance) and the organisation's holiday calendar (read
  * by Leave). Both are addressed by hashid; restore / force-delete take the hashid
  * as a string.
+ *
+ * A schedule is a template with a day pattern (ADR 0037), so its cycle is loaded
+ * with it and the page can offer one of them as the company's default hours.
  */
 class ScheduleSetupController extends Controller
 {
@@ -27,6 +31,8 @@ class ScheduleSetupController extends Controller
             'archivedSchedules' => WorkScheduleResource::collection($this->schedules()->onlyTrashed()->get())->resolve($request),
             'holidays' => HolidayResource::collection($this->holidays()->get())->resolve($request),
             'archivedHolidays' => HolidayResource::collection($this->holidays()->onlyTrashed()->get())->resolve($request),
+            // The schedule anybody with no assignment falls back to (ADR 0037).
+            'defaultScheduleId' => app(Tenancy::class)->organization()?->default_work_schedule_id,
             'can' => ['manage' => $request->user()->can('setup.schedule.manage')],
         ]);
     }
@@ -36,7 +42,10 @@ class ScheduleSetupController extends Controller
      */
     private function schedules(): Builder
     {
-        return WorkSchedule::query()->withCount('employees')->orderBy('name');
+        return WorkSchedule::query()
+            ->withCount('employees')
+            ->with(['days' => fn ($query) => $query->orderBy('day_index')])
+            ->orderBy('name');
     }
 
     /**

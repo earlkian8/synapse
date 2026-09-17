@@ -11,6 +11,7 @@ const TAB_PROP: Record<AttendanceTab, string> = {
     today: 'records',
     weekly: 'week',
     monthly: 'report',
+    roster: 'roster',
 };
 
 /**

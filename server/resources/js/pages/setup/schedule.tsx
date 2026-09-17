@@ -7,6 +7,7 @@ import {
     Pencil,
     Plus,
     Repeat,
+    Star,
     Trash2,
     Users,
 } from 'lucide-react';
@@ -16,10 +17,12 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { HolidayFormSheet } from '@/features/schedule-config/components/holiday-form-sheet';
 import { HolidayTypeBadge } from '@/features/schedule-config/components/holiday-type-badge';
-import { WorkScheduleFormSheet } from '@/features/schedule-config/components/work-schedule-form-sheet';
+import { WorkScheduleFormModal } from '@/features/schedule-config/components/work-schedule-form-modal';
 import {
     formatHolidayDate,
     formatScheduleHours,
+    isRotation,
+    SCHEDULE_TYPE_LABELS,
 } from '@/features/schedule-config/constants';
 import { scheduleConfigRoutes } from '@/features/schedule-config/routes';
 import type {
@@ -37,8 +40,14 @@ type ConfirmConfig = {
 };
 
 export default function SetupSchedule() {
-    const { schedules, archivedSchedules, holidays, archivedHolidays, can } =
-        usePage<ScheduleSetupPageProps>().props;
+    const {
+        schedules,
+        archivedSchedules,
+        holidays,
+        archivedHolidays,
+        defaultScheduleId,
+        can,
+    } = usePage<ScheduleSetupPageProps>().props;
 
     const [scheduleForm, setScheduleForm] = useState<{
         open: boolean;
@@ -77,9 +86,9 @@ export default function SetupSchedule() {
                         Work Schedule &amp; Holidays
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        The shift patterns employees follow (read by Attendance)
-                        and the holiday calendar (a holiday is not charged as a
-                        leave day).
+                        The shift patterns employees are assigned to (read by
+                        Attendance) and the holiday calendar (a holiday is not
+                        charged as a leave day).
                     </p>
                 </div>
 
@@ -87,7 +96,7 @@ export default function SetupSchedule() {
                 <ConfigSection
                     icon={Clock}
                     title="Work schedules"
-                    subtitle="Shift patterns: hours, working days and lateness grace."
+                    subtitle="Each one is a cycle of days: fixed, flexible or hours-only, weekly or rotating."
                     canManage={can.manage}
                     onNew={() =>
                         setScheduleForm({ open: true, schedule: null })
@@ -129,9 +138,32 @@ export default function SetupSchedule() {
                                 <Clock className="size-4" />
                             </span>
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">
-                                    {schedule.name}
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate text-sm font-medium">
+                                        {schedule.name}
+                                    </p>
+                                    {schedule.type !== 'fixed' && (
+                                        <Tag>
+                                            {
+                                                SCHEDULE_TYPE_LABELS[
+                                                    schedule.type
+                                                ]
+                                            }
+                                        </Tag>
+                                    )}
+                                    {isRotation(schedule) && (
+                                        <Tag>
+                                            <Repeat className="size-3" />
+                                            Rotating
+                                        </Tag>
+                                    )}
+                                    {schedule.id === defaultScheduleId && (
+                                        <Tag accent>
+                                            <Star className="size-3" />
+                                            Company default
+                                        </Tag>
+                                    )}
+                                </div>
                                 <p className="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
                                     {formatScheduleHours(schedule)}
                                 </p>
@@ -142,6 +174,22 @@ export default function SetupSchedule() {
                             </span>
                             {can.manage && (
                                 <RowActions
+                                    isDefault={
+                                        schedule.id === defaultScheduleId
+                                    }
+                                    onMakeDefault={() =>
+                                        router.patch(
+                                            scheduleConfigRoutes.setDefault,
+                                            {
+                                                work_schedule_id:
+                                                    schedule.id ===
+                                                    defaultScheduleId
+                                                        ? null
+                                                        : schedule.id,
+                                            },
+                                            { preserveScroll: true },
+                                        )
+                                    }
                                     onEdit={() =>
                                         setScheduleForm({
                                             open: true,
@@ -256,7 +304,7 @@ export default function SetupSchedule() {
                 </ConfigSection>
             </div>
 
-            <WorkScheduleFormSheet
+            <WorkScheduleFormModal
                 schedule={scheduleForm.schedule}
                 open={scheduleForm.open}
                 onOpenChange={(open) =>
@@ -405,15 +453,63 @@ function ConfigSection<T extends ArchivedItem>({
     );
 }
 
+/** A small chip on a row: what kind of schedule this is, or that it is the default. */
+function Tag({ accent, children }: { accent?: boolean; children: ReactNode }) {
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
+                accent
+                    ? 'border-[#0ABFBF]/30 bg-[#0ABFBF]/10 text-[#0a8b91] dark:text-[#0ABFBF]'
+                    : 'border-border text-muted-foreground',
+            )}
+        >
+            {children}
+        </span>
+    );
+}
+
 function RowActions({
+    isDefault,
+    onMakeDefault,
     onEdit,
     onArchive,
 }: {
+    isDefault?: boolean;
+    onMakeDefault?: () => void;
     onEdit: () => void;
     onArchive: () => void;
 }) {
     return (
         <div className="flex items-center gap-1">
+            {onMakeDefault && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                        'size-8',
+                        isDefault
+                            ? 'text-[#0a8b91] dark:text-[#0ABFBF]'
+                            : 'text-muted-foreground',
+                    )}
+                    onClick={onMakeDefault}
+                    aria-pressed={isDefault}
+                    aria-label={
+                        isDefault
+                            ? 'Clear the company default'
+                            : 'Make this the company default'
+                    }
+                    title={
+                        isDefault
+                            ? 'Clear the company default'
+                            : 'Make this the company default'
+                    }
+                >
+                    <Star
+                        className={cn('size-4', isDefault && 'fill-current')}
+                    />
+                </Button>
+            )}
             <Button
                 variant="ghost"
                 size="icon"

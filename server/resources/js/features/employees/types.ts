@@ -1,26 +1,34 @@
 import type { BandTone } from '@/features/performance/types';
 
 export type EmploymentStatus =
-    | 'active'
-    | 'on_leave'
-    | 'suspended'
-    | 'resigned'
-    | 'terminated';
+    'active' | 'on_leave' | 'suspended' | 'resigned' | 'terminated';
 
 export type EmployeeStatus = EmploymentStatus | 'archived';
 
 export type EmploymentType =
-    | 'regular'
-    | 'probationary'
-    | 'contractual'
-    | 'part_time';
+    'regular' | 'probationary' | 'contractual' | 'part_time';
 
 export type SortDirection = 'asc' | 'desc';
 
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };
 export type ManagerRef = { id: number; full_name: string; employee_no: string };
-export type ScheduleRef = { id: number; name: string };
+export type ScheduleRef = {
+    id: number;
+    name: string;
+    type?: 'fixed' | 'flexible' | 'hours_only';
+    cycle_length_days?: number;
+};
+
+/** One stretch of this person's schedule history (ADR 0037). */
+export type ScheduleAssignment = {
+    hashid: string;
+    schedule: { id: number | null; name: string | null; type: string | null };
+    effective_from: string;
+    effective_to: string | null;
+    cycle_offset: number;
+    assigned_by: string | null;
+};
 export type UserRef = { id: number; email: string };
 
 export type EmployeeDocument = {
@@ -170,6 +178,7 @@ export type ManagedEmployee = {
 
 /** The full record fetched for the detail drawer (includes sub-records). */
 export type EmployeeDetail = ManagedEmployee & {
+    schedule_history: ScheduleAssignment[];
     documents: EmployeeDocument[];
     certifications: EmployeeCertification[];
     promotions: EmployeePromotion[];
@@ -325,8 +334,4 @@ export type EmployeesPageProps = {
 };
 
 export type BulkEmployeeAction =
-    | 'archive'
-    | 'restore'
-    | 'delete'
-    | 'set-status'
-    | 'invite';
+    'archive' | 'restore' | 'delete' | 'set-status' | 'invite';

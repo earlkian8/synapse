@@ -14,7 +14,7 @@ type Props = {
     today: AttendanceRecord;
     nextExpected: PunchType | null;
     allowed: PunchType[];
-    schedule: MySchedule | null;
+    schedule: MySchedule;
     canClock: boolean;
 };
 
@@ -101,10 +101,14 @@ export function ClockCard({
                             {formatDuration(today.worked_minutes)} worked
                         </span>
                     )}
-                    {schedule?.start_time && schedule?.end_time && (
-                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/90">
-                            {schedule.name} · {schedule.start_time}–
-                            {schedule.end_time}
+                    {/* The shift the day is judged against — the resolver's
+                        answer, so a one-off swap shows here too (ADR 0037). */}
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/90">
+                        {schedule.name} · {schedule.hours}
+                    </span>
+                    {schedule.source === 'roster' && (
+                        <span className="rounded-full bg-amber-400/25 px-2 py-0.5 text-[11px] text-white">
+                            Just for today
                         </span>
                     )}
                 </div>

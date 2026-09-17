@@ -36,7 +36,7 @@ type Props = {
 function shiftPeriod(date: string, tab: AttendanceTab, dir: 1 | -1): string {
     const d = new Date(`${date}T00:00:00`);
 
-    if (tab === 'weekly') {
+    if (tab === 'weekly' || tab === 'roster') {
         d.setDate(d.getDate() + 7 * dir);
     } else if (tab === 'monthly') {
         d.setDate(1);
@@ -57,8 +57,17 @@ function weekStart(date: string): string {
     return toDateKey(d);
 }
 
-/** Whether the displayed period already contains (or is after) today. */
+/**
+ * Whether the displayed period already contains (or is after) today.
+ *
+ * The roster is the one view that reads forward — you plan next week — so it is
+ * never "at the latest": the stepper keeps going.
+ */
 function atLatest(date: string, tab: AttendanceTab, today: string): boolean {
+    if (tab === 'roster') {
+        return false;
+    }
+
     if (tab === 'monthly') {
         return date.slice(0, 7) >= today.slice(0, 7);
     }
@@ -83,7 +92,7 @@ function periodLabel(date: string, tab: AttendanceTab, today: string): string {
         });
     }
 
-    if (tab === 'weekly') {
+    if (tab === 'weekly' || tab === 'roster') {
         const start = new Date(`${weekStart(date)}T00:00:00`);
         const end = new Date(start);
         end.setDate(start.getDate() + 6);
@@ -113,6 +122,7 @@ const RESET_LABEL: Record<AttendanceTab, string> = {
     today: 'Today',
     weekly: 'This week',
     monthly: 'This month',
+    roster: 'This week',
 };
 
 export function AttendanceToolbar({
@@ -176,7 +186,7 @@ export function AttendanceToolbar({
                             id="attendance-date"
                             type="date"
                             value={filters.date}
-                            max={today}
+                            max={filters.tab === 'roster' ? undefined : today}
                             onChange={(event) => onDate(event.target.value)}
                             className="absolute inset-0 cursor-pointer opacity-0"
                             aria-label="Pick a date"
@@ -196,7 +206,7 @@ export function AttendanceToolbar({
                         <ChevronRight className="size-4" />
                     </Button>
 
-                    {!latest && (
+                    {filters.date !== today && (
                         <Button
                             variant="ghost"
                             size="sm"
@@ -208,20 +218,22 @@ export function AttendanceToolbar({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                        <a href={exportUrl}>
-                            <Download className="size-4" />
-                            Export
-                        </a>
-                    </Button>
-                    {canManage && (
-                        <Button size="sm" onClick={onManualEntry}>
-                            <Plus className="size-4" />
-                            Manual entry
+                {filters.tab !== 'roster' && (
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={exportUrl}>
+                                <Download className="size-4" />
+                                Export
+                            </a>
                         </Button>
-                    )}
-                </div>
+                        {canManage && (
+                            <Button size="sm" onClick={onManualEntry}>
+                                <Plus className="size-4" />
+                                Manual entry
+                            </Button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Filters: search + department (+ status on the daily log) */}

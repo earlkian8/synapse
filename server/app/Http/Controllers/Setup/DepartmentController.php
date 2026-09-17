@@ -7,6 +7,7 @@ use App\Http\Requests\Setup\DepartmentRequest;
 use App\Http\Resources\DepartmentResource;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\WorkSchedule;
 use App\Queries\DepartmentStatistics;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
@@ -29,7 +30,11 @@ class DepartmentController extends Controller
                 $this->listing()->onlyTrashed()->get()
             )->resolve($request),
             'stats' => $statistics->toArray(),
-            'options' => ['employees' => $this->employeeOptions()],
+            'options' => [
+                'employees' => $this->employeeOptions(),
+                // The shift a department's members work by default (ADR 0037).
+                'schedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
+            ],
             'can' => ['manage' => $request->user()->can('setup.departments.manage')],
         ]);
     }
@@ -42,6 +47,7 @@ class DepartmentController extends Controller
         $department->load([
             'head:id,first_name,middle_name,last_name,suffix,employee_no',
             'parent:id,name',
+            'defaultWorkSchedule:id,name',
             'positions' => fn ($query) => $query->withCount('employees')->orderBy('title'),
         ])->loadCount(['employees', 'children']);
 

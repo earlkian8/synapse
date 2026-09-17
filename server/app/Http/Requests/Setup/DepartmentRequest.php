@@ -41,6 +41,12 @@ class DepartmentRequest extends FormRequest
                 'nullable', 'integer',
                 Rule::exists('employees', 'id')->where('organization_id', $orgId)->whereNull('deleted_at'),
             ],
+            // The shift a member of this department works when no assignment of
+            // their own says otherwise (ADR 0037).
+            'default_work_schedule_id' => [
+                'nullable', 'integer',
+                Rule::exists('work_schedules', 'id')->where('organization_id', $orgId)->whereNull('deleted_at'),
+            ],
             'description' => ['nullable', 'string', 'max:2000'],
         ];
     }

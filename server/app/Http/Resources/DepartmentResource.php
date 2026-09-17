@@ -24,6 +24,11 @@ class DepartmentResource extends JsonResource
             'description' => $this->description,
             'parent_id' => $this->parent_id,
             'head_id' => $this->head_id,
+            'default_work_schedule_id' => $this->default_work_schedule_id,
+            'default_work_schedule' => $this->whenLoaded('defaultWorkSchedule', fn () => $this->defaultWorkSchedule ? [
+                'id' => $this->defaultWorkSchedule->id,
+                'name' => $this->defaultWorkSchedule->name,
+            ] : null),
             'is_archived' => $this->trashed(),
 
             'head' => $this->whenLoaded('head', fn () => $this->head ? [

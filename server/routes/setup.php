@@ -60,6 +60,7 @@ Route::middleware(['auth', 'verified'])
         // hashid; restore / force-delete take the hashid as a string.
         Route::get('schedule', [ScheduleSetupController::class, 'index'])->middleware('can:setup.schedule.view')->name('schedule.index');
 
+        Route::patch('schedule/default', [WorkScheduleController::class, 'setDefault'])->middleware('can:setup.schedule.manage')->name('schedule.default');
         Route::post('schedule/work-schedules', [WorkScheduleController::class, 'store'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.store');
         Route::post('schedule/work-schedules/{workSchedule}', [WorkScheduleController::class, 'update'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.update');
         Route::delete('schedule/work-schedules/{workSchedule}', [WorkScheduleController::class, 'destroy'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.destroy');

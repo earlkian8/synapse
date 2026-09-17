@@ -7,6 +7,7 @@ use App\Http\Controllers\Employee\EmployeeController;
 use App\Http\Controllers\Employee\EmployeeDocumentController;
 use App\Http\Controllers\Employee\EmployeeExportController;
 use App\Http\Controllers\Employee\EmployeeInvitationController;
+use App\Http\Controllers\Employee\EmployeeScheduleController;
 use App\Http\Controllers\Employee\EmployeeStatusController;
 use App\Http\Controllers\Employee\JoinRequestController;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +48,10 @@ Route::middleware(['auth', 'verified'])
         Route::delete('{employee}/force', [EmployeeController::class, 'forceDelete'])->middleware('can:employees.force-delete')->name('force-delete');
 
         // Owned sub-records (201 file).
+        // Schedule history — which shift this person works, and from when (ADR 0037).
+        Route::post('{employee}/schedule', [EmployeeScheduleController::class, 'store'])->middleware('can:employees.update')->name('schedule.store');
+        Route::delete('{employee}/schedule/{assignment}', [EmployeeScheduleController::class, 'destroy'])->middleware('can:employees.update')->name('schedule.destroy');
+
         Route::post('{employee}/documents', [EmployeeDocumentController::class, 'store'])->middleware('can:employees.manage-documents')->name('documents.store');
         Route::delete('{employee}/documents/{document}', [EmployeeDocumentController::class, 'destroy'])->middleware('can:employees.manage-documents')->name('documents.destroy');
         Route::post('{employee}/certifications', [EmployeeCertificationController::class, 'store'])->middleware('can:employees.manage-documents')->name('certifications.store');

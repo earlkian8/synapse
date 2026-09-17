@@ -56,6 +56,8 @@ class PermissionRegistry
             'attendance.view' => 'View attendance & time records',
             'attendance.manage' => 'Manual entry, corrections & approvals',
             'attendance.clock' => 'Clock in / out (self-service)',
+            'attendance.roster.view' => 'View the shift roster',
+            'attendance.roster.manage' => 'Assign schedules & set one-off shift overrides',
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',

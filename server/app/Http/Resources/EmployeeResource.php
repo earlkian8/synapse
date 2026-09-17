@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Employee;
+use App\Models\EmployeeScheduleAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -57,6 +58,24 @@ class EmployeeResource extends JsonResource
                 'id' => $this->user->id,
                 'email' => $this->user->email,
             ] : null),
+
+            // Which schedule this person has worked, and from when (ADR 0037).
+            // `work_schedule` above is the one in force today.
+            'schedule_history' => $this->whenLoaded('scheduleAssignments', fn () => $this->scheduleAssignments
+                ->map(fn (EmployeeScheduleAssignment $assignment): array => [
+                    'hashid' => $assignment->hashid,
+                    'schedule' => [
+                        'id' => $assignment->work_schedule_id,
+                        'name' => $assignment->workSchedule?->name,
+                        'type' => $assignment->workSchedule?->type,
+                    ],
+                    'effective_from' => $assignment->effective_from->toDateString(),
+                    'effective_to' => $assignment->effective_to?->toDateString(),
+                    'cycle_offset' => $assignment->cycle_offset,
+                    'assigned_by' => $assignment->relationLoaded('assigner') ? $assignment->assigner?->full_name : null,
+                ])
+                ->values()
+                ->all()),
 
             // Whether this person can actually sign in yet: `active`, `invited`, or
             // `none`. Derived (ADR 0026) — there is no column behind it.

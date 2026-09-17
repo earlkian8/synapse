@@ -23,6 +23,7 @@ class Department extends Model
         'code',
         'parent_id',
         'head_id',
+        'default_work_schedule_id',
         'description',
     ];
 
@@ -44,6 +45,17 @@ class Department extends Model
     public function children(): HasMany
     {
         return $this->hasMany(Department::class, 'parent_id');
+    }
+
+    /**
+     * The schedule a member of this department works when no assignment of their
+     * own says otherwise (ADR 0037).
+     *
+     * @return BelongsTo<WorkSchedule, $this>
+     */
+    public function defaultWorkSchedule(): BelongsTo
+    {
+        return $this->belongsTo(WorkSchedule::class, 'default_work_schedule_id')->withTrashed();
     }
 
     /**

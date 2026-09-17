@@ -242,6 +242,7 @@ export default function SetupDepartments() {
                 parentDefault={formParent}
                 departments={departments}
                 employees={options.employees}
+                schedules={options.schedules}
                 open={formOpen}
                 onOpenChange={setFormOpen}
             />

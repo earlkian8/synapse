@@ -140,6 +140,27 @@ class Employee extends Model
     }
 
     /**
+     * Every schedule this employee has been assigned, newest range first — the
+     * history behind `work_schedule_id` (ADR 0037).
+     *
+     * @return HasMany<EmployeeScheduleAssignment, $this>
+     */
+    public function scheduleAssignments(): HasMany
+    {
+        return $this->hasMany(EmployeeScheduleAssignment::class)->orderByDesc('effective_from')->orderByDesc('id');
+    }
+
+    /**
+     * One-off shift overrides for particular dates (ADR 0037).
+     *
+     * @return HasMany<ShiftRosterEntry, $this>
+     */
+    public function rosterEntries(): HasMany
+    {
+        return $this->hasMany(ShiftRosterEntry::class);
+    }
+
+    /**
      * This employee's direct manager.
      *
      * @return BelongsTo<Employee, $this>

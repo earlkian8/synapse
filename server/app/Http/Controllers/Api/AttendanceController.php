@@ -144,7 +144,7 @@ class AttendanceController extends Controller
      */
     private function employee(Request $request): Employee
     {
-        $employee = $request->user()->employee()->with('workSchedule')->first();
+        $employee = $request->user()->employee()->first();
 
         abort_unless($employee !== null, 403, 'Your account is not linked to an employee record.');
 

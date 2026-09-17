@@ -23,6 +23,10 @@ export const employeeRoutes = {
     joinCode: '/setup/company/join-code',
     restore: (id: number) => `/employees/${id}/restore`,
     forceDelete: (id: number) => `/employees/${id}/force`,
+    // Schedule history — which shift this person works, and from when (ADR 0037).
+    scheduleStore: (id: number) => `/employees/${id}/schedule`,
+    scheduleDestroy: (id: number, assignment: string) =>
+        `/employees/${id}/schedule/${assignment}`,
     documents: (id: number) => `/employees/${id}/documents`,
     document: (id: number, docId: number) =>
         `/employees/${id}/documents/${docId}`,

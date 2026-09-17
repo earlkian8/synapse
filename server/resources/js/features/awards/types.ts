@@ -66,12 +66,7 @@ export type AwardsIndexPageProps = {
 
 /** The signals the nominator scores; each has a fixed hue on the board. */
 export type NominationSignalKey =
-    | 'performance'
-    | 'forecast'
-    | 'attendance'
-    | 'training'
-    | 'tenure'
-    | 'gap';
+    'performance' | 'forecast' | 'attendance' | 'training' | 'tenure' | 'gap';
 
 /** One scored signal in a nominee's transparent breakdown. */
 export type NominationComponent = {

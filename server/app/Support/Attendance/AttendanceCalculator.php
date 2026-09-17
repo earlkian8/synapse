@@ -4,8 +4,6 @@ namespace App\Support\Attendance;
 
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
-use App\Models\WorkSchedule;
-use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -19,10 +17,16 @@ use Illuminate\Support\Collection;
  * The shift is read from the record's `scheduled_start_at` / `scheduled_end_at`:
  * instants worked out in the organisation's zone when the day opened, so a night
  * shift's 06:00 end is the next morning rather than sixteen hours before it
- * started (ADR 0036).
+ * started (ADR 0036). For a split shift those are the first segment's start and
+ * the last segment's end; the gap between the halves falls out of the punch
+ * walk on its own, because clocking out ends the on-clock stretch.
+ *
+ * How strictly the day is judged depends on the schedule's type (ADR 0037):
+ * `fixed` against the shift's own edges, `flexible` against the core window it
+ * must cover, `hours_only` against the hours alone.
  *
  * Time arithmetic is done on UNIX timestamps so it is agnostic to the app's
- * mutable/immutable date setting (the app uses {@see CarbonImmutable}).
+ * mutable/immutable date setting.
  */
 class AttendanceCalculator
 {
@@ -45,14 +49,8 @@ class AttendanceCalculator
         $scheduledStart = $record->scheduled_start_at;
         $scheduledEnd = $record->scheduled_end_at;
 
-        $late = ($firstIn && $scheduledStart)
-            ? max(0, intdiv($firstIn->getTimestamp() - ($scheduledStart->getTimestamp() + $rules->graceMinutes * 60), 60))
-            : 0;
-
-        $undertime = ($lastOut && $scheduledEnd && $lastOut->lt($scheduledEnd))
-            ? self::minutesBetween($lastOut, $scheduledEnd)
-            : 0;
-
+        $late = self::late($rules, $firstIn, $scheduledStart);
+        $undertime = self::undertime($rules, $worked, $lastOut, $scheduledEnd);
         $overtime = max(0, $worked - $rules->requiredMinutes);
 
         $record->first_in_at = $firstIn;
@@ -63,6 +61,62 @@ class AttendanceCalculator
         $record->undertime_minutes = $undertime;
         $record->overtime_minutes = $overtime;
         $record->status = self::status($record, $rules, $onApprovedLeave, $punches->isNotEmpty());
+    }
+
+    /**
+     * How late the arrival was, by the schedule's type.
+     *
+     *  - `fixed` — against the shift's start, after grace.
+     *  - `flexible` — against the core window opening: arriving at 09:45 for a
+     *    10:00 core is not late, however the shift is written.
+     *  - `hours_only` — never; only the hours are owed, not the moment.
+     *
+     * A flexible schedule with no core hours asks nothing of arrival time.
+     */
+    private static function late(DayRules $rules, ?CarbonInterface $firstIn, ?CarbonInterface $scheduledStart): int
+    {
+        if ($firstIn === null || $rules->type === 'hours_only') {
+            return 0;
+        }
+
+        $against = $rules->type === 'flexible' ? $rules->coreStartAt : $scheduledStart;
+
+        if ($against === null) {
+            return 0;
+        }
+
+        return max(0, intdiv($firstIn->getTimestamp() - ($against->getTimestamp() + $rules->graceMinutes * 60), 60));
+    }
+
+    /**
+     * How much of the day was left owing, by the schedule's type.
+     *
+     *  - `fixed` — the minutes between leaving and the shift's end.
+     *  - `flexible` — whichever is worse: leaving before the core window closes,
+     *    or falling short of the day's hours.
+     *  - `hours_only` — the hours alone, whenever they were worked. An open day
+     *    (no clock-out yet) is not short until it is closed.
+     */
+    private static function undertime(DayRules $rules, int $worked, ?CarbonInterface $lastOut, ?CarbonInterface $scheduledEnd): int
+    {
+        if ($lastOut === null) {
+            return 0;
+        }
+
+        $short = max(0, $rules->requiredMinutes - $worked);
+
+        return match ($rules->type) {
+            'hours_only' => $short,
+            'flexible' => max(
+                $rules->coreEndAt !== null && $lastOut->lt($rules->coreEndAt)
+                    ? self::minutesBetween($lastOut, $rules->coreEndAt)
+                    : 0,
+                $short,
+            ),
+            default => $scheduledEnd !== null && $lastOut->lt($scheduledEnd)
+                ? self::minutesBetween($lastOut, $scheduledEnd)
+                : 0,
+        };
     }
 
     /**
@@ -148,23 +202,6 @@ class AttendanceCalculator
         }
 
         return 'present';
-    }
-
-    /**
-     * Whether the given date is a scheduled working day. Falls back to Mon–Fri
-     * when no schedule (or no work_days) is set. Work days are stored as short
-     * names, e.g. ["Mon","Tue",...]. The date is a calendar date, so its weekday
-     * is the organisation's.
-     */
-    public static function isWorkingDay(CarbonInterface $date, ?WorkSchedule $schedule): bool
-    {
-        $days = $schedule?->work_days;
-
-        if (! is_array($days) || $days === []) {
-            return ! $date->isWeekend();
-        }
-
-        return in_array($date->format('D'), $days, true);
     }
 
     /**

@@ -2,11 +2,13 @@
 
 The **Daily Time Record (DTR)**: employees clock in/out (and breaks) from the web or a
 mobile app; HR sees the whole team's day, corrects records, and approves. Worked hours,
-lateness, undertime and overtime are computed server-side against each employee's
-**work schedule**, on the **organisation's clock**. The *why* is in
+lateness, undertime and overtime are computed server-side against **the shift that
+applies to that person on that day**, on the **organisation's clock**. The *why* is in
 [ADR 0010](../decisions/0010-attendance-and-mobile-api.md) (the two-table punch model +
-the token API for mobile) and [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md)
-(local time, shift-anchored work dates, frozen rules, holidays); this is the *how*.
+the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md)
+(local time, shift-anchored work dates, frozen rules, holidays) and
+[ADR 0037](../decisions/0037-schedules-are-templates-assignments-are-dated-a-resolver-decides-the-day.md)
+(day patterns, dated assignments, roster overrides, the resolver); this is the *how*.
 Everything is tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
@@ -17,7 +19,7 @@ Everything is tenant-scoped (ADR 0005).
 - **`/attendance`** — the **HR attendance workspace**: stat cards (present / late /
   absent / on-leave / avg hours), a **period-aware stepper** (prev / today / next +
   picker, stepping by day / week / month — "today" is the organisation's), search +
-  department filters, and three tabs over the same roster (which is built from *every*
+  department filters, and four tabs over the same roster (which is built from *every*
   employee, so people with no punches still appear as **Absent** / **Holiday** /
   **Day off** / **On leave**):
   - **Today's Log** — a sortable table: avatar + name, time in / out, computed hours, a
@@ -26,6 +28,13 @@ Everything is tenant-scoped (ADR 0005).
     kind, each actionable). A **status filter** narrows it (present / late / … / holiday).
   - **Weekly View** — a matrix: employees down, Mon–Sun across, each cell a status tile
     (a holiday tile names the holiday); clicking a cell jumps to that day's log.
+  - **Roster** — the **plan** rather than the record: employees down, the week across,
+    each cell the shift the resolver says applies, with the schedule's name under it and
+    a **pin** where a one-off override is in force. The one attendance view whose stepper
+    is **not capped at today** — planning next week is the point of it. Clicking a cell
+    opens the override (another shift's hours for that date, hours of its own, or a day
+    off, with a reason); **Assign a schedule** puts the week's roster on a shift from a
+    date. Gated on `attendance.roster.view` / `attendance.roster.manage`.
   - **Monthly Report** — one summary row per employee (present days, late count, absences,
     holidays, overtime, attendance-rate %) with an inline worked-hours **sparkline**. A
     holiday is neither attendance nor absence, so it stays out of the rate.
@@ -83,7 +92,8 @@ big clock**, the way a punch clock should feel.
 
 ## Data model
 
-Two tables (see [attendance tables](../database/attendance-tables.md)):
+Two tables hold the record (see [attendance tables](../database/attendance-tables.md));
+three more hold the plan (see [scheduling tables](../database/scheduling-tables.md)):
 
 - **`attendance_records`** — one row per employee per day: what the day is judged
   against (`work_schedule_id`, the schedule's clock-face `scheduled_start/end`, the shift
@@ -96,6 +106,9 @@ Two tables (see [attendance tables](../database/attendance-tables.md)):
   (`clock_in | clock_out | break_start | break_end`), `punched_at`, `source`
   (`web | mobile | kiosk | biometric | manual`), GPS (`latitude / longitude / accuracy`),
   an optional `photo` selfie, a `note`, and `recorded_by` (null when self-punched).
+- **`work_schedule_days`**, **`employee_schedule_assignments`** and
+  **`shift_roster_entries`** — a template's cycle, who works it over which dates, and the
+  one-off overrides (ADR 0037).
 
 ## How it computes
 
@@ -111,6 +124,26 @@ only code that knows the zone — `now()`, `today()`, `at($date, $time)` (a wall
 reading as the UTC instant it names), `localDate()` and `local()`. The board's "today",
 the self-service month, the assistant's 30-day window, the export's time columns and the
 seeder all read it. The web app and the mobile app format times with the same zone.
+
+### Which shift applies
+
+**`ShiftResolver::for(employee, date)`** is the only answer to "what is this person due
+to work?" — the board, the roster, the punch engine, the mobile session and the assistant
+all ask it. It walks one precedence chain, most specific first:
+
+**roster override → dated assignment → `employees.work_schedule_id` → department default
+→ organisation default → fallback** (Mon–Fri 08:00–17:00, eight hours).
+
+It returns a `ResolvedShift`: the day's `type`, whether it is a working day, its
+`segments` as clock-face pairs *and* as ordered UTC instants (each rolled past the one
+before it, so a split shift's evening half stays after its morning half), required and
+grace minutes, the core and accept windows, the schedule's name, and **`source`** — which
+link in the chain won, so the roster can say *why*. `forMany()` answers for a whole roster
+over a whole range in **five queries whatever the range**.
+
+A template's cycle is indexed by weekday for a week, and by days elapsed from its anchor
+(plus the assignment's `cycle_offset`) for a rotation — so two crews four apart on a
+four-on, four-off shift never work the same day.
 
 ### The work date
 
@@ -136,10 +169,12 @@ backs HR manual entry and corrections.
 
 ### Frozen rules
 
-When a day opens, `AttendanceClock::snapshot()` stores the schedule's times, the shift
+When a day opens, `AttendanceClock::snapshot()` stores the resolved shift's edges, its
 instants (the end rolled to the next morning when it is at or before the start) and a
 **`DayRules`** snapshot in `rules`: `grace_minutes`, `required_minutes`, `is_working_day`,
-`work_schedule_id`, `schedule_name`, `holiday_type`, `holiday_name`, `version: 1`. Every
+`work_schedule_id`, `schedule_name`, `holiday_type`, `holiday_name`, and — from
+`version: 2` — the schedule's `type`, the day's `segments`, the flexible core window as
+instants, `unpaid_break_minutes` and the resolver's `source`. Every
 recompute reads the snapshot, so **editing a schedule never changes a day already
 recorded**. `reapplySchedule()` — the day modal's *Re-apply schedule* and the board's
 *Re-apply schedules* — replaces it with the employee's current schedule and holiday, and is
@@ -150,9 +185,20 @@ activity-logged. A record from before snapshots existed is given one from what i
 
 **`AttendanceCalculator::recompute(record, DayRules, onLeave)`** is pure — no database,
 no clock. It walks the ordered punches as a state machine: worked minutes (on-the-clock,
-excluding breaks), break minutes, **late** (`first_in − (scheduled_start_at + grace)`),
-**undertime** (clocked out before `scheduled_end_at`), **overtime** (worked −
-`required_minutes`), and the **status**. A day with no punches resolves, in order:
+excluding breaks), break minutes, **overtime** (worked − `required_minutes`), and the
+**status**. **Late** and **undertime** depend on the snapshot's schedule type:
+
+| Type | Late | Undertime |
+| --- | --- | --- |
+| `fixed` | after `scheduled_start_at + grace` | clocked out before `scheduled_end_at` |
+| `flexible` | after `core_start_at + grace` | the worse of leaving before `core_end_at` and falling below `required_minutes` |
+| `hours_only` | never | `required_minutes − worked` |
+
+A **split shift** needs no special case: clocking out ends the on-clock stretch, so the
+gap between the halves is neither worked nor break; late is against the first segment's
+start and undertime against the last segment's end.
+
+A day with no punches resolves, in order:
 `on_leave` (approved leave) → `holiday` (a `regular` or `special_non_working` holiday) →
 `day_off` (not a working day) → `absent`. A `special_working` holiday is an ordinary
 working day. A clocked-in-but-not-out day is `incomplete`; a holiday somebody worked is
@@ -182,13 +228,25 @@ non-working holidays, and never seeds a punch that has not happened yet).
 ## Permissions
 
 `attendance.view` (the board & records), `attendance.manage` (manual entry, corrections,
-re-applying schedules, approvals), `attendance.clock` (record your own punches). Built-in
-roles: **HR Manager** gets all three; **Staff** gets `attendance.clock` for self-service.
+re-applying schedules, approvals), `attendance.clock` (record your own punches),
+`attendance.roster.view` (the roster tab) and `attendance.roster.manage` (overrides and
+assigning schedules). Built-in roles: **HR Manager** gets all five; **Staff** gets
+`attendance.clock` for self-service. Assigning a schedule from the **employee profile**
+reuses `employees.update` instead — it is an edit to that person's record.
 
 ## Assistant
 
-The agent's **Attendance** capability (gated by `attendance.view`) exposes
-`find_attendance` (an employee's recent DTRs) and `record_punch` (clock an employee in/out;
-gated by `attendance.manage`) — both routed through `AttendanceClock`, so totals, status
-and the shift a night punch belongs to stay correct. Card times are shown on the
-organisation's clock.
+The agent's **Attendance** capability (gated by `attendance.view`) exposes:
+
+- **`find_attendance`** — an employee's recent DTRs.
+- **`record_punch`** — clock an employee in/out (gated by `attendance.manage`).
+- **`find_shifts`** — "who works Saturday?", "what is Ana's shift next week?" — the
+  roster, not the records, with each shift's source spelled out. Gated by
+  `attendance.roster.view`; your own shifts need nothing. Capped at 31 days, 200 people
+  and 40 cards.
+- **`set_roster_entry`** — "put Ben on the night shift on the 20th" (gated by
+  `attendance.roster.manage`).
+
+Punches route through `AttendanceClock` and overrides through `RosterWriter`, so totals,
+status, the shift a night punch belongs to, and the history left behind are the same
+whoever asked. Card times are shown on the organisation's clock.

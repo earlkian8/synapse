@@ -21,11 +21,7 @@ import type { TrainingProgram } from '../types';
 import { ProgramStatusBadge } from './training-status-badge';
 
 export type ProgramSort =
-    | 'name'
-    | 'schedule'
-    | 'seats'
-    | 'completed'
-    | 'status';
+    'name' | 'schedule' | 'seats' | 'completed' | 'status';
 
 type Props = {
     programs: TrainingProgram[];

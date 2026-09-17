@@ -80,15 +80,27 @@ export type AttendanceStats = {
 };
 
 export type DepartmentRef = { id: number; name: string };
+export type ScheduleRef = {
+    id: number;
+    name: string;
+    type: 'fixed' | 'flexible' | 'hours_only';
+    cycle_length_days: number;
+};
 export type EmployeeOption = {
     id: number;
     full_name: string;
     employee_no: string;
 };
 
-export type AttendancePermissions = { manage: boolean; clock: boolean };
+export type AttendancePermissions = {
+    manage: boolean;
+    clock: boolean;
+    /** The roster tab — who is due to work what (ADR 0037). */
+    viewRoster: boolean;
+    manageRoster: boolean;
+};
 
-export type AttendanceTab = 'today' | 'weekly' | 'monthly';
+export type AttendanceTab = 'today' | 'weekly' | 'monthly' | 'roster';
 
 export type AttendanceFilters = {
     date: string;
@@ -131,6 +143,9 @@ export type WeekCell = {
     holiday: string | null;
     hashid: string | null;
     is_future: boolean;
+    /** The shift the person was due to work, and why it applied. */
+    shift: string;
+    shift_source: ShiftSource;
 };
 
 export type WeeklyRow = {
@@ -170,13 +185,64 @@ export type AttendanceIndexPageProps = {
     records: AttendanceRecord[];
     week: WeeklyView | null;
     report: MonthlyReport | null;
+    roster: RosterView | null;
     stats: AttendanceStats;
     options: {
         departments: DepartmentRef[];
         employees: EmployeeOption[];
+        schedules: ScheduleRef[];
     };
     can: AttendancePermissions;
     filters: AttendanceFilters;
+};
+
+// ── Roster ───────────────────────────────────────────────────────────────────
+
+/**
+ * Why a shift applies to somebody on a day — the precedence chain, most specific
+ * first (ADR 0037).
+ */
+export type ShiftSource =
+    | 'roster'
+    | 'assignment'
+    | 'employee'
+    | 'department'
+    | 'organization'
+    | 'fallback';
+
+export type RosterDayHeader = {
+    date: string;
+    weekday: string;
+    day: string;
+    is_today: boolean;
+    holiday: string | null;
+};
+
+export type RosterCell = {
+    date: string;
+    /** "08:00–17:00", "08:00–12:00 · 17:00–21:00", or "Rest day". */
+    label: string;
+    type: 'fixed' | 'flexible' | 'hours_only';
+    is_working_day: boolean;
+    segments: { start: string; end: string }[];
+    required_minutes: number;
+    schedule_name: string | null;
+    source: ShiftSource;
+    /** Set when this day carries a one-off override, so it can be cleared. */
+    entry_hashid: string | null;
+    reason: string | null;
+};
+
+export type RosterRow = {
+    employee: GridEmployee;
+    cells: RosterCell[];
+};
+
+export type RosterView = {
+    start: string;
+    end: string;
+    days: RosterDayHeader[];
+    rows: RosterRow[];
 };
 
 // ── Self-service ───────────────────────────────────────────────────────────────
@@ -185,6 +251,10 @@ export type MySchedule = {
     name: string;
     start_time: string | null;
     end_time: string | null;
+    /** How the day reads: "08:00–17:00", a split shift, or "Rest day". */
+    hours: string;
+    source: ShiftSource;
+    is_working_day: boolean;
 };
 
 export type MySummary = {
@@ -200,7 +270,7 @@ export type MyAttendancePageProps = {
         initials: string;
         photo: string | null;
         employee_no: string;
-        schedule: MySchedule | null;
+        schedule: MySchedule;
     };
     today: AttendanceRecord;
     nextExpected: PunchType | null;

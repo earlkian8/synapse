@@ -3,6 +3,7 @@ import { CalendarCheck, CheckCheck, RefreshCw, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
+import { AssignScheduleDialog } from '@/features/attendance/components/assign-schedule-dialog';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
 import { AttendanceViewTabs } from '@/features/attendance/components/attendance-view-tabs';
@@ -10,6 +11,12 @@ import { ExceptionsPanel } from '@/features/attendance/components/exceptions-pan
 import { ManualEntryDialog } from '@/features/attendance/components/manual-entry-dialog';
 import { MonthlyReportTable } from '@/features/attendance/components/monthly-report-table';
 import { RecordDetailDialog } from '@/features/attendance/components/record-detail-dialog';
+import { RosterEntryDialog } from '@/features/attendance/components/roster-entry-dialog';
+import type { RosterTarget } from '@/features/attendance/components/roster-entry-dialog';
+import {
+    AssignScheduleButton,
+    RosterGrid,
+} from '@/features/attendance/components/roster-grid';
 import { TodayLogTable } from '@/features/attendance/components/today-log-table';
 import { WeeklyGrid } from '@/features/attendance/components/weekly-grid';
 import { periodRange } from '@/features/attendance/constants';
@@ -21,7 +28,7 @@ import type {
 } from '@/features/attendance/types';
 
 export default function AttendanceIndex() {
-    const { records, week, report, stats, options, can, filters } =
+    const { records, week, report, roster, stats, options, can, filters } =
         usePage<AttendanceIndexPageProps>().props;
     const { setTab, setDate, goToDay, setSearch, setStatus, setDepartment } =
         useAttendanceFilters(filters);
@@ -40,6 +47,10 @@ export default function AttendanceIndex() {
 
     const [reapplyOpen, setReapplyOpen] = useState(false);
     const [reapplying, setReapplying] = useState(false);
+
+    const [rosterTarget, setRosterTarget] = useState<RosterTarget | null>(null);
+    const [rosterOpen, setRosterOpen] = useState(false);
+    const [assignOpen, setAssignOpen] = useState(false);
 
     // The period on screen — the day, the week or the month — is what a bulk
     // re-apply covers.
@@ -185,6 +196,11 @@ export default function AttendanceIndex() {
                                 pending
                             </Button>
                         )}
+                        {filters.tab === 'roster' && can.manageRoster && (
+                            <AssignScheduleButton
+                                onClick={() => setAssignOpen(true)}
+                            />
+                        )}
                         {can.manage && (
                             <Button
                                 variant="outline"
@@ -204,9 +220,17 @@ export default function AttendanceIndex() {
                     </div>
                 </div>
 
-                <AttendanceStatsCards stats={stats} />
+                {/* The day's figures are about what happened; the roster is about
+                    what is meant to. */}
+                {filters.tab !== 'roster' && (
+                    <AttendanceStatsCards stats={stats} />
+                )}
 
-                <AttendanceViewTabs value={filters.tab} onChange={setTab} />
+                <AttendanceViewTabs
+                    value={filters.tab}
+                    canViewRoster={can.viewRoster}
+                    onChange={setTab}
+                />
 
                 <div className="flex flex-col gap-4">
                     <AttendanceToolbar
@@ -243,6 +267,23 @@ export default function AttendanceIndex() {
                         ) : (
                             <Loading />
                         ))}
+
+                    {filters.tab === 'roster' &&
+                        (roster ? (
+                            <RosterGrid
+                                roster={roster}
+                                canManage={can.manageRoster}
+                                onPickCell={(row, cell) => {
+                                    setRosterTarget({
+                                        employee: row.employee,
+                                        cell,
+                                    });
+                                    setRosterOpen(true);
+                                }}
+                            />
+                        ) : (
+                            <Loading />
+                        ))}
                 </div>
             </div>
 
@@ -262,6 +303,21 @@ export default function AttendanceIndex() {
                 employees={options.employees}
                 open={manualOpen}
                 onOpenChange={setManualOpen}
+            />
+
+            <RosterEntryDialog
+                target={rosterTarget}
+                schedules={options.schedules}
+                open={rosterOpen}
+                onOpenChange={setRosterOpen}
+            />
+
+            <AssignScheduleDialog
+                employees={roster?.rows.map((row) => row.employee) ?? []}
+                schedules={options.schedules}
+                action={attendanceRoutes.rosterAssign}
+                open={assignOpen}
+                onOpenChange={setAssignOpen}
             />
 
             <ConfirmDialog

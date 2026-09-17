@@ -22,11 +22,7 @@ import type { EventItem } from '../types';
 import { EventStatusBadge } from './event-status-badge';
 
 export type EventSort =
-    | 'title'
-    | 'schedule'
-    | 'location'
-    | 'attendance'
-    | 'status';
+    'title' | 'schedule' | 'location' | 'attendance' | 'status';
 
 type Props = {
     events: EventItem[];

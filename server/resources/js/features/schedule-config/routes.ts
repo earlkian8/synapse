@@ -5,6 +5,8 @@
  */
 export const scheduleConfigRoutes = {
     index: '/setup/schedule',
+    /** Choose (or clear) the hours anyone with no assignment works. */
+    setDefault: '/setup/schedule/default',
     workSchedules: {
         store: '/setup/schedule/work-schedules',
         update: (hashid: string) => `/setup/schedule/work-schedules/${hashid}`,

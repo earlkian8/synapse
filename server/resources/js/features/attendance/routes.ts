@@ -9,6 +9,12 @@ export const attendanceRoutes = {
     approveAll: '/attendance/approve-all',
     reapplyRange: '/attendance/reapply-schedule',
 
+    // The roster — who is due to work what, and one-off overrides (ADR 0037).
+    rosterEntry: '/attendance/roster/entries',
+    rosterEntryDestroy: (hashid: string) =>
+        `/attendance/roster/entries/${hashid}`,
+    rosterAssign: '/attendance/roster/assign',
+
     me: '/attendance/me',
     mePunch: '/attendance/me/punch',
 

@@ -6,9 +6,10 @@ use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Organization;
-use App\Models\WorkSchedule;
 use App\Support\Attendance\AttendanceCalculator;
 use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\ResolvedShift;
+use App\Support\Attendance\ShiftResolver;
 use App\Support\HolidayCalendar;
 use App\Support\OrganizationClock;
 use App\Support\Tenancy;
@@ -26,7 +27,9 @@ use Illuminate\Database\Seeder;
  * a Day Shift clock-in at 07:52 Manila is stored as 23:52Z the evening before,
  * and a Night Shift runs 22:00 into the next morning on one record, exactly as a
  * live punch would. Totals and statuses come from the canonical {@see AttendanceClock}
- * / {@see AttendanceCalculator}. Absent days, rest days and non-working holidays
+ * / {@see AttendanceCalculator}. Which shift each person works on each day comes
+ * from {@see ShiftResolver}, so a seeded rotation or split shift is punched the
+ * way it is rostered. Absent days, rest days and non-working holidays
  * are simply left empty (the roster synthesises them), matching production, and
  * today is only seeded as far as it has happened.
  */
@@ -60,14 +63,18 @@ class AttendanceSeeder extends Seeder
         $start = $today->subDays(self::DAYS);
         $holidays = HolidayCalendar::inRange($start, $today);
 
-        Employee::with('workSchedule')->each(function (Employee $employee) use ($clock, $start, $today, $now, $holidays): void {
-            $schedule = $employee->workSchedule;
+        $employees = Employee::all();
+        $shifts = app(ShiftResolver::class)->forMany($employees, $start->toDateString(), $today->toDateString());
+
+        $employees->each(function (Employee $employee) use ($clock, $shifts, $start, $today, $now, $holidays): void {
             $profile = $this->profile();
 
             for ($day = $start; $day->lte($today); $day = $day->addDay()) {
-                $holiday = $holidays[$day->toDateString()] ?? null;
+                $date = $day->toDateString();
+                $holiday = $holidays[$date] ?? null;
+                $shift = $shifts[$employee->id][$date] ?? ResolvedShift::fallback($date);
 
-                if (! AttendanceCalculator::isWorkingDay($day, $schedule)
+                if (! $shift->isWorkingDay
                     || ($holiday !== null && in_array($holiday->type, Holiday::NON_WORKING_TYPES, true))) {
                     continue;
                 }
@@ -78,7 +85,7 @@ class AttendanceSeeder extends Seeder
                     continue;
                 }
 
-                $this->seedDay($clock, $employee, $schedule, $day->toDateString(), $scenario, $now);
+                $this->seedDay($clock, $employee, $shift, $scenario, $now);
             }
         });
     }
@@ -132,15 +139,21 @@ class AttendanceSeeder extends Seeder
     private function seedDay(
         AttendanceClock $clock,
         Employee $employee,
-        ?WorkSchedule $schedule,
-        string $date,
+        ResolvedShift $shift,
         string $scenario,
         CarbonImmutable $now,
     ): void {
         // The shift as instants on the organisation's clock; a night shift's end
-        // is the next morning.
-        [$startAt, $endAt] = AttendanceClock::shiftInstants($date, $schedule?->start_time ?: '09:00', $schedule?->end_time ?: '18:00');
-        $grace = (int) ($schedule?->grace_minutes ?? 0);
+        // is the next morning, and a split shift is punched across its whole span.
+        $startAt = $shift->startsAt();
+        $endAt = $shift->endsAt();
+
+        if ($startAt === null || $endAt === null) {
+            return;
+        }
+
+        $date = $shift->date;
+        $grace = $shift->graceMinutes;
 
         $clockIn = $scenario === 'late'
             ? $startAt->addMinutes($grace + random_int(8, 55))
