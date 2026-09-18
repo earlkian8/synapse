@@ -22,7 +22,9 @@ permanently-delete (mirrors the KPI setup page):
   minutes, and, for a flexible schedule, the **core hours** everyone must be present
   for. The editor previews the **next 14 days** from the pattern on screen before it is
   saved. Each row shows how many employees are assigned, whether it rotates, and which
-  one is the **company default**.
+  one is the **company default**. A schedule can also name the **attendance policy** its
+  days are judged by (ADR 0038); a policy that sets its own grace overrides the
+  schedule's.
 - **Holidays** — a named **date** with a **type** (regular / special non-working /
   special working) and an optional **yearly recurrence** (repeats on the same
   month/day). Recurring entries show a "Yearly" marker; the date renders as
@@ -107,8 +109,8 @@ Heroes Day (last Monday of August). Work schedules (Day / Night Shift) are seede
 Half-day/holiday **pay** rules, movable-feast auto-calculation (Holy Week), and
 region-specific local holidays. How lateness, overtime and breaks are *judged* beyond the
 three schedule types — rounding, overtime thresholds, auto-deducted breaks, night
-differential — is attendance **policy**, the next phase of the
-[attendance plan](./attendance.md).
+differential — is the [attendance policy](./attendance-policies.md) (ADR 0038), set on
+its own Company Setup screen.
 
 Per-employee schedule overrides and rotating shift patterns were out of scope until
 ADR 0037; both now exist (the roster and a template's cycle).

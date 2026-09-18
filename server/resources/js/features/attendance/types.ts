@@ -2,6 +2,7 @@ export type AttendanceStatus =
     | 'present'
     | 'late'
     | 'undertime'
+    | 'half_day'
     | 'absent'
     | 'on_leave'
     | 'day_off'
@@ -9,6 +10,22 @@ export type AttendanceStatus =
     | 'incomplete';
 
 export type PunchType = 'clock_in' | 'clock_out' | 'break_start' | 'break_end';
+
+/**
+ * Everything more specific than a status (ADR 0038) — why a day was judged the
+ * way it was.
+ */
+export type AttendanceFlag =
+    | 'late'
+    | 'undertime'
+    | 'half_day'
+    | 'late_absent'
+    | 'below_minimum'
+    | 'break_deducted'
+    | 'break_exceeded'
+    | 'unapproved_overtime'
+    | 'rest_day_worked'
+    | 'holiday_worked';
 
 export type PunchSource = 'web' | 'mobile' | 'kiosk' | 'biometric' | 'manual';
 
@@ -54,6 +71,9 @@ export type AttendanceRecord = {
     schedule_name?: string | null;
     /** The holiday the day fell on, when it was judged. */
     holiday?: AttendanceHoliday | null;
+    /** The attendance policy the day was judged by; no name is the built-in rules. */
+    policy?: { name: string | null; source: string } | null;
+    flags?: AttendanceFlag[];
     first_in_at: string | null;
     last_out_at: string | null;
     worked_minutes: number;
@@ -61,6 +81,12 @@ export type AttendanceRecord = {
     late_minutes: number;
     undertime_minutes: number;
     overtime_minutes: number;
+    /** The buckets (ADR 0038): regular + overtime = worked; the rest are tags. */
+    regular_minutes?: number;
+    approved_overtime_minutes?: number;
+    night_minutes?: number;
+    rest_day_minutes?: number;
+    holiday_minutes?: number;
     is_manual: boolean;
     remarks: string | null;
     approval_status: 'pending' | 'approved' | 'rejected' | null;
@@ -80,6 +106,7 @@ export type AttendanceStats = {
 };
 
 export type DepartmentRef = { id: number; name: string };
+export type PolicyRef = { id: number; name: string };
 export type ScheduleRef = {
     id: number;
     name: string;
@@ -139,6 +166,7 @@ export type WeekCell = {
     undertime_minutes: number;
     first_in_at: string | null;
     last_out_at: string | null;
+    flags: AttendanceFlag[];
     /** The holiday's name, when the day is one. */
     holiday: string | null;
     hashid: string | null;
@@ -168,10 +196,23 @@ export type MonthlyRow = {
     late_count: number;
     absent_count: number;
     holiday_count: number;
+    half_day_count: number;
     overtime_hours: number;
     worked_hours: number;
     attendance_rate: number | null;
     trend: number[];
+    /** Every bucket for the month, in minutes (ADR 0038). */
+    minutes: {
+        worked: number;
+        late: number;
+        undertime: number;
+        regular: number;
+        overtime: number;
+        approved_overtime: number;
+        night: number;
+        rest_day: number;
+        holiday: number;
+    };
 };
 
 export type MonthlyReport = {
@@ -191,6 +232,8 @@ export type AttendanceIndexPageProps = {
         departments: DepartmentRef[];
         employees: EmployeeOption[];
         schedules: ScheduleRef[];
+        /** What an assignment can single somebody out to be judged by. */
+        policies: PolicyRef[];
     };
     can: AttendancePermissions;
     filters: AttendanceFilters;

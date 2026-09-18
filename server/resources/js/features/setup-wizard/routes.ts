@@ -7,6 +7,7 @@ export const setupWizardRoutes = {
     company: '/setup/wizard/company',
     departments: '/setup/wizard/departments',
     'leave-types': '/setup/wizard/leave-types',
+    attendance: '/setup/wizard/attendance',
     recruitment: '/setup/wizard/recruitment',
     performance: '/setup/wizard/performance',
     skip: '/setup/wizard/skip',

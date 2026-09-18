@@ -252,7 +252,7 @@ test('re-applying schedules over a period re-judges every recorded day in it', f
         ->assertSessionHasNoErrors();
 
     expect(AttendanceRecord::orderBy('work_date')->pluck('late_minutes')->all())->toBe([20, 10])
-        ->and(ActivityLog::where('description', 'like', 'Re-applied current schedules to 2 attendance records%')->exists())->toBeTrue();
+        ->and(ActivityLog::where('description', 'like', 'Re-applied current schedules and policies to 2 attendance records%')->exists())->toBeTrue();
 });
 
 test('re-applying schedules needs the manage permission and a bounded period', function () {

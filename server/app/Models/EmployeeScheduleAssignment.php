@@ -30,6 +30,7 @@ class EmployeeScheduleAssignment extends Model
         'effective_from',
         'effective_to',
         'cycle_offset',
+        'attendance_policy_id',
         'assigned_by',
     ];
 
@@ -39,6 +40,7 @@ class EmployeeScheduleAssignment extends Model
             'effective_from' => 'date',
             'effective_to' => 'date',
             'cycle_offset' => 'integer',
+            'attendance_policy_id' => 'integer',
         ];
     }
 
@@ -57,6 +59,17 @@ class EmployeeScheduleAssignment extends Model
     {
         // withTrashed so an assignment to an archived schedule still resolves.
         return $this->belongsTo(WorkSchedule::class)->withTrashed();
+    }
+
+    /**
+     * The policy this person is judged by while the assignment runs, when it is
+     * not their shift's (ADR 0038).
+     *
+     * @return BelongsTo<AttendancePolicy, $this>
+     */
+    public function attendancePolicy(): BelongsTo
+    {
+        return $this->belongsTo(AttendancePolicy::class)->withTrashed();
     }
 
     /**

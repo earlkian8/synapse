@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\StoreEmployeeRequest;
 use App\Http\Requests\Employee\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
+use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
@@ -64,7 +65,7 @@ class EmployeeController extends Controller
     {
         $employee->load([
             'department', 'position', 'manager', 'workSchedule', 'user',
-            'scheduleAssignments.workSchedule:id,name,type', 'scheduleAssignments.assigner:id,first_name,middle_name,last_name,suffix',
+            'scheduleAssignments.workSchedule:id,name,type', 'scheduleAssignments.attendancePolicy:id,name', 'scheduleAssignments.assigner:id,first_name,middle_name,last_name,suffix',
             'documents.uploader', 'certifications',
             'promotions.fromPosition', 'promotions.toPosition',
             'performanceEvaluations.period:id,name,start_date,end_date',
@@ -237,6 +238,7 @@ class EmployeeController extends Controller
             'departments' => Department::orderBy('name')->get(['id', 'name', 'code']),
             'positions' => Position::orderBy('title')->get(['id', 'title', 'department_id']),
             'schedules' => WorkSchedule::orderBy('name')->get(['id', 'name', 'type', 'cycle_length_days']),
+            'policies' => AttendancePolicy::orderBy('name')->get(['id', 'name']),
             'managers' => Employee::orderBy('first_name')
                 ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'employee_no'])
                 ->map(fn (Employee $e): array => [

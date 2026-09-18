@@ -55,6 +55,7 @@ const PAGES = [
     'setup.kpi.index' => 'setup/kpi',
     'setup.award-types.index' => 'setup/award-types',
     'setup.schedule.index' => 'setup/schedule',
+    'setup.attendance-policies.index' => 'setup/attendance-policies',
     'setup.onboarding.index' => 'setup/onboarding',
     'setup.offboarding.index' => 'setup/offboarding',
     'setup.recruitment-pipelines.index' => 'setup/recruitment-pipelines',

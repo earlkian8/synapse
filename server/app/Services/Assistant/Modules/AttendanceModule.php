@@ -66,7 +66,7 @@ class AttendanceModule extends Module implements ContributesContext
     private const CONTEXT_DAYS = 30;
 
     /** Statuses that mean the employee showed up. */
-    private const PRESENT_STATUSES = ['present', 'late', 'undertime', 'incomplete'];
+    private const PRESENT_STATUSES = AttendanceRecord::PRESENT_STATUSES;
 
     /** The widest range one roster read-out covers. */
     private const MAX_ROSTER_DAYS = 31;
@@ -129,8 +129,13 @@ class AttendanceModule extends Module implements ContributesContext
         }
 
         $counts = [];
+        $flags = [];
         $lateMinutes = 0;
         $overtimeMinutes = 0;
+        $approvedOvertime = 0;
+        $nightMinutes = 0;
+        $restDayMinutes = 0;
+        $holidayMinutes = 0;
         $workedMinutes = 0;
         $worked = 0;
 
@@ -138,6 +143,14 @@ class AttendanceModule extends Module implements ContributesContext
             $counts[$cell['status']] = ($counts[$cell['status']] ?? 0) + 1;
             $lateMinutes += (int) $cell['late_minutes'];
             $overtimeMinutes += (int) $cell['overtime_minutes'];
+            $approvedOvertime += (int) $cell['approved_overtime_minutes'];
+            $nightMinutes += (int) $cell['night_minutes'];
+            $restDayMinutes += (int) $cell['rest_day_minutes'];
+            $holidayMinutes += (int) $cell['holiday_minutes'];
+
+            foreach ($cell['flags'] as $flag) {
+                $flags[$flag] = ($flags[$flag] ?? 0) + 1;
+            }
 
             if (in_array($cell['status'], self::PRESENT_STATUSES, true)) {
                 $worked++;
@@ -156,11 +169,18 @@ class AttendanceModule extends Module implements ContributesContext
             'Late on '.$late.' of those days'.($worked > 0 ? ' ('.round(($worked - $late) / $worked * 100).'% on time)' : '').
                 ($lateMinutes > 0 ? ', '.$this->hours($lateMinutes).' late in total' : ''),
             ($counts['absent'] ?? 0) > 0 ? 'Absent '.$counts['absent'].' day'.($counts['absent'] === 1 ? '' : 's') : 'No unexplained absences',
+            ($counts['half_day'] ?? 0) > 0 ? 'Judged a half day on '.$counts['half_day'].' day'.($counts['half_day'] === 1 ? '' : 's').' (very late or very short, by the company policy)' : null,
             ($counts['on_leave'] ?? 0) > 0 ? 'On approved leave '.$counts['on_leave'].' day'.($counts['on_leave'] === 1 ? '' : 's') : null,
             ($counts['holiday'] ?? 0) > 0 ? 'Public holidays (not scheduled) '.$counts['holiday'].' day'.($counts['holiday'] === 1 ? '' : 's') : null,
             ($counts['incomplete'] ?? 0) > 0 ? 'Missing a clock-out on '.$counts['incomplete'].' day'.($counts['incomplete'] === 1 ? '' : 's') : null,
             $worked > 0 ? 'Averaging '.$this->hours((int) round($workedMinutes / $worked)).' worked per day' : null,
-            $overtimeMinutes > 0 ? $this->hours($overtimeMinutes).' of overtime' : null,
+            $overtimeMinutes > 0 ? $this->hours($overtimeMinutes).' of overtime'.(
+                $overtimeMinutes > $approvedOvertime ? ', '.$this->hours($overtimeMinutes - $approvedOvertime).' of it awaiting approval' : ''
+            ) : null,
+            $nightMinutes > 0 ? $this->hours($nightMinutes).' worked in the night-differential window' : null,
+            $restDayMinutes > 0 ? $this->hours($restDayMinutes).' worked on rest days' : null,
+            $holidayMinutes > 0 ? $this->hours($holidayMinutes).' worked on holidays' : null,
+            ($flags['break_exceeded'] ?? 0) > 0 ? 'Took a longer break than the policy allows on '.$flags['break_exceeded'].' day'.($flags['break_exceeded'] === 1 ? '' : 's') : null,
             'Most recent days — '.implode('; ', array_map(
                 fn (array $cell): string => $cell['date'].': '.str_replace('_', ' ', (string) $cell['status']).
                     ((int) $cell['late_minutes'] > 0 ? ' ('.$this->hours((int) $cell['late_minutes']).' late)' : ''),
@@ -186,7 +206,7 @@ class AttendanceModule extends Module implements ContributesContext
     public function guidance(User $user): string
     {
         return <<<'TXT'
-        ATTENDANCE — Daily Time Records (DTR): one record per employee per day, built from clock in/out and break punches. Worked hours, lateness, undertime and overtime are computed server-side against the employee's work schedule.
+        ATTENDANCE — Daily Time Records (DTR): one record per employee per day, built from clock in/out and break punches. Worked hours, lateness, undertime and overtime are computed server-side against the employee's work schedule and the company's attendance policy (grace, rounding, overtime rules, night differential). Worked minutes split into regular and overtime; night, rest-day and holiday minutes are tags over those same minutes. Overtime under a policy that requires approval is "awaiting approval" until approved. A day can be a "half day" when it was very late or very short by the policy's thresholds.
         - find_attendance lists an employee's recent records (pass `date` as YYYY-MM-DD for one specific day).
         - record_punch logs a clock punch for an employee: type is clock_in, clock_out, break_start or break_end. Punch order is validated (you can't clock out before clocking in). Punches are timed on the organisation's clock and filed under the shift they belong to — a night shift's clock-out after midnight closes the previous evening's day.
         - find_shifts answers "who works Saturday?" and "what is Ana's shift next week?" — it reads the roster (the plan), not the records (what happened). Pass `date` for one day, or `from` and `to` for a range; pass `employee` to narrow it to one person. Each shift says where it came from: a one-off roster override, a dated assignment, a department or company default, or the built-in Mon–Fri fallback.

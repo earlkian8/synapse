@@ -25,6 +25,8 @@ type Props = {
     departments: DepartmentRef[];
     canManage: boolean;
     exportUrl: string;
+    /** The payroll period summary — offered on the monthly tab only. */
+    periodExportUrl?: string;
     onDate: (value: string) => void;
     onSearch: (value: string) => void;
     onStatus: (value: string) => void;
@@ -130,6 +132,7 @@ export function AttendanceToolbar({
     departments,
     canManage,
     exportUrl,
+    periodExportUrl,
     onDate,
     onSearch,
     onStatus,
@@ -226,6 +229,17 @@ export function AttendanceToolbar({
                                 Export
                             </a>
                         </Button>
+                        {periodExportUrl && (
+                            <Button variant="outline" size="sm" asChild>
+                                <a
+                                    href={periodExportUrl}
+                                    title="One row per employee for the month: days worked, absences, half days, and every minute bucket — regular, overtime, approved overtime, night, rest day, holiday."
+                                >
+                                    <Download className="size-4" />
+                                    Payroll summary
+                                </a>
+                            </Button>
+                        )}
                         {canManage && (
                             <Button size="sm" onClick={onManualEntry}>
                                 <Plus className="size-4" />

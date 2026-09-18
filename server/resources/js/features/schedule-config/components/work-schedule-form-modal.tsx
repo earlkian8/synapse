@@ -1,6 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import { CalendarRange, Clock, Plus, X } from 'lucide-react';
 import { useMemo } from 'react';
+import { FormSelect } from '@/components/form-select';
 import InputError from '@/components/input-error';
 import {
     Modal,
@@ -32,8 +33,13 @@ import {
 import { scheduleConfigRoutes } from '../routes';
 import type { ScheduleDay, ScheduleType, WorkSchedule } from '../types';
 
+/** The select's value for "no policy of its own". */
+const NO_POLICY = 'none';
+
 type Props = {
     schedule: WorkSchedule | null;
+    /** Attendance policies the schedule can be judged by (ADR 0038). */
+    policies: { id: number; name: string; is_default: boolean }[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -47,7 +53,12 @@ type Props = {
  * using the same day-index rule the server resolves by, so the shape is checked
  * before it is saved rather than discovered on the roster.
  */
-export function WorkScheduleFormModal({ schedule, open, onOpenChange }: Props) {
+export function WorkScheduleFormModal({
+    schedule,
+    policies,
+    open,
+    onOpenChange,
+}: Props) {
     const isEditing = Boolean(schedule);
 
     return (
@@ -67,6 +78,7 @@ export function WorkScheduleFormModal({ schedule, open, onOpenChange }: Props) {
                     <FormBody
                         key={schedule?.id ?? 'new'}
                         schedule={schedule}
+                        policies={policies}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -77,19 +89,24 @@ export function WorkScheduleFormModal({ schedule, open, onOpenChange }: Props) {
 
 function FormBody({
     schedule,
+    policies,
     onDone,
 }: {
     schedule: WorkSchedule | null;
+    policies: { id: number; name: string; is_default: boolean }[];
     onDone: () => void;
 }) {
     const isEditing = Boolean(schedule);
 
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, transform, processing, errors } = useForm({
         name: schedule?.name ?? '',
         type: (schedule?.type ?? 'fixed') as ScheduleType,
         cycle_length_days: schedule?.cycle_length_days ?? WEEK_LENGTH,
         cycle_anchor_date: schedule?.cycle_anchor_date ?? '',
         grace_minutes: schedule?.grace_minutes ?? 0,
+        attendance_policy_id: schedule?.attendance_policy_id
+            ? String(schedule.attendance_policy_id)
+            : NO_POLICY,
         days:
             schedule && schedule.days.length > 0
                 ? schedule.days
@@ -136,6 +153,14 @@ function FormBody({
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
         const options = { preserveScroll: true, onSuccess: () => onDone() };
+
+        transform((payload) => ({
+            ...payload,
+            attendance_policy_id:
+                payload.attendance_policy_id === NO_POLICY
+                    ? null
+                    : Number(payload.attendance_policy_id),
+        }));
 
         post(
             isEditing && schedule
@@ -225,6 +250,9 @@ function FormBody({
                                 setData('grace_minutes', Number(e.target.value))
                             }
                         />
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                            A policy that sets its own grace overrides this.
+                        </p>
                         <InputError
                             message={errors.grace_minutes}
                             className="mt-1.5"
@@ -258,6 +286,46 @@ function FormBody({
                             className="mt-1.5"
                         />
                     </div>
+
+                    {policies.length > 0 && (
+                        <div className="sm:col-span-2">
+                            <Label
+                                htmlFor="schedule-policy"
+                                className="mb-1.5 block"
+                            >
+                                Attendance policy
+                            </Label>
+                            <FormSelect
+                                id="schedule-policy"
+                                value={data.attendance_policy_id}
+                                onChange={(value) =>
+                                    setData('attendance_policy_id', value)
+                                }
+                                options={[
+                                    {
+                                        value: NO_POLICY,
+                                        label: 'The department’s, or the company default',
+                                    },
+                                    ...policies.map((policy) => ({
+                                        value: String(policy.id),
+                                        label: policy.is_default
+                                            ? `${policy.name} (company default)`
+                                            : policy.name,
+                                    })),
+                                ]}
+                                className="w-full sm:max-w-sm"
+                            />
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                How days on this shift are judged — overtime,
+                                rounding, night work. Someone’s own assignment
+                                can still name a different one.
+                            </p>
+                            <InputError
+                                message={errors.attendance_policy_id}
+                                className="mt-1.5"
+                            />
+                        </div>
+                    )}
 
                     {isRotation && (
                         <div className="sm:col-span-2">

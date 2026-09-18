@@ -28,6 +28,8 @@ export type Department = {
     /** The hours anyone in this department works unless assigned their own. */
     default_work_schedule_id: number | null;
     default_work_schedule?: { id: number; name: string } | null;
+    /** How its people are judged unless their assignment or schedule says (ADR 0038). */
+    attendance_policy_id: number | null;
     is_archived: boolean;
     head: DepartmentHead | null;
     parent?: { id: number; name: string } | null;
@@ -62,6 +64,10 @@ export type DepartmentsPageProps = {
     departments: Department[];
     archived: Department[];
     stats: DepartmentStats;
-    options: { employees: EmployeeOption[]; schedules: ScheduleOption[] };
+    options: {
+        employees: EmployeeOption[];
+        schedules: ScheduleOption[];
+        policies: ScheduleOption[];
+    };
     can: DepartmentPermissions;
 };

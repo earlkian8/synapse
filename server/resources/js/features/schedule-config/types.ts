@@ -38,6 +38,8 @@ export type WorkSchedule = {
     cycle_anchor_date: string | null; // "Y-m-d"
     weekly_required_minutes: number | null;
     grace_minutes: number;
+    /** The attendance policy days on this schedule are judged by (ADR 0038). */
+    attendance_policy_id: number | null;
 
     /** The pattern's summary, derived server-side. Read-only here. */
     start_time: string | null; // "HH:MM"
@@ -73,5 +75,7 @@ export type ScheduleSetupPageProps = {
     archivedHolidays: Holiday[];
     /** The schedule anybody with no assignment falls back to. */
     defaultScheduleId: number | null;
+    /** The attendance policies a schedule can be judged by. */
+    policies: { id: number; name: string; is_default: boolean }[];
     can: SchedulePermissions;
 };

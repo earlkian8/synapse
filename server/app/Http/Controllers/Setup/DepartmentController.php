@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\DepartmentRequest;
 use App\Http\Resources\DepartmentResource;
+use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\WorkSchedule;
@@ -34,6 +35,8 @@ class DepartmentController extends Controller
                 'employees' => $this->employeeOptions(),
                 // The shift a department's members work by default (ADR 0037).
                 'schedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
+                // …and the attendance policy they are judged by (ADR 0038).
+                'policies' => AttendancePolicy::orderBy('name')->get(['id', 'name']),
             ],
             'can' => ['manage' => $request->user()->can('setup.departments.manage')],
         ]);

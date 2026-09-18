@@ -2,20 +2,20 @@
 
 namespace App\Queries;
 
+use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use Carbon\CarbonImmutable;
 
 /**
  * The monthly report: one summary row per employee for the month containing the
- * anchor date — present days, late count, absences, overtime, attendance rate,
- * and a per-day worked-minutes trend for the inline sparkline. Built on the
- * shared {@see AttendanceRangeQuery}.
+ * anchor date — present days, late count, half days, absences, the minute buckets
+ * a payroll reads (ADR 0038), attendance rate, and a per-day worked-minutes trend
+ * for the inline sparkline. Built on the shared {@see AttendanceRangeQuery}.
+ *
+ * {@see summarize()} is also the period export's roll-up, for any range.
  */
 class AttendanceMonthlyReport
 {
-    /** Statuses that count as the employee having shown up for work that day. */
-    private const PRESENT_STATUSES = ['present', 'late', 'undertime', 'incomplete'];
-
     public function __construct(private readonly AttendanceRangeQuery $range) {}
 
     /**
@@ -28,7 +28,7 @@ class AttendanceMonthlyReport
 
         $rows = $this->range
             ->days($start->toDateString(), $end->toDateString(), $department, $search)
-            ->map(fn (array $row): array => $this->summarize($row['employee'], $row['cells']))
+            ->map(fn (array $row): array => self::summarize($row['employee'], $row['cells']))
             ->values();
 
         return [
@@ -40,20 +40,22 @@ class AttendanceMonthlyReport
     }
 
     /**
-     * Roll a month of day-cells into one employee's summary.
+     * Roll a range of day-cells into one employee's summary.
      *
      * @param  list<array<string, mixed>>  $cells
      * @return array<string, mixed>
      */
-    private function summarize(Employee $employee, array $cells): array
+    public static function summarize(Employee $employee, array $cells): array
     {
         $present = 0;
         $late = 0;
+        $halfDays = 0;
         $absent = 0;
         $holidays = 0;
         $scheduled = 0;
-        $overtimeMinutes = 0;
-        $workedMinutes = 0;
+        $minutes = array_fill_keys([
+            'worked', 'late', 'undertime', 'regular', 'overtime', 'approved_overtime', 'night', 'rest_day', 'holiday',
+        ], 0);
         $trend = [];
 
         foreach ($cells as $cell) {
@@ -62,7 +64,7 @@ class AttendanceMonthlyReport
             }
 
             $status = $cell['status'];
-            $isPresent = in_array($status, self::PRESENT_STATUSES, true);
+            $isPresent = in_array($status, AttendanceRecord::PRESENT_STATUSES, true);
 
             if ($isPresent) {
                 $present++;
@@ -80,8 +82,13 @@ class AttendanceMonthlyReport
                 $late++;
             }
 
-            $overtimeMinutes += (int) $cell['overtime_minutes'];
-            $workedMinutes += (int) $cell['worked_minutes'];
+            if ($status === 'half_day') {
+                $halfDays++;
+            }
+
+            foreach (array_keys($minutes) as $bucket) {
+                $minutes[$bucket] += (int) ($cell[$bucket.'_minutes'] ?? 0);
+            }
 
             // The sparkline shows the worked-hours rhythm across the whole month
             // (zeros on rest / absence days read as the natural weekly cadence).
@@ -103,8 +110,11 @@ class AttendanceMonthlyReport
             'late_count' => $late,
             'absent_count' => $absent,
             'holiday_count' => $holidays,
-            'overtime_hours' => round($overtimeMinutes / 60, 1),
-            'worked_hours' => round($workedMinutes / 60, 1),
+            'half_day_count' => $halfDays,
+            'overtime_hours' => round($minutes['overtime'] / 60, 1),
+            'worked_hours' => round($minutes['worked'] / 60, 1),
+            // Every bucket in minutes, for the period export and the totals.
+            'minutes' => $minutes,
             'attendance_rate' => $scheduled > 0 ? (int) round($present / $scheduled * 100) : null,
             'trend' => $trend,
         ];

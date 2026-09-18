@@ -20,6 +20,7 @@ import {
     Mail,
     Medal,
     Network,
+    Scale,
     ScrollText,
     ShieldCheck,
     Target,
@@ -191,6 +192,12 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/schedule',
         icon: CalendarClock,
         permission: 'setup.schedule.view',
+    },
+    {
+        title: 'Attendance Policies',
+        href: '/setup/attendance-policies',
+        icon: Scale,
+        permission: 'setup.attendance-policies.view',
     },
     {
         title: 'Leave Types',

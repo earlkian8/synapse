@@ -89,6 +89,7 @@ export type AttendanceStatus =
   | 'present'
   | 'late'
   | 'undertime'
+  | 'half_day'
   | 'absent'
   | 'on_leave'
   | 'day_off'
@@ -129,6 +130,12 @@ export type AttendanceSummary = {
   late_minutes: number;
   undertime_minutes: number;
   overtime_minutes: number;
+  /** The buckets a payroll reads (ADR 0038). */
+  regular_minutes: number;
+  approved_overtime_minutes: number;
+  night_minutes: number;
+  rest_day_minutes: number;
+  holiday_minutes: number;
 };
 
 export type LeaveType = {

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Setup;
 
 use App\Models\WorkSchedule;
 use App\Support\Attendance\SchedulePatternWriter;
+use App\Support\Tenancy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -33,6 +34,12 @@ class WorkScheduleRequest extends FormRequest
             'cycle_anchor_date' => ['nullable', 'date_format:Y-m-d', 'required_unless:cycle_length_days,'.WorkSchedule::WEEKLY_CYCLE_LENGTH],
             'grace_minutes' => ['required', 'integer', 'min:0', 'max:240'],
             'weekly_required_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            // How days on this schedule are judged, unless an assignment names its
+            // own policy (ADR 0038). Null leaves it to the department or company.
+            'attendance_policy_id' => [
+                'nullable', 'integer',
+                Rule::exists('attendance_policies', 'id')->where('organization_id', app(Tenancy::class)->id())->whereNull('deleted_at'),
+            ],
 
             'days' => ['required', 'array', 'min:1', 'max:'.WorkSchedule::MAX_CYCLE_LENGTH_DAYS],
             'days.*.is_rest_day' => ['boolean'],

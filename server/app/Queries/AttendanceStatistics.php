@@ -18,7 +18,7 @@ class AttendanceStatistics
         $rows = $this->roster->roster($date);
 
         $counts = $rows->countBy('status');
-        $present = ($counts['present'] ?? 0) + ($counts['late'] ?? 0) + ($counts['undertime'] ?? 0) + ($counts['incomplete'] ?? 0);
+        $present = collect(AttendanceRecord::PRESENT_STATUSES)->sum(fn (string $status): int => $counts[$status] ?? 0);
 
         $workedMinutes = $rows->sum('worked_minutes');
         $workedRows = $rows->where('worked_minutes', '>', 0)->count();

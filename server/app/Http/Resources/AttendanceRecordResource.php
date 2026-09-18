@@ -34,6 +34,13 @@ class AttendanceRecordResource extends JsonResource
             'holiday' => isset($this->rules['holiday_type'])
                 ? ['name' => $this->rules['holiday_name'] ?? null, 'type' => $this->rules['holiday_type']]
                 : null,
+            // …and the attendance policy (ADR 0038). A day recorded before
+            // policies existed has none named: it was judged by the built-in rules.
+            'policy' => [
+                'name' => $this->rules['policy']['name'] ?? null,
+                'source' => $this->rules['policy']['source'] ?? 'fallback',
+            ],
+            'flags' => array_values($this->flags ?? []),
 
             'first_in_at' => $this->first_in_at?->toIso8601String(),
             'last_out_at' => $this->last_out_at?->toIso8601String(),
@@ -42,6 +49,14 @@ class AttendanceRecordResource extends JsonResource
             'late_minutes' => (int) $this->late_minutes,
             'undertime_minutes' => (int) $this->undertime_minutes,
             'overtime_minutes' => (int) $this->overtime_minutes,
+
+            // The buckets (ADR 0038): regular + overtime = worked; night, rest day
+            // and holiday are tags over those same minutes.
+            'regular_minutes' => (int) $this->regular_minutes,
+            'approved_overtime_minutes' => (int) $this->approved_overtime_minutes,
+            'night_minutes' => (int) $this->night_minutes,
+            'rest_day_minutes' => (int) $this->rest_day_minutes,
+            'holiday_minutes' => (int) $this->holiday_minutes,
 
             'is_manual' => (bool) $this->is_manual,
             'remarks' => $this->remarks,

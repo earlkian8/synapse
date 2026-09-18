@@ -16,7 +16,12 @@ import {
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { formatDuration } from '../constants';
+import {
+    CHIP_FLAGS,
+    FLAG_LABELS,
+    FLAG_TONES,
+    formatDuration,
+} from '../constants';
 import { attendanceRoutes } from '../routes';
 import type { AttendanceRecord } from '../types';
 import { AttendanceStatusBadge } from './attendance-status-badge';
@@ -127,6 +132,22 @@ function Body({
     const hasRecord = Boolean(record.hashid);
     const needsApproval = detail.approval_status === 'pending';
     const approval = detail.approval_status;
+    const chips = (detail.flags ?? []).filter((flag) =>
+        CHIP_FLAGS.includes(flag),
+    );
+    const unapproved = Math.max(
+        0,
+        detail.overtime_minutes -
+            (detail.approved_overtime_minutes ?? detail.overtime_minutes),
+    );
+
+    // Night, rest-day and holiday minutes are tags over the worked minutes, so
+    // they only earn a place in the band when the day has some.
+    const tags = [
+        { label: 'Night', minutes: detail.night_minutes ?? 0 },
+        { label: 'Rest day', minutes: detail.rest_day_minutes ?? 0 },
+        { label: 'Holiday', minutes: detail.holiday_minutes ?? 0 },
+    ].filter((tag) => tag.minutes > 0);
 
     return (
         <>
@@ -176,16 +197,34 @@ function Body({
                                 Recorded by hand
                             </span>
                         )}
+                        {/* …and the attendance policy (ADR 0038). */}
+                        {hasRecord && (
+                            <span className="text-xs text-muted-foreground">
+                                {detail.policy?.name
+                                    ? `Judged by ${detail.policy.name}`
+                                    : 'Judged by the built-in rules'}
+                            </span>
+                        )}
                     </>
                 }
             />
 
             {/* What the day added up to. Outside the scrolling body, so it stays
                 in view while a long trail is read. */}
-            <dl className="grid shrink-0 grid-cols-2 gap-y-2 border-b border-border px-5 py-2.5 sm:flex sm:gap-y-0 sm:divide-x sm:divide-border sm:px-6">
+            <dl className="grid shrink-0 grid-cols-3 gap-y-2 border-b border-border px-5 py-2.5 sm:flex sm:gap-y-0 sm:divide-x sm:divide-border sm:px-6">
                 <Total
                     label="Worked"
                     value={formatDuration(detail.worked_minutes)}
+                />
+                <Total
+                    label="Regular"
+                    value={formatDuration(
+                        detail.regular_minutes ??
+                            Math.max(
+                                0,
+                                detail.worked_minutes - detail.overtime_minutes,
+                            ),
+                    )}
                 />
                 <Total
                     label="Break"
@@ -203,15 +242,50 @@ function Body({
                 <Total
                     label="Overtime"
                     value={formatDuration(detail.overtime_minutes)}
+                    sub={
+                        unapproved === 0
+                            ? undefined
+                            : unapproved === detail.overtime_minutes
+                              ? 'awaiting approval'
+                              : `${formatDuration(unapproved)} awaiting`
+                    }
                     tone={
                         detail.overtime_minutes > 0
                             ? 'text-indigo-600 dark:text-indigo-400'
                             : undefined
                     }
                 />
+                {tags.map((tag) => (
+                    <Total
+                        key={tag.label}
+                        label={tag.label}
+                        value={formatDuration(tag.minutes)}
+                    />
+                ))}
             </dl>
 
             <ModalBody className="space-y-4 py-4">
+                {chips.length > 0 && (
+                    <ul
+                        aria-label="Why the day was judged this way"
+                        className="flex flex-wrap gap-1.5"
+                    >
+                        {chips.map((flag) => (
+                            <li
+                                key={flag}
+                                className={cn(
+                                    'rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                                    FLAG_TONES[flag] === 'warn'
+                                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                        : 'border-border bg-muted/50 text-muted-foreground',
+                                )}
+                            >
+                                {FLAG_LABELS[flag]}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
                 <section className="space-y-2">
                     <div className="flex items-baseline justify-between gap-3">
                         <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -272,11 +346,11 @@ function Body({
                                 variant="ghost"
                                 size="sm"
                                 className="text-muted-foreground"
-                                title="Judge this day by the employee's current schedule and the holiday calendar"
+                                title="Judge this day by the employee's current schedule, attendance policy and the holiday calendar"
                                 onClick={() => onReapply(record)}
                             >
                                 <RefreshCw className="size-4" />
-                                Re-apply schedule
+                                Re-apply rules
                             </Button>
                         )}
                         {hasRecord && (
@@ -312,10 +386,13 @@ function Body({
 function Total({
     label,
     value,
+    sub,
     tone,
 }: {
     label: string;
     value: string;
+    /** A qualifier under the figure — how much of it still needs a decision. */
+    sub?: string;
     tone?: string;
 }) {
     return (
@@ -326,6 +403,11 @@ function Total({
             <dd className={cn('text-sm font-semibold tabular-nums', tone)}>
                 {value}
             </dd>
+            {sub && (
+                <dd className="truncate text-[10px] text-amber-700 dark:text-amber-300">
+                    {sub}
+                </dd>
+            )}
         </div>
     );
 }

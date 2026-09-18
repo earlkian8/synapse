@@ -31,6 +31,7 @@ type SortDir = 'asc' | 'desc';
 const STATUS_ORDER: Record<string, number> = {
     incomplete: 0,
     absent: 1,
+    half_day: 1.5,
     late: 2,
     undertime: 3,
     present: 4,

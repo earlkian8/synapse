@@ -78,6 +78,25 @@ export default function AttendanceIndex() {
         return `${attendanceRoutes.export}?${params.toString()}`;
     }, [filters]);
 
+    // The payroll period summary for the month on screen (ADR 0038): one row per
+    // employee, every bucket in minutes. Offered on the monthly tab.
+    const periodExportUrl = useMemo(() => {
+        const params = new URLSearchParams({
+            tab: 'period',
+            date: filters.date,
+        });
+
+        if (filters.search) {
+            params.set('search', filters.search);
+        }
+
+        if (filters.department) {
+            params.set('department', String(filters.department));
+        }
+
+        return `${attendanceRoutes.export}?${params.toString()}`;
+    }, [filters.date, filters.search, filters.department]);
+
     const approveAllPending = () =>
         router.patch(
             attendanceRoutes.approveAll,
@@ -208,7 +227,7 @@ export default function AttendanceIndex() {
                                 onClick={() => setReapplyOpen(true)}
                             >
                                 <RefreshCw className="size-4" />
-                                Re-apply schedules
+                                Re-apply rules
                             </Button>
                         )}
                         <Button variant="outline" size="sm" asChild>
@@ -238,6 +257,11 @@ export default function AttendanceIndex() {
                         departments={options.departments}
                         canManage={can.manage}
                         exportUrl={exportUrl}
+                        periodExportUrl={
+                            filters.tab === 'monthly'
+                                ? periodExportUrl
+                                : undefined
+                        }
                         onDate={setDate}
                         onSearch={setSearch}
                         onStatus={setStatus}
@@ -315,6 +339,7 @@ export default function AttendanceIndex() {
             <AssignScheduleDialog
                 employees={roster?.rows.map((row) => row.employee) ?? []}
                 schedules={options.schedules}
+                policies={options.policies}
                 action={attendanceRoutes.rosterAssign}
                 open={assignOpen}
                 onOpenChange={setAssignOpen}
@@ -344,17 +369,18 @@ export default function AttendanceIndex() {
             <ConfirmDialog
                 open={reapplyOpen}
                 onOpenChange={setReapplyOpen}
-                title={`Re-apply current schedules to ${periodText(period.from, period.to)}?`}
+                title={`Re-apply current rules to ${periodText(period.from, period.to)}?`}
                 description={
                     <>
                         Every recorded day in this period
                         {filters.department
                             ? ' for the selected department'
                             : ''}{' '}
-                        is judged again by each employee&apos;s current schedule
-                        and the holiday calendar. Punches stay as they are;
-                        lateness, overtime and status can change. Until you do
-                        this, a day keeps the rules it was recorded with.
+                        is judged again by each employee&apos;s current
+                        schedule, attendance policy and the holiday calendar.
+                        Punches stay as they are; lateness, overtime and status
+                        can change. Until you do this, a day keeps the rules it
+                        was recorded with.
                     </>
                 }
                 confirmLabel="Re-apply"

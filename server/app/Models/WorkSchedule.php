@@ -10,6 +10,7 @@ use Database\Factories\WorkScheduleFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -62,6 +63,7 @@ class WorkSchedule extends Model
         'grace_minutes',
         'required_hours',
         'weekly_required_minutes',
+        'attendance_policy_id',
     ];
 
     /**
@@ -115,6 +117,17 @@ class WorkSchedule extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(EmployeeScheduleAssignment::class);
+    }
+
+    /**
+     * The policy days on this schedule are judged by, unless an assignment names
+     * its own (ADR 0038). Archived policies still resolve.
+     *
+     * @return BelongsTo<AttendancePolicy, $this>
+     */
+    public function attendancePolicy(): BelongsTo
+    {
+        return $this->belongsTo(AttendancePolicy::class)->withTrashed();
     }
 
     /**

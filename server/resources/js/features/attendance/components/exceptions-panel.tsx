@@ -1,4 +1,11 @@
-import { ChevronRight, Clock, LogOut, ShieldCheck, UserX } from 'lucide-react';
+import {
+    ChevronRight,
+    Clock,
+    LogOut,
+    ShieldCheck,
+    SplitSquareHorizontal,
+    UserX,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
@@ -45,6 +52,7 @@ export function ExceptionsPanel({
             .filter((r) => r.late_minutes >= LATE_EXCEPTION_MINUTES)
             .sort((a, b) => b.late_minutes - a.late_minutes);
         const absences = records.filter((r) => r.status === 'absent');
+        const halfDays = records.filter((r) => r.status === 'half_day');
 
         return [
             {
@@ -73,7 +81,21 @@ export function ExceptionsPanel({
                 icon: UserX,
                 tone: 'text-rose-600 bg-rose-500/10 dark:text-rose-400',
                 records: absences,
-                detail: () => 'No punches · not on leave',
+                detail: (r: AttendanceRecord) =>
+                    r.first_in_at
+                        ? 'Punched, but past the company’s limit'
+                        : 'No punches · not on leave',
+            },
+            {
+                key: 'half-day',
+                title: 'Half days',
+                icon: SplitSquareHorizontal,
+                tone: 'text-fuchsia-600 bg-fuchsia-500/10 dark:text-fuchsia-400',
+                records: halfDays,
+                detail: (r: AttendanceRecord) =>
+                    r.late_minutes > 0
+                        ? `${formatDuration(r.late_minutes)} late`
+                        : `${formatDuration(r.worked_minutes)} worked`,
             },
         ].filter((group) => group.records.length > 0);
     }, [records, timeZone]);

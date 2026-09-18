@@ -243,6 +243,7 @@ export default function SetupDepartments() {
                 departments={departments}
                 employees={options.employees}
                 schedules={options.schedules}
+                policies={options.policies}
                 open={formOpen}
                 onOpenChange={setFormOpen}
             />

@@ -27,6 +27,8 @@ export type ScheduleAssignment = {
     effective_from: string;
     effective_to: string | null;
     cycle_offset: number;
+    /** A policy that singles this person out while it runs (ADR 0038). */
+    policy: { id: number; name: string | null } | null;
     assigned_by: string | null;
 };
 export type UserRef = { id: number; email: string };
@@ -208,6 +210,8 @@ export type EmployeeOptions = {
     departments: DepartmentRef[];
     positions: { id: number; title: string; department_id: number | null }[];
     schedules: ScheduleRef[];
+    /** The attendance policies an assignment can name. */
+    policies: { id: number; name: string }[];
     managers: ManagerRef[];
     users: { id: number; full_name: string; email: string }[];
 };

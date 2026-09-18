@@ -91,6 +91,8 @@ class PermissionRegistry
             'setup.company.manage' => 'Manage company profile',
             'setup.schedule.view' => 'View work schedules & holidays',
             'setup.schedule.manage' => 'Manage work schedules & holidays',
+            'setup.attendance-policies.view' => 'View attendance policies',
+            'setup.attendance-policies.manage' => 'Manage attendance policies',
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',

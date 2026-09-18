@@ -2,12 +2,17 @@
 
 namespace App\Support\Setup;
 
+use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\KpiCriterion;
 use App\Models\LeaveType;
 use App\Models\RatingScale;
 use App\Models\RecruitmentPipeline;
 use App\Models\ReviewTemplate;
+use App\Models\WorkSchedule;
+use App\Support\Attendance\AttendancePolicySettings;
+use App\Support\Attendance\SchedulePatternWriter;
+use App\Support\Tenancy;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -112,6 +117,78 @@ class SetupInstaller
 
             return $pipeline;
         });
+    }
+
+    /**
+     * Create the attendance policy the company chose and, when it asked for one,
+     * the schedule most of its people work (ADR 0038).
+     *
+     * The first policy a company has becomes its default, so the rules it just
+     * picked apply from its first punch. A policy or schedule already carrying the
+     * name is reused rather than duplicated; a schedule becomes the company's
+     * default hours only when it has none yet.
+     *
+     * @param  array{policy: array{name: string, preset_key: string, description: string, settings: array<string, mixed>}, schedule: array{name: string, start: string, end: string, days: list<string>}|null}  $definition
+     * @return array{policy: AttendancePolicy, schedule: WorkSchedule|null}
+     */
+    public static function attendance(array $definition): array
+    {
+        return DB::transaction(function () use ($definition): array {
+            $policy = AttendancePolicy::where('name', $definition['policy']['name'])->first();
+
+            if ($policy === null) {
+                $policy = AttendancePolicy::create([
+                    ...$definition['policy'],
+                    'settings_version' => AttendancePolicySettings::VERSION,
+                    'is_default' => ! AttendancePolicy::query()->where('is_default', true)->exists(),
+                ]);
+            }
+
+            $schedule = null;
+
+            if ($definition['schedule'] !== null) {
+                $schedule = WorkSchedule::where('name', $definition['schedule']['name'])->first()
+                    ?? self::weeklySchedule($definition['schedule']);
+
+                $organization = app(Tenancy::class)->organization();
+
+                if ($organization !== null && $organization->default_work_schedule_id === null) {
+                    $organization->forceFill(['default_work_schedule_id' => $schedule->id])->save();
+                }
+            }
+
+            return ['policy' => $policy, 'schedule' => $schedule];
+        });
+    }
+
+    /**
+     * A plain weekly schedule — the same hours on each working day — written
+     * through the pattern writer the schedule editor uses.
+     *
+     * @param  array{name: string, start: string, end: string, days: list<string>}  $definition
+     */
+    private static function weeklySchedule(array $definition): WorkSchedule
+    {
+        $schedule = WorkSchedule::create([
+            'name' => $definition['name'],
+            'type' => 'fixed',
+            'cycle_length_days' => WorkSchedule::WEEKLY_CYCLE_LENGTH,
+            'grace_minutes' => 0,
+        ]);
+
+        $start = (int) substr($definition['start'], 0, 2) * 60 + (int) substr($definition['start'], 3, 2);
+        $end = (int) substr($definition['end'], 0, 2) * 60 + (int) substr($definition['end'], 3, 2);
+        $span = $end > $start ? $end - $start : 1440 - $start + $end;
+
+        app(SchedulePatternWriter::class)->write($schedule, array_map(fn (string $day): array => [
+            'is_rest_day' => ! in_array($day, $definition['days'], true),
+            'segments' => [['start' => $definition['start'], 'end' => $definition['end']]],
+            // A day of nine hours or more carries an hour's lunch, as the historical
+            // 08:00–17:00, eight-hour default did.
+            'required_minutes' => $span >= 540 ? $span - 60 : $span,
+        ], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']));
+
+        return $schedule->refresh();
     }
 
     /**

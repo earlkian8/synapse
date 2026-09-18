@@ -72,6 +72,11 @@ class EmployeeResource extends JsonResource
                     'effective_from' => $assignment->effective_from->toDateString(),
                     'effective_to' => $assignment->effective_to?->toDateString(),
                     'cycle_offset' => $assignment->cycle_offset,
+                    // A policy that singles this person out (ADR 0038), if any.
+                    'policy' => $assignment->attendance_policy_id !== null ? [
+                        'id' => $assignment->attendance_policy_id,
+                        'name' => $assignment->relationLoaded('attendancePolicy') ? $assignment->attendancePolicy?->name : null,
+                    ] : null,
                     'assigned_by' => $assignment->relationLoaded('assigner') ? $assignment->assigner?->full_name : null,
                 ])
                 ->values()

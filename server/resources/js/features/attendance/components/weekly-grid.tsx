@@ -23,6 +23,7 @@ const LEGEND: (keyof typeof STATUS_LABELS)[] = [
     'present',
     'late',
     'undertime',
+    'half_day',
     'incomplete',
     'absent',
     'on_leave',

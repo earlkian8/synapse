@@ -63,6 +63,8 @@ type Props = {
     canManageDocuments: boolean;
     /** The templates "Assign a schedule" offers. */
     schedules: ScheduleRef[];
+    /** …and the attendance policies it can name. */
+    policies?: { id: number; name: string }[];
     onOpenChange: (open: boolean) => void;
     onEdit: (employee: ManagedEmployee) => void;
 };
@@ -96,6 +98,7 @@ export function EmployeeDetailDialog({
     canEdit,
     canManageDocuments,
     schedules,
+    policies = [],
     onOpenChange,
     onEdit,
 }: Props) {
@@ -187,6 +190,7 @@ export function EmployeeDetailDialog({
                             e={current}
                             canEdit={canEdit}
                             schedules={schedules}
+                            policies={policies}
                         />
                     )}
 
@@ -323,10 +327,12 @@ function ProfileTab({
     e,
     canEdit,
     schedules,
+    policies,
 }: {
     e: EmployeeDetail;
     canEdit: boolean;
     schedules: ScheduleRef[];
+    policies: { id: number; name: string }[];
 }) {
     const money = (v: string | null) =>
         v
@@ -353,6 +359,7 @@ function ProfileTab({
                 employee={e}
                 canEdit={canEdit}
                 schedules={schedules}
+                policies={policies}
             />
 
             <Group icon={Briefcase} title="Personal">
@@ -401,10 +408,12 @@ function ScheduleHistoryGroup({
     employee,
     canEdit,
     schedules,
+    policies,
 }: {
     employee: EmployeeDetail;
     canEdit: boolean;
     schedules: ScheduleRef[];
+    policies: { id: number; name: string }[];
 }) {
     const [assignOpen, setAssignOpen] = useState(false);
     const [withdrawing, setWithdrawing] = useState<string | null>(null);
@@ -462,6 +471,13 @@ function ScheduleHistoryGroup({
                                         ? ` · by ${assignment.assigned_by}`
                                         : ''}
                                 </p>
+                                {assignment.policy && (
+                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                        Judged by{' '}
+                                        {assignment.policy.name ??
+                                            'an archived policy'}
+                                    </p>
+                                )}
                             </div>
                             {assignment.effective_to === null && (
                                 <span className="shrink-0 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0a8b91] dark:text-[#0ABFBF]">
@@ -497,6 +513,7 @@ function ScheduleHistoryGroup({
                     type: schedule.type ?? 'fixed',
                     cycle_length_days: schedule.cycle_length_days ?? 7,
                 }))}
+                policies={policies}
                 action={employeeRoutes.scheduleStore(employee.id)}
                 sendEmployeeIds={false}
                 open={assignOpen}

@@ -58,6 +58,7 @@ Which schedule an employee works, and from when. Before this, the answer was
 | `effective_from` | date | Inclusive. |
 | `effective_to` | date, nullable | Inclusive. Null is open-ended — the assignment in force until another replaces it. |
 | `cycle_offset` | usmallint | Where in a rotation this person starts. Two crews on one four-on, four-off template are offset by 4. |
+| `attendance_policy_id` | FK → attendance_policies, nullable | ADR 0038: judges this person by a policy other than their shift's while the assignment runs — the most specific link in the policy chain. Null on delete. A split carries it onto both halves. |
 | `assigned_by` | FK → users, nullable | Null on delete. |
 | timestamps | | |
 
@@ -111,6 +112,8 @@ to the precedence chain.
 | `work_schedules` | `weekly_required_minutes` | uint, nullable — an `hours_only` weekly target, reported on the weekly and monthly views rather than as a daily status. |
 | `departments` | `default_work_schedule_id` | FK, nullable — the hours a member works with no assignment of their own. |
 | `organizations` | `default_work_schedule_id` | FK, nullable — the company's default hours. |
+| `work_schedules` | `attendance_policy_id` | FK → attendance_policies, nullable, null on delete (ADR 0038) — how days on this shift are judged, unless an assignment names a policy. |
+| `departments` | `attendance_policy_id` | FK → attendance_policies, nullable, null on delete (ADR 0038) — how the department's people are judged, below their assignment's and schedule's. |
 
 `work_schedules.start_time`, `end_time` and `work_days` remain, **read-only**: a summary
 of the pattern (the first working day's first segment, its last segment's end, and the

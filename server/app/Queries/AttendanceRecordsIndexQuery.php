@@ -26,7 +26,7 @@ class AttendanceRecordsIndexQuery
      *
      * @var list<string>
      */
-    public const STATUSES = ['all', 'present', 'late', 'undertime', 'absent', 'on_leave', 'holiday', 'day_off', 'incomplete'];
+    public const STATUSES = ['all', 'present', 'late', 'undertime', 'half_day', 'absent', 'on_leave', 'holiday', 'day_off', 'incomplete'];
 
     /**
      * The day's roster after applying the request's status filter.

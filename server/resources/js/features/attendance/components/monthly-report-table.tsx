@@ -37,15 +37,25 @@ function rateBar(rate: number): string {
     return 'bg-rose-500';
 }
 
+/** Minutes as hours to one decimal, the way the report's columns read. */
+function hours(minutes: number): string {
+    return `${Math.round((minutes / 60) * 10) / 10}h`;
+}
+
 /**
  * The monthly report — one summary row per employee: present days, late count,
- * absences, overtime and attendance rate, with an inline sparkline of the
- * worked-hours rhythm across the month.
+ * half days, absences, overtime (and how much of it is approved), night work
+ * when the company's policy sets it apart, and attendance rate, with an inline
+ * sparkline of the worked-hours rhythm across the month.
  */
 export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
     if (report.rows.length === 0) {
         return <EmptyState />;
     }
+
+    // Night minutes only exist under a policy that counts them; a column of
+    // dashes for everybody else would be noise.
+    const showNight = report.rows.some((row) => row.minutes.night > 0);
 
     return (
         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
@@ -55,6 +65,9 @@ export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
                         <TableHead>Employee</TableHead>
                         <TableHead className="text-right">Present</TableHead>
                         <TableHead className="text-right">Late</TableHead>
+                        <TableHead className="hidden text-right md:table-cell">
+                            Half days
+                        </TableHead>
                         <TableHead className="text-right">Absent</TableHead>
                         <TableHead className="hidden text-right md:table-cell">
                             Holidays
@@ -62,6 +75,11 @@ export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
                         <TableHead className="hidden text-right md:table-cell">
                             Overtime
                         </TableHead>
+                        {showNight && (
+                            <TableHead className="hidden text-right xl:table-cell">
+                                Night
+                            </TableHead>
+                        )}
                         <TableHead className="text-right">Rate</TableHead>
                         <TableHead className="hidden text-right lg:table-cell">
                             Trend
@@ -70,7 +88,11 @@ export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
                 </TableHeader>
                 <TableBody>
                     {report.rows.map((row) => (
-                        <Row key={row.employee.id} row={row} />
+                        <Row
+                            key={row.employee.id}
+                            row={row}
+                            showNight={showNight}
+                        />
                     ))}
                 </TableBody>
             </Table>
@@ -78,8 +100,9 @@ export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
     );
 }
 
-function Row({ row }: { row: MonthlyRow }) {
+function Row({ row, showNight }: { row: MonthlyRow; showNight: boolean }) {
     const rate = row.attendance_rate;
+    const awaiting = row.minutes.overtime - row.minutes.approved_overtime;
 
     return (
         <TableRow>
@@ -114,6 +137,15 @@ function Row({ row }: { row: MonthlyRow }) {
                     <span className="text-muted-foreground">0</span>
                 )}
             </TableCell>
+            <TableCell className="hidden text-right text-sm tabular-nums md:table-cell">
+                {row.half_day_count > 0 ? (
+                    <span className="text-fuchsia-600 dark:text-fuchsia-400">
+                        {row.half_day_count}
+                    </span>
+                ) : (
+                    <span className="text-muted-foreground">0</span>
+                )}
+            </TableCell>
             <TableCell className="text-right text-sm tabular-nums">
                 {row.absent_count > 0 ? (
                     <span className="text-rose-600 dark:text-rose-400">
@@ -134,13 +166,29 @@ function Row({ row }: { row: MonthlyRow }) {
             </TableCell>
             <TableCell className="hidden text-right text-sm tabular-nums md:table-cell">
                 {row.overtime_hours > 0 ? (
-                    <span className="text-indigo-600 dark:text-indigo-400">
-                        {row.overtime_hours}h
-                    </span>
+                    <>
+                        <span className="text-indigo-600 dark:text-indigo-400">
+                            {row.overtime_hours}h
+                        </span>
+                        {awaiting > 0 && (
+                            <span className="block text-[11px] text-amber-700 dark:text-amber-300">
+                                {hours(awaiting)} awaiting approval
+                            </span>
+                        )}
+                    </>
                 ) : (
                     <span className="text-muted-foreground">—</span>
                 )}
             </TableCell>
+            {showNight && (
+                <TableCell className="hidden text-right text-sm tabular-nums xl:table-cell">
+                    {row.minutes.night > 0 ? (
+                        hours(row.minutes.night)
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    )}
+                </TableCell>
+            )}
 
             <TableCell className="text-right">
                 {rate === null ? (

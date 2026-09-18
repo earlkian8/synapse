@@ -29,7 +29,9 @@ class ScheduleAssigner
 {
     /**
      * Assign a schedule to an employee from `$effectiveFrom` onwards, returning
-     * the assignment written.
+     * the assignment written. `$attendancePolicyId` judges this person by a policy
+     * other than their shift's for as long as the assignment runs (ADR 0038); a
+     * split keeps it on both halves.
      */
     public function assign(
         Employee $employee,
@@ -38,8 +40,9 @@ class ScheduleAssigner
         ?string $effectiveTo = null,
         int $cycleOffset = 0,
         ?int $assignedBy = null,
+        ?int $attendancePolicyId = null,
     ): EmployeeScheduleAssignment {
-        return DB::transaction(function () use ($employee, $schedule, $effectiveFrom, $effectiveTo, $cycleOffset, $assignedBy): EmployeeScheduleAssignment {
+        return DB::transaction(function () use ($employee, $schedule, $effectiveFrom, $effectiveTo, $cycleOffset, $assignedBy, $attendancePolicyId): EmployeeScheduleAssignment {
             $this->clearRange($employee, $effectiveFrom, $effectiveTo);
 
             $assignment = EmployeeScheduleAssignment::create([
@@ -48,6 +51,7 @@ class ScheduleAssigner
                 'effective_from' => $effectiveFrom,
                 'effective_to' => $effectiveTo,
                 'cycle_offset' => max(0, $cycleOffset),
+                'attendance_policy_id' => $attendancePolicyId,
                 'assigned_by' => $assignedBy,
             ]);
 
@@ -139,6 +143,7 @@ class ScheduleAssigner
                     'effective_from' => $resumesOn,
                     'effective_to' => $resumesUntil,
                     'cycle_offset' => $assignment->cycle_offset,
+                    'attendance_policy_id' => $assignment->attendance_policy_id,
                     'assigned_by' => $assignment->assigned_by,
                 ]);
             }

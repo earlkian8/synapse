@@ -2,6 +2,7 @@ import { Head, usePage } from '@inertiajs/react';
 import { Lock } from 'lucide-react';
 import { useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
+import AttendanceStep from '@/features/setup-wizard/components/attendance-step';
 import CompanyStep from '@/features/setup-wizard/components/company-step';
 import DepartmentsStep from '@/features/setup-wizard/components/departments-step';
 import DoneScreen from '@/features/setup-wizard/components/done-screen';
@@ -26,7 +27,7 @@ import type { Auth } from '@/types';
  *
  * Registration provisions an empty tenant, so the owner's first sign-in used to
  * land on a dashboard of zeroes with nine Company Setup screens behind it and
- * nothing saying which mattered. This walks the five that block day-one work,
+ * nothing saying which mattered. This walks the six that block day-one work,
  * every one of them skippable, and every one of them writing to the same tables
  * the Company Setup screens do — the wizard is a route through Company Setup, not
  * a parallel copy of it.
@@ -170,6 +171,16 @@ export default function SetupWizardPage() {
                                     {...stepProps}
                                     blueprints={blueprints.leaveTypes}
                                     existing={existing.leaveTypes}
+                                />
+                            )}
+                            {current === 'attendance' && (
+                                <AttendanceStep
+                                    {...stepProps}
+                                    presets={blueprints.attendancePolicies}
+                                    existingPolicies={
+                                        existing.attendancePolicies
+                                    }
+                                    existingSchedules={existing.schedules}
                                 />
                             )}
                             {current === 'recruitment' && (

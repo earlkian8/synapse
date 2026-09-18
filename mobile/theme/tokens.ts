@@ -65,6 +65,8 @@ export const status = {
   holiday: '#0EA5E9',
   incomplete: '#F59E0B',
   undertime: '#F59E0B',
+  /** A day the company's attendance policy judged a half day (ADR 0038). */
+  halfDay: '#D946EF',
   overtime: '#0ABFBF',
 } as const;
 

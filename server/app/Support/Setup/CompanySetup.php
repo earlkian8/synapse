@@ -11,7 +11,7 @@ use App\Models\Organization;
  * from.
  *
  * Registration provisions an empty tenant (ADR 0005) and the configuration-driven
- * modules deliberately ship no defaults, so a brand-new organisation has nine
+ * modules deliberately ship no defaults, so a brand-new organisation has ten
  * Company Setup screens and no stated order. This class names the handful that
  * actually block day-one work, records what the owner did with each, and answers
  * the one question {@see RequireCompanySetup} asks on every request: is this
@@ -30,6 +30,8 @@ class CompanySetup
 
     public const LEAVE_TYPES = 'leave-types';
 
+    public const ATTENDANCE = 'attendance';
+
     public const RECRUITMENT = 'recruitment';
 
     public const PERFORMANCE = 'performance';
@@ -39,6 +41,7 @@ class CompanySetup
         self::COMPANY,
         self::DEPARTMENTS,
         self::LEAVE_TYPES,
+        self::ATTENDANCE,
         self::RECRUITMENT,
         self::PERFORMANCE,
     ];
@@ -63,6 +66,7 @@ class CompanySetup
         self::COMPANY => 'setup.company.manage',
         self::DEPARTMENTS => 'setup.departments.manage',
         self::LEAVE_TYPES => 'setup.leave-types.manage',
+        self::ATTENDANCE => 'setup.attendance-policies.manage',
         self::RECRUITMENT => 'recruitment.configure-pipelines',
         self::PERFORMANCE => 'setup.kpi.manage',
     ];

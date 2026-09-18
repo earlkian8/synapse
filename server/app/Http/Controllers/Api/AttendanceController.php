@@ -116,6 +116,8 @@ class AttendanceController extends Controller
             ->get([
                 'status', 'worked_minutes', 'break_minutes',
                 'late_minutes', 'undertime_minutes', 'overtime_minutes',
+                'regular_minutes', 'approved_overtime_minutes', 'night_minutes',
+                'rest_day_minutes', 'holiday_minutes',
             ]);
 
         $statuses = array_fill_keys(AttendanceRecord::STATUSES, 0);
@@ -136,6 +138,12 @@ class AttendanceController extends Controller
             'late_minutes' => (int) $records->sum('late_minutes'),
             'undertime_minutes' => (int) $records->sum('undertime_minutes'),
             'overtime_minutes' => (int) $records->sum('overtime_minutes'),
+            // The buckets a payroll reads (ADR 0038).
+            'regular_minutes' => (int) $records->sum('regular_minutes'),
+            'approved_overtime_minutes' => (int) $records->sum('approved_overtime_minutes'),
+            'night_minutes' => (int) $records->sum('night_minutes'),
+            'rest_day_minutes' => (int) $records->sum('rest_day_minutes'),
+            'holiday_minutes' => (int) $records->sum('holiday_minutes'),
         ]);
     }
 

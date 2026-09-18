@@ -24,6 +24,7 @@ class Department extends Model
         'parent_id',
         'head_id',
         'default_work_schedule_id',
+        'attendance_policy_id',
         'description',
     ];
 
@@ -56,6 +57,17 @@ class Department extends Model
     public function defaultWorkSchedule(): BelongsTo
     {
         return $this->belongsTo(WorkSchedule::class, 'default_work_schedule_id')->withTrashed();
+    }
+
+    /**
+     * The attendance policy this department's people are judged by, unless their
+     * assignment or schedule names one (ADR 0038).
+     *
+     * @return BelongsTo<AttendancePolicy, $this>
+     */
+    public function attendancePolicy(): BelongsTo
+    {
+        return $this->belongsTo(AttendancePolicy::class)->withTrashed();
     }
 
     /**

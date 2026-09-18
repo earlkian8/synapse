@@ -1,20 +1,21 @@
 # Company Setup Wizard
 
 The guided walk-through a brand-new company is taken through **before its dashboard**.
-It lives under **Company Setup** at `/setup/wizard` and covers the five things the rest
+It lives under **Company Setup** at `/setup/wizard` and covers the six things the rest
 of the system reads from. Every step can be skipped, and a skip is remembered.
 
 > Status: **Active** · Route prefix: `/setup/wizard`
 > Sidebar: Company Setup → Setup Guide (gated by `setup.company.manage`)
-> See [ADR 0032](../decisions/0032-guided-company-setup.md) and
-> [ADR 0034](../decisions/0034-a-company-writes-its-own-setup.md).
+> See [ADR 0032](../decisions/0032-guided-company-setup.md),
+> [ADR 0034](../decisions/0034-a-company-writes-its-own-setup.md) and, for the
+> Attendance step, [ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md).
 
 ## Why it exists
 
 Registration provisions a whole tenant and nothing inside it (ADR 0005), and the
 configuration-driven modules ship no defaults on purpose (ADR 0029). The owner's first
-sign-in therefore landed on a dashboard of zeroes, behind which sat nine Company Setup
-screens in no stated order. This walks the five that block day-one work and leaves the
+sign-in therefore landed on a dashboard of zeroes, behind which sat ten Company Setup
+screens in no stated order. This walks the six that block day-one work and leaves the
 other four to the finish screen.
 
 ## Surface
@@ -26,12 +27,13 @@ working pane beside it is the app's own light surface.
 
 | Screen | What it asks |
 | --- | --- |
-| Welcome | What the five steps are, and that any of them can wait. |
+| Welcome | What the six steps are, and that any of them can wait. |
 | 1 · Company | Display name and time zone (both required — the zone starts from the browser's, and is the clock attendance is judged on, ADR 0036), legal name, logo, contact details, employer registration numbers (folded away — a company registering today may not have them). |
 | 2 · Departments | Tick suggested functions, and name any the company has of its own. Nothing is pre-ticked; a department list is genuinely different at every company. |
 | 3 · Leave | Tick kinds of leave and set the days each carries, and define any others whole. The statutory PH entitlements are pre-ticked at the number the law sets. |
-| 4 · Hiring | Pick one process shape (Standard / Fast Track / Executive Search), or draw the company's own stages. Each card shows its actual stages. |
-| 5 · Appraisals | Pick one framework (Balanced / Competency Review / Results & Conduct), or design one — sections, weights, criteria and the words a result is reported in. The selected card opens to show its sections and every criterion. |
+| 4 · Attendance | Pick how days are judged — Philippines Labor Code / Standard 40-hour week / Flexible, no lateness / Shift work — each card listing the rules that make it different, or customise the chosen one in the same editor Company Setup uses, beside a worked example. Optionally write the hours most people work (a name, hours and working days). The policy becomes the company default, and the schedule the default schedule, when the company has none yet. |
+| 5 · Hiring | Pick one process shape (Standard / Fast Track / Executive Search), or draw the company's own stages. Each card shows its actual stages. |
+| 6 · Appraisals | Pick one framework (Balanced / Competency Review / Results & Conduct), or design one — sections, weights, criteria and the words a result is reported in. The selected card opens to show its sections and every criterion. |
 | Finish | What landed where, with "Do it now" on anything still open, plus the four Company Setup screens the wizard leaves out. |
 
 ## Choose one, then make it yours
@@ -45,6 +47,7 @@ suggestion then reads "In your list" rather than staying on offer twice.
 | --- | --- | --- |
 | Departments | Name, code, description | The wording of a **ticked** suggestion |
 | Leave | Name, code, description, colour, days, and the paid / half-day / approval flags | Everything about a **ticked** suggestion but its days — a statutory entitlement is not a request-body field |
+| Attendance | The policy's name, and — when customised — every setting, held to `AttendancePolicyRequest`'s rules; the default schedule's name, hours and days | An **adopted** preset's settings, resolved from `AttendancePolicyPresets` rather than posted |
 | Hiring | The process name, every stage name, and their order | A stage's `kind`, and the rule that a process has exactly one hired stage and at least one rejected one |
 | Appraisals | The framework's name and description, its sections and weights, which criteria sit where and at what weight, the wording of a criterion it writes, and the rating bands | A **catalogue** criterion's wording (resolved from its key) and every rating scale, which is named from the shared library rather than described |
 
@@ -123,8 +126,10 @@ complete by the migration.
 - **`Support\Setup\CompanyProfileWriter`** — the shared profile write, called by both
   this wizard and `CompanyProfileController`.
 - **FormRequests** in `Http/Requests/Setup/Wizard/` — one per step, plus `WizardSkipRequest`.
-  The company step reuses `UpdateCompanyProfileRequest` unchanged. The other four each
-  validate two answers: a blueprint key, or the company's own definition held to the
+  The company step reuses `UpdateCompanyProfileRequest` unchanged. The attendance step
+  (`WizardAttendanceRequest`) takes a preset key and, when customised, settings held to
+  `AttendancePolicyRequest::settingsRules()`; writing its default schedule additionally
+  needs `setup.schedule.manage`. The other four each validate two answers: a blueprint key, or the company's own definition held to the
   rules of the module's own request (`LeaveTypeRequest`,
   `StoreRecruitmentPipelineRequest`, `ReviewTemplateRequest`). A leave type or
   department left without a code gets one derived from its name — initials for a
@@ -151,6 +156,9 @@ over `features/setup-wizard/`:
   on a **dashed hairline**, the same signal the framework editor already uses for a
   criterion written by hand: the difference from an offer is authorship, not importance,
   so it is drawn without a second accent colour.
+- `components/attendance-step.tsx` — reuses `features/attendance-policy-config`'s
+  `PolicySections` and `WorkedExample` when a preset is customised, so the wizard edits a
+  policy exactly as Company Setup does.
 - `components/wizard-rail.tsx`, `step-body.tsx`, `step-footer.tsx`,
   `already-configured.tsx`, `toast-clearance.tsx`, and one component per screen.
 - `features/kpi-config/components/weight-controls.tsx` — the percent box, the running
@@ -174,15 +182,18 @@ module it configures:
 | Company | `setup.company.manage` |
 | Departments | `setup.departments.manage` |
 | Leave | `setup.leave-types.manage` |
+| Attendance | `setup.attendance-policies.manage` (and `setup.schedule.manage` to write the default schedule) |
 | Hiring | `recruitment.configure-pipelines` |
 | Appraisals | `setup.kpi.manage` |
 
-No new permission was added. Built-in **HR Manager** (the owner) holds all five.
+The Attendance step's ability arrived with ADR 0038. Built-in **HR Manager** (the owner)
+holds all of them.
 
 ## Integrations
 
 - **Company Profile** — step 1 is the same payload, validation and writer.
-- **Departments / Leave Types / Recruitment Pipelines / Performance Framework** — each
+- **Departments / Leave Types / Attendance Policies / Recruitment Pipelines / Performance
+  Framework** — each
   step creates records those screens read back and edit as normal, whether the company
   adopted an offer or wrote its own.
 - **Seeding** — `OrganizationSeeder` marks a seeded tenant complete, so the demo account
@@ -192,6 +203,7 @@ No new permission was added. Built-in **HR Manager** (the owner) holds all five.
 
 ## Out of scope (this cut)
 
-Work schedules, holidays, onboarding and offboarding programs, and award types — all
-named on the finish screen, none of them blocking day-one work. Inviting people is left
+Other schedules (night shifts, split shifts, rotations), holidays, onboarding and
+offboarding programs, and award types — all named on the finish screen, none of them
+blocking day-one work. Inviting people is left
 to the Employees module, which already has an invitation flow (ADR 0026).

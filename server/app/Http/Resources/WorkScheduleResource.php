@@ -26,6 +26,8 @@ class WorkScheduleResource extends JsonResource
             'cycle_anchor_date' => $this->cycle_anchor_date?->toDateString(),
             'weekly_required_minutes' => $this->weekly_required_minutes,
             'grace_minutes' => (int) $this->grace_minutes,
+            // The policy days on this schedule are judged by (ADR 0038).
+            'attendance_policy_id' => $this->attendance_policy_id,
 
             // The pre-pattern summary: the first working day's hours and the
             // weekdays that are not rest days. Derived from the pattern, kept for

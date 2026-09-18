@@ -32,6 +32,12 @@ class AssignScheduleRequest extends FormRequest
             'effective_from' => ['required', 'date_format:Y-m-d'],
             'effective_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:effective_from'],
             'cycle_offset' => ['nullable', 'integer', 'min:0', 'max:'.(WorkSchedule::MAX_CYCLE_LENGTH_DAYS - 1)],
+            // Judge these people by a policy other than their shift's while the
+            // assignment runs (ADR 0038). Null follows the schedule's.
+            'attendance_policy_id' => [
+                'nullable', 'integer',
+                Rule::exists('attendance_policies', 'id')->where('organization_id', $organization)->whereNull('deleted_at'),
+            ],
         ];
     }
 

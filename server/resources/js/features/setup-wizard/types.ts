@@ -1,4 +1,5 @@
 import type { TimezoneOption } from '@/components/timezone-select';
+import type { PolicyPreset } from '@/features/attendance-policy-config/types';
 import type { CompanyProfile } from '@/features/company-profile/types';
 import type {
     BandTone,
@@ -10,9 +11,14 @@ import type {
     StageKind,
 } from '@/features/recruitment-pipelines/types';
 
-/** The five things a brand-new company is walked through, in wizard order. */
+/** The six things a brand-new company is walked through, in wizard order. */
 export type SetupStep =
-    'company' | 'departments' | 'leave-types' | 'recruitment' | 'performance';
+    | 'company'
+    | 'departments'
+    | 'leave-types'
+    | 'attendance'
+    | 'recruitment'
+    | 'performance';
 
 /** What the company did with a step. A skip is an answer, not an absence. */
 export type StepStatus = 'done' | 'skipped' | 'pending';
@@ -106,6 +112,8 @@ export type SetupProgress = {
 export type ExistingConfiguration = {
     departments: string[];
     leaveTypes: string[];
+    attendancePolicies: string[];
+    schedules: string[];
     pipelines: string[];
     frameworks: string[];
 };
@@ -118,6 +126,8 @@ export type SetupWizardPageProps = {
     blueprints: {
         departments: DepartmentBlueprint[];
         leaveTypes: LeaveTypeBlueprint[];
+        /** How a day is judged — each preset with its complete settings (ADR 0038). */
+        attendancePolicies: PolicyPreset[];
         pipelines: PipelineBlueprint[];
         frameworks: FrameworkBlueprint[];
         /** What a company designing its own framework draws on. */
@@ -127,7 +137,7 @@ export type SetupWizardPageProps = {
         tones: BandTone[];
     };
     existing: ExistingConfiguration;
-    /** Per step, because the five steps are five different permissions. */
+    /** Per step, because the six steps are six different permissions. */
     can: Record<SetupStep, boolean>;
 };
 

@@ -139,7 +139,7 @@ class DashboardOverview
 
         $counts = AttendanceRecord::query()
             ->where('work_date', '>=', $start->toDateString())
-            ->whereIn('status', ['present', 'late', 'undertime', 'incomplete'])
+            ->whereIn('status', AttendanceRecord::PRESENT_STATUSES)
             ->selectRaw('work_date, count(*) as aggregate')
             ->groupBy('work_date')
             ->get()

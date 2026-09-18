@@ -34,24 +34,25 @@ use Illuminate\Support\Facades\DB;
  * Which shift a day is judged against is never read off the employee's record:
  * it comes from {@see ShiftResolver}, which walks roster override → dated
  * assignment → department → organisation → fallback (ADR 0037). A day is then
- * judged by the rules frozen onto it when it opened ({@see DayRules});
- * {@see reapplySchedule()} is the one deliberate way those change.
+ * judged by the rules frozen onto it when it opened ({@see DayRules}) — the
+ * shift, the holiday and the attendance policy {@see PolicyResolver} chose
+ * (ADR 0038); {@see reapplySchedule()} is the one deliberate way those change.
+ *
+ * The punch windows are the policy's too: how early a clock-in still counts
+ * towards a shift, and how long an open shift keeps claiming punches.
  */
 class AttendanceClock
 {
     /**
-     * How long after a clock-in a later punch can still belong to that shift —
-     * long enough for a double shift, short enough that a forgotten clock-out does
-     * not swallow the next day. A constant until attendance policies exist.
+     * The longest any policy lets an open shift claim punches — how far back
+     * {@see openShift()} looks before asking the day's own policy.
      */
-    public const MAX_SHIFT_SPAN_HOURS = 16;
+    private const LONGEST_SHIFT_SPAN_MINUTES = 1440;
 
-    /**
-     * How long before a shift starts a clock-in still counts towards it.
-     */
-    public const EARLY_CLOCK_IN_HOURS = 4;
-
-    public function __construct(private readonly ShiftResolver $shifts = new ShiftResolver) {}
+    public function __construct(
+        private readonly ShiftResolver $shifts = new ShiftResolver,
+        private readonly PolicyResolver $policies = new PolicyResolver,
+    ) {}
 
     /**
      * Record a punch for an employee and return the (recomputed, saved) day record.
@@ -105,16 +106,17 @@ class AttendanceClock
     /**
      * Which work date a punch at `$at` belongs to. In order:
      *
-     *  1. **An open shift.** If the employee clocked in within the last
-     *     {@see MAX_SHIFT_SPAN_HOURS} and has not clocked out, the punch belongs to
-     *     that day, whatever the calendar now says. This alone lets a night shift
-     *     clock out, and a double shift run past midnight.
+     *  1. **An open shift.** If the employee clocked in within that day's
+     *     policy's `max_shift_span_minutes` (sixteen hours unless a policy says
+     *     otherwise) and has not clocked out, the punch belongs to that day,
+     *     whatever the calendar now says. This alone lets a night shift clock
+     *     out, and a double shift run past midnight.
      *  2. **A shift about to start, or under way.** A clock-in is filed under
      *     today's or yesterday's shift (the organisation's dates) when it falls in
-     *     that working day's window — from {@see EARLY_CLOCK_IN_HOURS} before the
-     *     start to the end. A 21:30 clock-in for a 22:00 shift belongs to that
-     *     shift; so does a late one at 00:30. A rest day has no shift to claim a
-     *     clock-in from another date.
+     *     that working day's window — from the policy's `early_clock_in_minutes`
+     *     (four hours by default) before the start to the end. A 21:30 clock-in
+     *     for a 22:00 shift belongs to that shift; so does a late one at 00:30. A
+     *     rest day has no shift to claim a clock-in from another date.
      *  3. **Otherwise**, the organisation's calendar date at that instant.
      */
     public function workDateFor(Employee $employee, CarbonInterface $at, string $type = 'clock_in'): string
@@ -179,12 +181,9 @@ class AttendanceClock
         }
 
         $record = $this->newRecord($employee, $date);
+        $rules = $this->rulesFor($record);
 
-        AttendanceCalculator::recompute(
-            $record,
-            $this->rulesFor($record),
-            $this->isOnApprovedLeave($employee->id, $date),
-        );
+        AttendanceCalculator::recompute($record, $rules, $this->contextFor($record, $rules));
 
         return $record;
     }
@@ -265,16 +264,48 @@ class AttendanceClock
         $rules = $this->rulesFor($record);
         $record->load('punches');
 
-        AttendanceCalculator::recompute(
-            $record,
-            $rules,
-            $this->isOnApprovedLeave($record->employee_id, $record->work_date->toDateString()),
+        AttendanceCalculator::recompute($record, $rules, $this->contextFor($record, $rules));
+    }
+
+    /**
+     * What the calculator needs beyond the punches and the rules. The week's and
+     * the month's earlier figures are read only when the day's policy uses them —
+     * weekly overtime, a monthly grace allowance — so a company on anything else
+     * pays nothing for them.
+     *
+     * Both read the days as they are saved, so re-judging a stretch of days must
+     * go in date order ({@see reapplyMany()} does).
+     */
+    public function contextFor(AttendanceRecord $record, DayRules $rules): DayContext
+    {
+        $date = CarbonImmutable::parse($record->work_date->toDateString());
+        $before = $date->subDay()->toDateString();
+
+        $sum = fn (string $column, CarbonImmutable $from): int => $from->gt($date->subDay())
+            ? 0
+            : (int) AttendanceRecord::query()
+                ->where('employee_id', $record->employee_id)
+                ->whereDate('work_date', '>=', $from->toDateString())
+                ->whereDate('work_date', '<=', $before)
+                ->sum($column);
+
+        return new DayContext(
+            scheduledStart: $record->scheduled_start_at !== null ? CarbonImmutable::instance($record->scheduled_start_at)->utc() : null,
+            scheduledEnd: $record->scheduled_end_at !== null ? CarbonImmutable::instance($record->scheduled_end_at)->utc() : null,
+            timezone: OrganizationClock::timezone(),
+            onApprovedLeave: $this->isOnApprovedLeave($record->employee_id, $date->toDateString()),
+            weekRegularMinutesBefore: $rules->policy->needsWeekContext()
+                ? $sum('regular_minutes', $date->startOfWeek(CarbonInterface::MONDAY))
+                : 0,
+            monthExcusedLateMinutesBefore: $rules->policy->needsMonthContext()
+                ? $sum('excused_late_minutes', $date->startOfMonth())
+                : 0,
         );
     }
 
     /**
-     * Re-judge a day by the employee's **current** schedule and holiday calendar —
-     * the one deliberate way a day's snapshot changes. Saves, and returns whether
+     * Re-judge a day by the employee's **current** schedule, attendance policy and
+     * holiday calendar — the one deliberate way a day's snapshot changes. Saves, and returns whether
      * anything about the day moved. The caller logs it.
      *
      * @param  array<string, Holiday>|null  $holidays  The range's holidays keyed by "Y-m-d", when the caller has already loaded them.
@@ -284,12 +315,15 @@ class AttendanceClock
         $record->loadMissing('employee');
         $date = $record->work_date->toDateString();
 
+        $shift = $record->employee !== null
+            ? $this->shifts->for($record->employee, $date)
+            : ResolvedShift::fallback($date);
+
         $this->snapshot(
             $record,
-            $record->employee !== null
-                ? $this->shifts->for($record->employee, $date)
-                : ResolvedShift::fallback($date),
+            $shift,
             $holidays !== null ? ($holidays[$date] ?? null) : HolidayCalendar::on($date),
+            $record->employee !== null ? $this->policies->for($record->employee, $shift) : null,
         );
         $this->evaluate($record);
 
@@ -300,9 +334,12 @@ class AttendanceClock
     }
 
     /**
-     * Re-judge a whole chunk of days by the schedules that apply to them now,
-     * resolving every employee's shifts across the chunk's range in one go.
-     * Returns how many days actually moved. The caller logs it.
+     * Re-judge a whole chunk of days by the schedules and policies that apply to
+     * them now, resolving every employee's shifts and policies across the chunk's
+     * range in one go. Returns how many days actually moved. The caller logs it.
+     *
+     * Days are judged in date order, because weekly overtime and a monthly grace
+     * allowance read the days before them as they have just been saved.
      *
      * Doing this record by record would ask the resolver the same five questions
      * for every row; a period-wide re-apply over a month of a 200-person company
@@ -320,16 +357,18 @@ class AttendanceClock
         $dates = $records->map(fn (AttendanceRecord $record): string => $record->work_date->toDateString());
         $employees = $records->pluck('employee')->filter()->unique('id')->values();
         $shifts = $this->shifts->forMany($employees, (string) $dates->min(), (string) $dates->max());
+        $policies = $this->policies->forMany($employees, $shifts);
 
         $changed = 0;
 
-        foreach ($records as $record) {
+        foreach ($records->sortBy(fn (AttendanceRecord $record): string => $record->work_date->toDateString().'-'.$record->id) as $record) {
             $date = $record->work_date->toDateString();
 
             $this->snapshot(
                 $record,
                 $shifts[$record->employee_id][$date] ?? ResolvedShift::fallback($date),
                 $holidays[$date] ?? null,
+                $policies[$record->employee_id][$date] ?? null,
             );
             $this->evaluate($record);
 
@@ -346,18 +385,18 @@ class AttendanceClock
     /**
      * Freeze a resolved shift onto a record: which schedule applied, its
      * clock-face edges, the instants they fall on for this work date in the
-     * organisation's zone, and the rules the day is judged by. For a split shift
-     * the edges are the first segment's start and the last segment's end; the
-     * segments themselves live in the rules.
+     * organisation's zone, and the rules the day is judged by — the attendance
+     * policy among them. For a split shift the edges are the first segment's start
+     * and the last segment's end; the segments themselves live in the rules.
      */
-    public function snapshot(AttendanceRecord $record, ResolvedShift $shift, ?Holiday $holiday): void
+    public function snapshot(AttendanceRecord $record, ResolvedShift $shift, ?Holiday $holiday, ?ResolvedPolicy $policy = null): void
     {
         $record->work_schedule_id = $shift->scheduleId;
         $record->scheduled_start = $shift->startTime();
         $record->scheduled_end = $shift->endTime();
         $record->scheduled_start_at = $shift->startsAt();
         $record->scheduled_end_at = $shift->endsAt();
-        $record->rules = DayRules::fromShift($shift, $holiday)->toArray();
+        $record->rules = DayRules::fromShift($shift, $holiday, $policy)->toArray();
     }
 
     /**
@@ -367,6 +406,14 @@ class AttendanceClock
     public function shiftFor(Employee $employee, string $date): ResolvedShift
     {
         return $this->shifts->for($employee, $date);
+    }
+
+    /**
+     * The attendance policy an employee's shift is judged by (ADR 0038).
+     */
+    public function policyFor(Employee $employee, ResolvedShift $shift): ResolvedPolicy
+    {
+        return $this->policies->for($employee, $shift);
     }
 
     /**
@@ -506,25 +553,31 @@ class AttendanceClock
 
     /**
      * The employee's most recent day, when it is still open and began recently
-     * enough for a punch now to belong to it.
+     * enough — by the span its own policy allows — for a punch now to belong to it.
      */
     private function openShift(Employee $employee, CarbonImmutable $at): ?AttendanceRecord
     {
         $latest = AttendanceRecord::query()
             ->where('employee_id', $employee->id)
             ->whereNotNull('first_in_at')
-            ->whereBetween('first_in_at', [$at->subHours(self::MAX_SHIFT_SPAN_HOURS), $at])
+            ->whereBetween('first_in_at', [$at->subMinutes(self::LONGEST_SHIFT_SPAN_MINUTES), $at])
             ->orderByDesc('first_in_at')
             ->first();
 
-        return $latest !== null && $this->state($latest)['onClock'] ? $latest : null;
+        if ($latest === null || ! $this->state($latest)['onClock']) {
+            return null;
+        }
+
+        $span = $this->rulesFor($latest)->policy->maxShiftSpanMinutes;
+
+        return $latest->first_in_at->getTimestamp() >= $at->getTimestamp() - $span * 60 ? $latest : null;
     }
 
     /**
-     * Whether an instant falls in a working day's shift window — from
-     * {@see EARLY_CLOCK_IN_HOURS} before the shift starts until it ends. Read from
-     * the day's snapshot when the day already exists, otherwise from the
-     * employee's schedule.
+     * Whether an instant falls in a working day's shift window — from the
+     * policy's early clock-in allowance before the shift starts until it ends.
+     * Read from the day's snapshot when the day already exists, otherwise from the
+     * shift and policy the resolvers give.
      */
     private function withinShiftWindow(Employee $employee, string $date, CarbonImmutable $at): bool
     {
@@ -534,20 +587,25 @@ class AttendanceClock
             // The day is already open: judge it by what it was opened with.
             $start = $record->scheduled_start_at;
             $end = $record->scheduled_end_at;
-            $working = $this->rulesFor($record)->isWorkingDay;
+            $rules = $this->rulesFor($record);
+            $working = $rules->isWorkingDay;
+            $early = $rules->policy->earlyClockInMinutes;
         } else {
             $shift = $this->shifts->for($employee, $date);
             // A flexible schedule states the window it accepts punches in; every
             // other type is judged against the shift itself.
             [$start, $end] = $shift->acceptWindow();
             $working = $shift->isWorkingDay;
+            $early = $working && $start !== null
+                ? $this->policies->for($employee, $shift)->settings->earlyClockInMinutes
+                : 0;
         }
 
         if (! $working || $start === null || $end === null) {
             return false;
         }
 
-        return $at->getTimestamp() >= $start->getTimestamp() - self::EARLY_CLOCK_IN_HOURS * 3600
+        return $at->getTimestamp() >= $start->getTimestamp() - $early * 60
             && $at->getTimestamp() <= $end->getTimestamp();
     }
 
@@ -615,7 +673,9 @@ class AttendanceClock
             'status' => 'absent',
         ]);
 
-        $this->snapshot($record, $this->shifts->for($employee, $date), HolidayCalendar::on($date));
+        $shift = $this->shifts->for($employee, $date);
+
+        $this->snapshot($record, $shift, HolidayCalendar::on($date), $this->policies->for($employee, $shift));
         $record->setRelation('punches', new EloquentCollection);
 
         return $record;

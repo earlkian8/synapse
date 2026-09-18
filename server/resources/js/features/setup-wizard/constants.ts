@@ -1,6 +1,7 @@
 import {
     Building2,
     CalendarRange,
+    Clock,
     Network,
     Target,
     Workflow,
@@ -21,7 +22,7 @@ type StepMeta = {
     href: string;
 };
 
-/** The wizard's five steps, in the order the server walks them. */
+/** The wizard's six steps, in the order the server walks them. */
 export const STEPS: StepMeta[] = [
     {
         step: 'company',
@@ -48,6 +49,15 @@ export const STEPS: StepMeta[] = [
         title: 'What leave do you grant?',
         purpose: 'Employees can only file the kinds of leave you define here.',
         href: '/setup/leave-types',
+    },
+    {
+        step: 'attendance',
+        icon: Clock,
+        label: 'Attendance',
+        title: 'How are your days judged?',
+        purpose:
+            'When someone is late or short, what counts as overtime, and the hours most people work.',
+        href: '/setup/attendance-policies',
     },
     {
         step: 'recruitment',
@@ -84,7 +94,7 @@ export const REMAINING_SETUP: { title: string; href: string; note: string }[] =
         {
             title: 'Work schedule & holidays',
             href: '/setup/schedule',
-            note: 'Shifts attendance is measured against, and the holiday calendar leave skips.',
+            note: 'Other shifts and rotations, and the holiday calendar attendance and leave both read.',
         },
         {
             title: 'Onboarding programs',

@@ -290,7 +290,8 @@ class AwardNominator
 
     /**
      * Presence over the attendance window: lates and undertime count as partial
-     * presence; leave / days off / holidays are excused entirely.
+     * presence, a half day as half of one; leave / days off / holidays are excused
+     * entirely.
      *
      * @param  array<string, mixed>  $signals
      * @return array<string, mixed>|null
@@ -306,16 +307,17 @@ class AwardNominator
         $present = $counts['present'] ?? 0;
         $late = $counts['late'] ?? 0;
         $undertime = $counts['undertime'] ?? 0;
+        $halfDays = $counts['half_day'] ?? 0;
         $absent = $counts['absent'] ?? 0;
 
-        $workdays = $present + $late + $undertime + $absent;
+        $workdays = $present + $late + $undertime + $halfDays + $absent;
 
         if ($workdays === 0) {
             return null;
         }
 
-        $rate = ($present + 0.75 * ($late + $undertime)) / $workdays;
-        $perfect = $absent === 0 && $late === 0 && $undertime === 0;
+        $rate = ($present + 0.75 * ($late + $undertime) + 0.5 * $halfDays) / $workdays;
+        $perfect = $absent === 0 && $late === 0 && $undertime === 0 && $halfDays === 0;
 
         $detail = $perfect
             ? 'Perfect attendance (90 days)'

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Controllers\Recruitment\RecruitmentPipelineController;
+use App\Http\Controllers\Setup\AttendancePolicyController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DepartmentController;
@@ -40,6 +41,7 @@ Route::middleware(['auth', 'verified'])
         Route::post('wizard/company', [SetupWizardController::class, 'company'])->middleware('can:setup.company.manage')->name('wizard.company');
         Route::post('wizard/departments', [SetupWizardController::class, 'departments'])->middleware('can:setup.departments.manage')->name('wizard.departments');
         Route::post('wizard/leave-types', [SetupWizardController::class, 'leaveTypes'])->middleware('can:setup.leave-types.manage')->name('wizard.leave-types');
+        Route::post('wizard/attendance', [SetupWizardController::class, 'attendance'])->middleware('can:setup.attendance-policies.manage')->name('wizard.attendance');
         Route::post('wizard/recruitment', [SetupWizardController::class, 'recruitment'])->middleware('can:recruitment.configure-pipelines')->name('wizard.recruitment');
         Route::post('wizard/performance', [SetupWizardController::class, 'performance'])->middleware('can:setup.kpi.manage')->name('wizard.performance');
         Route::post('wizard/skip', [SetupWizardController::class, 'skip'])->middleware('can:setup.company.manage')->name('wizard.skip');
@@ -72,6 +74,19 @@ Route::middleware(['auth', 'verified'])
         Route::delete('schedule/holidays/{holiday}', [HolidayController::class, 'destroy'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.destroy');
         Route::patch('schedule/holidays/{holiday}/restore', [HolidayController::class, 'restore'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.restore');
         Route::delete('schedule/holidays/{holiday}/force', [HolidayController::class, 'forceDelete'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.force-delete');
+
+        // Attendance Policies — how a day is judged (ADR 0038): grace, rounding,
+        // lateness thresholds, overtime, breaks, night differential. Addressed by
+        // hashid; restore / force-delete take it as a string. The worked example
+        // is a read (it writes nothing) but posts the unsaved settings.
+        Route::get('attendance-policies', [AttendancePolicyController::class, 'index'])->middleware('can:setup.attendance-policies.view')->name('attendance-policies.index');
+        Route::post('attendance-policies/preview', [AttendancePolicyController::class, 'preview'])->middleware('can:setup.attendance-policies.view')->name('attendance-policies.preview');
+        Route::post('attendance-policies', [AttendancePolicyController::class, 'store'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.store');
+        Route::post('attendance-policies/{attendancePolicy}', [AttendancePolicyController::class, 'update'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.update');
+        Route::patch('attendance-policies/{attendancePolicy}/default', [AttendancePolicyController::class, 'setDefault'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.default');
+        Route::delete('attendance-policies/{attendancePolicy}', [AttendancePolicyController::class, 'destroy'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.destroy');
+        Route::patch('attendance-policies/{attendancePolicy}/restore', [AttendancePolicyController::class, 'restore'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.restore');
+        Route::delete('attendance-policies/{attendancePolicy}/force', [AttendancePolicyController::class, 'forceDelete'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.force-delete');
 
         // Departments (org structure).
         Route::get('departments', [DepartmentController::class, 'index'])->middleware('can:setup.departments.view')->name('departments.index');

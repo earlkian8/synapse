@@ -8,6 +8,7 @@ const ATTENDANCE: Record<AttendanceStatus, StatusMeta> = {
   present: { label: 'Present', color: statusColors.present },
   late: { label: 'Late', color: statusColors.late },
   undertime: { label: 'Undertime', color: statusColors.undertime },
+  half_day: { label: 'Half Day', color: statusColors.halfDay },
   absent: { label: 'Absent', color: statusColors.absent },
   on_leave: { label: 'On Leave', color: statusColors.leave },
   day_off: { label: 'Rest Day', color: statusColors.rest },

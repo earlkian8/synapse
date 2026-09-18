@@ -22,7 +22,7 @@ type Props = {
 
 /**
  * The wizard's left rail: whose company this is, how far through it is, and the
- * five steps as a ladder you can move around freely.
+ * six steps as a ladder you can move around freely.
  *
  * It carries SYNAPSE's deep-navy chrome — the same field the workspace picker and
  * the sign-in screens use — because setup is the last stretch of the road that

@@ -100,6 +100,7 @@ class ShiftRosterController extends Controller
                 $to,
                 $request->integer('cycle_offset'),
                 $request->user()->id,
+                $request->filled('attendance_policy_id') ? $request->integer('attendance_policy_id') : null,
             );
         }
 

@@ -29,6 +29,8 @@ type Props = {
     departments: Department[];
     employees: EmployeeOption[];
     schedules: ScheduleOption[];
+    /** Attendance policies the department can be judged by (ADR 0038). */
+    policies: ScheduleOption[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -71,6 +73,7 @@ export function DepartmentFormSheet({
     departments,
     employees,
     schedules,
+    policies,
     open,
     onOpenChange,
 }: Props) {
@@ -104,6 +107,7 @@ export function DepartmentFormSheet({
                         departments={departments}
                         employees={employees}
                         schedules={schedules}
+                        policies={policies}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -118,6 +122,7 @@ function FormBody({
     departments,
     employees,
     schedules,
+    policies,
     onDone,
 }: {
     department: Department | null;
@@ -125,6 +130,7 @@ function FormBody({
     departments: Department[];
     employees: EmployeeOption[];
     schedules: ScheduleOption[];
+    policies: ScheduleOption[];
     onDone: () => void;
 }) {
     const isEditing = Boolean(department);
@@ -144,6 +150,9 @@ function FormBody({
         default_work_schedule_id: department?.default_work_schedule_id
             ? String(department.default_work_schedule_id)
             : NONE,
+        attendance_policy_id: department?.attendance_policy_id
+            ? String(department.attendance_policy_id)
+            : NONE,
         description: department?.description ?? '',
     });
 
@@ -159,6 +168,10 @@ function FormBody({
                 payload.default_work_schedule_id === NONE
                     ? null
                     : Number(payload.default_work_schedule_id),
+            attendance_policy_id:
+                payload.attendance_policy_id === NONE
+                    ? null
+                    : Number(payload.attendance_policy_id),
             description: payload.description || null,
         }));
 
@@ -269,6 +282,38 @@ function FormBody({
                         </SelectContent>
                     </Select>
                 </Field>
+
+                {policies.length > 0 && (
+                    <Field
+                        label="Attendance policy"
+                        error={errors.attendance_policy_id}
+                        hint="How this department's days are judged, unless someone's schedule or assignment names a policy of its own."
+                    >
+                        <Select
+                            value={data.attendance_policy_id}
+                            onValueChange={(v) =>
+                                setData('attendance_policy_id', v)
+                            }
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a policy…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={NONE}>
+                                    The company default
+                                </SelectItem>
+                                {policies.map((policy) => (
+                                    <SelectItem
+                                        key={policy.id}
+                                        value={String(policy.id)}
+                                    >
+                                        {policy.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                )}
 
                 <Field label="Description" error={errors.description}>
                     <textarea

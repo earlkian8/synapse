@@ -4,119 +4,172 @@ namespace App\Support\Attendance;
 
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * Derives an {@see AttendanceRecord}'s summary from its punch events and the
- * {@see DayRules} frozen onto it: worked / break minutes, lateness, undertime,
- * overtime and the daily status. Pure and side-effect-free apart from mutating
- * the passed record's attributes (the caller persists) — it never reads the
- * database, the clock, or the employee's current schedule.
+ * Judges one attendance day: punches + the {@see DayRules} frozen onto it (the
+ * shift, the holiday and — from ADR 0038 — the attendance policy) + a
+ * {@see DayContext} → a {@see DayResult}. Pure: it never reads the database, the
+ * clock, or the employee's current schedule, so every rule is table-testable.
  *
- * The shift is read from the record's `scheduled_start_at` / `scheduled_end_at`:
- * instants worked out in the organisation's zone when the day opened, so a night
- * shift's 06:00 end is the next morning rather than sixteen hours before it
- * started (ADR 0036). For a split shift those are the first segment's start and
- * the last segment's end; the gap between the halves falls out of the punch
- * walk on its own, because clocking out ends the on-clock stretch.
+ * The shift's edges are instants worked out in the organisation's zone when the
+ * day opened, so a night shift's 06:00 end is the next morning rather than sixteen
+ * hours before it started (ADR 0036). How strictly arrival and departure are
+ * judged depends on the schedule's type (ADR 0037): `fixed` against the shift's
+ * own edges, `flexible` against the core window, `hours_only` against the hours.
  *
- * How strictly the day is judged depends on the schedule's type (ADR 0037):
- * `fixed` against the shift's own edges, `flexible` against the core window it
- * must cover, `hours_only` against the hours alone.
+ * **Order of operations** ({@see evaluate()}), each step reading only what the
+ * steps before it produced:
  *
- * Time arithmetic is done on UNIX timestamps so it is agnostic to the app's
- * mutable/immutable date setting.
+ *  1. **Round** clock-in and clock-out punches on the local clock. The punches
+ *     themselves are never changed — only the times the day is judged by.
+ *  2. **Pair** the punches into work and break intervals. A stretch still open
+ *     (clocked in, not out) counts nothing yet.
+ *  3. **Clip** work before a fixed shift's start, when early clock-ins do not count.
+ *  4. **Breaks** — pay back the paid part of a punched break; deduct the unpaid
+ *     break nobody punched; note a break that ran over.
+ *  5. **Late and undertime** against the shift, after grace (per day, or out of a
+ *     monthly allowance). An over-long break is owed like leaving early.
+ *  6. **Buckets** — overtime (daily, weekly, both, rest-day / holiday), regular,
+ *     approved overtime, night, rest day, holiday.
+ *  7. **Thresholds** — very late or very short is a half day, or an absence.
+ *  8. **Status and flags.**
+ *
+ * With the built-in fallback policy this reproduces the pre-policy numbers
+ * exactly: no rounding, no clipping, breaks as punched, grace and required
+ * minutes from the shift, overtime as whatever was worked beyond them.
+ *
+ * Time arithmetic is done on UNIX timestamps, and whole minutes are taken per
+ * interval, as they always were, so no day moves by a rounding second.
  */
 class AttendanceCalculator
 {
     /**
-     * Recompute every derived field on the record from its (chronological)
-     * punches and the day's rules. Does not save — the caller does.
+     * Evaluate a day from its punches (any order), its rules and its context.
+     *
+     * @param  Collection<int, AttendancePunch>  $punches
      */
-    public static function recompute(AttendanceRecord $record, DayRules $rules, bool $onApprovedLeave = false): void
+    public static function evaluate(Collection $punches, DayRules $rules, DayContext $context): DayResult
+    {
+        $policy = $rules->policy;
+        $punches = $punches->sortBy(['punched_at', 'id'])->values();
+
+        $firstIn = self::immutable($punches->firstWhere('type', 'clock_in')?->punched_at);
+        $lastOut = self::immutable($punches->where('type', 'clock_out')->last()?->punched_at);
+
+        if ($punches->isEmpty()) {
+            return new DayResult(status: self::noPunchStatus($rules, $context->onApprovedLeave));
+        }
+
+        // 1. Round.
+        $events = self::round($punches, $policy, $context->timezone);
+        $judgedIn = self::firstOf($events, 'clock_in');
+        $judgedOut = self::lastOf($events, 'clock_out');
+        $closed = $lastOut !== null;
+
+        // 2. Pair.
+        [$work, $breaks] = self::intervals($events);
+
+        // 3. Clip early minutes off a fixed shift.
+        if (! $policy->overtimeCountEarlyClockIn && $rules->type === 'fixed' && $context->scheduledStart !== null) {
+            $work = self::clipBefore($work, $context->scheduledStart->getTimestamp());
+        }
+
+        $worked = self::sumMinutes($work);
+        $break = self::sumMinutes($breaks);
+        $flags = [];
+
+        // 4. Breaks.
+        $worked += min($break, $policy->paidBreakMinutes);
+
+        if ($break === 0 && $closed && $policy->autoDeductBreakMinutes > 0
+            && $worked >= $policy->autoDeductAfterWorkedMinutes && $worked > 0) {
+            $break = min($policy->autoDeductBreakMinutes, $worked);
+            $worked -= $break;
+            $flags[] = 'break_deducted';
+        }
+
+        $breakExcess = $policy->maxBreakMinutes !== null ? max(0, $break - $policy->maxBreakMinutes) : 0;
+
+        if ($breakExcess > 0) {
+            $flags[] = 'break_exceeded';
+        }
+
+        // 5. Late and undertime.
+        [$late, $excused] = self::late($rules, $context, $judgedIn);
+        $undertime = self::undertime($rules, $worked, $closed ? $judgedOut : null, $context->scheduledEnd)
+            + ($closed ? $breakExcess : 0);
+
+        // 6. Buckets.
+        $overtime = self::overtime($rules, $context, $worked);
+        $regular = $worked - $overtime;
+        $approved = $policy->overtimeRequiresApproval ? 0 : $overtime;
+        $night = $policy->nightEnabled ? min($worked, self::nightMinutes($work, $policy, $context->timezone)) : 0;
+        $restDay = $rules->isWorkingDay ? 0 : $worked;
+        $holiday = $rules->isNonWorkingHoliday() ? $worked : 0;
+
+        if ($overtime > $approved) {
+            $flags[] = 'unapproved_overtime';
+        }
+
+        if ($restDay > 0) {
+            $flags[] = 'rest_day_worked';
+        }
+
+        if ($holiday > 0) {
+            $flags[] = 'holiday_worked';
+        }
+
+        if ($late > 0) {
+            $flags[] = 'late';
+        }
+
+        if ($undertime > 0) {
+            $flags[] = 'undertime';
+        }
+
+        // 7 & 8. Thresholds, status.
+        $status = match (true) {
+            $firstIn !== null && ! $closed => 'incomplete',
+            default => self::judgedStatus($rules, $late, $undertime, $worked, $flags),
+        };
+
+        if ($status === 'half_day') {
+            $flags[] = 'half_day';
+        }
+
+        return new DayResult(
+            status: $status,
+            flags: array_values(array_unique($flags)),
+            firstInAt: $firstIn,
+            lastOutAt: $lastOut,
+            workedMinutes: $worked,
+            breakMinutes: $break,
+            lateMinutes: $late,
+            excusedLateMinutes: $excused,
+            undertimeMinutes: $undertime,
+            regularMinutes: $regular,
+            overtimeMinutes: $overtime,
+            approvedOvertimeMinutes: $approved,
+            nightMinutes: $night,
+            restDayMinutes: $restDay,
+            holidayMinutes: $holiday,
+        );
+    }
+
+    /**
+     * Recompute every derived field on a record from its (loaded) punches, its
+     * rules and the context the caller gathered. A thin adapter over
+     * {@see evaluate()}. Does not save — the caller does.
+     */
+    public static function recompute(AttendanceRecord $record, DayRules $rules, DayContext $context): void
     {
         /** @var Collection<int, AttendancePunch> $punches */
-        $punches = $record->punches instanceof Collection
-            ? $record->punches->sortBy(['punched_at', 'id'])->values()
-            : collect();
+        $punches = $record->punches instanceof Collection ? $record->punches : collect();
 
-        $firstIn = $punches->firstWhere('type', 'clock_in')?->punched_at;
-        $lastOut = $punches->where('type', 'clock_out')->last()?->punched_at;
-
-        [$worked, $break] = self::accumulate($punches);
-
-        $scheduledStart = $record->scheduled_start_at;
-        $scheduledEnd = $record->scheduled_end_at;
-
-        $late = self::late($rules, $firstIn, $scheduledStart);
-        $undertime = self::undertime($rules, $worked, $lastOut, $scheduledEnd);
-        $overtime = max(0, $worked - $rules->requiredMinutes);
-
-        $record->first_in_at = $firstIn;
-        $record->last_out_at = $lastOut;
-        $record->worked_minutes = $worked;
-        $record->break_minutes = $break;
-        $record->late_minutes = $late;
-        $record->undertime_minutes = $undertime;
-        $record->overtime_minutes = $overtime;
-        $record->status = self::status($record, $rules, $onApprovedLeave, $punches->isNotEmpty());
-    }
-
-    /**
-     * How late the arrival was, by the schedule's type.
-     *
-     *  - `fixed` — against the shift's start, after grace.
-     *  - `flexible` — against the core window opening: arriving at 09:45 for a
-     *    10:00 core is not late, however the shift is written.
-     *  - `hours_only` — never; only the hours are owed, not the moment.
-     *
-     * A flexible schedule with no core hours asks nothing of arrival time.
-     */
-    private static function late(DayRules $rules, ?CarbonInterface $firstIn, ?CarbonInterface $scheduledStart): int
-    {
-        if ($firstIn === null || $rules->type === 'hours_only') {
-            return 0;
-        }
-
-        $against = $rules->type === 'flexible' ? $rules->coreStartAt : $scheduledStart;
-
-        if ($against === null) {
-            return 0;
-        }
-
-        return max(0, intdiv($firstIn->getTimestamp() - ($against->getTimestamp() + $rules->graceMinutes * 60), 60));
-    }
-
-    /**
-     * How much of the day was left owing, by the schedule's type.
-     *
-     *  - `fixed` — the minutes between leaving and the shift's end.
-     *  - `flexible` — whichever is worse: leaving before the core window closes,
-     *    or falling short of the day's hours.
-     *  - `hours_only` — the hours alone, whenever they were worked. An open day
-     *    (no clock-out yet) is not short until it is closed.
-     */
-    private static function undertime(DayRules $rules, int $worked, ?CarbonInterface $lastOut, ?CarbonInterface $scheduledEnd): int
-    {
-        if ($lastOut === null) {
-            return 0;
-        }
-
-        $short = max(0, $rules->requiredMinutes - $worked);
-
-        return match ($rules->type) {
-            'hours_only' => $short,
-            'flexible' => max(
-                $rules->coreEndAt !== null && $lastOut->lt($rules->coreEndAt)
-                    ? self::minutesBetween($lastOut, $rules->coreEndAt)
-                    : 0,
-                $short,
-            ),
-            default => $scheduledEnd !== null && $lastOut->lt($scheduledEnd)
-                ? self::minutesBetween($lastOut, $scheduledEnd)
-                : 0,
-        };
+        self::evaluate($punches, $rules, $context)->applyTo($record);
     }
 
     /**
@@ -138,32 +191,280 @@ class AttendanceCalculator
     }
 
     /**
-     * Walk the punches as a state machine, accumulating on-the-clock minutes
-     * (excluding breaks) and break minutes. Returns [worked, break].
+     * The status of a closed day with punches. The policy's thresholds come
+     * first — they only ever apply to a working day, since a rest day asks for no
+     * hours to fall short of — then late, then undertime.
      *
-     * @param  Collection<int, AttendancePunch>  $punches
+     * @param  list<string>  $flags  Gains `late_absent` / `below_minimum` when a threshold is the reason.
+     */
+    private static function judgedStatus(DayRules $rules, int $late, int $undertime, int $worked, array &$flags): string
+    {
+        $policy = $rules->policy;
+
+        if ($rules->isWorkingDay) {
+            if ($policy->lateAbsentAfterMinutes !== null && $late > $policy->lateAbsentAfterMinutes) {
+                $flags[] = 'late_absent';
+
+                return 'absent';
+            }
+
+            if ($policy->minimumMinutesForPresent !== null && $worked < $policy->minimumMinutesForPresent) {
+                $flags[] = 'below_minimum';
+
+                return 'absent';
+            }
+
+            if (($policy->lateHalfDayAfterMinutes !== null && $late > $policy->lateHalfDayAfterMinutes)
+                || ($policy->undertimeHalfDayBelowMinutes !== null && $worked < $policy->undertimeHalfDayBelowMinutes)) {
+                return 'half_day';
+            }
+        }
+
+        return match (true) {
+            $late > 0 => 'late',
+            $undertime > 0 => 'undertime',
+            default => 'present',
+        };
+    }
+
+    /**
+     * How late the arrival was, and how much lateness grace forgave — by the
+     * schedule's type and the policy's grace mode. Returns [late, excused].
+     *
+     *  - `fixed` — against the shift's start.
+     *  - `flexible` — against the core window opening: arriving at 09:45 for a
+     *    10:00 core is not late, however the shift is written.
+     *  - `hours_only`, or a policy that does not judge lateness — never.
+     *
+     * Grace `per_day` forgives up to N minutes each day; a `monthly_allowance`
+     * forgives from one pool for the month, so the day that exhausts it is the
+     * first one that counts.
+     *
      * @return array{0: int, 1: int}
      */
-    private static function accumulate(Collection $punches): array
+    private static function late(DayRules $rules, DayContext $context, ?int $firstIn): array
     {
-        $worked = 0;
-        $break = 0;
+        $policy = $rules->policy;
+
+        if ($firstIn === null || $rules->type === 'hours_only' || ! $policy->lateEnabled) {
+            return [0, 0];
+        }
+
+        $against = $rules->type === 'flexible' ? $rules->coreStartAt : $context->scheduledStart;
+
+        if ($against === null) {
+            return [0, 0];
+        }
+
+        $raw = max(0, intdiv($firstIn - $against->getTimestamp(), 60));
+
+        $allowance = $policy->graceMode === 'monthly_allowance'
+            ? max(0, $policy->monthlyGraceMinutes - $context->monthExcusedLateMinutesBefore)
+            : $rules->graceMinutes();
+
+        $excused = min($raw, $allowance);
+
+        return [$raw - $excused, $excused];
+    }
+
+    /**
+     * How much of the day was left owing.
+     *
+     *  - `fixed` — the minutes between leaving and the shift's end.
+     *  - `flexible` — whichever is worse: leaving before the core window closes,
+     *    or falling short of the day's hours.
+     *  - `hours_only`, or a policy judging undertime on hours alone — the hours,
+     *    whenever they were worked.
+     *
+     * An open day (no clock-out yet) is not short until it is closed.
+     */
+    private static function undertime(DayRules $rules, int $worked, ?int $lastOut, ?CarbonImmutable $scheduledEnd): int
+    {
+        if ($lastOut === null) {
+            return 0;
+        }
+
+        $short = max(0, $rules->requiredMinutes - $worked);
+
+        if ($rules->policy->undertimeBasis === 'hours') {
+            return $short;
+        }
+
+        return match ($rules->type) {
+            'hours_only' => $short,
+            'flexible' => max(
+                $rules->coreEndAt !== null && $lastOut < $rules->coreEndAt->getTimestamp()
+                    ? intdiv($rules->coreEndAt->getTimestamp() - $lastOut, 60)
+                    : 0,
+                $short,
+            ),
+            default => $scheduledEnd !== null && $lastOut < $scheduledEnd->getTimestamp()
+                ? intdiv($scheduledEnd->getTimestamp() - $lastOut, 60)
+                : 0,
+        };
+    }
+
+    /**
+     * The day's overtime under the policy's basis.
+     *
+     *  - A rest day or non-working holiday the policy calls "all overtime" is
+     *    exactly that.
+     *  - `daily` — beyond the policy's daily threshold (or the day's required
+     *    minutes).
+     *  - `weekly` — the part of today's regular minutes that carries the week past
+     *    its threshold. Earlier days' *regular* minutes are what count towards it,
+     *    so under `daily_and_weekly` a minute already paid as daily overtime is
+     *    never counted a second time.
+     *
+     * Less than the minimum block is no overtime at all.
+     */
+    private static function overtime(DayRules $rules, DayContext $context, int $worked): int
+    {
+        $policy = $rules->policy;
+
+        if ($policy->overtimeBasis === 'none' || $worked <= 0) {
+            return 0;
+        }
+
+        if ((! $rules->isWorkingDay && $policy->overtimeRestDayAllOvertime)
+            || ($rules->isNonWorkingHoliday() && $policy->overtimeHolidayAllOvertime)) {
+            return self::block($worked, $policy);
+        }
+
+        $daily = in_array($policy->overtimeBasis, ['daily', 'daily_and_weekly'], true)
+            ? max(0, $worked - $rules->dailyOvertimeAfter())
+            : 0;
+
+        $weekly = 0;
+
+        if ($policy->needsWeekContext()) {
+            $candidate = $worked - $daily;
+            $weekly = max(0, min($candidate, $context->weekRegularMinutesBefore + $candidate - $policy->overtimeWeeklyAfterMinutes));
+        }
+
+        return self::block($daily + $weekly, $policy);
+    }
+
+    private static function block(int $overtime, AttendancePolicySettings $policy): int
+    {
+        return $overtime < $policy->overtimeMinBlockMinutes ? 0 : $overtime;
+    }
+
+    /**
+     * Minutes of work inside the night window, read on the local clock. Each
+     * work interval is checked against the windows that open the evening before
+     * it, on its own date and on the next, so a shift across midnight is counted
+     * once and in full.
+     *
+     * @param  list<array{0: int, 1: int}>  $work
+     */
+    private static function nightMinutes(array $work, AttendancePolicySettings $policy, string $timezone): int
+    {
+        $total = 0;
+
+        foreach ($work as [$start, $end]) {
+            $from = CarbonImmutable::createFromTimestamp($start, $timezone)->startOfDay()->subDay();
+            $until = CarbonImmutable::createFromTimestamp($end, $timezone)->startOfDay();
+            $seconds = 0;
+
+            for ($day = $from; $day->lte($until); $day = $day->addDay()) {
+                $windowStart = self::at($day, $policy->nightStart, $timezone);
+                $windowEnd = self::at($day, $policy->nightEnd, $timezone);
+
+                if ($windowEnd->lte($windowStart)) {
+                    $windowEnd = self::at($day->addDay(), $policy->nightEnd, $timezone);
+                }
+
+                $seconds += max(0, min($end, $windowEnd->getTimestamp()) - max($start, $windowStart->getTimestamp()));
+            }
+
+            $total += intdiv($seconds, 60);
+        }
+
+        return $total;
+    }
+
+    /**
+     * The day's punches as [type, timestamp] events, with clock-ins and
+     * clock-outs rounded as the policy says — on the organisation's clock, and
+     * never earlier than the event before them, so rounding cannot reorder a day.
+     *
+     * @param  Collection<int, AttendancePunch>  $punches
+     * @return list<array{0: string, 1: int}>
+     */
+    private static function round(Collection $punches, AttendancePolicySettings $policy, string $timezone): array
+    {
+        $events = [];
+        $floor = null;
+
+        foreach ($punches as $punch) {
+            $at = $punch->punched_at->getTimestamp();
+
+            $applies = $policy->roundingMode !== 'none' && match ($punch->type) {
+                'clock_in' => in_array($policy->roundingApplyTo, ['in', 'both'], true),
+                'clock_out' => in_array($policy->roundingApplyTo, ['out', 'both'], true),
+                default => false,
+            };
+
+            if ($applies) {
+                $at = self::roundInstant($at, $policy->roundingMode, $policy->roundingUnit, $timezone);
+            }
+
+            if ($floor !== null && $at < $floor) {
+                $at = $floor;
+            }
+
+            $events[] = [$punch->type, $at];
+            $floor = $at;
+        }
+
+        return $events;
+    }
+
+    /**
+     * Round an instant to the unit on the local clock: "nearest", "up" or "down".
+     */
+    private static function roundInstant(int $at, string $mode, int $unit, string $timezone): int
+    {
+        $offset = CarbonImmutable::createFromTimestamp($at, $timezone)->getOffset();
+        $local = $at + $offset;
+        $step = $unit * 60;
+
+        $rounded = match ($mode) {
+            'up' => (int) ceil($local / $step) * $step,
+            'down' => intdiv($local, $step) * $step,
+            default => (int) round($local / $step) * $step,
+        };
+
+        return $rounded - $offset;
+    }
+
+    /**
+     * Walk the events as a state machine and return the [start, end] timestamps
+     * of every on-the-clock stretch and every break. A stretch nobody has closed
+     * yet is left out, as it always was: an open day counts what is finished.
+     *
+     * @param  list<array{0: string, 1: int}>  $events
+     * @return array{0: list<array{0: int, 1: int}>, 1: list<array{0: int, 1: int}>}
+     */
+    private static function intervals(array $events): array
+    {
+        $work = [];
+        $breaks = [];
         $prev = null;
         $onClock = false;
         $onBreak = false;
 
-        foreach ($punches as $punch) {
-            if ($prev !== null) {
-                $minutes = self::minutesBetween($prev, $punch->punched_at);
-
-                if ($onClock && $onBreak) {
-                    $break += $minutes;
-                } elseif ($onClock) {
-                    $worked += $minutes;
+        foreach ($events as [$type, $at]) {
+            if ($prev !== null && $onClock) {
+                if ($onBreak) {
+                    $breaks[] = [$prev, $at];
+                } else {
+                    $work[] = [$prev, $at];
                 }
             }
 
-            match ($punch->type) {
+            match ($type) {
                 'clock_in' => $onClock = true,
                 'clock_out' => [$onClock, $onBreak] = [false, false],
                 'break_start' => $onBreak = true,
@@ -171,44 +472,87 @@ class AttendanceCalculator
                 default => null,
             };
 
-            $prev = $punch->punched_at;
+            $prev = $at;
         }
 
-        return [$worked, $break];
+        return [$work, $breaks];
     }
 
     /**
-     * Derive the daily status. A no-punch day resolves through
-     * {@see noPunchStatus()}; an open day (clocked in, never out) is incomplete;
-     * otherwise the late / undertime flags drive present vs late vs undertime. A
-     * holiday somebody worked is judged like any other day.
+     * Drop the part of each interval that falls before an instant.
+     *
+     * @param  list<array{0: int, 1: int}>  $intervals
+     * @return list<array{0: int, 1: int}>
      */
-    private static function status(AttendanceRecord $record, DayRules $rules, bool $onApprovedLeave, bool $hasPunches): string
+    private static function clipBefore(array $intervals, int $at): array
     {
-        if (! $hasPunches) {
-            return self::noPunchStatus($rules, $onApprovedLeave);
+        $out = [];
+
+        foreach ($intervals as [$start, $end]) {
+            if ($end > $at) {
+                $out[] = [max($start, $at), $end];
+            }
         }
 
-        if ($record->first_in_at && ! $record->last_out_at) {
-            return 'incomplete';
-        }
-
-        if ($record->late_minutes > 0) {
-            return 'late';
-        }
-
-        if ($record->undertime_minutes > 0) {
-            return 'undertime';
-        }
-
-        return 'present';
+        return $out;
     }
 
     /**
-     * Whole minutes between two moments (b − a), clamped at zero.
+     * Whole minutes across intervals, taken interval by interval.
+     *
+     * @param  list<array{0: int, 1: int}>  $intervals
      */
-    private static function minutesBetween(CarbonInterface $a, CarbonInterface $b): int
+    private static function sumMinutes(array $intervals): int
     {
-        return max(0, intdiv($b->getTimestamp() - $a->getTimestamp(), 60));
+        $total = 0;
+
+        foreach ($intervals as [$start, $end]) {
+            $total += max(0, intdiv($end - $start, 60));
+        }
+
+        return $total;
+    }
+
+    /**
+     * @param  list<array{0: string, 1: int}>  $events
+     */
+    private static function firstOf(array $events, string $type): ?int
+    {
+        foreach ($events as [$eventType, $at]) {
+            if ($eventType === $type) {
+                return $at;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array{0: string, 1: int}>  $events
+     */
+    private static function lastOf(array $events, string $type): ?int
+    {
+        $found = null;
+
+        foreach ($events as [$eventType, $at]) {
+            if ($eventType === $type) {
+                $found = $at;
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * A wall-clock reading on a local date, as an instant.
+     */
+    private static function at(CarbonImmutable $day, string $time, string $timezone): CarbonImmutable
+    {
+        return CarbonImmutable::parse($day->toDateString().' '.$time, $timezone);
+    }
+
+    private static function immutable(?CarbonInterface $value): ?CarbonImmutable
+    {
+        return $value === null ? null : CarbonImmutable::instance($value)->utc();
     }
 }

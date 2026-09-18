@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\HolidayResource;
 use App\Http\Resources\WorkScheduleResource;
+use App\Models\AttendancePolicy;
 use App\Models\Holiday;
 use App\Models\WorkSchedule;
 use App\Support\Tenancy;
@@ -33,6 +34,8 @@ class ScheduleSetupController extends Controller
             'archivedHolidays' => HolidayResource::collection($this->holidays()->onlyTrashed()->get())->resolve($request),
             // The schedule anybody with no assignment falls back to (ADR 0037).
             'defaultScheduleId' => app(Tenancy::class)->organization()?->default_work_schedule_id,
+            // The policies a schedule can be judged by (ADR 0038).
+            'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name', 'is_default']),
             'can' => ['manage' => $request->user()->can('setup.schedule.manage')],
         ]);
     }

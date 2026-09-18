@@ -46,6 +46,7 @@ export default function SetupSchedule() {
         holidays,
         archivedHolidays,
         defaultScheduleId,
+        policies,
         can,
     } = usePage<ScheduleSetupPageProps>().props;
 
@@ -306,6 +307,7 @@ export default function SetupSchedule() {
 
             <WorkScheduleFormModal
                 schedule={scheduleForm.schedule}
+                policies={policies}
                 open={scheduleForm.open}
                 onOpenChange={(open) =>
                     setScheduleForm((prev) => ({ ...prev, open }))

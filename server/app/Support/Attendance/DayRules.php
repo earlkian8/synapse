@@ -24,10 +24,16 @@ use Carbon\CarbonImmutable;
  * is split), the flexible core window as instants, and which link in the
  * precedence chain the shift came from. {@see fromArray()} gives any key an older
  * snapshot lacks its default, so a version 1 row still reads as a fixed shift.
+ *
+ * **Version 3** (ADR 0038) adds the attendance policy the day is judged by — its
+ * id, name, where it came from and its complete settings — so editing a policy,
+ * like editing a schedule, never re-judges a day already recorded. A version 1 or
+ * 2 snapshot has none and reads as the built-in fallback, which judges exactly as
+ * attendance did before policies existed.
  */
 final readonly class DayRules
 {
-    public const VERSION = 2;
+    public const VERSION = 3;
 
     /** What a day requires when no schedule says otherwise — the historical eight hours. */
     public const DEFAULT_REQUIRED_MINUTES = 480;
@@ -49,14 +55,20 @@ final readonly class DayRules
         public ?CarbonImmutable $coreEndAt = null,
         public int $unpaidBreakMinutes = 0,
         public string $source = 'fallback',
+        public AttendancePolicySettings $policy = new AttendancePolicySettings,
+        public ?int $policyId = null,
+        public ?string $policyName = null,
+        public string $policySource = 'fallback',
     ) {}
 
     /**
      * The rules a resolved shift sets for its date, with the holiday that falls
-     * on it.
+     * on it and the policy it is judged by.
      */
-    public static function fromShift(ResolvedShift $shift, ?Holiday $holiday = null): self
+    public static function fromShift(ResolvedShift $shift, ?Holiday $holiday = null, ?ResolvedPolicy $policy = null): self
     {
+        $policy ??= ResolvedPolicy::fallback();
+
         [$coreStart, $coreEnd] = $shift->coreWindow();
 
         return new self(
@@ -73,6 +85,10 @@ final readonly class DayRules
             coreEndAt: $coreEnd,
             unpaidBreakMinutes: $shift->unpaidBreakMinutes,
             source: $shift->source,
+            policy: $policy->settings,
+            policyId: $policy->id,
+            policyName: $policy->name,
+            policySource: $policy->source,
         );
     }
 
@@ -97,6 +113,10 @@ final readonly class DayRules
             coreEndAt: self::instant($rules['core_end_at'] ?? null),
             unpaidBreakMinutes: (int) ($rules['unpaid_break_minutes'] ?? 0),
             source: isset($rules['source']) ? (string) $rules['source'] : 'fallback',
+            policy: AttendancePolicySettings::fromArray(is_array($rules['policy']['settings'] ?? null) ? $rules['policy']['settings'] : null),
+            policyId: isset($rules['policy']['id']) ? (int) $rules['policy']['id'] : null,
+            policyName: isset($rules['policy']['name']) ? (string) $rules['policy']['name'] : null,
+            policySource: isset($rules['policy']['source']) ? (string) $rules['policy']['source'] : 'fallback',
         );
     }
 
@@ -122,7 +142,33 @@ final readonly class DayRules
             'core_end_at' => $this->coreEndAt?->toIso8601String(),
             'unpaid_break_minutes' => $this->unpaidBreakMinutes,
             'source' => $this->source,
+            'policy' => [
+                'id' => $this->policyId,
+                'name' => $this->policyName,
+                'source' => $this->policySource,
+                'settings_version' => AttendancePolicySettings::VERSION,
+                'settings' => $this->policy->toArray(),
+            ],
         ];
+    }
+
+    /**
+     * The grace lateness is forgiven by: the policy's, when it sets one, and the
+     * schedule's otherwise — which is what every day judged before policies
+     * existed used.
+     */
+    public function graceMinutes(): int
+    {
+        return $this->policy->graceMinutes ?? $this->graceMinutes;
+    }
+
+    /**
+     * After how many worked minutes a day's overtime begins: the policy's daily
+     * threshold, or the day's own required minutes.
+     */
+    public function dailyOvertimeAfter(): int
+    {
+        return $this->policy->overtimeDailyAfterMinutes ?? $this->requiredMinutes;
     }
 
     /**

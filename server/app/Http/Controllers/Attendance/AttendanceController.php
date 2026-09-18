@@ -7,6 +7,7 @@ use App\Http\Requests\Attendance\ReapplyScheduleRequest;
 use App\Http\Requests\Attendance\StoreAttendanceRecordRequest;
 use App\Http\Requests\Attendance\UpdateAttendanceRecordRequest;
 use App\Http\Resources\AttendanceRecordResource;
+use App\Models\AttendancePolicy;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
@@ -178,9 +179,10 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Re-judge one day by the employee's current schedule and the holiday calendar.
-     * A day keeps the rules it opened with (ADR 0036); this is the explicit way
-     * they change, so it is always logged — with the rules that now apply.
+     * Re-judge one day by the employee's current schedule, attendance policy and
+     * the holiday calendar. A day keeps the rules it opened with (ADR 0036, 0038);
+     * this is the explicit way they change, so it is always logged — with the rules
+     * that now apply.
      */
     public function reapply(AttendanceRecord $attendanceRecord): RedirectResponse
     {
@@ -189,7 +191,7 @@ class AttendanceController extends Controller
 
         ActivityLogger::log(
             event: 'updated',
-            description: "Re-applied the current schedule to {$name}'s attendance on {$attendanceRecord->work_date->format('M j')}",
+            description: "Re-applied the current schedule and policy to {$name}'s attendance on {$attendanceRecord->work_date->format('M j')}",
             subject: $attendanceRecord,
             properties: ['changed' => $changed, 'rules' => $attendanceRecord->rules],
             logName: 'attendance',
@@ -197,14 +199,16 @@ class AttendanceController extends Controller
         );
 
         return $this->respond(
-            $changed ? 'Day re-judged by the current schedule.' : 'This day already matches the current schedule.',
+            $changed ? 'Day re-judged by the current schedule and policy.' : 'This day already matches the current schedule and policy.',
             $changed ? 'success' : 'info',
         );
     }
 
     /**
-     * Re-apply current schedules to every recorded day in a period (optionally one
-     * department's) — after a schedule was corrected, or a holiday added late.
+     * Re-apply current schedules and policies to every recorded day in a period
+     * (optionally one department's) — after a schedule or policy was corrected, or
+     * a holiday added late. Walked in date order, because weekly overtime and a
+     * monthly grace allowance read the days before each one.
      */
     public function reapplyRange(ReapplyScheduleRequest $request): RedirectResponse
     {
@@ -223,7 +227,9 @@ class AttendanceController extends Controller
                 fn (Builder $employee) => $employee->where('department_id', $department),
             ))
             ->with('employee')
-            ->chunkById(200, function ($records) use ($holidays, &$total, &$changed): void {
+            ->orderBy('work_date')
+            ->orderBy('id')
+            ->chunk(200, function ($records) use ($holidays, &$total, &$changed): void {
                 $total += $records->count();
                 $changed += $this->clock->reapplyMany($records, $holidays);
             });
@@ -233,7 +239,7 @@ class AttendanceController extends Controller
         if ($total > 0) {
             ActivityLogger::log(
                 event: 'updated',
-                description: "Re-applied current schedules to {$total} attendance ".str('record')->plural($total)." ({$period})",
+                description: "Re-applied current schedules and policies to {$total} attendance ".str('record')->plural($total)." ({$period})",
                 properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed],
                 logName: 'attendance',
                 subjectLabel: 'Attendance',
@@ -329,6 +335,8 @@ class AttendanceController extends Controller
                     'type' => $schedule->type,
                     'cycle_length_days' => (int) $schedule->cycle_length_days,
                 ]),
+            // What an assignment can single somebody out to be judged by (ADR 0038).
+            'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
             'employees' => Employee::query()
                 ->orderBy('first_name')
                 ->limit(500)

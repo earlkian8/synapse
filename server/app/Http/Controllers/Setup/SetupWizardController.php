@@ -5,18 +5,22 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\RequireCompanySetup;
 use App\Http\Requests\Setup\UpdateCompanyProfileRequest;
+use App\Http\Requests\Setup\Wizard\WizardAttendanceRequest;
 use App\Http\Requests\Setup\Wizard\WizardDepartmentsRequest;
 use App\Http\Requests\Setup\Wizard\WizardLeaveTypesRequest;
 use App\Http\Requests\Setup\Wizard\WizardPerformanceRequest;
 use App\Http\Requests\Setup\Wizard\WizardRecruitmentRequest;
 use App\Http\Requests\Setup\Wizard\WizardSkipRequest;
 use App\Http\Resources\CompanyProfileResource;
+use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\LeaveType;
 use App\Models\Organization;
 use App\Models\RecruitmentPipeline;
 use App\Models\ReviewTemplate;
+use App\Models\WorkSchedule;
 use App\Support\ActivityLogger;
+use App\Support\Attendance\AttendancePolicyPresets;
 use App\Support\OrganizationClock;
 use App\Support\Performance\RatingModel;
 use App\Support\Setup\CompanyProfileWriter;
@@ -36,9 +40,9 @@ use Inertia\Response;
  * Registration provisions an empty tenant (ADR 0005), and the modules that read
  * configuration ship no defaults on purpose — so the owner's first sign-in used
  * to land on a dashboard of zeroes with nine Company Setup screens behind it and
- * nothing saying which mattered. This walks the five that block day-one work:
- * the company's own identity, its org structure, the leave it grants, how it
- * hires, and how it appraises.
+ * nothing saying which mattered. This walks the six that block day-one work:
+ * the company's own identity, its org structure, the leave it grants, how its
+ * attendance is judged, how it hires, and how it appraises.
  *
  * Four rules hold across every step:
  *
@@ -92,6 +96,9 @@ class SetupWizardController extends Controller
             'blueprints' => [
                 'departments' => SetupBlueprints::departments(),
                 'leaveTypes' => SetupBlueprints::leaveTypes(),
+                // How a day is judged (ADR 0038): each preset with its complete
+                // settings, so customising one starts from every field filled.
+                'attendancePolicies' => AttendancePolicyPresets::forClient(),
                 'pipelines' => SetupBlueprints::pipelines(),
                 'frameworks' => $this->frameworkBlueprints(),
 
@@ -108,11 +115,13 @@ class SetupWizardController extends Controller
             'existing' => [
                 'departments' => Department::query()->orderBy('name')->pluck('name')->all(),
                 'leaveTypes' => LeaveType::query()->orderBy('name')->pluck('name')->all(),
+                'attendancePolicies' => AttendancePolicy::query()->orderBy('name')->pluck('name')->all(),
+                'schedules' => WorkSchedule::query()->orderBy('name')->pluck('name')->all(),
                 'pipelines' => RecruitmentPipeline::query()->orderBy('name')->pluck('name')->all(),
                 'frameworks' => ReviewTemplate::query()->orderBy('name')->pluck('name')->all(),
             ],
 
-            // Per-step, because the five steps are five different permissions.
+            // Per-step, because the six steps are six different permissions.
             'can' => collect(CompanySetup::ABILITIES)
                 ->map(fn (string $ability): bool => $user->can($ability))
                 ->all(),
@@ -188,7 +197,35 @@ class SetupWizardController extends Controller
     }
 
     /**
-     * Step 4 — the hiring process job postings will run on: one of the shapes on
+     * Step 4 — how the company's attendance days are judged (ADR 0038): a preset,
+     * adopted or adjusted, which becomes the company default if it has none — and,
+     * when asked for, the schedule most people work, which becomes the default
+     * hours the same way.
+     */
+    public function attendance(WizardAttendanceRequest $request): RedirectResponse
+    {
+        $definition = SetupDefinition::attendance($request->validated());
+
+        abort_if($definition === null, 422);
+
+        ['policy' => $policy, 'schedule' => $schedule] = SetupInstaller::attendance($definition);
+
+        ActivityLogger::log(
+            event: 'created',
+            description: "Set up attendance policy \"{$policy->name}\"".($schedule !== null ? " and schedule \"{$schedule->name}\"" : '').' during company setup',
+            subject: $policy,
+            logName: 'company-setup',
+            subjectLabel: $policy->name,
+        );
+
+        return $this->completed(
+            CompanySetup::ATTENDANCE,
+            "Days are judged by \"{$policy->name}\"".($schedule !== null ? " on \"{$schedule->name}\"." : '.'),
+        );
+    }
+
+    /**
+     * Step 5 — the hiring process job postings will run on: one of the shapes on
      * offer, or the stages the company drew for itself.
      */
     public function recruitment(WizardRecruitmentRequest $request): RedirectResponse
@@ -207,7 +244,7 @@ class SetupWizardController extends Controller
     }
 
     /**
-     * Step 5 — the appraisal framework, together with the instruments and the
+     * Step 6 — the appraisal framework, together with the instruments and the
      * criteria catalogue it measures on. Adopted whole, or designed here section
      * by section; either way the framework editor reads it back unchanged.
      */

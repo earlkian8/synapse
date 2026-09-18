@@ -23,8 +23,11 @@ use Illuminate\Database\Eloquent\Collection;
  * reports each day whose status or totals moved. `--dry-run` reports the same
  * table and writes nothing.
  *
- * It never re-applies a *changed* schedule to a day that already has a snapshot;
- * that stays HR's explicit "re-apply current schedule". Organisations are walked
+ * It never re-applies a *changed* schedule or policy to a day that already has a
+ * snapshot; that stays HR's explicit "re-apply". It is also how the minute
+ * buckets ADR 0038 added are filled for days recorded before them: a day with no
+ * policy in its snapshot is judged by the built-in fallback, which reaches the
+ * status and totals it already had. Organisations are walked
  * one at a time with each bound as the tenant, so every day is judged on its own
  * organisation's clock.
  */
@@ -80,8 +83,12 @@ class RecomputeAttendance extends Command
                 // The span's holidays once per organisation, not once per day.
                 $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($first), CarbonImmutable::parse($last));
 
+                // In date order: weekly overtime and a monthly grace allowance read
+                // the days before each one as they have just been saved (ADR 0038).
                 $query->with('employee:id,first_name,middle_name,last_name,suffix')
-                    ->chunkById(200, function (Collection $records) use ($organization, $clock, $holidays, $dryRun, &$report, &$checked, &$filled): void {
+                    ->orderBy('work_date')
+                    ->orderBy('id')
+                    ->chunk(200, function (Collection $records) use ($organization, $clock, $holidays, $dryRun, &$report, &$checked, &$filled): void {
                         foreach ($records as $record) {
                             /** @var AttendanceRecord $record */
                             $checked++;
@@ -149,6 +156,11 @@ class RecomputeAttendance extends Command
             'late' => (int) $record->late_minutes,
             'undertime' => (int) $record->undertime_minutes,
             'overtime' => (int) $record->overtime_minutes,
+            'regular' => (int) $record->regular_minutes,
+            'approved overtime' => (int) $record->approved_overtime_minutes,
+            'night' => (int) $record->night_minutes,
+            'rest day' => (int) $record->rest_day_minutes,
+            'holiday' => (int) $record->holiday_minutes,
         ];
     }
 

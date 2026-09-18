@@ -21,7 +21,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The day carries what it is judged against (ADR 0036): the shift as instants
  * (`scheduled_start_at` / `scheduled_end_at`, worked out in the organisation's
- * zone) and the {@see DayRules} frozen when it opened (`rules`).
+ * zone) and the {@see DayRules} frozen when it opened (`rules`) — which, from
+ * ADR 0038, include the attendance policy. The minutes are split into buckets a
+ * payroll export reads: `regular + overtime = worked`, with `night`, `rest_day`
+ * and `holiday` as tags over those same minutes; `flags` says everything more
+ * specific than the status.
  */
 class AttendanceRecord extends Model
 {
@@ -33,7 +37,16 @@ class AttendanceRecord extends Model
      *
      * @var list<string>
      */
-    public const STATUSES = ['present', 'late', 'undertime', 'absent', 'on_leave', 'day_off', 'holiday', 'incomplete'];
+    public const STATUSES = ['present', 'late', 'undertime', 'half_day', 'absent', 'on_leave', 'day_off', 'holiday', 'incomplete'];
+
+    /**
+     * Statuses that mean the employee turned up for work that day — for
+     * attendance rates and "days worked". A half day was attended, just not in
+     * full (ADR 0038).
+     *
+     * @var list<string>
+     */
+    public const PRESENT_STATUSES = ['present', 'late', 'undertime', 'half_day', 'incomplete'];
 
     protected $fillable = [
         'organization_id',
@@ -46,13 +59,20 @@ class AttendanceRecord extends Model
         'scheduled_end_at',
         'rules',
         'status',
+        'flags',
         'first_in_at',
         'last_out_at',
         'worked_minutes',
         'break_minutes',
         'late_minutes',
+        'excused_late_minutes',
         'undertime_minutes',
+        'regular_minutes',
         'overtime_minutes',
+        'approved_overtime_minutes',
+        'night_minutes',
+        'rest_day_minutes',
+        'holiday_minutes',
         'is_manual',
         'remarks',
         'approval_status',
@@ -74,6 +94,13 @@ class AttendanceRecord extends Model
             'late_minutes' => 'integer',
             'undertime_minutes' => 'integer',
             'overtime_minutes' => 'integer',
+            'excused_late_minutes' => 'integer',
+            'regular_minutes' => 'integer',
+            'approved_overtime_minutes' => 'integer',
+            'night_minutes' => 'integer',
+            'rest_day_minutes' => 'integer',
+            'holiday_minutes' => 'integer',
+            'flags' => 'array',
             'is_manual' => 'boolean',
             'approved_at' => 'datetime',
         ];

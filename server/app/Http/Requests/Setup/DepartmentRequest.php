@@ -47,6 +47,12 @@ class DepartmentRequest extends FormRequest
                 'nullable', 'integer',
                 Rule::exists('work_schedules', 'id')->where('organization_id', $orgId)->whereNull('deleted_at'),
             ],
+            // How this department's people are judged, unless their assignment or
+            // schedule names a policy (ADR 0038).
+            'attendance_policy_id' => [
+                'nullable', 'integer',
+                Rule::exists('attendance_policies', 'id')->where('organization_id', $orgId)->whereNull('deleted_at'),
+            ],
             'description' => ['nullable', 'string', 'max:2000'],
         ];
     }

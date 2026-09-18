@@ -42,8 +42,9 @@ commit history rather than repeating them.
 - [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
 - [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
 - [Company Profile (Company Setup)](./modules/company-profile.md) — the tenant's own identity, contact details, logo & statutory employer numbers.
-- [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided five-step walk-through a brand-new company gets before its dashboard.
+- [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided six-step walk-through a brand-new company gets before its dashboard.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
+- [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -60,7 +61,7 @@ commit history rather than repeating them.
 - [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
-- [attendance tables](./database/attendance-tables.md) — punch events, daily records, import batches.
+- [attendance tables](./database/attendance-tables.md) — punch events, daily records (with minute buckets and flags), attendance policies.
 - [scheduling tables](./database/scheduling-tables.md) — shift day patterns, dated assignments, roster overrides.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.

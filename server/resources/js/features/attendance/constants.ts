@@ -1,6 +1,7 @@
 import { Coffee, LogIn, LogOut, Play } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type {
+    AttendanceFlag,
     AttendanceRecord,
     AttendanceStatus,
     AttendanceTab,
@@ -17,6 +18,7 @@ export const STATUS_FILTERS = [
     { value: 'present', label: 'Present' },
     { value: 'late', label: 'Late' },
     { value: 'undertime', label: 'Undertime' },
+    { value: 'half_day', label: 'Half day' },
     { value: 'absent', label: 'Absent' },
     { value: 'on_leave', label: 'On leave' },
     { value: 'holiday', label: 'Holiday' },
@@ -28,6 +30,7 @@ export const STATUS_LABELS: Record<AttendanceStatus, string> = {
     present: 'Present',
     late: 'Late',
     undertime: 'Undertime',
+    half_day: 'Half day',
     absent: 'Absent',
     on_leave: 'On leave',
     day_off: 'Day off',
@@ -42,6 +45,8 @@ export const STATUS_STYLES: Record<AttendanceStatus, string> = {
     late: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
     undertime:
         'border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400',
+    half_day:
+        'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400',
     absent: 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
     on_leave:
         'border-[#0ABFBF]/30 bg-[#0ABFBF]/10 text-[#0a9ca3] dark:text-[#0ABFBF]',
@@ -58,6 +63,7 @@ export const STATUS_DOT: Record<AttendanceStatus, string> = {
     present: 'bg-emerald-500',
     late: 'bg-amber-500',
     undertime: 'bg-orange-500',
+    half_day: 'bg-fuchsia-500',
     absent: 'bg-rose-500',
     on_leave: 'bg-[#0ABFBF]',
     day_off: 'bg-slate-400',
@@ -75,6 +81,8 @@ export const STATUS_TILE: Record<AttendanceStatus, string> = {
     late: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40',
     undertime:
         'bg-orange-500/20 text-orange-700 dark:text-orange-300 hover:ring-orange-500/40',
+    half_day:
+        'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 hover:ring-fuchsia-500/40',
     absent: 'bg-rose-500/20 text-rose-700 dark:text-rose-300 hover:ring-rose-500/40',
     on_leave:
         'bg-[#0ABFBF]/20 text-[#0a8b91] dark:text-[#0ABFBF] hover:ring-[#0ABFBF]/40',
@@ -84,6 +92,49 @@ export const STATUS_TILE: Record<AttendanceStatus, string> = {
         'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:ring-indigo-500/40',
     incomplete:
         'bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:ring-sky-500/40',
+};
+
+/**
+ * A flag as somebody reading the day would say it (ADR 0038). `late` and
+ * `undertime` already have their own minutes on the day, so they are not chips.
+ */
+export const FLAG_LABELS: Record<AttendanceFlag, string> = {
+    late: 'Late',
+    undertime: 'Left early',
+    half_day: 'Half day',
+    late_absent: 'Too late to count',
+    below_minimum: 'Too short to count',
+    break_deducted: 'Unpunched break deducted',
+    break_exceeded: 'Break ran over',
+    unapproved_overtime: 'Overtime awaiting approval',
+    rest_day_worked: 'Worked a rest day',
+    holiday_worked: 'Worked a holiday',
+};
+
+/** Flags worth a chip — the ones the day's minutes do not already say. */
+export const CHIP_FLAGS: AttendanceFlag[] = [
+    'half_day',
+    'late_absent',
+    'below_minimum',
+    'unapproved_overtime',
+    'break_exceeded',
+    'break_deducted',
+    'rest_day_worked',
+    'holiday_worked',
+];
+
+/** A flag's chip tone: something to act on, or something to know. */
+export const FLAG_TONES: Record<AttendanceFlag, 'warn' | 'info'> = {
+    late: 'warn',
+    undertime: 'warn',
+    half_day: 'warn',
+    late_absent: 'warn',
+    below_minimum: 'warn',
+    break_deducted: 'info',
+    break_exceeded: 'warn',
+    unapproved_overtime: 'warn',
+    rest_day_worked: 'info',
+    holiday_worked: 'info',
 };
 
 /**
@@ -121,7 +172,22 @@ export function recordAnomalies(record: AttendanceRecord): Anomaly[] {
     }
 
     if (record.status === 'absent') {
-        out.push({ label: 'Unscheduled absence', tone: 'danger' });
+        out.push({
+            label: record.flags?.includes('late_absent')
+                ? 'Too late to count as present'
+                : record.flags?.includes('below_minimum')
+                  ? 'Too short to count as present'
+                  : 'Unscheduled absence',
+            tone: 'danger',
+        });
+    }
+
+    if (record.status === 'half_day') {
+        out.push({ label: 'Judged a half day', tone: 'danger' });
+    }
+
+    if (record.flags?.includes('break_exceeded')) {
+        out.push({ label: 'Break ran over', tone: 'warn' });
     }
 
     if (record.late_minutes > 0) {

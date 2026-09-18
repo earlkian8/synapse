@@ -16,12 +16,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
-import type { EmployeeOption, ScheduleRef } from '../types';
+import type { EmployeeOption, PolicyRef, ScheduleRef } from '../types';
+
+/** The select's value for "no policy of their own". */
+const SHIFT_POLICY = 'shift';
 
 type Props = {
     /** Everyone the assignment covers — one person from a profile, a week's roster from the board. */
     employees: { id: number; full_name: string }[] | EmployeeOption[];
     schedules: ScheduleRef[];
+    /**
+     * Attendance policies an assignment can single these people out to be judged
+     * by (ADR 0038). The choice is hidden when the company has none.
+     */
+    policies?: PolicyRef[];
     /** Where to post. The profile posts to its own employee-scoped endpoint. */
     action: string;
     /** Omitted when the URL already names the employee. */
@@ -40,6 +48,7 @@ type Props = {
 export function AssignScheduleDialog({
     employees,
     schedules,
+    policies = [],
     action,
     sendEmployeeIds = true,
     open,
@@ -66,6 +75,7 @@ export function AssignScheduleDialog({
                     <FormBody
                         employees={employees}
                         schedules={schedules}
+                        policies={policies}
                         action={action}
                         sendEmployeeIds={sendEmployeeIds}
                         onDone={() => onOpenChange(false)}
@@ -79,6 +89,7 @@ export function AssignScheduleDialog({
 function FormBody({
     employees,
     schedules,
+    policies = [],
     action,
     sendEmployeeIds,
     onDone,
@@ -91,6 +102,7 @@ function FormBody({
         effective_from: today(),
         effective_to: '',
         cycle_offset: 0,
+        attendance_policy_id: SHIFT_POLICY,
     });
 
     const schedule = schedules.find(
@@ -108,6 +120,10 @@ function FormBody({
             effective_from: payload.effective_from,
             effective_to: bounded ? payload.effective_to || null : null,
             cycle_offset: isRotation ? payload.cycle_offset : 0,
+            attendance_policy_id:
+                payload.attendance_policy_id === SHIFT_POLICY
+                    ? null
+                    : Number(payload.attendance_policy_id),
         }));
 
         post(action, { preserveScroll: true, onSuccess: () => onDone() });
@@ -224,6 +240,39 @@ function FormBody({
                         </p>
                         <InputError
                             message={errors.cycle_offset}
+                            className="mt-1.5"
+                        />
+                    </div>
+                )}
+
+                {policies.length > 0 && (
+                    <div>
+                        <Label htmlFor="assign-policy" className="mb-1.5 block">
+                            Judged by
+                        </Label>
+                        <FormSelect
+                            id="assign-policy"
+                            value={data.attendance_policy_id}
+                            onChange={(value) =>
+                                setData('attendance_policy_id', value)
+                            }
+                            options={[
+                                {
+                                    value: SHIFT_POLICY,
+                                    label: 'The shift’s own attendance policy',
+                                },
+                                ...policies.map((option) => ({
+                                    value: String(option.id),
+                                    label: option.name,
+                                })),
+                            ]}
+                        />
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                            Pick a policy only when these people are judged
+                            differently from everyone else on the shift.
+                        </p>
+                        <InputError
+                            message={errors.attendance_policy_id}
                             className="mt-1.5"
                         />
                     </div>

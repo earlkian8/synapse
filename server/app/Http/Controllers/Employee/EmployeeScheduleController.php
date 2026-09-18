@@ -40,6 +40,7 @@ class EmployeeScheduleController extends Controller
             $request->input('effective_to'),
             $request->integer('cycle_offset'),
             $request->user()->id,
+            $request->filled('attendance_policy_id') ? $request->integer('attendance_policy_id') : null,
         );
 
         $on = CarbonImmutable::parse($from)->format('M j, Y');

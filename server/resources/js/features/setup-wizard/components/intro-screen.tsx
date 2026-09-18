@@ -37,7 +37,7 @@ export default function IntroScreen({
                 </h1>
                 <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
                     SYNAPSE ships with nothing filled in, so every list in it is
-                    yours rather than a template's. Five short steps cover what
+                    yours rather than a template's. Six short steps cover what
                     the rest of the system reads from — and any one of them can
                     wait.
                 </p>
@@ -88,8 +88,8 @@ export default function IntroScreen({
 
                 <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock3 className="size-3.5" />
-                    About five minutes. Everything here is also in Company
-                    Setup, and nothing is locked in.
+                    About ten minutes. Everything here is also in Company Setup,
+                    and nothing is locked in.
                 </p>
             </div>
         </div>

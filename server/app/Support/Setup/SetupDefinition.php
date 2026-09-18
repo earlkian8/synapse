@@ -3,6 +3,8 @@
 namespace App\Support\Setup;
 
 use App\Models\RecruitmentPipelineStage;
+use App\Support\Attendance\AttendancePolicyPresets;
+use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Performance\RatingModel;
 use Illuminate\Support\Str;
 
@@ -145,6 +147,49 @@ class SetupDefinition
         return [
             'name' => $name ?? $blueprint['name'],
             'stages' => $blueprint['stages'],
+        ];
+    }
+
+    /**
+     * The attendance policy (and, optionally, the default schedule) the
+     * Attendance step created (ADR 0038). An adopted preset's settings come from
+     * {@see AttendancePolicyPresets}, not the request; a customised one keeps
+     * what the company set, read back through {@see AttendancePolicySettings} so
+     * it is stored complete.
+     *
+     * @param  array<string, mixed>  $answer
+     * @return array{policy: array{name: string, preset_key: string, description: string, settings: array<string, mixed>}, schedule: array{name: string, start: string, end: string, days: list<string>}|null}|null
+     */
+    public static function attendance(array $answer): ?array
+    {
+        $preset = AttendancePolicyPresets::find($answer['preset'] ?? null);
+
+        if ($preset === null) {
+            return null;
+        }
+
+        $settings = ($answer['customised'] ?? false)
+            ? AttendancePolicySettings::fromArray((array) ($answer['settings'] ?? []))
+            : AttendancePolicyPresets::settings($preset['key']);
+
+        $schedule = $answer['schedule'] ?? [];
+
+        return [
+            'policy' => [
+                'name' => self::text($answer['name'] ?? null) ?? $preset['name'],
+                'preset_key' => $preset['key'],
+                'description' => $preset['description'],
+                'settings' => $settings->toArray(),
+            ],
+            'schedule' => ($schedule['create'] ?? false) ? [
+                'name' => trim((string) $schedule['name']),
+                'start' => (string) $schedule['start'],
+                'end' => (string) $schedule['end'],
+                'days' => array_values(array_intersect(
+                    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    (array) ($schedule['days'] ?? []),
+                )),
+            ] : null,
         ];
     }
 
