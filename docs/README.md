@@ -35,7 +35,7 @@ commit history rather than repeating them.
 - [Onboarding](./modules/onboarding.md) — template-driven checklists carrying each new hire from day one to productive.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [Leave Management](./modules/leave.md) — time off: approval inbox, derived balances, leave types.
-- [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules; mobile token API.
+- [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules; requests, sign-off and period lock; mobile token API.
 - [Performance Management](./modules/performance.md) — weighted KPI evaluations across review periods, with a derived overall score.
 - [Training & Development](./modules/training.md) — training programs with a derived lifecycle + scored employee enrollments.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
@@ -61,7 +61,7 @@ commit history rather than repeating them.
 - [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
-- [attendance tables](./database/attendance-tables.md) — punch events, daily records (with minute buckets and flags), attendance policies.
+- [attendance tables](./database/attendance-tables.md) — punch events, daily records (with minute buckets and flags), attendance policies, requests and periods.
 - [scheduling tables](./database/scheduling-tables.md) — shift day patterns, dated assignments, roster overrides.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.

@@ -32,8 +32,11 @@ use Illuminate\Support\Collection;
  *     break nobody punched; note a break that ran over.
  *  5. **Late and undertime** against the shift, after grace (per day, or out of a
  *     monthly allowance). An over-long break is owed like leaving early.
+ *     Approved official business (ADR 0039) forgives both, and makes the day
+ *     worth at least the shift's hours.
  *  6. **Buckets** — overtime (daily, weekly, both, rest-day / holiday), regular,
- *     approved overtime, night, rest day, holiday.
+ *     approved overtime, night, rest day, holiday. Overtime is approved outright
+ *     unless the policy asks for approval; then up to what has been granted.
  *  7. **Thresholds** — very late or very short is a half day, or an absence.
  *  8. **Status and flags.**
  *
@@ -60,7 +63,14 @@ class AttendanceCalculator
         $lastOut = self::immutable($punches->where('type', 'clock_out')->last()?->punched_at);
 
         if ($punches->isEmpty()) {
-            return new DayResult(status: self::noPunchStatus($rules, $context->onApprovedLeave));
+            return self::officialBusinessCovers($rules, $context)
+                ? new DayResult(
+                    status: 'present',
+                    flags: ['official_business'],
+                    workedMinutes: $rules->requiredMinutes,
+                    regularMinutes: $rules->requiredMinutes,
+                )
+                : new DayResult(status: self::noPunchStatus($rules, $context->onApprovedLeave));
         }
 
         // 1. Round.
@@ -102,15 +112,30 @@ class AttendanceCalculator
         $undertime = self::undertime($rules, $worked, $closed ? $judgedOut : null, $context->scheduledEnd)
             + ($closed ? $breakExcess : 0);
 
+        // A day on official business is a full working day (ADR 0039): the part of
+        // it spent away from the clock is neither late nor short, and the day is
+        // worth at least the shift's hours.
+        if (self::officialBusinessCovers($rules, $context)) {
+            [$late, $excused, $undertime] = [0, 0, 0];
+            $worked = $closed ? max($worked, $rules->requiredMinutes) : $worked;
+            $flags[] = 'official_business';
+        }
+
+        if ($context->remoteWork) {
+            $flags[] = 'remote_work';
+        }
+
         // 6. Buckets.
         $overtime = self::overtime($rules, $context, $worked);
         $regular = $worked - $overtime;
-        $approved = $policy->overtimeRequiresApproval ? 0 : $overtime;
+        $approved = self::approvedOvertime($policy, $context, $overtime);
         $night = $policy->nightEnabled ? min($worked, self::nightMinutes($work, $policy, $context->timezone)) : 0;
         $restDay = $rules->isWorkingDay ? 0 : $worked;
         $holiday = $rules->isNonWorkingHoliday() ? $worked : 0;
 
-        if ($overtime > $approved) {
+        // Awaiting approval only until somebody decides: a rejected request, or
+        // one that granted less than was worked, is a decision too.
+        if ($overtime > $approved && $context->grantedOvertimeMinutes === null) {
             $flags[] = 'unapproved_overtime';
         }
 
@@ -170,6 +195,32 @@ class AttendanceCalculator
         $punches = $record->punches instanceof Collection ? $record->punches : collect();
 
         self::evaluate($punches, $rules, $context)->applyTo($record);
+    }
+
+    /**
+     * How much of the day's overtime is approved. All of it, unless the policy
+     * wants approval — then what has been granted (approved overtime requests,
+     * or HR signing the day off), never more than was worked (ADR 0039).
+     */
+    private static function approvedOvertime(AttendancePolicySettings $policy, DayContext $context, int $overtime): int
+    {
+        if (! $policy->overtimeRequiresApproval) {
+            return $overtime;
+        }
+
+        return min($overtime, max(0, $context->grantedOvertimeMinutes ?? 0));
+    }
+
+    /**
+     * Whether approved official business makes this a full working day — only a
+     * working day, and never one approved leave or a holiday already excuses.
+     */
+    private static function officialBusinessCovers(DayRules $rules, DayContext $context): bool
+    {
+        return $context->officialBusiness
+            && $rules->isWorkingDay
+            && ! $rules->isNonWorkingHoliday()
+            && ! $context->onApprovedLeave;
     }
 
     /**

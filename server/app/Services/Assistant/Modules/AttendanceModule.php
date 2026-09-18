@@ -2,7 +2,9 @@
 
 namespace App\Services\Assistant\Modules;
 
+use App\Http\Requests\Attendance\StoreAttendanceRequestRequest;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\WorkSchedule;
@@ -13,21 +15,28 @@ use App\Services\Assistant\Retrieval\RetrievedSubject;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\AttendanceException;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Attendance\AttendanceRequestApprover;
+use App\Support\Attendance\AttendanceRequestFiler;
 use App\Support\Attendance\ResolvedShift;
 use App\Support\Attendance\RosterWriter;
 use App\Support\Attendance\ShiftResolver;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * Attendance capability: look up an employee's Daily Time Records, record a
- * clock punch on their behalf, read the shift roster and override one day of it.
+ * clock punch on their behalf, read the shift roster and override one day of it,
+ * and file, find and decide attendance requests (ADR 0039).
  *
- * Every punch goes through {@see AttendanceClock} and every override through
- * {@see RosterWriter} — the same engine and writer the web and mobile API use —
- * so totals, status and history stay correct whoever asked for the change.
+ * Every punch goes through {@see AttendanceClock}, every override through
+ * {@see RosterWriter}, every request through {@see AttendanceRequestFiler} and
+ * every decision through {@see AttendanceRequestApprover} — the same engine and
+ * writers the web and mobile API use — so totals, status, history and the period
+ * lock hold whoever asked for the change.
  */
 class AttendanceModule extends Module implements ContributesContext
 {
@@ -35,6 +44,8 @@ class AttendanceModule extends Module implements ContributesContext
         private readonly AttendanceClock $clock,
         private readonly ShiftResolver $shifts,
         private readonly RosterWriter $roster,
+        private readonly AttendanceRequestFiler $filer,
+        private readonly AttendanceRequestApprover $approver,
     ) {}
 
     public function key(): string
@@ -42,9 +53,15 @@ class AttendanceModule extends Module implements ContributesContext
         return 'attendance';
     }
 
+    /**
+     * Anybody who reads attendance, or files or reviews requests about it — a
+     * member of staff can ask for a correction without seeing the whole board.
+     */
     public function isAvailable(User $user): bool
     {
-        return $user->can('attendance.view');
+        return $user->can('attendance.view')
+            || $user->can('attendance.request')
+            || $user->can('attendance.requests.review');
     }
 
     protected function toolMap(): array
@@ -54,6 +71,23 @@ class AttendanceModule extends Module implements ContributesContext
             'record_punch' => 'recordPunch',
             'find_shifts' => 'findShifts',
             'set_roster_entry' => 'setRosterEntry',
+            'file_attendance_request' => 'fileRequest',
+            'find_attendance_requests' => 'findRequests',
+            'review_attendance_request' => 'reviewRequest',
+        ];
+    }
+
+    /**
+     * `find_attendance`, `find_shifts` and `find_attendance_requests` answer for
+     * yourself without a permission and check anybody else inside.
+     */
+    protected function permissionMap(): array
+    {
+        return [
+            'record_punch' => 'attendance.manage',
+            'set_roster_entry' => 'attendance.roster.manage',
+            'file_attendance_request' => 'attendance.request',
+            'review_attendance_request' => 'attendance.requests.review',
         ];
     }
 
@@ -67,6 +101,12 @@ class AttendanceModule extends Module implements ContributesContext
 
     /** Statuses that mean the employee showed up. */
     private const PRESENT_STATUSES = AttendanceRecord::PRESENT_STATUSES;
+
+    /** How many pending requests the brief lists. */
+    private const CONTEXT_REQUESTS = 5;
+
+    /** How many requests one read-out returns. */
+    private const MAX_REQUEST_CARDS = 20;
 
     /** The widest range one roster read-out covers. */
     private const MAX_ROSTER_DAYS = 31;
@@ -124,7 +164,14 @@ class AttendanceModule extends Module implements ContributesContext
             fn (array $cell): bool => ! $cell['is_future'] && $cell['status'] !== null,
         ));
 
-        if ($cells === []) {
+        $pending = AttendanceRequest::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'pending')
+            ->orderBy('start_date')
+            ->limit(self::CONTEXT_REQUESTS)
+            ->get();
+
+        if ($cells === [] && $pending->isEmpty()) {
             return null;
         }
 
@@ -175,17 +222,23 @@ class AttendanceModule extends Module implements ContributesContext
             ($counts['incomplete'] ?? 0) > 0 ? 'Missing a clock-out on '.$counts['incomplete'].' day'.($counts['incomplete'] === 1 ? '' : 's') : null,
             $worked > 0 ? 'Averaging '.$this->hours((int) round($workedMinutes / $worked)).' worked per day' : null,
             $overtimeMinutes > 0 ? $this->hours($overtimeMinutes).' of overtime'.(
-                $overtimeMinutes > $approvedOvertime ? ', '.$this->hours($overtimeMinutes - $approvedOvertime).' of it awaiting approval' : ''
+                $overtimeMinutes > $approvedOvertime ? ', '.$this->hours($overtimeMinutes - $approvedOvertime).' of it not approved'.(
+                    ($flags['unapproved_overtime'] ?? 0) > 0 ? ' ('.$flags['unapproved_overtime'].' day'.($flags['unapproved_overtime'] === 1 ? '' : 's').' still awaiting a decision)' : ''
+                ) : ''
             ) : null,
             $nightMinutes > 0 ? $this->hours($nightMinutes).' worked in the night-differential window' : null,
             $restDayMinutes > 0 ? $this->hours($restDayMinutes).' worked on rest days' : null,
             $holidayMinutes > 0 ? $this->hours($holidayMinutes).' worked on holidays' : null,
             ($flags['break_exceeded'] ?? 0) > 0 ? 'Took a longer break than the policy allows on '.$flags['break_exceeded'].' day'.($flags['break_exceeded'] === 1 ? '' : 's') : null,
-            'Most recent days — '.implode('; ', array_map(
+            $recent === [] ? null : 'Most recent days — '.implode('; ', array_map(
                 fn (array $cell): string => $cell['date'].': '.str_replace('_', ' ', (string) $cell['status']).
                     ((int) $cell['late_minutes'] > 0 ? ' ('.$this->hours((int) $cell['late_minutes']).' late)' : ''),
                 $recent,
             )),
+            ($flags['official_business'] ?? 0) > 0 ? 'On approved official business '.$flags['official_business'].' day'.($flags['official_business'] === 1 ? '' : 's') : null,
+            $pending->isEmpty() ? null : 'Attendance requests awaiting a decision — '.implode('; ', $pending->map(
+                fn (AttendanceRequest $request): string => AttendanceRequestFiler::label($request).' (filed '.$request->created_at?->diffForHumans().')',
+            )->all()),
         ]);
     }
 
@@ -211,13 +264,16 @@ class AttendanceModule extends Module implements ContributesContext
         - record_punch logs a clock punch for an employee: type is clock_in, clock_out, break_start or break_end. Punch order is validated (you can't clock out before clocking in). Punches are timed on the organisation's clock and filed under the shift they belong to — a night shift's clock-out after midnight closes the previous evening's day.
         - find_shifts answers "who works Saturday?" and "what is Ana's shift next week?" — it reads the roster (the plan), not the records (what happened). Pass `date` for one day, or `from` and `to` for a range; pass `employee` to narrow it to one person. Each shift says where it came from: a one-off roster override, a dated assignment, a department or company default, or the built-in Mon–Fri fallback.
         - set_roster_entry puts one person on different hours for one date — a swap, a Saturday call-in, or a day off. Either name a `schedule` to borrow for that day, or give `start` and `end` times, or set `rest_day` to true. It overwrites any existing override for that person and date.
+        - file_attendance_request asks for something the clock could not capture: a `correction` (the day's punches as they should read — give only the times that change, e.g. "I forgot to clock out yesterday, I left at 6" is time_out 18:00 for yesterday), `overtime` (minutes or hours; a future date is a pre-approval), `official_business` (a client visit or field work — the day counts as a full working day) or `remote_work`. A reason is required: ask for one if the user gave none. Leave `employee` out to file for the user themselves.
+        - find_attendance_requests lists requests (pending by default). Without review rights it only shows the user's own.
+        - review_attendance_request approves or rejects a pending request. Nobody reviews their own, and a day in a locked attendance period cannot be decided.
         - Pass `employee` as a name or employee number.
         TXT;
     }
 
     public function tools(User $user): array
     {
-        return [
+        return $this->permitted($user, [
             [
                 'name' => 'find_attendance',
                 'description' => "List an employee's daily time records, most recent first.",
@@ -273,7 +329,58 @@ class AttendanceModule extends Module implements ContributesContext
                     'required' => ['employee', 'date'],
                 ],
             ],
-        ];
+            [
+                'name' => 'file_attendance_request',
+                'description' => 'File an attendance request: a punch correction, overtime, official business or remote work.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'type' => ['type' => 'STRING', 'enum' => AttendanceRequest::TYPES],
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number. Leave out to file for yourself.'],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD — the day, or the first day of a range.'],
+                        'end_date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the last day (official business / remote work).'],
+                        'time_in' => ['type' => 'STRING', 'description' => 'HH:MM, correction: the clock-in the day should show.'],
+                        'break_start' => ['type' => 'STRING', 'description' => 'HH:MM, correction.'],
+                        'break_end' => ['type' => 'STRING', 'description' => 'HH:MM, correction.'],
+                        'time_out' => ['type' => 'STRING', 'description' => 'HH:MM, correction: the clock-out the day should show (24-hour).'],
+                        'minutes' => ['type' => 'INTEGER', 'description' => 'Overtime asked for, in minutes.'],
+                        'hours' => ['type' => 'NUMBER', 'description' => 'Overtime asked for, in hours (instead of minutes).'],
+                        'start_time' => ['type' => 'STRING', 'description' => 'HH:MM, official business / remote work (optional).'],
+                        'end_time' => ['type' => 'STRING', 'description' => 'HH:MM (optional).'],
+                        'location' => ['type' => 'STRING', 'description' => 'Where, for official business (optional).'],
+                        'reason' => ['type' => 'STRING', 'description' => 'Why — required.'],
+                    ],
+                    'required' => ['type', 'date', 'reason'],
+                ],
+            ],
+            [
+                'name' => 'find_attendance_requests',
+                'description' => 'List attendance requests — pending by default.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number (optional).'],
+                        'status' => ['type' => 'STRING', 'enum' => [...AttendanceRequest::STATUSES, 'all']],
+                        'type' => ['type' => 'STRING', 'enum' => AttendanceRequest::TYPES],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'review_attendance_request',
+                'description' => "Approve or reject an employee's pending attendance request.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number.'],
+                        'action' => ['type' => 'STRING', 'enum' => ['approve', 'reject']],
+                        'type' => ['type' => 'STRING', 'enum' => AttendanceRequest::TYPES, 'description' => 'Which request, when they have more than one pending.'],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, which day, when they have more than one pending.'],
+                        'review_note' => ['type' => 'STRING', 'description' => 'A note the employee sees (optional).'],
+                    ],
+                    'required' => ['employee', 'action'],
+                ],
+            ],
+        ]);
     }
 
     // ── Tools ────────────────────────────────────────────────────────────────
@@ -287,6 +394,10 @@ class AttendanceModule extends Module implements ContributesContext
 
         if (! $employee) {
             return ToolResult::error('Looked up the employee', 'No matching employee found.');
+        }
+
+        if ($employee->id !== $user->employee?->id && $user->cannot('attendance.view')) {
+            return $this->denied("view other people's attendance");
         }
 
         $date = $this->date($args['date'] ?? null);
@@ -472,7 +583,213 @@ class AttendanceModule extends Module implements ContributesContext
         );
     }
 
+    /**
+     * File a request through the same validation and filer the web uses.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function fileRequest(User $user, array $args): ToolResult
+    {
+        if ($user->cannot('attendance.request')) {
+            return $this->denied('file attendance requests');
+        }
+
+        $employee = filled($args['employee'] ?? null) ? $this->locateEmployee($args) : $user->employee;
+
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', filled($args['employee'] ?? null)
+                ? 'No matching employee found.'
+                : 'Your account is not linked to an employee record.');
+        }
+
+        if ($employee->id !== $user->employee?->id && $user->cannot('attendance.manage')) {
+            return $this->denied("file requests on somebody else's behalf");
+        }
+
+        $type = strtolower(trim((string) ($args['type'] ?? '')));
+        $minutes = isset($args['minutes']) ? (int) $args['minutes'] : (isset($args['hours']) ? (int) round((float) $args['hours'] * 60) : null);
+
+        $data = array_filter([
+            'type' => $type,
+            'employee_id' => $employee->id,
+            'start_date' => $this->date($args['date'] ?? $args['start_date'] ?? null),
+            'end_date' => $this->date($args['end_date'] ?? null),
+            'reason' => $args['reason'] ?? null,
+            'time_in' => $this->clockTime($args['time_in'] ?? null),
+            'break_start' => $this->clockTime($args['break_start'] ?? null),
+            'break_end' => $this->clockTime($args['break_end'] ?? null),
+            'time_out' => $this->clockTime($args['time_out'] ?? null),
+            'minutes' => $minutes,
+            'start_time' => $this->clockTime($args['start_time'] ?? null),
+            'end_time' => $this->clockTime($args['end_time'] ?? null),
+            'location' => $args['location'] ?? null,
+        ], fn ($value): bool => $value !== null && $value !== '');
+
+        $validator = Validator::make($data, StoreAttendanceRequestRequest::rulesFor($type), StoreAttendanceRequestRequest::messagesFor());
+        $validator->after(fn ($validator) => StoreAttendanceRequestRequest::checks($validator));
+
+        if ($validator->fails()) {
+            return ToolResult::error('Validated the request', $validator->errors()->first());
+        }
+
+        try {
+            $request = $this->filer->file($employee, $validator->validated(), $user, via: 'assistant');
+        } catch (AttendanceException $e) {
+            return ToolResult::error('Filed the request', $e->getMessage());
+        }
+
+        return ToolResult::ok(
+            'Filed '.AttendanceRequestFiler::label($request)." for {$employee->full_name}",
+            'Awaiting review',
+            $this->requestCard($request, 'add', 'info'),
+        );
+    }
+
+    /**
+     * List requests. A reviewer sees anybody's; everybody else only their own.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function findRequests(User $user, array $args): ToolResult
+    {
+        $reviewer = $user->can('attendance.requests.review');
+        $employee = filled($args['employee'] ?? null) ? $this->locateEmployee($args) : null;
+
+        if (filled($args['employee'] ?? null) && $employee === null) {
+            return ToolResult::error('Looked up the employee', 'No matching employee found.');
+        }
+
+        if (! $reviewer) {
+            if ($user->employee === null || ($employee !== null && $employee->id !== $user->employee->id)) {
+                return $this->denied("see other people's attendance requests");
+            }
+
+            $employee = $user->employee;
+        }
+
+        $status = strtolower(trim((string) ($args['status'] ?? 'pending')));
+        $type = strtolower(trim((string) ($args['type'] ?? '')));
+
+        $requests = AttendanceRequest::query()
+            ->with('employee')
+            ->when($employee !== null, fn ($query) => $query->where('employee_id', $employee->id))
+            ->when(in_array($status, AttendanceRequest::STATUSES, true), fn ($query) => $query->where('status', $status))
+            ->when(in_array($type, AttendanceRequest::TYPES, true), fn ($query) => $query->where('type', $type))
+            ->orderByDesc('created_at')
+            ->limit(self::MAX_REQUEST_CARDS)
+            ->get();
+
+        $cards = $requests->map(fn (AttendanceRequest $request): array => $this->requestCard($request, 'find', 'neutral'))->all();
+
+        return ToolResult::found(
+            ($employee !== null ? "{$employee->full_name}'s" : 'Attendance').' requests',
+            count($cards).' found',
+            $cards,
+        );
+    }
+
+    /**
+     * Decide a pending request through the approver the inbox uses.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function reviewRequest(User $user, array $args): ToolResult
+    {
+        if ($user->cannot('attendance.requests.review')) {
+            return $this->denied('approve or reject attendance requests');
+        }
+
+        $action = strtolower(trim((string) ($args['action'] ?? '')));
+
+        if (! in_array($action, ['approve', 'reject'], true)) {
+            return ToolResult::error('Reviewed the request', 'Action must be approve or reject.');
+        }
+
+        $employee = $this->locateEmployee($args);
+
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', 'No matching employee found.');
+        }
+
+        $type = strtolower(trim((string) ($args['type'] ?? '')));
+        $date = $this->date($args['date'] ?? null);
+
+        $pending = AttendanceRequest::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'pending')
+            ->when(in_array($type, AttendanceRequest::TYPES, true), fn ($query) => $query->where('type', $type))
+            ->when($date !== null, fn ($query) => $query->overlapping($date, $date))
+            ->orderBy('created_at')
+            ->get();
+
+        if ($pending->isEmpty()) {
+            return ToolResult::error('Looked up the request', "{$employee->full_name} has no pending request like that.");
+        }
+
+        if ($pending->count() > 1) {
+            return ToolResult::error('Looked up the request', "{$employee->full_name} has {$pending->count()} pending requests — say which type or date.");
+        }
+
+        try {
+            $request = $action === 'approve'
+                ? $this->approver->approve($pending->first(), $user, $args['review_note'] ?? null)
+                : $this->approver->reject($pending->first(), $user, $args['review_note'] ?? null);
+        } catch (AttendanceException $e) {
+            return ToolResult::error('Reviewed the request', $e->getMessage());
+        }
+
+        $approved = $action === 'approve';
+
+        return ToolResult::ok(
+            ($approved ? 'Approved ' : 'Rejected ').AttendanceRequestFiler::label($request)." for {$employee->full_name}",
+            null,
+            $this->requestCard($request, $approved ? 'approve' : 'reject', $approved ? 'positive' : 'danger'),
+        );
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * One request as a card.
+     *
+     * @return array<string, mixed>
+     */
+    private function requestCard(AttendanceRequest $request, string $kind, string $tone): array
+    {
+        $employee = $request->employee;
+
+        return $this->card(
+            kind: $kind,
+            tone: $tone,
+            badge: ucfirst($request->status),
+            title: $employee?->full_name ?? 'Employee',
+            subtitle: ucfirst(AttendanceRequestFiler::label($request)),
+            meta: [$request->reason],
+            avatar: $employee
+                ? ['name' => $employee->full_name, 'initials' => $employee->initials(), 'photo' => $employee->photo_url]
+                : null,
+            id: $request->id,
+        );
+    }
+
+    /**
+     * A clock-face time the model gave ("18:00", "6:00 PM", "18:00:00") as "HH:MM",
+     * or null.
+     */
+    private function clockTime(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->format('H:i');
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $args

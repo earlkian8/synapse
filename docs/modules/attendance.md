@@ -11,7 +11,9 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 (day patterns, dated assignments, roster overrides, the resolver) and
 [ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md)
 (attendance policies, the day evaluator, minute buckets and flags — detailed in
-[Attendance Policies](./attendance-policies.md)); this is the *how*. Everything is
+[Attendance Policies](./attendance-policies.md)) and
+[ADR 0039](../decisions/0039-attendance-requests-and-period-lock-the-engine-guards-the-lock.md)
+(requests, sign-off, periods and the lock); this is the *how*. Everything is
 tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
@@ -22,7 +24,7 @@ tenant-scoped (ADR 0005).
 - **`/attendance`** — the **HR attendance workspace**: stat cards (present / late /
   absent / on-leave / avg hours), a **period-aware stepper** (prev / today / next +
   picker, stepping by day / week / month — "today" is the organisation's), search +
-  department filters, and four tabs over the same roster (which is built from *every*
+  department filters, and tabs over the same roster (which is built from *every*
   employee, so people with no punches still appear as **Absent** / **Holiday** /
   **Day off** / **On leave**):
   - **Today's Log** — a sortable table: avatar + name, time in / out, computed hours, a
@@ -45,6 +47,19 @@ tenant-scoped (ADR 0005).
     worked-hours **sparkline**. A holiday is neither attendance nor absence, so it stays
     out of the rate; a half day counts as attended. **Payroll summary** downloads the
     month as the [period summary](./attendance-policies.md#payroll-period-summary).
+  - **Requests** (`attendance.requests.review`, with a count of those waiting) — the
+    inbox: status tabs (pending first, oldest waiting at the top), a kind filter, search
+    and department. Each row says who, which day and what they asked for in words ("Time
+    out 5:30 PM", "1h 18m overtime"), with approve / reject beside it; several can be
+    decided at once with one note. The reviewer's own request, a decided one or one in a
+    locked period cannot be selected. **File for someone** (`attendance.manage`) files on
+    an employee's behalf. See *Requests* below.
+  - **Periods** (`attendance.period.manage`) — the calendar attendance closes on and the
+    reminder lead time, then the periods newest first on a rail: an open one lists what
+    stands between it and a lock (requests waiting, days missing a clock-out, days
+    awaiting sign-off) or says it is ready; a locked one says who locked it and why, and
+    offers the **payroll file** it kept and **Unlock** (`attendance.period.unlock`). See
+    *Periods and the lock* below.
 
   Opening any record reveals the **day-detail modal** — centred, like every other detail
   surface in the app, and read top to bottom in the order somebody checks a day: the
@@ -54,7 +69,10 @@ tenant-scoped (ADR 0005).
   that awaits approval — plus night, rest-day and holiday minutes when the day has any)
   stays put while the body scrolls, and the body opens with the day's **flags** as chips
   ("Half day", "Unpunched break deducted", "Overtime awaiting approval", …) before the
-  **punch trail**, the remarks and the sign-off.
+  **punch trail**, the remarks and the sign-off. Under the trail sit the punches an edit
+  or a correction **replaced** (struck through, saying which), and the **requests that
+  concern the day** — each opening the review modal. A day in a **locked period** says so
+  in its header and offers no action but the reminder to unlock the period.
 
   Each punch is one row — time, source, GPS pin, note — with **the photo taken at it on
   that row**, large enough to recognise a face and opening full-size in a new tab. A
@@ -64,7 +82,13 @@ tenant-scoped (ADR 0005).
   different findings, and an empty space states neither. The section header counts them
   ("4 punches · 2 with a photo"), and the remarks and approval blocks are likewise always
   drawn — an unwritten remark says so rather than leaving a gap. HR actions (correct,
-  **re-apply rules**, approve, delete) sit in a pinned footer.
+  **re-apply rules**, **sign off**, delete) sit in a pinned footer.
+
+  **Reviewing a request** opens its own centred modal: the ask in a strip under the
+  header, then the record it would change — a correction as the day's punches beside the
+  ones asked for, each changed row reading "was → becomes"; overtime as a bar of what was
+  worked past the shift against what is asked, saying exactly what an approval would
+  grant — then the reason, the note and the decision.
 
   **Recording or correcting a day** opens its own centred modal, with the four punches on
   one row in the order they happen and a running read-out of what they add up to
@@ -81,20 +105,27 @@ tenant-scoped (ADR 0005).
   organisation's time and date) whose primary button flips with the day's state
   (Clock in → Start break → End break → Clock out), capturing geolocation (and an optional
   selfie) on each punch; plus today's punch timeline, a this-month summary, and recent DTR
-  history. The card shows the **current shift**: a night-shift worker at 02:00 sees the
+  history. **Request** (`attendance.request`) asks for a correction, overtime, official
+  business or remote work; each history day has **Fix** (a correction for that day,
+  showing what it recorded beside each time) unless its period is locked; **My requests**
+  lists what was asked and decided, each opening the same modal a reviewer sees, with
+  **Cancel request** while it is pending. The card shows the **current shift**: a night-shift worker at 02:00 sees the
   shift they started last night, not an empty new date.
-- **The assistant** reads attendance two ways: `find_attendance` lists an employee's
-  records on request, and — when a chat turn is *about* somebody — the module contributes
+- **The assistant** reads attendance two ways — and files and decides requests (see
+  *Assistant*): `find_attendance` lists an employee's records on request, and — when a chat turn is *about* somebody — the module contributes
   a 30-day read-out (days worked against days scheduled, punctuality, absences, half days,
   holidays, average hours, overtime and how much of it awaits approval, night, rest-day and
-  holiday minutes, over-long breaks, the last five days) to the retrieved brief the answer
+  holiday minutes, over-long breaks, the last five days, days on official business and
+  requests awaiting a decision) to the retrieved brief the answer
   is composed from. Anybody's needs `attendance.view`; your own needs nothing, because
   `/attendance/me` needs nothing. See
   [ADR 0035](../decisions/0035-assistant-answers-from-a-retrieved-brief.md).
 - **Mobile API** (`/api`, token-authenticated) — the same clock engine for the DTR app:
   `POST /api/auth/login`, `GET /api/attendance/today` (the current shift, as on the web
   card), `POST /api/attendance/punch` (with GPS + selfie), `GET /api/attendance/records`,
-  `GET /api/attendance/summary`. The session payload's `organization.timezone` is the
+  `GET /api/attendance/summary`, and the employee's own requests:
+  `GET|POST /api/attendance/requests`, `GET /api/attendance/requests/{id}`,
+  `PATCH /api/attendance/requests/{id}/cancel`. The session payload's `organization.timezone` is the
   clock the app shows every time on.
 
 The daily log stays a per-person table — the right tool for "what happened today" — while
@@ -104,7 +135,8 @@ big clock**, the way a punch clock should feel.
 
 ## Data model
 
-Two tables hold the record (see [attendance tables](../database/attendance-tables.md));
+Two tables hold the record and two more what was asked and what is closed (see
+[attendance tables](../database/attendance-tables.md));
 three more hold the plan (see [scheduling tables](../database/scheduling-tables.md)):
 
 - **`attendance_records`** — one row per employee per day: what the day is judged
@@ -113,13 +145,20 @@ three more hold the plan (see [scheduling tables](../database/scheduling-tables.
   `status` and `flags`, the minute totals (`worked / break / late / excused late /
   undertime`) and the **buckets** (`regular / overtime / approved overtime / night /
   rest day / holiday`, ADR 0038),
-  `first_in_at` / `last_out_at`, an `is_manual` flag, `remarks`, and a correction/overtime
-  approval lifecycle (`approval_status`, `approved_by/at`). Unique on
-  `(employee_id, work_date)`.
+  `first_in_at` / `last_out_at`, an `is_manual` flag, `remarks`, and the sign-off
+  (`approval_status` — derived, ADR 0039 — `approved_by/at` and
+  `signed_off_overtime_minutes`). Unique on `(employee_id, work_date)`.
 - **`attendance_punches`** — the raw punch events the summary is built from: `type`
   (`clock_in | clock_out | break_start | break_end`), `punched_at`, `source`
-  (`web | mobile | kiosk | biometric | manual`), GPS (`latitude / longitude / accuracy`),
-  an optional `photo` selfie, a `note`, and `recorded_by` (null when self-punched).
+  (`web | mobile | kiosk | biometric | manual | correction`), GPS
+  (`latitude / longitude / accuracy`), an optional `photo` selfie, a `note`, and
+  `recorded_by` (null when self-punched). Soft-deleted when an edit or a correction
+  replaces it; `attendance_request_id` / `replaced_by_request_id` name the correction
+  that wrote or replaced it.
+- **`attendance_requests`** — corrections, overtime, official business and remote work,
+  with their payload, reason, status and decision.
+- **`attendance_periods`** — the periods attendance closes on, their lock and unlock
+  audit, and the path of the file written when each locked.
 - **`work_schedule_days`**, **`employee_schedule_assignments`** and
   **`shift_roster_entries`** — a template's cycle, who works it over which dates, and the
   one-off overrides (ADR 0037).
@@ -233,6 +272,53 @@ through the same `noPunchStatus()`, loading the range's holidays once.
 Leave-awareness checks approved leave covering the date, so an approved leave day is
 never flagged absent.
 
+## Requests
+
+Filed through **one validation** (`StoreAttendanceRequestRequest`), **one filer**
+(`AttendanceRequestFiler`) and decided through **one approver**
+(`AttendanceRequestApprover`), whichever of the web, the mobile API and the assistant
+asked. Every request needs a reason; nobody decides their own; a range touching a
+locked period is refused at filing and at decision; a second pending request of the
+same type for the same day is refused.
+
+| Type | Asks for | Approval does |
+| --- | --- | --- |
+| `correction` | Any of time in, break start, break end, time out, for a day that has begun | Opens the day if needed and replaces only the punches it names (the first clock-in, first break, last clock-out). The replaced ones are soft-deleted and name the request; the new ones are `source = correction`. The day is marked manual and recomputed. |
+| `overtime` | Minutes; a future day is a pre-approval | The day's approved overtime becomes `min(asked, worked past the shift)` and the day stops awaiting a decision. A pre-approval is matched when the day is evaluated. A rejection settles the day too. |
+| `official_business` | Up to 31 days, optional hours and place | Every working day in range is present, neither late nor short, and worth at least the shift's hours — even with no punches. Flag `official_business`. Leave and holidays still win. |
+| `remote_work` | Up to 31 days, optional hours and place | The days carry the `remote_work` flag; punches are still required. Phase 4's geofence reads it. |
+
+The grant is read by the evaluator (`DayContext::grantedOvertimeMinutes`) on every
+evaluation, so it survives a recompute and a re-apply.
+
+**Sign-off.** `approval_status` means *needs sign-off* and is derived on every
+evaluation: `pending` while the day carries a review flag (`unapproved_overtime` today),
+`approved` once signed off, null otherwise. **Sign off** grants the day's overtime as it
+stands (`signed_off_overtime_minutes`); overtime a later correction adds puts the day
+back to pending. **Sign off all** walks only the pending days, leaving the signer's own
+and any in a locked period.
+
+## Periods and the lock
+
+Periods follow `organizations.attendance_period_frequency` — weekly (Mon–Sun), every two
+weeks, twice a month (1–15, 16–end; the default) or monthly — and are **contiguous**:
+each starts the day after the last ends, so a change of calendar makes one short period
+rather than a gap or an overlap. A company's first periods start one back, so the period
+that just ended can be locked. `attendance:periods` keeps the current and next one
+generated; **Add periods** does it on demand.
+
+**Locking** shows a checklist — requests pending in range, days still incomplete, days
+awaiting sign-off — and asks for a reason when any is open. It writes the
+[period summary](./attendance-policies.md#payroll-period-summary) to the private disk and
+keeps it as the period's **payroll file**. **Unlocking** needs `attendance.period.unlock`
+and a reason, and is logged; the file from the lock is kept.
+
+**One guard, every path.** `PeriodLock` refuses a punch, HR's entry or edit, a
+correction, a sign-off, a re-apply, a delete, a request filed or decided, and the
+recompute of any day inside a locked period — from the engine, so the web, the mobile
+API and the assistant all hit it. Bulk re-apply, sign off all and recompute leave locked
+days as they are and say how many they left.
+
 ## Maintenance commands
 
 - **`php artisan attendance:recompute {--organization=} {--from=} {--to=} {--dry-run}`** —
@@ -243,10 +329,16 @@ never flagged absent.
   never re-applies a *changed* schedule or policy to a day that has a snapshot — that
   stays HR's explicit action. It walks days in date order, and it is how the minute
   buckets ADR 0038 added are filled for days recorded before them (a pre-policy snapshot
-  is judged by the built-in fallback, so no status or total moves).
+  is judged by the built-in fallback, so no status or total moves). A day in a locked
+  period is skipped and counted.
+- **`php artisan attendance:periods {--organization=}`** — scheduled daily at 00:15:
+  generates the current and next period on each company's calendar, and reminds holders
+  of `attendance.period.manage` once when an open period's end is within
+  `attendance_lock_reminder_days`.
 - **`php artisan attendance:prune-orphan-days {--organization=} {--dry-run}`** — deletes the
   empty days refused overnight clock-outs used to leave: no punches, not entered by hand,
-  no remarks, and the same employee's previous day left open. Run with `--dry-run` first.
+  no remarks, not a day of official business, and the same employee's previous day left
+  open. Run with `--dry-run` first.
 
 Demo data written before ADR 0036 stored clock-face times as UTC, so it is re-seeded
 rather than recomputed (`AttendanceSeeder` now writes real instants, skips rest days and
@@ -255,18 +347,23 @@ non-working holidays, and never seeds a punch that has not happened yet).
 ## Permissions
 
 `attendance.view` (the board & records), `attendance.manage` (manual entry, corrections,
-re-applying rules, approvals), `attendance.clock` (record your own punches),
-`attendance.roster.view` (the roster tab) and `attendance.roster.manage` (overrides and
-assigning schedules — including naming an attendance policy on the assignment). Built-in
-roles: **HR Manager** gets all five; **Staff** gets `attendance.clock` for self-service.
+re-applying rules, sign-off, filing a request for somebody else), `attendance.clock`
+(record your own punches), `attendance.roster.view` (the roster tab),
+`attendance.roster.manage` (overrides and assigning schedules — including naming an
+attendance policy on the assignment), `attendance.request` (file and cancel your own
+requests), `attendance.requests.review` (decide other people's), `attendance.period.manage`
+(the periods tab, generating and locking) and `attendance.period.unlock`. Built-in
+roles: **HR Manager** gets all of them; **Department Head** gets `attendance.request` and
+`attendance.requests.review`; **Staff** gets `attendance.clock` and `attendance.request`.
 The policies themselves are `setup.attendance-policies.view` / `.manage`. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
 
 ## Assistant
 
-The agent's **Attendance** capability (gated by `attendance.view`) exposes:
+The agent's **Attendance** capability (available with `attendance.view`,
+`attendance.request` or `attendance.requests.review`) exposes:
 
-- **`find_attendance`** — an employee's recent DTRs.
+- **`find_attendance`** — an employee's recent DTRs (your own need no permission).
 - **`record_punch`** — clock an employee in/out (gated by `attendance.manage`).
 - **`find_shifts`** — "who works Saturday?", "what is Ana's shift next week?" — the
   roster, not the records, with each shift's source spelled out. Gated by
@@ -274,7 +371,15 @@ The agent's **Attendance** capability (gated by `attendance.view`) exposes:
   and 40 cards.
 - **`set_roster_entry`** — "put Ben on the night shift on the 20th" (gated by
   `attendance.roster.manage`).
+- **`file_attendance_request`** — "I forgot to clock out yesterday, I left at 6", "log 2
+  hours overtime for Friday" (gated by `attendance.request`; somebody else's needs
+  `attendance.manage`). Validated exactly as the web validates it.
+- **`find_attendance_requests`** — pending by default; without review rights, only your
+  own.
+- **`review_attendance_request`** — approve or reject (gated by
+  `attendance.requests.review`); refuses your own and anything in a locked period.
 
-Punches route through `AttendanceClock` and overrides through `RosterWriter`, so totals,
+Punches route through `AttendanceClock`, overrides through `RosterWriter`, and requests
+through `AttendanceRequestFiler` / `AttendanceRequestApprover`, so totals,
 status, the shift a night punch belongs to, and the history left behind are the same
 whoever asked. Card times are shown on the organisation's clock.

@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Attendance;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\PunchRequest;
 use App\Http\Resources\AttendanceRecordResource;
+use App\Http\Resources\AttendanceRequestResource;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
@@ -19,7 +21,8 @@ use Inertia\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
- * Employee self-service: the personal Clock In/Out surface and DTR history. Backed
+ * Employee self-service: the personal Clock In/Out surface, DTR history, and the
+ * attendance requests the employee has filed (ADR 0039). Backed
  * by the same {@see AttendanceClock} the mobile API uses, so a web punch and a
  * phone punch are indistinguishable downstream (only the `source` differs).
  */
@@ -68,8 +71,20 @@ class MyAttendanceController extends Controller
             'nextExpected' => $this->clock->nextExpected($record),
             'allowed' => $this->clock->allowed($record),
             'history' => AttendanceRecordResource::collection($history)->resolve($request),
+            'requests' => AttendanceRequestResource::collection(
+                AttendanceRequest::query()
+                    ->with('employee:id,user_id')
+                    ->where('employee_id', $employee->id)
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->limit(20)
+                    ->get(),
+            )->resolve($request),
             'summary' => $this->monthSummary($employee->id),
-            'can' => ['clock' => $request->user()->can('attendance.clock')],
+            'can' => [
+                'clock' => $request->user()->can('attendance.clock'),
+                'request' => $request->user()->can('attendance.request'),
+            ],
         ]);
     }
 

@@ -28,7 +28,8 @@ Connecting that account to an employer is a second, separate step, with two rout
   `status: "pending"`.
 
 Both admitting responses re-issue the Sanctum token **bound to the new company**.
-Admission grants the `staff` role (`attendance.clock`, `leave.request`); every read
+Admission grants the `staff` role (`attendance.clock`, `attendance.request`,
+`leave.request`); every read
 endpoint is self-scoped and needs no further permission.
 
 `App\Support\MobileSession` builds every session — login, register, switch, join — so
@@ -68,7 +69,12 @@ every `useQuery` screen refetches against the new company's tenant context.
   through the canonical `AttendanceClock`. Live worked-hours counter + status chip.
 - **Attendance** — month calendar with status dots + legend, a metrics summary
   card (present/late/absent, hours rendered, late/OT minutes) from
-  `GET /attendance/summary`, a list view, and a per-day punch-timeline detail.
+  `GET /attendance/summary`, a list view, and a per-day punch-timeline detail. The day
+  offers **Request a correction** unless its period is locked (ADR 0039), and the header's
+  **Requests** opens **My requests**: what was asked and decided, each with its reason and
+  the reviewer's note, and **Cancel** while pending. **Ask** (`app/attendance/request.tsx`)
+  files a correction, overtime, official business or remote work — the same four kinds,
+  validated by the same request as the web, and decided in the ERP.
 - **Leave** — balances per type, a file-leave form (type → dates → half-day →
   reason) with server-computed days and inline 422 errors, history with status
   pills, and a detail screen with cancel.
@@ -85,6 +91,7 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `POST /api/workspaces/preview` · `POST /api/workspaces/join` | Look up / redeem a company join code (throttled) |
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics |
+| `GET /api/attendance/requests` · `POST /api/attendance/requests` · `GET /api/attendance/requests/{id}` · `PATCH /api/attendance/requests/{id}/cancel` | Own attendance requests (ADR 0039); filing always for the token's own employee |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
 | `GET /api/awards` | Own recognitions |
 | `GET /api/leave/types` · `GET /api/leave/balances` · `GET /api/leave/requests` · `POST /api/leave/requests` · `PATCH /api/leave/requests/{id}/cancel` | Self-service leave |

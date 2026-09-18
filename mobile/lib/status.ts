@@ -1,6 +1,6 @@
 /** Status → {label, colour} maps, shared so a state always looks the same. */
 import { status as statusColors } from '@/theme/tokens';
-import type { AttendanceStatus, LeaveStatus } from '@/types/api';
+import type { AttendanceRequestStatus, AttendanceStatus, LeaveStatus } from '@/types/api';
 
 export type StatusMeta = { label: string; color: string };
 
@@ -28,5 +28,10 @@ export function attendanceMeta(status: AttendanceStatus): StatusMeta {
 }
 
 export function leaveMeta(status: LeaveStatus): StatusMeta {
+  return LEAVE[status] ?? { label: status, color: statusColors.rest };
+}
+
+/** An attendance request's status (ADR 0039) reads exactly as a leave request's. */
+export function requestMeta(status: AttendanceRequestStatus): StatusMeta {
   return LEAVE[status] ?? { label: status, color: statusColors.rest };
 }

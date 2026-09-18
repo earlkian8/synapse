@@ -74,7 +74,31 @@ export default function AttendanceScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Attendance" subtitle="Your daily time records" />
+      <ScreenHeader
+        title="Attendance"
+        subtitle="Your daily time records"
+        right={
+          <Pressable
+            onPress={() => router.push('/attendance/requests')}
+            accessibilityRole="button"
+            accessibilityLabel="My attendance requests"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: 14,
+              paddingVertical: 9,
+              borderRadius: 999,
+            }}
+          >
+            <Ionicons name="document-text-outline" size={16} color={colors.text} />
+            <AppText variant="label">Requests</AppText>
+          </Pressable>
+        }
+      />
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}

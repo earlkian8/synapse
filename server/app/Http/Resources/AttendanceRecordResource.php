@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
+use App\Support\Attendance\PeriodLock;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +19,10 @@ class AttendanceRecordResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $lockedPeriod = $this->work_date !== null
+            ? app(PeriodLock::class)->periodFor($this->work_date->toDateString())
+            : null;
+
         return [
             // Transient roster rows (employees with no punches) have no key yet.
             'id' => $this->exists ? $this->id : null,
@@ -63,6 +69,38 @@ class AttendanceRecordResource extends JsonResource
             'approval_status' => $this->approval_status,
             'approved_at' => $this->approved_at?->toIso8601String(),
             'approver' => $this->whenLoaded('approver', fn () => $this->approver?->full_name),
+
+            // A day in a locked period cannot change through any path (ADR 0039);
+            // the UI hides what it would refuse anyway.
+            'is_locked' => $lockedPeriod !== null,
+            'locked_period' => $lockedPeriod?->label(),
+
+            // The requests that concern the day, and the punches an edit or a
+            // correction replaced — attached by the day-detail fetch.
+            'requests' => $this->whenLoaded('dayRequests', fn () => $this->getRelation('dayRequests')
+                ->map(fn (AttendanceRequest $request): array => [
+                    'hashid' => $request->hashid,
+                    'type' => $request->type,
+                    'status' => $request->status,
+                    'start_date' => $request->start_date->toDateString(),
+                    'end_date' => $request->end_date->toDateString(),
+                    'payload' => $request->payload ?? [],
+                    'reason' => $request->reason,
+                    'review_note' => $request->review_note,
+                ])
+                ->values()
+                ->all()),
+            'replaced_punches' => $this->whenLoaded('replacedPunches', fn () => $this->replacedPunches
+                ->map(fn (AttendancePunch $punch): array => [
+                    'id' => $punch->id,
+                    'type' => $punch->type,
+                    'punched_at' => $punch->punched_at?->toIso8601String(),
+                    'source' => $punch->source,
+                    'replaced_at' => $punch->deleted_at?->toIso8601String(),
+                    'by_request' => $punch->replaced_by_request_id !== null,
+                ])
+                ->values()
+                ->all()),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

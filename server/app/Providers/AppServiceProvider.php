@@ -12,6 +12,7 @@ use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
 use App\Support\Ai\GeminiClient;
+use App\Support\Attendance\PeriodLock;
 use App\Support\Ml\MlClient;
 use App\Support\PermissionRegistry;
 use App\Support\Tenancy;
@@ -37,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // The current-tenant holder must be shared for the whole request.
         $this->app->singleton(Tenancy::class);
+
+        // The attendance lock guard reads the locked periods once per request for
+        // display, and fresh before every write (ADR 0039).
+        $this->app->scoped(PeriodLock::class);
 
         // The Gemini client backing the agentic assistant.
         $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(

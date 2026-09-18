@@ -105,7 +105,7 @@ final readonly class AttendancePolicySettings
         public string $nightEnd = '06:00',
 
         // Capture — declared here, enforced in Phase 4
-        public array $allowedSources = AttendancePunch::SOURCES,
+        public array $allowedSources = AttendancePunch::CAPTURE_SOURCES,
         public bool $selfieRequired = false,
         public string $geofence = 'off',
         public array $webIpAllowlist = [],
@@ -328,6 +328,6 @@ final readonly class AttendancePolicySettings
             return $default;
         }
 
-        return array_values(array_intersect(AttendancePunch::SOURCES, $value));
+        return array_values(array_intersect(AttendancePunch::CAPTURE_SOURCES, $value));
     }
 }

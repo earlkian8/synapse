@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\ReapplyScheduleRequest;
 use App\Http\Requests\Attendance\StoreAttendanceRecordRequest;
 use App\Http\Requests\Attendance\UpdateAttendanceRecordRequest;
+use App\Http\Resources\AttendancePeriodResource;
 use App\Http\Resources\AttendanceRecordResource;
+use App\Http\Resources\AttendanceRequestResource;
+use App\Models\AttendancePeriod;
 use App\Models\AttendancePolicy;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
@@ -14,12 +17,16 @@ use App\Models\Employee;
 use App\Models\WorkSchedule;
 use App\Queries\AttendanceMonthlyReport;
 use App\Queries\AttendanceRecordsIndexQuery;
+use App\Queries\AttendanceRequestsIndexQuery;
 use App\Queries\AttendanceStatistics;
 use App\Queries\AttendanceWeeklyQuery;
 use App\Queries\ShiftRosterQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\AttendanceException;
+use App\Support\Attendance\PeriodLocker;
 use App\Support\HolidayCalendar;
+use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -29,7 +36,8 @@ use Inertia\Response;
 
 /**
  * The HR-facing attendance board — a day's Daily Time Records for the whole team,
- * with manual entry, corrections and approvals. Self-service clocking lives in
+ * with manual entry, corrections and sign-off; the request inbox and the periods
+ * (ADR 0039) are two more of its tabs. Self-service clocking lives in
  * {@see MyAttendanceController}; the mobile API in App\Http\Controllers\Api.
  */
 class AttendanceController extends Controller
@@ -37,8 +45,8 @@ class AttendanceController extends Controller
     public function __construct(private readonly AttendanceClock $clock) {}
 
     /**
-     * The attendance workspace: a daily log, a weekly grid, a monthly report and
-     * the shift roster over the same team. Only the active tab's dataset is built
+     * The attendance workspace: a daily log, a weekly grid, a monthly report, the
+     * shift roster, the request inbox and the periods. Only the active tab's dataset is built
      * — the other closures stay cheap on the (default) daily tab and are fetched
      * on demand via Inertia partial reloads when the tab changes.
      */
@@ -49,6 +57,8 @@ class AttendanceController extends Controller
         AttendanceWeeklyQuery $weekly,
         AttendanceMonthlyReport $monthly,
         ShiftRosterQuery $roster,
+        AttendanceRequestsIndexQuery $requests,
+        PeriodLocker $locker,
     ): Response {
         $date = $query->date($request);
         $tab = $this->tab($request);
@@ -70,6 +80,13 @@ class AttendanceController extends Controller
             'roster' => fn () => $tab === 'roster' && $request->user()->can('attendance.roster.view')
                 ? $roster->toArray($date, $department, $search)
                 : null,
+            // What people asked for, and what attendance closes on (ADR 0039).
+            'requests' => fn () => $tab === 'requests' && $request->user()->can('attendance.requests.review')
+                ? AttendanceRequestResource::collection($requests->get($request))->resolve($request)
+                : null,
+            'periods' => fn () => $tab === 'periods' && $request->user()->can('attendance.period.manage')
+                ? $this->periods($request, $locker)
+                : null,
             'stats' => $statistics->toArray($date),
             'options' => $this->indexOptions(),
             'can' => $this->permissions($request),
@@ -79,8 +96,40 @@ class AttendanceController extends Controller
                 'search' => $search,
                 'status' => $query->status($request),
                 'department' => $department,
+                'request_status' => $requests->status($request),
+                'request_type' => $requests->type($request),
             ],
         ]);
+    }
+
+    /**
+     * The periods, newest first, each open one with its lock checklist, and the
+     * calendar they are generated on.
+     *
+     * @return array<string, mixed>
+     */
+    private function periods(Request $request, PeriodLocker $locker): array
+    {
+        $organization = app(Tenancy::class)->organization();
+
+        $periods = AttendancePeriod::query()
+            ->with(['locker:id,first_name,middle_name,last_name,suffix', 'unlocker:id,first_name,middle_name,last_name,suffix'])
+            ->orderByDesc('start_date')
+            ->limit(24)
+            ->get()
+            ->each(function (AttendancePeriod $period) use ($locker): void {
+                if (! $period->isLocked()) {
+                    $period->checklist = $locker->checklist($period);
+                }
+            });
+
+        return [
+            'items' => AttendancePeriodResource::collection($periods)->resolve($request),
+            'settings' => [
+                'frequency' => $organization?->attendance_period_frequency ?? 'semi_monthly',
+                'reminder_days' => (int) ($organization?->attendance_lock_reminder_days ?? 2),
+            ],
+        ];
     }
 
     /**
@@ -90,7 +139,7 @@ class AttendanceController extends Controller
     {
         $tab = $request->string('tab')->toString();
 
-        return in_array($tab, ['today', 'weekly', 'monthly', 'roster'], true) ? $tab : 'today';
+        return in_array($tab, ['today', 'weekly', 'monthly', 'roster', 'requests', 'periods'], true) ? $tab : 'today';
     }
 
     /**
@@ -103,8 +152,12 @@ class AttendanceController extends Controller
             'employee.department:id,name',
             'employee.position:id,title',
             'punches.recorder:id,first_name,middle_name,last_name,suffix',
+            'replacedPunches',
             'approver:id,first_name,middle_name,last_name,suffix',
         ]);
+
+        // The requests that concern the day (ADR 0039).
+        $attendanceRecord->setRelation('dayRequests', $attendanceRecord->relatedRequests()->get());
 
         return new AttendanceRecordResource($attendanceRecord);
     }
@@ -115,9 +168,13 @@ class AttendanceController extends Controller
     public function store(StoreAttendanceRecordRequest $request): RedirectResponse
     {
         $employee = Employee::findOrFail($request->integer('employee_id'));
-        $record = $this->clock->openRecord($employee, $request->date('work_date')->toDateString());
 
-        $this->clock->applyManualPunches($record, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+        try {
+            $record = $this->clock->openRecord($employee, $request->date('work_date')->toDateString());
+            $this->clock->applyManualPunches($record, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+        } catch (AttendanceException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         if ($request->filled('remarks')) {
             $record->update(['remarks' => $request->string('remarks')->toString()]);
@@ -139,7 +196,11 @@ class AttendanceController extends Controller
      */
     public function update(UpdateAttendanceRecordRequest $request, AttendanceRecord $attendanceRecord): RedirectResponse
     {
-        $this->clock->applyManualPunches($attendanceRecord, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+        try {
+            $this->clock->applyManualPunches($attendanceRecord, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+        } catch (AttendanceException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         $attendanceRecord->update(['remarks' => $request->string('remarks')->toString() ?: null]);
         $attendanceRecord->load('employee:id,first_name,middle_name,last_name,suffix');
@@ -156,26 +217,29 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Approve a flagged record (a correction or overtime awaiting sign-off).
+     * Sign a day off (ADR 0039): what was awaiting review on it — overtime that
+     * needs approval — is approved as it stands.
      */
     public function approve(Request $request, AttendanceRecord $attendanceRecord): RedirectResponse
     {
-        $attendanceRecord->update([
-            'approval_status' => 'approved',
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-        ]);
+        try {
+            $this->clock->signOff($attendanceRecord, $request->user());
+        } catch (AttendanceException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
+
         $attendanceRecord->load('employee:id,first_name,middle_name,last_name,suffix');
 
         ActivityLogger::log(
             event: 'updated',
-            description: "Approved attendance for {$attendanceRecord->employee?->full_name} on {$attendanceRecord->work_date->format('M j')}",
+            description: "Signed off attendance for {$attendanceRecord->employee?->full_name} on {$attendanceRecord->work_date->format('M j')}",
             subject: $attendanceRecord,
+            properties: ['approved_overtime_minutes' => $attendanceRecord->approved_overtime_minutes],
             logName: 'attendance',
             subjectLabel: $attendanceRecord->employee?->full_name ?? 'employee',
         );
 
-        return $this->respond('Attendance approved.');
+        return $this->respond('Day signed off.');
     }
 
     /**
@@ -186,7 +250,12 @@ class AttendanceController extends Controller
      */
     public function reapply(AttendanceRecord $attendanceRecord): RedirectResponse
     {
-        $changed = $this->clock->reapplySchedule($attendanceRecord);
+        try {
+            $changed = $this->clock->reapplySchedule($attendanceRecord);
+        } catch (AttendanceException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
+
         $name = $attendanceRecord->employee?->full_name ?? 'employee';
 
         ActivityLogger::log(
@@ -219,6 +288,7 @@ class AttendanceController extends Controller
         $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
         $total = 0;
         $changed = 0;
+        $locked = 0;
 
         AttendanceRecord::query()
             ->whereBetween('work_date', [$from, $to])
@@ -229,9 +299,10 @@ class AttendanceController extends Controller
             ->with('employee')
             ->orderBy('work_date')
             ->orderBy('id')
-            ->chunk(200, function ($records) use ($holidays, &$total, &$changed): void {
-                $total += $records->count();
-                $changed += $this->clock->reapplyMany($records, $holidays);
+            ->chunk(200, function ($records) use ($holidays, &$total, &$changed, &$locked): void {
+                $changed += $this->clock->reapplyMany($records, $holidays, $skipped);
+                $total += $records->count() - $skipped;
+                $locked += $skipped;
             });
 
         $period = CarbonImmutable::parse($from)->format('M j').($from === $to ? '' : ' – '.CarbonImmutable::parse($to)->format('M j'));
@@ -240,31 +311,46 @@ class AttendanceController extends Controller
             ActivityLogger::log(
                 event: 'updated',
                 description: "Re-applied current schedules and policies to {$total} attendance ".str('record')->plural($total)." ({$period})",
-                properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed],
+                properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed, 'locked' => $locked],
                 logName: 'attendance',
                 subjectLabel: 'Attendance',
             );
         }
 
+        $frozen = $locked > 0 ? " {$locked} ".str('day')->plural($locked).' in a locked period left as they are.' : '';
+
         return $this->respond(
             $total > 0
-                ? "Re-applied to {$total} ".str('day')->plural($total)." — {$changed} changed."
-                : 'No recorded days in that period.',
+                ? "Re-applied to {$total} ".str('day')->plural($total)." — {$changed} changed.{$frozen}"
+                : ($locked > 0 ? 'Every recorded day in that period is locked.' : 'No recorded days in that period.'),
             $total > 0 ? 'success' : 'info',
         );
     }
 
     /**
-     * Approve every record still awaiting sign-off — a one-click way to clear the
-     * correction/overtime queue instead of approving them one at a time.
+     * Sign off every day still awaiting it — a one-click way to clear the queue
+     * instead of one day at a time. Only pending days are touched; each goes
+     * through the engine, so a day in a locked period, or the signer's own, is
+     * left and counted.
      */
     public function approveAll(Request $request): RedirectResponse
     {
-        $count = AttendanceRecord::where('approval_status', 'pending')->update([
-            'approval_status' => 'approved',
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-        ]);
+        $count = 0;
+        $skipped = 0;
+
+        AttendanceRecord::query()
+            ->where('approval_status', 'pending')
+            ->with('employee:id,user_id')
+            ->chunkById(200, function ($records) use ($request, &$count, &$skipped): void {
+                foreach ($records as $record) {
+                    try {
+                        $this->clock->signOff($record, $request->user());
+                        $count++;
+                    } catch (AttendanceException) {
+                        $skipped++;
+                    }
+                }
+            });
 
         if ($count > 0) {
             ActivityLogger::log(
@@ -275,10 +361,12 @@ class AttendanceController extends Controller
             );
         }
 
+        $left = $skipped > 0 ? " {$skipped} left — your own, or in a locked period." : '';
+
         return $this->respond(
             $count > 0
-                ? "Approved {$count} pending record".($count === 1 ? '' : 's').'.'
-                : 'No pending records to approve.',
+                ? "Approved {$count} pending record".($count === 1 ? '' : 's').".{$left}"
+                : ($skipped > 0 ? "Nothing approved.{$left}" : 'No pending records to approve.'),
             $count > 0 ? 'success' : 'info',
         );
     }
@@ -291,7 +379,12 @@ class AttendanceController extends Controller
         $attendanceRecord->load('employee:id,first_name,middle_name,last_name,suffix');
         $name = $attendanceRecord->employee?->full_name ?? 'employee';
         $date = $attendanceRecord->work_date->format('M j');
-        $attendanceRecord->delete();
+
+        try {
+            $this->clock->deleteRecord($attendanceRecord);
+        } catch (AttendanceException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         ActivityLogger::log(
             event: 'deleted',
@@ -315,6 +408,10 @@ class AttendanceController extends Controller
             'clock' => $user->can('attendance.clock'),
             'viewRoster' => $user->can('attendance.roster.view'),
             'manageRoster' => $user->can('attendance.roster.manage'),
+            'request' => $user->can('attendance.request'),
+            'reviewRequests' => $user->can('attendance.requests.review'),
+            'managePeriods' => $user->can('attendance.period.manage'),
+            'unlockPeriods' => $user->can('attendance.period.unlock'),
         ];
     }
 

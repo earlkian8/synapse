@@ -40,6 +40,8 @@ class Organization extends Model
         'phone',
         'address',
         'timezone',
+        'attendance_period_frequency',
+        'attendance_lock_reminder_days',
         'default_work_schedule_id',
         'tin',
         'sss_employer_no',
@@ -55,13 +57,16 @@ class Organization extends Model
     /**
      * Mirrors the column defaults so a freshly-made instance answers the same as one
      * read back from the database. `timezone` is the clock attendance is judged on
-     * — see {@see OrganizationClock}.
+     * — see {@see OrganizationClock}; the period frequency is the calendar
+     * attendance closes on (ADR 0039).
      *
      * @var array<string, mixed>
      */
     protected $attributes = [
         'join_code_enabled' => true,
         'timezone' => OrganizationClock::DEFAULT_TIMEZONE,
+        'attendance_period_frequency' => 'semi_monthly',
+        'attendance_lock_reminder_days' => 2,
     ];
 
     /**
@@ -79,6 +84,7 @@ class Organization extends Model
             'join_code_enabled' => 'boolean',
             'setup_completed_at' => 'datetime',
             'setup_steps' => 'array',
+            'attendance_lock_reminder_days' => 'integer',
         ];
     }
 

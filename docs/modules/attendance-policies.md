@@ -157,7 +157,9 @@ re-judge later ones until they are re-applied.
 `GET /attendance/export?tab=period` — the anchor `date`'s month, or `from` and `to`
 (`Y-m-d`, at most 62 days); honours `department` and `search`. Offered on the monthly tab
 as **Payroll summary**. One row per employee; figures in **whole minutes**, never money
-(ADR 0019). The columns, in order (`AttendanceExportController::PERIOD_COLUMNS`):
+(ADR 0019). The same file is written when an attendance period locks, and kept as that
+period's **payroll file** (ADR 0039). The columns, in order
+(`PeriodSummaryExport::COLUMNS`):
 
 | Column | Meaning |
 | --- | --- |

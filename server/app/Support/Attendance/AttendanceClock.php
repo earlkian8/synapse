@@ -2,11 +2,14 @@
 
 namespace App\Support\Attendance;
 
+use App\Models\AttendancePeriod;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Support\HolidayCalendar;
 use App\Support\OrganizationClock;
@@ -40,6 +43,10 @@ use Illuminate\Support\Facades\DB;
  *
  * The punch windows are the policy's too: how early a clock-in still counts
  * towards a shift, and how long an open shift keeps claiming punches.
+ *
+ * **A locked period is frozen here** (ADR 0039). Every write this engine makes
+ * to a day — a punch, a manual edit, a correction, a sign-off, a re-apply, a
+ * delete — asks {@see PeriodLock} first, so no caller can forget to.
  */
 class AttendanceClock
 {
@@ -75,6 +82,8 @@ class AttendanceClock
             Employee::query()->whereKey($employee->getKey())->lockForUpdate()->first(['id']);
 
             $date = $this->workDateFor($employee, $at, $type);
+            $this->lock()->assertOpen($date);
+
             $record = $this->findRecord($employee->id, $date, lock: true) ?? $this->newRecord($employee, $date);
 
             // Checked before anything is written, so a refused punch leaves no row.
@@ -147,10 +156,15 @@ class AttendanceClock
     /**
      * Find (or create) the employee's record for the given date, freezing the
      * schedule and holiday it will be judged by the first time the day is touched.
-     * For HR's explicit entry of a day — a punch goes through {@see punch()}.
+     * For HR's explicit entry of a day and an approved request — a punch goes
+     * through {@see punch()}. Refused inside a locked period.
+     *
+     * @throws AttendanceLockedException
      */
     public function openRecord(Employee $employee, string $date): AttendanceRecord
     {
+        $this->lock()->assertOpen($date);
+
         $record = $this->findRecord($employee->id, $date);
 
         if ($record !== null) {
@@ -206,10 +220,16 @@ class AttendanceClock
      * work date. A reading earlier than the one before it is the next morning, so a
      * night shift is entered the way it is worked: in 22:00, out 06:00.
      *
+     * The punches it replaces are soft-deleted, not erased (ADR 0039).
+     *
      * @param  array{time_in?: ?string, break_start?: ?string, break_end?: ?string, time_out?: ?string}  $times  Clock-face "HH:MM" values.
+     *
+     * @throws AttendanceLockedException
      */
     public function applyManualPunches(AttendanceRecord $record, array $times, int $recordedBy): void
     {
+        $this->lock()->assertOpen($record->work_date->toDateString());
+
         $record->punches()->delete();
 
         $date = $record->work_date->toDateString();
@@ -243,6 +263,119 @@ class AttendanceClock
 
         $record->is_manual = true;
         $this->refresh($record);
+    }
+
+    /**
+     * Apply an approved correction request (ADR 0039). Unlike HR's manual edit,
+     * which retypes the whole day, a correction changes only the punches it names:
+     * a forgotten clock-out gains a clock-out and keeps the clock-in the employee
+     * actually made.
+     *
+     * Each punch it changes is the one the day shows for that field — the first
+     * clock-in, the first break, the last clock-out. The replaced punch is
+     * soft-deleted and names the request; its replacement is `source =
+     * correction` and names it too. A reading earlier than the punch before it is
+     * the next morning, as in {@see applyManualPunches()}.
+     *
+     * @param  array<string, ?string>  $times  Clock-face "HH:MM" values keyed by AttendanceRequest::CORRECTION_FIELDS.
+     *
+     * @throws AttendanceLockedException
+     */
+    public function applyCorrection(AttendanceRecord $record, array $times, AttendanceRequest $request, int $recordedBy): void
+    {
+        $this->lock()->assertOpen($record->work_date->toDateString());
+
+        $punches = $record->punches()->get();
+        $current = [
+            'time_in' => $punches->firstWhere('type', 'clock_in'),
+            'break_start' => $punches->firstWhere('type', 'break_start'),
+            'break_end' => $punches->firstWhere('type', 'break_end'),
+            'time_out' => $punches->where('type', 'clock_out')->last(),
+        ];
+
+        $date = $record->work_date->toDateString();
+        $nextDate = CarbonImmutable::parse($date)->addDay()->toDateString();
+        $map = ['time_in' => 'clock_in', 'break_start' => 'break_start', 'break_end' => 'break_end', 'time_out' => 'clock_out'];
+        $previous = null;
+
+        foreach ($map as $field => $type) {
+            $time = trim((string) ($times[$field] ?? ''));
+            $existing = $current[$field];
+
+            if ($time === '') {
+                // Kept as it is — but it still decides whether a later reading
+                // is the next morning.
+                $previous = $existing !== null ? CarbonImmutable::instance($existing->punched_at)->utc() : $previous;
+
+                continue;
+            }
+
+            $at = OrganizationClock::at($date, $time);
+
+            if ($previous !== null && $at->lt($previous)) {
+                $at = OrganizationClock::at($nextDate, $time);
+            }
+
+            if ($existing !== null) {
+                $existing->forceFill(['replaced_by_request_id' => $request->id])->save();
+                $existing->delete();
+            }
+
+            $record->punches()->create([
+                'employee_id' => $record->employee_id,
+                'type' => $type,
+                'punched_at' => $at,
+                'source' => 'correction',
+                'recorded_by' => $recordedBy,
+                'attendance_request_id' => $request->id,
+            ]);
+
+            $previous = $at;
+        }
+
+        $record->is_manual = true;
+        $this->refresh($record);
+    }
+
+    /**
+     * Sign a day off (ADR 0039): somebody with the authority to has looked at
+     * what needed review on it. The overtime the day shows now is granted — the
+     * evaluator reads the grant back on every recompute, so it survives one, and
+     * overtime a later correction adds is not quietly approved with it.
+     *
+     * Nobody signs off their own day.
+     *
+     * @throws AttendanceException
+     */
+    public function signOff(AttendanceRecord $record, User $by): void
+    {
+        $this->lock()->assertOpen($record->work_date->toDateString());
+
+        $record->loadMissing('employee:id,user_id');
+
+        if ($record->employee?->user_id !== null && $record->employee->user_id === $by->id) {
+            throw new AttendanceException("You can't sign off your own attendance.");
+        }
+
+        $record->forceFill([
+            'approved_by' => $by->id,
+            'approved_at' => now(),
+            'signed_off_overtime_minutes' => (int) $record->overtime_minutes,
+        ]);
+
+        $this->refresh($record);
+    }
+
+    /**
+     * Delete a day and its punches. Refused inside a locked period.
+     *
+     * @throws AttendanceLockedException
+     */
+    public function deleteRecord(AttendanceRecord $record): void
+    {
+        $this->lock()->assertOpen($record->work_date->toDateString());
+
+        $record->delete();
     }
 
     /**
@@ -289,6 +422,8 @@ class AttendanceClock
                 ->whereDate('work_date', '<=', $before)
                 ->sum($column);
 
+        $requests = $this->requestContext($record, $date->toDateString());
+
         return new DayContext(
             scheduledStart: $record->scheduled_start_at !== null ? CarbonImmutable::instance($record->scheduled_start_at)->utc() : null,
             scheduledEnd: $record->scheduled_end_at !== null ? CarbonImmutable::instance($record->scheduled_end_at)->utc() : null,
@@ -300,7 +435,50 @@ class AttendanceClock
             monthExcusedLateMinutesBefore: $rules->policy->needsMonthContext()
                 ? $sum('excused_late_minutes', $date->startOfMonth())
                 : 0,
+            grantedOvertimeMinutes: $requests['grantedOvertimeMinutes'],
+            officialBusiness: $requests['officialBusiness'],
+            remoteWork: $requests['remoteWork'],
         );
+    }
+
+    /**
+     * What decided attendance requests say about a day (ADR 0039), in one query:
+     *
+     *  - **Granted overtime** — null while nobody has decided it. Once an
+     *    overtime request for the day is approved or rejected, or HR signs the
+     *    day off, it is the larger of the sign-off and the approved requests'
+     *    minutes (a sign-off already covers what was asked for, so they are not
+     *    added). A pre-approval filed before the day is matched here, whenever the
+     *    day is evaluated.
+     *  - **Official business** and **remote work** covering the day.
+     *
+     * @return array{grantedOvertimeMinutes: ?int, officialBusiness: bool, remoteWork: bool}
+     */
+    private function requestContext(AttendanceRecord $record, string $date): array
+    {
+        $requests = AttendanceRequest::query()
+            ->where('employee_id', $record->employee_id)
+            ->whereIn('status', ['approved', 'rejected'])
+            ->overlapping($date, $date)
+            ->get(['id', 'type', 'status', 'payload']);
+
+        $overtime = $requests->where('type', 'overtime');
+        $signedOff = $record->signed_off_overtime_minutes;
+
+        $granted = $overtime->isEmpty() && $signedOff === null
+            ? null
+            : max(
+                (int) $signedOff,
+                (int) $overtime->where('status', 'approved')->sum(fn (AttendanceRequest $request): int => $request->requestedMinutes()),
+            );
+
+        $approved = $requests->where('status', 'approved');
+
+        return [
+            'grantedOvertimeMinutes' => $granted,
+            'officialBusiness' => $approved->contains('type', 'official_business'),
+            'remoteWork' => $approved->contains('type', 'remote_work'),
+        ];
     }
 
     /**
@@ -312,8 +490,10 @@ class AttendanceClock
      */
     public function reapplySchedule(AttendanceRecord $record, ?array $holidays = null): bool
     {
-        $record->loadMissing('employee');
         $date = $record->work_date->toDateString();
+        $this->lock()->assertOpen($date);
+
+        $record->loadMissing('employee');
 
         $shift = $record->employee !== null
             ? $this->shifts->for($record->employee, $date)
@@ -345,11 +525,32 @@ class AttendanceClock
      * for every row; a period-wide re-apply over a month of a 200-person company
      * is 6,000 days.
      *
+     * A day inside a locked period is left exactly as it is (ADR 0039), and
+     * counted into `$skipped`.
+     *
      * @param  EloquentCollection<int, AttendanceRecord>  $records  With `employee` loaded.
      * @param  array<string, Holiday>  $holidays  The range's holidays keyed by "Y-m-d".
      */
-    public function reapplyMany(EloquentCollection $records, array $holidays): int
+    public function reapplyMany(EloquentCollection $records, array $holidays, ?int &$skipped = null): int
     {
+        $skipped = 0;
+
+        if ($records->isEmpty()) {
+            return 0;
+        }
+
+        $locked = $this->lockedPeriodsBetween(
+            (string) $records->min(fn (AttendanceRecord $record): string => $record->work_date->toDateString()),
+            (string) $records->max(fn (AttendanceRecord $record): string => $record->work_date->toDateString()),
+        );
+
+        $records = $records->reject(function (AttendanceRecord $record) use ($locked, &$skipped): bool {
+            $isLocked = $locked->contains(fn (AttendancePeriod $period): bool => $period->covers($record->work_date->toDateString()));
+            $skipped += $isLocked ? 1 : 0;
+
+            return $isLocked;
+        });
+
         if ($records->isEmpty()) {
             return 0;
         }
@@ -380,6 +581,21 @@ class AttendanceClock
         }
 
         return $changed;
+    }
+
+    /**
+     * The locked periods touching [from, to], read fresh — for walking a range of
+     * days that must leave the frozen ones alone.
+     *
+     * @return EloquentCollection<int, AttendancePeriod>
+     */
+    public function lockedPeriodsBetween(string $from, string $to): EloquentCollection
+    {
+        return AttendancePeriod::query()
+            ->where('status', 'locked')
+            ->whereDate('start_date', '<=', $to)
+            ->whereDate('end_date', '>=', $from)
+            ->get();
     }
 
     /**
@@ -679,6 +895,14 @@ class AttendanceClock
         $record->setRelation('punches', new EloquentCollection);
 
         return $record;
+    }
+
+    /**
+     * The request-scoped lock guard (ADR 0039).
+     */
+    private function lock(): PeriodLock
+    {
+        return app(PeriodLock::class);
     }
 
     private function isOnApprovedLeave(int $employeeId, string $date): bool

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesOrganizations;
+use App\Models\AttendancePeriod;
 use App\Models\AttendanceRecord;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\HolidayCalendar;
@@ -27,7 +28,9 @@ use Illuminate\Database\Eloquent\Collection;
  * snapshot; that stays HR's explicit "re-apply". It is also how the minute
  * buckets ADR 0038 added are filled for days recorded before them: a day with no
  * policy in its snapshot is judged by the built-in fallback, which reaches the
- * status and totals it already had. Organisations are walked
+ * status and totals it already had. A day inside a locked attendance period is
+ * never touched (ADR 0039) — it is counted and left as payroll received it.
+ * Organisations are walked
  * one at a time with each bound as the tenant, so every day is judged on its own
  * organisation's clock.
  */
@@ -66,9 +69,10 @@ class RecomputeAttendance extends Command
         $report = [];
         $checked = 0;
         $filled = 0;
+        $locked = 0;
 
         foreach ($organizations as $organization) {
-            $tenancy->runFor($organization, function () use ($organization, $clock, $from, $to, $dryRun, &$report, &$checked, &$filled): void {
+            $tenancy->runFor($organization, function () use ($organization, $clock, $from, $to, $dryRun, &$report, &$checked, &$filled, &$locked): void {
                 $query = AttendanceRecord::query()
                     ->when($from, fn (Builder $q) => $q->whereDate('work_date', '>=', $from))
                     ->when($to, fn (Builder $q) => $q->whereDate('work_date', '<=', $to));
@@ -83,14 +87,23 @@ class RecomputeAttendance extends Command
                 // The span's holidays once per organisation, not once per day.
                 $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($first), CarbonImmutable::parse($last));
 
+                // Frozen days are left exactly as they are (ADR 0039).
+                $periods = $clock->lockedPeriodsBetween(CarbonImmutable::parse($first)->toDateString(), CarbonImmutable::parse($last)->toDateString());
+
                 // In date order: weekly overtime and a monthly grace allowance read
                 // the days before each one as they have just been saved (ADR 0038).
                 $query->with('employee:id,first_name,middle_name,last_name,suffix')
                     ->orderBy('work_date')
                     ->orderBy('id')
-                    ->chunk(200, function (Collection $records) use ($organization, $clock, $holidays, $dryRun, &$report, &$checked, &$filled): void {
+                    ->chunk(200, function (Collection $records) use ($organization, $clock, $holidays, $periods, $dryRun, &$report, &$checked, &$filled, &$locked): void {
                         foreach ($records as $record) {
                             /** @var AttendanceRecord $record */
+                            if ($periods->contains(fn (AttendancePeriod $period): bool => $period->covers($record->work_date->toDateString()))) {
+                                $locked++;
+
+                                continue;
+                            }
+
                             $checked++;
                             $before = $this->figures($record);
 
@@ -133,6 +146,10 @@ class RecomputeAttendance extends Command
             count($report), str('day')->plural(count($report)),
         ));
 
+        if ($locked > 0) {
+            $this->comment(sprintf('%d %s in locked periods left as they are.', $locked, str('day')->plural($locked)));
+        }
+
         if ($dryRun) {
             $this->comment('Dry run — nothing was written.');
         }
@@ -161,6 +178,7 @@ class RecomputeAttendance extends Command
             'night' => (int) $record->night_minutes,
             'rest day' => (int) $record->rest_day_minutes,
             'holiday' => (int) $record->holiday_minutes,
+            'sign-off' => $record->approval_status,
         ];
     }
 

@@ -31,10 +31,19 @@ returning the recipient count.
 ```php
 Notifier::toUser($user, 'Welcome to SYNAPSE', 'Your account is ready.', url: '/dashboard', level: 'success');
 Notifier::toRole('hr-manager', 'Policy update', 'The 2026 leave policy is live.');
+Notifier::toPermission('attendance.requests.review', 'Attendance request to review', '…', except: [$employee->user_id]);
 Notifier::toAll('Maintenance tonight', 'The system will be down at 10pm.', level: 'warning');
 ```
 
-`toRole` and `toAll` target **active** users only. Every call funnels through
+`toRole`, `toPermission` and `toAll` target **active** users only. `toPermission`
+(ADR 0039) reaches the current organisation's members who hold a permission through any
+role — or the super-admin role — so work goes to whoever may do it rather than to one
+named role; `except` leaves out the person a notice is about.
+
+Attendance (category `attendance`) sends three: a new request → every reviewer but the
+employee; a decision → the employee and whoever filed it, with the reviewer's note; a
+period coming due → holders of `attendance.period.manage`, once (from
+`attendance:periods`). Every call funnels through
 `SystemNotification` — the one notification class for the whole app.
 
 ---

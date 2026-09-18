@@ -58,6 +58,10 @@ class PermissionRegistry
             'attendance.clock' => 'Clock in / out (self-service)',
             'attendance.roster.view' => 'View the shift roster',
             'attendance.roster.manage' => 'Assign schedules & set one-off shift overrides',
+            'attendance.request' => 'File & cancel your own attendance requests (corrections, overtime, official business, remote work)',
+            'attendance.requests.review' => "Approve / reject other people's attendance requests",
+            'attendance.period.manage' => 'Generate & lock attendance periods',
+            'attendance.period.unlock' => 'Unlock a locked attendance period',
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',

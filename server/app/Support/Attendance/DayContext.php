@@ -18,6 +18,11 @@ use Carbon\CarbonImmutable;
  *    lateness the month has already forgiven (a monthly grace allowance). Both
  *    are zero unless the policy needs them, and the caller only asks the
  *    database when it does.
+ *  - What approved attendance requests say about the day (ADR 0039): how much
+ *    overtime has been granted — by approved overtime requests or by HR signing
+ *    the day off — and whether the day was spent on official business or
+ *    working remotely. `grantedOvertimeMinutes` is null while nobody has decided
+ *    the day's overtime; a number (zero after a rejection) once somebody has.
  */
 final readonly class DayContext
 {
@@ -28,5 +33,8 @@ final readonly class DayContext
         public bool $onApprovedLeave = false,
         public int $weekRegularMinutesBefore = 0,
         public int $monthExcusedLateMinutesBefore = 0,
+        public ?int $grantedOvertimeMinutes = null,
+        public bool $officialBusiness = false,
+        public bool $remoteWork = false,
     ) {}
 }

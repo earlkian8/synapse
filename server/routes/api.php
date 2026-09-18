@@ -56,6 +56,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('attendance/records', [AttendanceController::class, 'records'])->name('api.attendance.records');
     Route::get('attendance/summary', [AttendanceController::class, 'summary'])->name('api.attendance.summary');
 
+    // My attendance requests (ADR 0039): corrections, overtime, official
+    // business, remote work. Decided in the ERP.
+    Route::get('attendance/requests', [AttendanceController::class, 'requests'])->name('api.attendance.requests.index');
+    Route::post('attendance/requests', [AttendanceController::class, 'storeRequest'])->middleware('can:attendance.request')->name('api.attendance.requests.store');
+    Route::get('attendance/requests/{attendanceRequest}', [AttendanceController::class, 'showRequest'])
+        ->whereNumber('attendanceRequest')->name('api.attendance.requests.show');
+    Route::patch('attendance/requests/{attendanceRequest}/cancel', [AttendanceController::class, 'cancelRequest'])
+        ->whereNumber('attendanceRequest')->name('api.attendance.requests.cancel');
+
     // The employee's own 201 profile and recognitions.
     Route::get('profile', [ProfileController::class, 'show'])->name('api.profile.show');
     Route::get('awards', [AwardController::class, 'index'])->name('api.awards.index');

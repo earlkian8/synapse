@@ -16,9 +16,9 @@ use Illuminate\Console\Command;
  * to clock in first" — and that empty record then sat on the board as an absence.
  *
  * A record is removed only when all of it says it is one of those: no punches,
- * not entered by hand, no remarks, and the same employee's previous day was left
- * open (clocked in, never out). Anything else with no punches is a real day and is
- * left alone. Run it with `--dry-run` first.
+ * not entered by hand, no remarks, not a day of official business, and the same
+ * employee's previous day was left open (clocked in, never out). Anything else
+ * with no punches is a real day and is left alone. Run it with `--dry-run` first.
  */
 class PruneOrphanAttendanceDays extends Command
 {
@@ -51,6 +51,12 @@ class PruneOrphanAttendanceDays extends Command
                     ->get();
 
                 foreach ($candidates as $record) {
+                    // A day approved official business opened has no punches by
+                    // design (ADR 0039) — it is a real day, not an orphan.
+                    if (in_array('official_business', $record->flags ?? [], true)) {
+                        continue;
+                    }
+
                     $previous = CarbonImmutable::parse($record->work_date->toDateString())->subDay()->toDateString();
 
                     $followsOpenDay = AttendanceRecord::query()

@@ -44,7 +44,7 @@ class AttendancePolicyController extends Controller
             // What a policy that sets nothing judges by — the built-in fallback,
             // which is where "start from scratch" begins.
             'fallback' => AttendancePolicySettings::fallback()->toArray(),
-            'sources' => AttendancePunch::SOURCES,
+            'sources' => AttendancePunch::CAPTURE_SOURCES,
             'can' => ['manage' => $request->user()->can('setup.attendance-policies.manage')],
         ]);
     }

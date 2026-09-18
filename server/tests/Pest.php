@@ -1,10 +1,20 @@
 <?php
 
+use App\Models\AttendancePolicy;
+use App\Models\AttendancePunch;
+use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Permission;
 use App\Models\RecruitmentPipeline;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\WorkSchedule;
+use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\AttendancePolicySettings;
+use App\Support\Attendance\ScheduleAssigner;
+use App\Support\Attendance\SchedulePatternWriter;
 use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -180,4 +190,81 @@ function seedDefaultPipeline(): RecruitmentPipeline
             'organization_id' => $organization->id,
             'is_default' => true,
         ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Attendance request helpers (ADR 0039)
+|--------------------------------------------------------------------------
+|
+| Shared by AttendanceRequestsTest and AttendancePeriodsTest: a Mon–Fri
+| 08:00–17:00 worker in Asia/Manila, a day entered through the engine, and a
+| request filed straight into the table.
+|
+*/
+
+/** A Mon–Fri 08:00–17:00 schedule, judged by settings laid over the fallback. */
+function requestSchedule(array $policy = []): WorkSchedule
+{
+    testOrganization()->forceFill(['timezone' => 'Asia/Manila'])->save();
+
+    $schedule = WorkSchedule::create(['name' => 'Day Shift', 'type' => 'fixed', 'grace_minutes' => 0, 'cycle_length_days' => 7]);
+
+    app(SchedulePatternWriter::class)->write($schedule, array_map(fn (int $i): array => [
+        'is_rest_day' => $i >= 5,
+        'segments' => [['start' => '08:00', 'end' => '17:00']],
+        'required_minutes' => 480,
+    ], range(0, 6)));
+
+    if ($policy !== []) {
+        AttendancePolicy::create([
+            'name' => 'Needs approval',
+            'settings' => AttendancePolicySettings::fromArray($policy)->toArray(),
+            'settings_version' => AttendancePolicySettings::VERSION,
+            'is_default' => true,
+        ]);
+    }
+
+    return $schedule->refresh();
+}
+
+/** An employee on the day shift, optionally the signed-in user's own record. */
+function requestWorker(?User $user = null, array $policy = []): Employee
+{
+    $schedule = requestSchedule($policy);
+    $employee = Employee::factory()->create(['work_schedule_id' => null, 'user_id' => $user?->id]);
+    app(ScheduleAssigner::class)->assign($employee, $schedule, '2026-09-01');
+
+    return $employee->refresh();
+}
+
+/** A day entered through the engine, as HR would. */
+function workedDay(Employee $employee, string $date, array $times): AttendanceRecord
+{
+    $clock = app(AttendanceClock::class);
+    $record = $clock->openRecord($employee, $date);
+    $clock->applyManualPunches($record, $times, User::factory()->create()->id);
+
+    return $record->refresh();
+}
+
+/** A pending request filed straight into the table. */
+function pendingRequest(Employee $employee, string $type, string $start, array $payload, ?string $end = null): AttendanceRequest
+{
+    return AttendanceRequest::create([
+        'employee_id' => $employee->id,
+        'type' => $type,
+        'start_date' => $start,
+        'end_date' => $end ?? $start,
+        'payload' => $payload,
+        'reason' => 'Because.',
+        'status' => 'pending',
+    ]);
+}
+
+function localTimes(AttendanceRecord $record): array
+{
+    return $record->punches()->get()
+        ->map(fn (AttendancePunch $punch): string => $punch->type.' '.$punch->punched_at->setTimezone('Asia/Manila')->format('H:i'))
+        ->all();
 }

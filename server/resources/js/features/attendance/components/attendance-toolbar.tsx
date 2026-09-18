@@ -120,11 +120,14 @@ function periodLabel(date: string, tab: AttendanceTab, today: string): string {
     });
 }
 
+// The requests and periods tabs have no date to step through, and no toolbar.
 const RESET_LABEL: Record<AttendanceTab, string> = {
     today: 'Today',
     weekly: 'This week',
     monthly: 'This month',
     roster: 'This week',
+    requests: 'Today',
+    periods: 'Today',
 };
 
 export function AttendanceToolbar({

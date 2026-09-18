@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
-use App\Models\Employee;
 use App\Queries\AttendanceMonthlyReport;
-use App\Queries\AttendanceRangeQuery;
 use App\Queries\AttendanceRecordsIndexQuery;
 use App\Queries\AttendanceWeeklyQuery;
+use App\Support\Attendance\PeriodSummaryExport;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -33,22 +32,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AttendanceExportController extends Controller
 {
     /**
-     * The payroll period summary's columns, in order. Documented in
-     * docs/modules/attendance-policies.md — change one and the doc changes too.
+     * The payroll period summary's columns, in order — written by
+     * {@see PeriodSummaryExport}, which a locked period's file uses too.
      */
-    public const PERIOD_COLUMNS = [
-        'Employee', 'Employee No.', 'Department', 'Period Start', 'Period End',
-        'Days Worked', 'Absences', 'Half Days', 'Late Days', 'Holidays',
-        'Worked (min)', 'Late (min)', 'Undertime (min)', 'Regular (min)', 'Overtime (min)',
-        'Approved Overtime (min)', 'Night (min)', 'Rest Day (min)', 'Holiday (min)',
-    ];
+    public const PERIOD_COLUMNS = PeriodSummaryExport::COLUMNS;
 
     public function __invoke(
         Request $request,
         AttendanceRecordsIndexQuery $roster,
         AttendanceWeeklyQuery $weekly,
         AttendanceMonthlyReport $monthly,
-        AttendanceRangeQuery $range,
+        PeriodSummaryExport $summary,
     ): StreamedResponse {
         $date = $roster->date($request);
         $tab = $this->tab($request);
@@ -63,13 +57,13 @@ class AttendanceExportController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        return response()->stream(function () use ($tab, $date, $from, $to, $department, $search, $request, $roster, $weekly, $monthly, $range): void {
+        return response()->stream(function () use ($tab, $date, $from, $to, $department, $search, $request, $roster, $weekly, $monthly, $summary): void {
             $handle = fopen('php://output', 'w');
 
             match ($tab) {
                 'weekly' => $this->weekly($handle, $weekly->toArray($date, $department, $search)),
                 'monthly' => $this->monthly($handle, $monthly->toArray($date, $department, $search)),
-                'period' => $this->periodSummary($handle, $from, $to, $range->days($from, $to, $department, $search)),
+                'period' => $summary->write($handle, $from, $to, $department, $search),
                 default => $this->daily($handle, $roster->get($request)),
             };
 
@@ -220,46 +214,6 @@ class AttendanceExportController extends Controller
                 $this->hours($row['minutes']['rest_day']),
                 $this->hours($row['minutes']['holiday']),
                 $row['attendance_rate'] === null ? '' : $row['attendance_rate'],
-            ]);
-        }
-    }
-
-    /**
-     * The payroll period summary: one row per employee for the period, every
-     * figure in whole minutes so nothing is lost to rounding on the way into a
-     * payroll system. The column set is documented, and stable.
-     *
-     * @param  resource  $handle
-     * @param  Collection<int, array{employee: Employee, cells: list<array<string, mixed>>}>  $rows
-     */
-    private function periodSummary($handle, string $from, string $to, Collection $rows): void
-    {
-        fputcsv($handle, self::PERIOD_COLUMNS);
-
-        foreach ($rows as $row) {
-            $summary = AttendanceMonthlyReport::summarize($row['employee'], $row['cells']);
-            $minutes = $summary['minutes'];
-
-            fputcsv($handle, [
-                $summary['employee']['full_name'],
-                $summary['employee']['employee_no'],
-                $summary['employee']['department']['name'] ?? null,
-                $from,
-                $to,
-                $summary['present_days'],
-                $summary['absent_count'],
-                $summary['half_day_count'],
-                $summary['late_count'],
-                $summary['holiday_count'],
-                $minutes['worked'],
-                $minutes['late'],
-                $minutes['undertime'],
-                $minutes['regular'],
-                $minutes['overtime'],
-                $minutes['approved_overtime'],
-                $minutes['night'],
-                $minutes['rest_day'],
-                $minutes['holiday'],
             ]);
         }
     }

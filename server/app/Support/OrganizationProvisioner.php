@@ -170,7 +170,7 @@ class OrganizationProvisioner
                 'is_system' => true,
                 'permissions' => [
                     // Self-service (as an employee themselves)
-                    'attendance.clock', 'leave.request',
+                    'attendance.clock', 'attendance.request', 'leave.request',
                     // Team visibility
                     'employees.view',
                     'attendance.view',
@@ -178,6 +178,7 @@ class OrganizationProvisioner
                     'training.view', 'awards.view', 'events.view',
                     // Supervisory actions
                     'leave.view', 'leave.manage',
+                    'attendance.requests.review',
                     'performance.view', 'performance.manage',
                     // Decision support (view-only) for their people
                     'analytics.performance.view',
@@ -185,8 +186,9 @@ class OrganizationProvisioner
                 ],
             ],
 
-            // 3. Staff — the regular employee. Self-service only: record attendance
-            //    and file/cancel their own leave (web or the mobile DTR app).
+            // 3. Staff — the regular employee. Self-service only: record attendance,
+            //    ask for attendance corrections, and file/cancel their own leave
+            //    (web or the mobile DTR app).
             [
                 'name' => Role::STAFF,
                 'label' => 'Staff',
@@ -194,6 +196,7 @@ class OrganizationProvisioner
                 'is_system' => true,
                 'permissions' => [
                     'attendance.clock',
+                    'attendance.request',
                     'leave.request',
                 ],
             ],

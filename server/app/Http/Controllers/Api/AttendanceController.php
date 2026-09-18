@@ -4,20 +4,32 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\PunchRequest;
+use App\Http\Requests\Attendance\StoreAttendanceRequestRequest;
 use App\Http\Resources\AttendanceRecordResource;
+use App\Http\Resources\AttendanceRequestResource;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\AttendanceException;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Attendance\AttendanceRequestApprover;
+use App\Support\Attendance\AttendanceRequestFiler;
 use App\Support\OrganizationClock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * The mobile DTR surface: the same {@see AttendanceClock} the web self-service
  * uses, exposed over a token-authenticated API. Punches default to `source =
  * mobile` and carry GPS coordinates + an optional selfie.
+ *
+ * The employee's own attendance requests (ADR 0039) go through the same
+ * {@see AttendanceRequestFiler} and {@see AttendanceRequestApprover} as the web.
+ * The app files for its signed-in employee only; filing for someone else is the
+ * ERP's.
  */
 class AttendanceController extends Controller
 {
@@ -145,6 +157,91 @@ class AttendanceController extends Controller
             'rest_day_minutes' => (int) $records->sum('rest_day_minutes'),
             'holiday_minutes' => (int) $records->sum('holiday_minutes'),
         ]);
+    }
+
+    /**
+     * My attendance requests, newest first (paginated), optionally by status.
+     */
+    public function requests(Request $request): AnonymousResourceCollection
+    {
+        $employee = $this->employee($request);
+
+        $requests = AttendanceRequest::query()
+            ->with('employee:id,user_id')
+            ->where('employee_id', $employee->id)
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(min($request->integer('per_page', 20), 100));
+
+        return AttendanceRequestResource::collection($requests);
+    }
+
+    /**
+     * File a request for myself — a correction, overtime, official business or
+     * remote work.
+     */
+    public function storeRequest(StoreAttendanceRequestRequest $request, AttendanceRequestFiler $filer): JsonResponse
+    {
+        $employee = $this->employee($request);
+
+        try {
+            $filed = $filer->file(
+                $employee,
+                ['employee_id' => $employee->id] + $request->validated(),
+                $request->user(),
+                $request->file('attachment'),
+                via: 'mobile',
+            );
+        } catch (AttendanceException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'data' => (new AttendanceRequestResource($filed))->resolve($request),
+            'message' => 'Request sent for review.',
+        ], 201);
+    }
+
+    /**
+     * One of my requests, with the day it concerns.
+     */
+    public function showRequest(Request $request, int $attendanceRequest): JsonResponse
+    {
+        $filed = $this->ownRequest($request, $attendanceRequest)->load(['employee:id,user_id', 'reviewer:id,first_name,middle_name,last_name,suffix', 'record.punches', 'replacedPunches']);
+
+        return response()->json(['data' => (new AttendanceRequestResource($filed))->resolve($request)]);
+    }
+
+    /**
+     * Withdraw one of my pending requests.
+     */
+    public function cancelRequest(Request $request, int $attendanceRequest, AttendanceRequestApprover $approver): JsonResponse
+    {
+        $filed = $this->ownRequest($request, $attendanceRequest);
+
+        try {
+            $approver->cancel($filed, $request->user());
+        } catch (AttendanceException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'data' => (new AttendanceRequestResource($filed->load('employee:id,user_id')))->resolve($request),
+            'message' => 'Request cancelled.',
+        ]);
+    }
+
+    /**
+     * One of the token user's own requests, or 404 — the app never reaches
+     * anybody else's.
+     */
+    private function ownRequest(Request $request, int $id): AttendanceRequest
+    {
+        return AttendanceRequest::query()
+            ->where('id', $id)
+            ->where('employee_id', $this->employee($request)->id)
+            ->firstOrFail();
     }
 
     /**

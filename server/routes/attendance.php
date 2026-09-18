@@ -2,14 +2,17 @@
 
 use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\Attendance\AttendanceExportController;
+use App\Http\Controllers\Attendance\AttendancePeriodController;
+use App\Http\Controllers\Attendance\AttendanceRequestController;
 use App\Http\Controllers\Attendance\MyAttendanceController;
 use App\Http\Controllers\Attendance\ShiftRosterController;
 use Illuminate\Support\Facades\Route;
 
 /*
 | Attendance — the Daily Time Record (DTR). The HR board (everyone's day), the
-| shift roster (everyone's plan) and the employee self-service clock live here;
-| records and roster entries are addressed by hashid. The
+| shift roster (everyone's plan), requests and periods (ADR 0039) and the
+| employee self-service clock live here; records, roster entries, requests and
+| periods are addressed by hashid. The
 | literal `me` / `records` segments are declared before the `{attendanceRecord}`
 | wildcard so they resolve correctly. Every route is permission-gated. The
 | mobile-facing equivalents are token-authenticated in routes/api.php.
@@ -32,6 +35,23 @@ Route::middleware(['auth', 'verified'])
         Route::post('roster/entries', [ShiftRosterController::class, 'store'])->middleware('can:attendance.roster.manage')->name('roster.store');
         Route::delete('roster/entries/{shiftRosterEntry}', [ShiftRosterController::class, 'destroy'])->middleware('can:attendance.roster.manage')->name('roster.destroy');
         Route::post('roster/assign', [ShiftRosterController::class, 'assign'])->middleware('can:attendance.roster.manage')->name('roster.assign');
+
+        // Requests (ADR 0039) — filed by the employee (or HR on their behalf),
+        // decided by a reviewer. Literal `review` before the wildcard. Viewing and
+        // cancelling one are checked against the request itself: its employee, its
+        // filer, or a reviewer.
+        Route::post('requests', [AttendanceRequestController::class, 'store'])->middleware('can:attendance.request')->name('requests.store');
+        Route::patch('requests/review', [AttendanceRequestController::class, 'bulkReview'])->middleware('can:attendance.requests.review')->name('requests.bulk-review');
+        Route::get('requests/{attendanceRequest}', [AttendanceRequestController::class, 'show'])->name('requests.show');
+        Route::patch('requests/{attendanceRequest}/review', [AttendanceRequestController::class, 'review'])->middleware('can:attendance.requests.review')->name('requests.review');
+        Route::patch('requests/{attendanceRequest}/cancel', [AttendanceRequestController::class, 'cancel'])->name('requests.cancel');
+
+        // Periods and the lock (ADR 0039). Unlocking is its own permission.
+        Route::post('periods/generate', [AttendancePeriodController::class, 'generate'])->middleware('can:attendance.period.manage')->name('periods.generate');
+        Route::patch('periods/settings', [AttendancePeriodController::class, 'settings'])->middleware('can:attendance.period.manage')->name('periods.settings');
+        Route::post('periods/{attendancePeriod}/lock', [AttendancePeriodController::class, 'lock'])->middleware('can:attendance.period.manage')->name('periods.lock');
+        Route::post('periods/{attendancePeriod}/unlock', [AttendancePeriodController::class, 'unlock'])->middleware('can:attendance.period.unlock')->name('periods.unlock');
+        Route::get('periods/{attendancePeriod}/export', [AttendancePeriodController::class, 'export'])->middleware('can:attendance.period.manage')->name('periods.export');
 
         // Self-service (any authenticated user linked to an employee).
         Route::get('me', [MyAttendanceController::class, 'index'])->name('me');

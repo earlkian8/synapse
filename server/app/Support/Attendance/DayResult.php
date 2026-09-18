@@ -22,6 +22,8 @@ final readonly class DayResult
 {
     /** Every flag the evaluator can raise. Phase 4 adds capture flags. */
     public const FLAGS = [
+        'official_business',
+        'remote_work',
         'late',
         'undertime',
         'half_day',
@@ -33,6 +35,13 @@ final readonly class DayResult
         'rest_day_worked',
         'holiday_worked',
     ];
+
+    /**
+     * Flags that put a day in front of a manager before it counts (ADR 0039). A
+     * day carrying one is `approval_status = pending` until somebody signs it
+     * off. Phase 4 adds `auto_closed` and `outside_geofence`.
+     */
+    public const REVIEW_FLAGS = ['unapproved_overtime'];
 
     /**
      * @param  list<string>  $flags
@@ -78,6 +87,30 @@ final readonly class DayResult
         $record->holiday_minutes = $this->holidayMinutes;
         $record->flags = $this->flags;
         $record->status = $this->status;
+        $record->approval_status = $this->approvalStatus($record);
+    }
+
+    /**
+     * Whether the day carries something a manager has to look at.
+     */
+    public function needsSignOff(): bool
+    {
+        return array_intersect($this->flags, self::REVIEW_FLAGS) !== [];
+    }
+
+    /**
+     * What `approval_status` means from ADR 0039 on — *needs sign-off* — derived
+     * rather than stored, so it cannot drift from the day: `pending` while the day
+     * carries a review flag, `approved` once somebody has signed it off and
+     * nothing new needs review, and null for a day nobody has to look at.
+     */
+    private function approvalStatus(AttendanceRecord $record): ?string
+    {
+        return match (true) {
+            $this->needsSignOff() => 'pending',
+            $record->approved_at !== null => 'approved',
+            default => null,
+        };
     }
 
     /**

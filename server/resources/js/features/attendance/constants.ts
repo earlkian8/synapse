@@ -3,8 +3,12 @@ import type { LucideIcon } from 'lucide-react';
 import type {
     AttendanceFlag,
     AttendanceRecord,
+    AttendanceRequestPayload,
+    AttendanceRequestStatus,
+    AttendanceRequestType,
     AttendanceStatus,
     AttendanceTab,
+    PeriodFrequency,
     PunchSource,
     PunchType,
     ShiftSource,
@@ -109,6 +113,8 @@ export const FLAG_LABELS: Record<AttendanceFlag, string> = {
     unapproved_overtime: 'Overtime awaiting approval',
     rest_day_worked: 'Worked a rest day',
     holiday_worked: 'Worked a holiday',
+    official_business: 'Official business',
+    remote_work: 'Worked remotely',
 };
 
 /** Flags worth a chip — the ones the day's minutes do not already say. */
@@ -121,6 +127,8 @@ export const CHIP_FLAGS: AttendanceFlag[] = [
     'break_deducted',
     'rest_day_worked',
     'holiday_worked',
+    'official_business',
+    'remote_work',
 ];
 
 /** A flag's chip tone: something to act on, or something to know. */
@@ -135,6 +143,8 @@ export const FLAG_TONES: Record<AttendanceFlag, 'warn' | 'info'> = {
     unapproved_overtime: 'warn',
     rest_day_worked: 'info',
     holiday_worked: 'info',
+    official_business: 'info',
+    remote_work: 'info',
 };
 
 /**
@@ -229,6 +239,7 @@ export const SOURCE_LABELS: Record<PunchSource, string> = {
     kiosk: 'Kiosk',
     biometric: 'Biometric',
     manual: 'Entered by hand',
+    correction: 'Approved correction',
 };
 
 export const PUNCH_META: Record<PunchType, PunchMeta> = {
@@ -256,6 +267,140 @@ export const PUNCH_META: Record<PunchType, PunchMeta> = {
         icon: Play,
         accent: 'text-sky-600 bg-sky-500/10 dark:text-sky-400',
     },
+};
+
+// ── Requests (ADR 0039) ──────────────────────────────────────────────────────
+
+/** A request type the way the employee would ask for it. */
+export const REQUEST_TYPE_LABELS: Record<AttendanceRequestType, string> = {
+    correction: 'Correction',
+    overtime: 'Overtime',
+    official_business: 'Official business',
+    remote_work: 'Remote work',
+};
+
+/** What each type is for, in one line — the file dialog's helper text. */
+export const REQUEST_TYPE_HINTS: Record<AttendanceRequestType, string> = {
+    correction: 'A punch the clock missed or got wrong.',
+    overtime: 'Time past your shift that needs approval.',
+    official_business: 'Away from the site on company business.',
+    remote_work: 'Working somewhere other than the site.',
+};
+
+export const REQUEST_STATUS_LABELS: Record<AttendanceRequestStatus, string> = {
+    pending: 'Pending',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    cancelled: 'Cancelled',
+};
+
+/** The inbox's status tabs; pending — the work — first. */
+export const REQUEST_STATUS_FILTERS: {
+    value: AttendanceRequestStatus | 'all';
+    label: string;
+}[] = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'all', label: 'All' },
+];
+
+export const REQUEST_STATUS_STYLES: Record<AttendanceRequestStatus, string> = {
+    pending:
+        'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    approved:
+        'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    rejected:
+        'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    cancelled:
+        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+};
+
+/** The four fields a correction can propose, in the order a day happens. */
+export const CORRECTION_FIELDS = [
+    { key: 'time_in', label: 'Time in', punch: 'clock_in' },
+    { key: 'break_start', label: 'Break start', punch: 'break_start' },
+    { key: 'break_end', label: 'Break end', punch: 'break_end' },
+    { key: 'time_out', label: 'Time out', punch: 'clock_out' },
+] as const;
+
+/** "08:00" → "8:00 AM", for a clock-face reading that is not an instant. */
+export function formatClockFace(time: string | null | undefined): string {
+    if (!time) {
+        return '—';
+    }
+
+    const [hours, minutes] = time.split(':').map(Number);
+    const date = new Date(2000, 0, 1, hours, minutes);
+
+    return date.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+}
+
+/**
+ * What a request asks for, in a line: "Time out 6:00 PM", "2h overtime",
+ * "Client site, 9:00 AM – 3:00 PM".
+ */
+export function describeRequest(
+    type: AttendanceRequestType,
+    payload: AttendanceRequestPayload,
+): string {
+    if (type === 'correction') {
+        const parts = CORRECTION_FIELDS.filter(({ key }) => payload[key]).map(
+            ({ key, label }) => `${label} ${formatClockFace(payload[key])}`,
+        );
+
+        return parts.length > 0 ? parts.join(', ') : 'No times given';
+    }
+
+    if (type === 'overtime') {
+        return `${formatDuration(payload.minutes ?? 0)} overtime${payload.pre_approval ? ', asked in advance' : ''}`;
+    }
+
+    const window =
+        payload.start_time && payload.end_time
+            ? `${formatClockFace(payload.start_time)} – ${formatClockFace(payload.end_time)}`
+            : null;
+
+    return (
+        [payload.location, window].filter(Boolean).join(', ') ||
+        (type === 'official_business'
+            ? 'A full working day'
+            : 'Punches still required')
+    );
+}
+
+/** "Sep 14" or "Sep 14 – 16", from calendar dates. */
+export function formatDateRange(start: string, end: string): string {
+    const format = (date: string, withMonth = true) =>
+        new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+            month: withMonth ? 'short' : undefined,
+            day: 'numeric',
+        });
+
+    if (start === end) {
+        return new Date(`${start}T00:00:00`).toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+        });
+    }
+
+    return start.slice(0, 7) === end.slice(0, 7)
+        ? `${format(start)} – ${format(end, false)}`
+        : `${format(start)} – ${format(end)}`;
+}
+
+// ── Periods (ADR 0039) ───────────────────────────────────────────────────────
+
+export const PERIOD_FREQUENCY_LABELS: Record<PeriodFrequency, string> = {
+    weekly: 'Weekly (Mon–Sun)',
+    bi_weekly: 'Every two weeks',
+    semi_monthly: 'Twice a month (1–15, 16–end)',
+    monthly: 'Monthly',
 };
 
 /** Format a minute count as a compact "8h 5m" / "45m" string. */

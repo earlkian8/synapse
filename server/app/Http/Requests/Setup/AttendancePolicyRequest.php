@@ -101,7 +101,7 @@ class AttendancePolicyRequest extends FormRequest
             "{$prefix}.night.end" => ['required', 'date_format:H:i', "different:{$prefix}.night.start"],
 
             "{$prefix}.capture.allowed_sources" => ['required', 'array', 'min:1'],
-            "{$prefix}.capture.allowed_sources.*" => ['string', Rule::in(AttendancePunch::SOURCES)],
+            "{$prefix}.capture.allowed_sources.*" => ['string', Rule::in(AttendancePunch::CAPTURE_SOURCES)],
             "{$prefix}.capture.selfie_required" => ['required', 'boolean'],
             "{$prefix}.capture.geofence" => ['required', Rule::in(AttendancePolicySettings::GEOFENCE_MODES)],
             "{$prefix}.capture.web_ip_allowlist" => ['nullable', 'array', 'max:50'],

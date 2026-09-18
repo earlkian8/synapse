@@ -92,6 +92,8 @@ function RootNavigator() {
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/[id]" />
         <Stack.Screen name="attendance/[date]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="attendance/request" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="attendance/requests" />
         <Stack.Screen name="awards/index" />
       </Stack>
     </>

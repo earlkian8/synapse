@@ -78,6 +78,7 @@ class AttendanceRecord extends Model
         'approval_status',
         'approved_by',
         'approved_at',
+        'signed_off_overtime_minutes',
     ];
 
     protected function casts(): array
@@ -103,6 +104,7 @@ class AttendanceRecord extends Model
             'flags' => 'array',
             'is_manual' => 'boolean',
             'approved_at' => 'datetime',
+            'signed_off_overtime_minutes' => 'integer',
         ];
     }
 
@@ -135,7 +137,19 @@ class AttendanceRecord extends Model
     }
 
     /**
-     * The user who approved a correction / overtime on this record.
+     * Punches an edit or an approved correction replaced — kept, soft-deleted,
+     * so the day's trail survives (ADR 0039).
+     *
+     * @return HasMany<AttendancePunch, $this>
+     */
+    public function replacedPunches(): HasMany
+    {
+        return $this->hasMany(AttendancePunch::class)->onlyTrashed()->orderBy('punched_at')->orderBy('id');
+    }
+
+    /**
+     * The user who signed the day off — approving what needed review on it, such
+     * as overtime awaiting approval (ADR 0039).
      *
      * @return BelongsTo<User, $this>
      */
@@ -153,6 +167,22 @@ class AttendanceRecord extends Model
     public function isOpen(): bool
     {
         return $this->first_in_at !== null && $this->last_out_at === null;
+    }
+
+    /**
+     * The attendance requests that concern this day: a correction or overtime for
+     * its date, and official business or remote work whose range covers it.
+     *
+     * @return Builder<AttendanceRequest>
+     */
+    public function relatedRequests(): Builder
+    {
+        $date = $this->work_date->toDateString();
+
+        return AttendanceRequest::query()
+            ->where('employee_id', $this->employee_id)
+            ->overlapping($date, $date)
+            ->orderByDesc('created_at');
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────

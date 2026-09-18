@@ -25,9 +25,19 @@ export type AttendanceFlag =
     | 'break_exceeded'
     | 'unapproved_overtime'
     | 'rest_day_worked'
-    | 'holiday_worked';
+    | 'holiday_worked'
+    // What approved requests say about the day (ADR 0039).
+    | 'official_business'
+    | 'remote_work';
 
-export type PunchSource = 'web' | 'mobile' | 'kiosk' | 'biometric' | 'manual';
+export type PunchSource =
+    | 'web'
+    | 'mobile'
+    | 'kiosk'
+    | 'biometric'
+    | 'manual'
+    /** Written by an approved correction request (ADR 0039). */
+    | 'correction';
 
 export type AttendanceEmployee = {
     id: number;
@@ -89,11 +99,138 @@ export type AttendanceRecord = {
     holiday_minutes?: number;
     is_manual: boolean;
     remarks: string | null;
-    approval_status: 'pending' | 'approved' | 'rejected' | null;
+    /** Needs sign-off (ADR 0039): pending while a flag awaits a manager. */
+    approval_status: 'pending' | 'approved' | null;
     approved_at: string | null;
     approver?: string | null;
+    /** In a locked period: nothing about the day can change. */
+    is_locked?: boolean;
+    locked_period?: string | null;
     employee: AttendanceEmployee | null;
     punches?: Punch[];
+    /** The requests that concern the day — the day-detail fetch only. */
+    requests?: DayRequest[];
+    /** Punches an edit or a correction replaced — the day-detail fetch only. */
+    replaced_punches?: ReplacedPunch[];
+};
+
+export type ReplacedPunch = {
+    id: number;
+    type: PunchType;
+    punched_at: string | null;
+    source: PunchSource;
+    replaced_at: string | null;
+    /** Replaced by an approved correction, rather than an HR edit. */
+    by_request: boolean;
+};
+
+// ── Requests (ADR 0039) ──────────────────────────────────────────────────────
+
+export type AttendanceRequestType =
+    'correction' | 'overtime' | 'official_business' | 'remote_work';
+
+export type AttendanceRequestStatus =
+    'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/** The ask itself; which keys are set depends on the type. */
+export type AttendanceRequestPayload = {
+    time_in?: string | null;
+    break_start?: string | null;
+    break_end?: string | null;
+    time_out?: string | null;
+    minutes?: number;
+    pre_approval?: boolean;
+    start_time?: string | null;
+    end_time?: string | null;
+    location?: string | null;
+};
+
+/** A request as the day modal lists it. */
+export type DayRequest = {
+    hashid: string;
+    type: AttendanceRequestType;
+    status: AttendanceRequestStatus;
+    start_date: string;
+    end_date: string;
+    payload: AttendanceRequestPayload;
+    reason: string;
+    review_note: string | null;
+};
+
+export type RequestPunch = {
+    type: PunchType;
+    punched_at: string | null;
+    source: PunchSource;
+};
+
+export type AttendanceRequestItem = {
+    id: number;
+    hashid: string;
+    type: AttendanceRequestType;
+    status: AttendanceRequestStatus;
+    start_date: string;
+    end_date: string;
+    payload: AttendanceRequestPayload;
+    reason: string;
+    attachment: string | null;
+    review_note: string | null;
+    reviewed_at: string | null;
+    created_at: string | null;
+    created_human: string | null;
+    /** Set when any of its days is in a locked period. */
+    locked_period: string | null;
+    employee?: AttendanceEmployee | null;
+    reviewer?: string | null;
+    requester?: string | null;
+    /** The day as it stands — the review fetch only. */
+    day?: {
+        hashid: string;
+        status: AttendanceStatus;
+        first_in_at: string | null;
+        last_out_at: string | null;
+        worked_minutes: number;
+        overtime_minutes: number;
+        approved_overtime_minutes: number;
+        punches: RequestPunch[];
+    } | null;
+    /** What an approved correction took away — the review fetch only. */
+    replaced?: RequestPunch[];
+    can: { review: boolean; cancel: boolean };
+};
+
+// ── Periods (ADR 0039) ───────────────────────────────────────────────────────
+
+export type PeriodFrequency =
+    'weekly' | 'bi_weekly' | 'semi_monthly' | 'monthly';
+
+export type PeriodChecklist = {
+    pending_requests: number;
+    incomplete_days: number;
+    pending_sign_offs: number;
+    clear: boolean;
+};
+
+export type AttendancePeriod = {
+    id: number;
+    hashid: string;
+    label: string;
+    start_date: string;
+    end_date: string;
+    status: 'open' | 'locked';
+    phase: 'past' | 'current' | 'upcoming';
+    locked_at: string | null;
+    locked_by?: string | null;
+    lock_note: string | null;
+    unlocked_at: string | null;
+    unlocked_by?: string | null;
+    unlock_reason: string | null;
+    has_export: boolean;
+    checklist?: PeriodChecklist;
+};
+
+export type PeriodsView = {
+    items: AttendancePeriod[];
+    settings: { frequency: PeriodFrequency; reminder_days: number };
 };
 
 export type AttendanceStats = {
@@ -102,7 +239,10 @@ export type AttendanceStats = {
     absent: number;
     on_leave: number;
     avg_hours: number;
+    /** Days awaiting sign-off. */
     pending: number;
+    /** Requests awaiting a decision (ADR 0039). */
+    pending_requests: number;
 };
 
 export type DepartmentRef = { id: number; name: string };
@@ -125,9 +265,15 @@ export type AttendancePermissions = {
     /** The roster tab — who is due to work what (ADR 0037). */
     viewRoster: boolean;
     manageRoster: boolean;
+    /** Requests and periods (ADR 0039). */
+    request: boolean;
+    reviewRequests: boolean;
+    managePeriods: boolean;
+    unlockPeriods: boolean;
 };
 
-export type AttendanceTab = 'today' | 'weekly' | 'monthly' | 'roster';
+export type AttendanceTab =
+    'today' | 'weekly' | 'monthly' | 'roster' | 'requests' | 'periods';
 
 export type AttendanceFilters = {
     date: string;
@@ -135,6 +281,9 @@ export type AttendanceFilters = {
     search: string;
     status: string;
     department: number | null;
+    /** The request inbox's own filters. */
+    request_status: AttendanceRequestStatus | 'all';
+    request_type: AttendanceRequestType | null;
 };
 
 // ── Weekly grid ──────────────────────────────────────────────────────────────
@@ -227,6 +376,8 @@ export type AttendanceIndexPageProps = {
     week: WeeklyView | null;
     report: MonthlyReport | null;
     roster: RosterView | null;
+    requests: AttendanceRequestItem[] | null;
+    periods: PeriodsView | null;
     stats: AttendanceStats;
     options: {
         departments: DepartmentRef[];
@@ -319,6 +470,7 @@ export type MyAttendancePageProps = {
     nextExpected: PunchType | null;
     allowed: PunchType[];
     history: AttendanceRecord[];
+    requests: AttendanceRequestItem[];
     summary: MySummary;
-    can: { clock: boolean };
+    can: { clock: boolean; request: boolean };
 };

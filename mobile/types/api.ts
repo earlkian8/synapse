@@ -111,7 +111,42 @@ export type AttendanceRecord = {
   overtime_minutes: number;
   is_manual: boolean;
   remarks: string | null;
+  /** In a locked attendance period (ADR 0039): nothing about it can change. */
+  is_locked?: boolean;
+  locked_period?: string | null;
   punches?: Punch[];
+};
+
+/** What the employee can ask attendance for (ADR 0039). */
+export type AttendanceRequestType = 'correction' | 'overtime' | 'official_business' | 'remote_work';
+
+export type AttendanceRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export type AttendanceRequest = {
+  id: number;
+  type: AttendanceRequestType;
+  status: AttendanceRequestStatus;
+  start_date: string;
+  end_date: string;
+  /** The ask; which keys are set depends on the type. */
+  payload: {
+    time_in?: string | null;
+    break_start?: string | null;
+    break_end?: string | null;
+    time_out?: string | null;
+    minutes?: number;
+    pre_approval?: boolean;
+    start_time?: string | null;
+    end_time?: string | null;
+    location?: string | null;
+  };
+  reason: string;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_human: string | null;
+  locked_period: string | null;
+  reviewer?: string | null;
+  can: { review: boolean; cancel: boolean };
 };
 
 export type TodayResponse = {

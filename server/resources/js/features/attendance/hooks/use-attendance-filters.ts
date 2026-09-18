@@ -12,12 +12,15 @@ const TAB_PROP: Record<AttendanceTab, string> = {
     weekly: 'week',
     monthly: 'report',
     roster: 'roster',
+    requests: 'requests',
+    periods: 'periods',
 };
 
 /**
  * Drives the attendance workspace's server-side filters (tab, date, search,
- * status, department) through Inertia partial reloads — only the active tab's
- * dataset (plus stats + filters) is refetched.
+ * status, department, and the request inbox's status and type) through Inertia
+ * partial reloads — only the active tab's dataset (plus stats + filters) is
+ * refetched.
  */
 export function useAttendanceFilters(filters: AttendanceFilters) {
     const apply = useCallback(
@@ -39,6 +42,17 @@ export function useAttendanceFilters(filters: AttendanceFilters) {
 
             if (next.department) {
                 query.department = next.department;
+            }
+
+            // The inbox keeps its own filters (ADR 0039); pending is its default.
+            if (next.tab === 'requests') {
+                if (next.request_status !== 'pending') {
+                    query.request_status = next.request_status;
+                }
+
+                if (next.request_type) {
+                    query.request_type = next.request_type;
+                }
             }
 
             router.get(attendanceRoutes.index, query, {
@@ -70,6 +84,25 @@ export function useAttendanceFilters(filters: AttendanceFilters) {
         (department: number | null) => apply({ department }),
         [apply],
     );
+    const setRequestStatus = useCallback(
+        (request_status: AttendanceFilters['request_status']) =>
+            apply({ request_status }),
+        [apply],
+    );
+    const setRequestType = useCallback(
+        (request_type: AttendanceFilters['request_type']) =>
+            apply({ request_type }),
+        [apply],
+    );
 
-    return { setTab, setDate, goToDay, setSearch, setStatus, setDepartment };
+    return {
+        setTab,
+        setDate,
+        goToDay,
+        setSearch,
+        setStatus,
+        setDepartment,
+        setRequestStatus,
+        setRequestType,
+    };
 }
