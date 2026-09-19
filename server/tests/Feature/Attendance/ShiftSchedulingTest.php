@@ -552,7 +552,9 @@ test('resolving a month for fifty people costs a fixed number of queries', funct
     $queries = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    expect($queries)->toBeLessThanOrEqual(5)
+    // Six: roster entries, assignments, department defaults, primary work
+    // locations (ADR 0040), and the schedules they all name — once each.
+    expect($queries)->toBeLessThanOrEqual(6)
         ->and($shifts)->toHaveCount(50)
         ->and($shifts[$employees->first()->id])->toHaveCount(31);
 });

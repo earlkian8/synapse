@@ -26,7 +26,7 @@ class AttendanceRecordsIndexQuery
      *
      * @var list<string>
      */
-    public const STATUSES = ['all', 'present', 'late', 'undertime', 'half_day', 'absent', 'on_leave', 'holiday', 'day_off', 'incomplete'];
+    public const STATUSES = ['all', 'not_clocked_in', 'present', 'late', 'undertime', 'half_day', 'absent', 'on_leave', 'holiday', 'day_off', 'incomplete'];
 
     /**
      * The day's roster after applying the request's status filter.
@@ -43,11 +43,29 @@ class AttendanceRecordsIndexQuery
             search: $request->string('search')->toString(),
         );
 
+        if ($status === 'not_clocked_in') {
+            return $rows->filter(fn (AttendanceRecord $record): bool => self::notClockedInYet($record))->values();
+        }
+
         if ($status !== 'all') {
             $rows = $rows->where('status', $status)->values();
         }
 
         return $rows;
+    }
+
+    /**
+     * The live "not clocked in yet" filter (ADR 0041): due at work, the shift
+     * has started, and no clock-in — not on leave, not a holiday, not a rest day,
+     * not away on official business.
+     */
+    public static function notClockedInYet(AttendanceRecord $record): bool
+    {
+        return $record->status === 'absent'
+            && $record->first_in_at === null
+            && ! in_array('official_business', $record->flags ?? [], true)
+            && $record->scheduled_start_at !== null
+            && $record->scheduled_start_at->lte(now());
     }
 
     /**

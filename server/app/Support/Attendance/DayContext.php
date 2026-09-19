@@ -23,6 +23,8 @@ use Carbon\CarbonImmutable;
  *    the day off — and whether the day was spent on official business or
  *    working remotely. `grantedOvertimeMinutes` is null while nobody has decided
  *    the day's overtime; a number (zero after a rejection) once somebody has.
+ *  - Whether the end-of-day job has closed the day (ADR 0041), which is what
+ *    turns a day still open into one missing its clock-out.
  */
 final readonly class DayContext
 {
@@ -36,5 +38,6 @@ final readonly class DayContext
         public ?int $grantedOvertimeMinutes = null,
         public bool $officialBusiness = false,
         public bool $remoteWork = false,
+        public bool $closed = false,
     ) {}
 }

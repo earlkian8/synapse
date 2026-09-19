@@ -2,8 +2,11 @@ import {
     ChevronRight,
     Clock,
     LogOut,
+    MapPinX,
+    ScanLine,
     ShieldCheck,
     SplitSquareHorizontal,
+    TimerOff,
     UserX,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -16,7 +19,7 @@ import {
     formatTime,
     LATE_EXCEPTION_MINUTES,
 } from '../constants';
-import type { AttendanceRecord } from '../types';
+import type { AttendanceFlag, AttendanceRecord } from '../types';
 
 type Group = {
     key: string;
@@ -53,6 +56,9 @@ export function ExceptionsPanel({
             .sort((a, b) => b.late_minutes - a.late_minutes);
         const absences = records.filter((r) => r.status === 'absent');
         const halfDays = records.filter((r) => r.status === 'half_day');
+        // What capture and the end-of-day job found (ADR 0040, ADR 0041).
+        const flagged = (flag: AttendanceFlag) =>
+            records.filter((r) => r.flags?.includes(flag));
 
         return [
             {
@@ -96,6 +102,41 @@ export function ExceptionsPanel({
                     r.late_minutes > 0
                         ? `${formatDuration(r.late_minutes)} late`
                         : `${formatDuration(r.worked_minutes)} worked`,
+            },
+            {
+                key: 'outside',
+                title: 'Punched away from the site',
+                icon: MapPinX,
+                tone: 'text-rose-600 bg-rose-500/10 dark:text-rose-400',
+                records: flagged('outside_geofence'),
+                detail: () => 'Not shown to be on site',
+            },
+            {
+                key: 'auto-closed',
+                title: 'Closed automatically',
+                icon: TimerOff,
+                tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
+                records: flagged('auto_closed'),
+                detail: (r: AttendanceRecord) =>
+                    r.last_out_at
+                        ? `Clock-out written for ${formatTime(r.last_out_at, timeZone)}`
+                        : 'Clock-out written by the policy',
+            },
+            {
+                key: 'device',
+                title: 'Device punches out of order',
+                icon: ScanLine,
+                tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
+                records: flagged('device_sequence_anomaly'),
+                detail: () => 'Recorded as the device sent them',
+            },
+            {
+                key: 'skew',
+                title: 'Clock was off',
+                icon: Clock,
+                tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
+                records: flagged('clock_skew'),
+                detail: () => 'Stamped by a phone or device clock that was off',
             },
         ].filter((group) => group.records.length > 0);
     }, [records, timeZone]);

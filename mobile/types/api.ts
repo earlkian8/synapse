@@ -83,6 +83,12 @@ export type Punch = {
   accuracy: number | null;
   photo: string | null;
   note: string | null;
+  /** Where it was (ADR 0040): the nearest site and whether it was on it. */
+  location?: { name: string; radius_meters: number } | null;
+  distance_meters?: number | null;
+  within_geofence?: boolean | null;
+  /** The phone saved it offline and sent it later. */
+  offline?: boolean;
 };
 
 export type AttendanceStatus =

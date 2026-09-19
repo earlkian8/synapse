@@ -96,6 +96,9 @@ class AttendancePolicyRequest extends FormRequest
             "{$prefix}.missing_clock_out.action" => ['required', Rule::in(AttendancePolicySettings::MISSING_CLOCK_OUT_ACTIONS)],
             "{$prefix}.missing_clock_out.after_minutes" => $minutes(0, 1440),
 
+            "{$prefix}.reminders" => ['nullable', 'array'],
+            "{$prefix}.reminders.clock_in_after_minutes" => $minutes(5, 240, nullable: true),
+
             "{$prefix}.night.enabled" => ['required', 'boolean'],
             "{$prefix}.night.start" => ['required', 'date_format:H:i'],
             "{$prefix}.night.end" => ['required', 'date_format:H:i', "different:{$prefix}.night.start"],
@@ -110,6 +113,10 @@ class AttendancePolicyRequest extends FormRequest
                     $fail('Each allowed address must be an IP address, or a range such as 203.0.113.0/24.');
                 }
             }],
+            // Optional so a client that predates them (the setup wizard's saved
+            // draft) still posts a valid document; the defaults fill them.
+            "{$prefix}.capture.offline_window_hours" => ['sometimes', 'integer', 'min:1', 'max:720'],
+            "{$prefix}.capture.max_clock_skew_minutes" => ['sometimes', 'integer', 'min:1', 'max:1440'],
         ];
     }
 

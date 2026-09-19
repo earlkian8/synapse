@@ -56,10 +56,22 @@ export const MISSING_CLOCK_OUT_OPTIONS: {
     },
 ];
 
-export const GEOFENCE_OPTIONS: { value: GeofenceMode; label: string }[] = [
+export const GEOFENCE_OPTIONS: {
+    value: GeofenceMode;
+    label: string;
+    hint?: string;
+}[] = [
     { value: 'off', label: 'Don’t check where' },
-    { value: 'flag', label: 'Accept, but flag outside the site' },
-    { value: 'block', label: 'Refuse outside the site' },
+    {
+        value: 'flag',
+        label: 'Accept, but flag outside the site',
+        hint: 'Checked against the sites in Company Setup → Locations. A day of approved remote work or official business is exempt.',
+    },
+    {
+        value: 'block',
+        label: 'Refuse outside the site',
+        hint: 'Web and app punches away from every site are refused, and so are ones that share no location. Remote work and official business are exempt.',
+    },
 ];
 
 export const SOURCE_LABELS: Record<PunchSource, string> = {
@@ -173,7 +185,18 @@ export function groupSummaries(
             MISSING_CLOCK_OUT_OPTIONS.find(
                 (option) => option.value === s.missing_clock_out.action,
             )?.label ?? '',
-        capture: `${s.capture.allowed_sources.length} ways to punch${s.capture.selfie_required ? ', selfie required' : ''}`,
+        reminders:
+            s.reminders.clock_in_after_minutes === null
+                ? 'No reminders'
+                : `Remind ${formatDuration(s.reminders.clock_in_after_minutes)} into the shift`,
+        capture: [
+            `${s.capture.allowed_sources.length} ways to punch`,
+            s.capture.selfie_required && 'selfie required',
+            s.capture.geofence === 'flag' && 'flagged off site',
+            s.capture.geofence === 'block' && 'on site only',
+        ]
+            .filter(Boolean)
+            .join(', '),
     };
 }
 

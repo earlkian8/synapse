@@ -31,6 +31,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -152,6 +153,9 @@ class AttendanceController extends Controller
             'employee.department:id,name',
             'employee.position:id,title',
             'punches.recorder:id,first_name,middle_name,last_name,suffix',
+            // Where each punch was, and what sent it (ADR 0040).
+            'punches.location:id,name,radius_meters',
+            'punches.device:id,name,type',
             'replacedPunches',
             'approver:id,first_name,middle_name,last_name,suffix',
         ]);
@@ -170,8 +174,14 @@ class AttendanceController extends Controller
         $employee = Employee::findOrFail($request->integer('employee_id'));
 
         try {
-            $record = $this->clock->openRecord($employee, $request->date('work_date')->toDateString());
-            $this->clock->applyManualPunches($record, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+            // One transaction: a policy that refuses entry by HR must not leave
+            // the day it opened behind.
+            $record = DB::transaction(function () use ($request, $employee): AttendanceRecord {
+                $record = $this->clock->openRecord($employee, $request->date('work_date')->toDateString());
+                $this->clock->applyManualPunches($record, $request->only(['time_in', 'break_start', 'break_end', 'time_out']), $request->user()->id);
+
+                return $record;
+            });
         } catch (AttendanceException $e) {
             return $this->respond($e->getMessage(), 'warning');
         }

@@ -52,6 +52,12 @@ final readonly class AttendancePolicySettings
     /** How early a clock-in still counts towards the shift — ADR 0036's four hours. */
     public const DEFAULT_EARLY_CLOCK_IN_MINUTES = 240;
 
+    /** How old a punch a phone queued offline may be when it arrives (ADR 0040). */
+    public const DEFAULT_OFFLINE_WINDOW_HOURS = 72;
+
+    /** How far a sender's clock may be off before its punches are flagged (ADR 0040). */
+    public const DEFAULT_MAX_CLOCK_SKEW_MINUTES = 10;
+
     /**
      * @param  list<string>  $allowedSources
      * @param  list<string>  $webIpAllowlist
@@ -95,20 +101,25 @@ final readonly class AttendancePolicySettings
         public bool $overtimeRestDayAllOvertime = false,
         public bool $overtimeHolidayAllOvertime = false,
 
-        // Missing punches — declared here, applied by the end-of-day job (Phase 4)
+        // Missing punches — applied by the end-of-day job (ADR 0041)
         public string $missingClockOutAction = 'flag',
         public int $missingClockOutAfterMinutes = 120,
+
+        // Reminders — null sends none (ADR 0041)
+        public ?int $clockInReminderAfterMinutes = null,
 
         // Night differential
         public bool $nightEnabled = false,
         public string $nightStart = '22:00',
         public string $nightEnd = '06:00',
 
-        // Capture — declared here, enforced in Phase 4
+        // Capture — enforced by the punch engine (ADR 0040)
         public array $allowedSources = AttendancePunch::CAPTURE_SOURCES,
         public bool $selfieRequired = false,
         public string $geofence = 'off',
         public array $webIpAllowlist = [],
+        public int $offlineWindowHours = self::DEFAULT_OFFLINE_WINDOW_HOURS,
+        public int $maxClockSkewMinutes = self::DEFAULT_MAX_CLOCK_SKEW_MINUTES,
     ) {}
 
     /**
@@ -167,6 +178,8 @@ final readonly class AttendancePolicySettings
             missingClockOutAction: self::oneOf($s, 'missing_clock_out.action', self::MISSING_CLOCK_OUT_ACTIONS, $d->missingClockOutAction),
             missingClockOutAfterMinutes: self::int($s, 'missing_clock_out.after_minutes', $d->missingClockOutAfterMinutes, 0, 1440),
 
+            clockInReminderAfterMinutes: self::nullableInt($s, 'reminders.clock_in_after_minutes', 5, 240),
+
             nightEnabled: self::bool($s, 'night.enabled', $d->nightEnabled),
             nightStart: self::clock($s, 'night.start', $d->nightStart),
             nightEnd: self::clock($s, 'night.end', $d->nightEnd),
@@ -178,6 +191,8 @@ final readonly class AttendancePolicySettings
                 array_map(fn ($ip): string => trim((string) $ip), (array) data_get($s, 'capture.web_ip_allowlist', [])),
                 fn (string $ip): bool => $ip !== '',
             )),
+            offlineWindowHours: self::int($s, 'capture.offline_window_hours', $d->offlineWindowHours, 1, 720),
+            maxClockSkewMinutes: self::int($s, 'capture.max_clock_skew_minutes', $d->maxClockSkewMinutes, 1, 1440),
         );
     }
 
@@ -231,6 +246,9 @@ final readonly class AttendancePolicySettings
                 'action' => $this->missingClockOutAction,
                 'after_minutes' => $this->missingClockOutAfterMinutes,
             ],
+            'reminders' => [
+                'clock_in_after_minutes' => $this->clockInReminderAfterMinutes,
+            ],
             'night' => [
                 'enabled' => $this->nightEnabled,
                 'start' => $this->nightStart,
@@ -241,6 +259,8 @@ final readonly class AttendancePolicySettings
                 'selfie_required' => $this->selfieRequired,
                 'geofence' => $this->geofence,
                 'web_ip_allowlist' => $this->webIpAllowlist,
+                'offline_window_hours' => $this->offlineWindowHours,
+                'max_clock_skew_minutes' => $this->maxClockSkewMinutes,
             ],
         ];
     }

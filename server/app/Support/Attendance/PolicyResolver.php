@@ -6,6 +6,7 @@ use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeScheduleAssignment;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use Illuminate\Support\Collection;
 
@@ -21,13 +22,13 @@ use Illuminate\Support\Collection;
  *  2. **schedule** — the policy on the schedule the day's shift came from
  *     (including one a roster override borrowed for the day).
  *  3. **department** — the department's policy.
- *  4. **organization** — the company's default policy.
- *  5. **fallback** — the built-in policy, which judges exactly as attendance did
+ *  4. **location** — the policy of the person's primary work location
+ *     (ADR 0040).
+ *  5. **organization** — the company's default policy.
+ *  6. **fallback** — the built-in policy, which judges exactly as attendance did
  *     before policies existed ({@see AttendancePolicySettings::fallback()}).
  *
- * Work locations (Phase 4) will slot in between department and organisation.
- *
- * {@see forMany()} answers for a whole roster over a whole range in five queries
+ * {@see forMany()} answers for a whole roster over a whole range in six queries
  * whatever the range — and in one for a company that has no policies at all,
  * which is every company until it configures one.
  */
@@ -105,10 +106,16 @@ class PolicyResolver
             ->map(fn ($id): int => (int) $id)
             ->all();
 
+        $locationPolicies = array_filter(array_map(
+            fn (WorkLocation $location): ?int => $location->attendance_policy_id !== null ? (int) $location->attendance_policy_id : null,
+            WorkLocation::primaryFor($employees),
+        ));
+
         $this->preload(array_merge(
             $assignments->flatten(1)->pluck('attendance_policy_id')->filter()->all(),
             array_values($schedulePolicies),
             array_values($departmentPolicies),
+            array_values($locationPolicies),
         ));
 
         $organizationDefault = $this->organizationDefault();
@@ -125,6 +132,7 @@ class PolicyResolver
                     [$assignment?->attendance_policy_id, 'assignment'],
                     [$shift->scheduleId !== null ? ($schedulePolicies[$shift->scheduleId] ?? null) : null, 'schedule'],
                     [$employee->department_id !== null ? ($departmentPolicies[$employee->department_id] ?? null) : null, 'department'],
+                    [$locationPolicies[$employee->id] ?? null, 'location'],
                     [$organizationDefault?->id, 'organization'],
                 ]);
             }

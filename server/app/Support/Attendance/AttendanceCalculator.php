@@ -38,7 +38,11 @@ use Illuminate\Support\Collection;
  *     approved overtime, night, rest day, holiday. Overtime is approved outright
  *     unless the policy asks for approval; then up to what has been granted.
  *  7. **Thresholds** — very late or very short is a half day, or an absence.
- *  8. **Status and flags.**
+ *  8. **Status and flags.** What capture recorded on the punches (ADR 0040)
+ *     becomes flags here too — a punch off site, from a source the policy does
+ *     not allow, out of order on a device, from a clock that was wrong, or
+ *     written by the end-of-day job — so they are derived like every other flag
+ *     and cannot drift from the punches.
  *
  * With the built-in fallback policy this reproduces the pre-policy numbers
  * exactly: no rounding, no clipping, breaks as punched, grace and required
@@ -125,6 +129,8 @@ class AttendanceCalculator
             $flags[] = 'remote_work';
         }
 
+        array_push($flags, ...self::captureFlags($punches, $rules, $context));
+
         // 6. Buckets.
         $overtime = self::overtime($rules, $context, $worked);
         $regular = $worked - $overtime;
@@ -163,6 +169,12 @@ class AttendanceCalculator
 
         if ($status === 'half_day') {
             $flags[] = 'half_day';
+        }
+
+        // Still open when the end-of-day job closed the day (ADR 0041): the
+        // policy left it for HR rather than closing it.
+        if ($status === 'incomplete' && $context->closed) {
+            $flags[] = 'missing_clock_out';
         }
 
         return new DayResult(
@@ -209,6 +221,91 @@ class AttendanceCalculator
         }
 
         return min($overtime, max(0, $context->grantedOvertimeMinutes ?? 0));
+    }
+
+    /**
+     * What the punches' capture says about the day (ADR 0040, ADR 0041):
+     *
+     *  - `outside_geofence` — a punch was not shown to be on site, while the
+     *    policy checks where people punch. A day of approved remote work or
+     *    official business is exempt: being elsewhere was the point.
+     *  - `source_not_allowed` — a device sent a punch from a source the policy
+     *    does not allow. A person's punch like that is refused; a device's is
+     *    recorded, and flagged.
+     *  - `device_sequence_anomaly` — a device's punch breaks the day's order (in
+     *    twice, out without in, a break outside the shift). Recorded as it came.
+     *  - `clock_skew` — the clock that stamped a punch was further off the
+     *    server's than the policy tolerates.
+     *  - `auto_closed` — the end-of-day job wrote the clock-out.
+     *
+     * @param  Collection<int, AttendancePunch>  $punches  Sorted.
+     * @return list<string>
+     */
+    private static function captureFlags(Collection $punches, DayRules $rules, DayContext $context): array
+    {
+        $policy = $rules->policy;
+        $flags = [];
+        $excused = $context->remoteWork || $context->officialBusiness;
+
+        if ($policy->geofence !== 'off' && ! $excused && $punches->contains(fn (AttendancePunch $punch): bool => $punch->within_geofence === false)) {
+            $flags[] = 'outside_geofence';
+        }
+
+        if ($punches->contains(fn (AttendancePunch $punch): bool => in_array($punch->source, AttendancePunch::CAPTURE_SOURCES, true)
+            && ! in_array($punch->source, $policy->allowedSources, true))) {
+            $flags[] = 'source_not_allowed';
+        }
+
+        if (self::deviceBrokeTheOrder($punches)) {
+            $flags[] = 'device_sequence_anomaly';
+        }
+
+        if ($punches->contains(fn (AttendancePunch $punch): bool => $punch->clock_skew_seconds !== null
+            && abs((int) $punch->clock_skew_seconds) > $policy->maxClockSkewMinutes * 60)) {
+            $flags[] = 'clock_skew';
+        }
+
+        if ($punches->contains(fn (AttendancePunch $punch): bool => $punch->source === 'system')) {
+            $flags[] = 'auto_closed';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Whether a punch a device sent breaks the order a day is punched in. Only a
+     * device's can: a person's punch that would is refused before it is written.
+     *
+     * @param  Collection<int, AttendancePunch>  $punches  Sorted.
+     */
+    private static function deviceBrokeTheOrder(Collection $punches): bool
+    {
+        $onClock = false;
+        $onBreak = false;
+
+        foreach ($punches as $punch) {
+            $valid = match ($punch->type) {
+                'clock_in' => ! $onClock,
+                'clock_out' => $onClock,
+                'break_start' => $onClock && ! $onBreak,
+                'break_end' => $onBreak,
+                default => true,
+            };
+
+            if (! $valid && ($punch->attendance_device_id !== null || $punch->source === 'biometric')) {
+                return true;
+            }
+
+            match ($punch->type) {
+                'clock_in' => $onClock = true,
+                'clock_out' => [$onClock, $onBreak] = [false, false],
+                'break_start' => $onBreak = $onClock,
+                'break_end' => $onBreak = false,
+                default => null,
+            };
+        }
+
+        return false;
     }
 
     /**

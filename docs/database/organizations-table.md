@@ -20,6 +20,8 @@ Soft-deletes.
 | `timezone` | string(64), default `Asia/Manila` | IANA zone attendance is judged on — see [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md). Existing organisations were back-filled by the default. |
 | `attendance_period_frequency` | string, default `semi_monthly` | The calendar attendance periods are generated on: `weekly`, `bi_weekly`, `semi_monthly` (1–15, 16–end) or `monthly` — see [ADR 0039](../decisions/0039-attendance-requests-and-period-lock-the-engine-guards-the-lock.md). Set on the attendance board's Periods tab. |
 | `attendance_lock_reminder_days` | smallint, default 2 | How many days before an open period ends its managers are reminded to lock it. |
+| `attendance_closed_from` | date, nullable | The first date the end-of-day job ever closed ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md)). A change of leave, holiday or roster never writes a missing day before it, so the first run after deploy does not back-fill history. |
+| `attendance_closed_through` | date, nullable | The last date the job closed: records written for everybody due at work, forgotten clock-outs handled, the digest sent. Advances over contiguous dates only; the next run starts the day after (at most seven days back). |
 | `tin` / `sss_employer_no` / `philhealth_employer_no` / `pagibig_employer_no` | string, nullable | Employer government IDs. |
 | `join_code` / `join_code_enabled` | string / boolean | The code people type to ask to join (ADR 0026). A credential, so not `$fillable`. |
 | `setup_completed_at` | timestamp, nullable | Null means guided setup is still owed — see [ADR 0032](../decisions/0032-guided-company-setup.md). Organisations that predate the wizard were back-filled as complete. |

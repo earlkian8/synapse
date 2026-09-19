@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -15,6 +15,7 @@ import { AppText } from '@/components/ui/text';
 import { useToast } from '@/components/ui/toast';
 import { attendanceApi } from '@/features/attendance/api';
 import { PUNCH_META } from '@/features/attendance/punch-meta';
+import { isOffline, newPunchId, punchQueue, useQueuedPunches } from '@/features/attendance/punch-queue';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatClock, formatElapsed, formatLongDate, formatMinutes, formatTime } from '@/lib/format';
@@ -51,14 +52,29 @@ export default function ClockScreen() {
   }, []);
 
   const record = today.data?.data;
-  const allowed = today.data?.allowed ?? [];
-  const nextExpected = today.data?.next_expected ?? null;
   const schedule = user?.employee?.schedule;
 
-  const isCompleted = nextExpected === null && !!record?.last_out_at;
+  // Punches saved on this phone while it was offline (ADR 0040). Until they are
+  // sent, the buttons follow them: somebody who clocked in offline is offered
+  // "Clock out" next, not "Clock in" again.
+  const queued = useQueuedPunches();
+  const day = withQueued(today.data?.next_expected ?? null, !!record?.last_out_at, queued.map((punch) => punch.type));
+
+  const isCompleted = day.completed;
   const onClock = !!record?.first_in_at && !record?.last_out_at;
-  const primary = nextExpected;
-  const secondary = allowed.filter((t) => t !== primary);
+  const primary = day.next;
+  const secondary = day.allowed.filter((t) => t !== primary);
+
+  // Once everything queued has gone, show the day as the server now has it.
+  const queuedBefore = useRef(queued.length);
+  useEffect(() => {
+    if (queuedBefore.current > 0 && queued.length === 0) {
+      void today.reload();
+    }
+
+    queuedBefore.current = queued.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued.length]);
 
   const beginPunch = useCallback(async (type: PunchType) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -80,25 +96,58 @@ export default function ClockScreen() {
     if (!pendingType) return;
     setSubmitting(true);
 
-    try {
-      await attendanceApi.punch({
-        type: pendingType,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        accuracy: coords?.accuracy,
-        photoUri,
-      });
+    const punch = {
+      client_id: newPunchId(),
+      type: pendingType,
+      punched_at: new Date().toISOString(),
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      accuracy: coords?.accuracy,
+      photoUri,
+    };
 
+    const done = pendingType;
+    const recorded = () => {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const done = pendingType;
       setPendingType(null);
       setJustPunched(done);
       setTimeout(() => setJustPunched(null), 1600);
-      toast.show(`${PUNCH_META[done].label} recorded at ${formatTime(new Date().toISOString(), timeZone)}`, 'success');
+    };
+
+    // Behind anything still waiting, so the server gets them in the order made.
+    if (punchQueue.items().length > 0) {
+      await punchQueue.add(punch);
+      recorded();
+      toast.show(`${PUNCH_META[done].label} saved. It will be sent after the punches waiting before it.`, 'info');
+      void punchQueue.flush();
+      setSubmitting(false);
+
+      return;
+    }
+
+    try {
+      await attendanceApi.punch({
+        type: punch.type,
+        latitude: punch.latitude,
+        longitude: punch.longitude,
+        accuracy: punch.accuracy,
+        photoUri,
+        clientId: punch.client_id,
+      });
+
+      recorded();
+      toast.show(`${PUNCH_META[done].label} recorded at ${formatTime(punch.punched_at, timeZone)}`, 'success');
       await today.reload();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Could not record your punch.';
-      toast.show(message, 'error');
+      if (isOffline(error)) {
+        // No connection: keep it, with the time it was made, and send it later.
+        await punchQueue.add(punch);
+        recorded();
+        toast.show(`No connection. ${PUNCH_META[done].label} at ${formatTime(punch.punched_at, timeZone)} is saved on this phone and will be sent when you’re back online.`, 'info');
+      } else {
+        const message = error instanceof ApiError ? error.message : 'Could not record your punch.';
+        toast.show(message, 'error');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -138,6 +187,30 @@ export default function ClockScreen() {
           <Skeleton height={180} radius={18} />
         ) : (
           <>
+            {/* Punches waiting to be sent */}
+            {queued.length > 0 && (
+              <Card style={{ gap: spacing.md }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
+                  <Ionicons name="cloud-offline-outline" size={22} color={readable(status.late)} />
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="label">
+                      {queued.length} {queued.length === 1 ? 'punch' : 'punches'} waiting to send
+                    </AppText>
+                    <AppText variant="caption" muted>
+                      Saved on this phone with the time you made {queued.length === 1 ? 'it' : 'them'}, and sent as soon as there’s a connection.
+                    </AppText>
+                  </View>
+                </View>
+                <Button
+                  label="Send now"
+                  variant="outline"
+                  fullWidth={false}
+                  style={{ alignSelf: 'flex-start' }}
+                  onPress={() => void punchQueue.flush()}
+                />
+              </Card>
+            )}
+
             {/* Shift card */}
             <Card>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -339,6 +412,38 @@ export default function ClockScreen() {
       </Sheet>
     </Screen>
   );
+}
+
+/**
+ * The day's next and allowed punches once the ones saved offline are counted —
+ * the same order the server enforces, played forward from where it left off.
+ */
+function withQueued(
+  nextExpected: PunchType | null,
+  clockedOut: boolean,
+  queued: PunchType[],
+): { next: PunchType | null; allowed: PunchType[]; completed: boolean } {
+  let onClock = nextExpected === 'clock_out' || nextExpected === 'break_end';
+  let onBreak = nextExpected === 'break_end';
+  let completed = nextExpected === null && clockedOut;
+
+  for (const type of queued) {
+    onClock = type === 'clock_in' || (type !== 'clock_out' && onClock);
+    onBreak = type === 'break_start' || (type !== 'break_end' && type !== 'clock_out' && onBreak);
+    completed = type === 'clock_out';
+  }
+
+  if (completed) {
+    return { next: null, allowed: ['clock_in'], completed: true };
+  }
+
+  if (!onClock) {
+    return { next: 'clock_in', allowed: ['clock_in'], completed: false };
+  }
+
+  return onBreak
+    ? { next: 'break_end', allowed: ['break_end', 'clock_out'], completed: false }
+    : { next: 'clock_out', allowed: ['break_start', 'clock_out'], completed: false };
 }
 
 function SummaryStat({ label, value }: { label: string; value: string }) {

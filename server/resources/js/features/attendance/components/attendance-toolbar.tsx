@@ -282,13 +282,19 @@ export function AttendanceToolbar({
                         onValueChange={onStatus}
                     >
                         <SelectTrigger
-                            className="w-[150px]"
+                            className="w-[170px]"
                             aria-label="Filter by status"
                         >
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
-                            {STATUS_FILTERS.map((option) => (
+                            {/* "Not clocked in yet" is live: it only means
+                                something for today. */}
+                            {STATUS_FILTERS.filter(
+                                (option) =>
+                                    option.value !== 'not_clocked_in' ||
+                                    filters.date === today,
+                            ).map((option) => (
                                 <SelectItem
                                     key={option.value}
                                     value={option.value}

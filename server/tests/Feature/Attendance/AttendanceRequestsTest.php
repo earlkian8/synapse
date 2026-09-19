@@ -314,7 +314,8 @@ test('remote work is marked on the day, and punches are still required', functio
         ->and(AttendanceRecord::whereDate('work_date', '2026-09-16')->exists())->toBeFalse();
 });
 
-test('remote work exempts the day from the geofence')->todo('Phase 4 — the geofence does not exist yet.');
+// Remote work's geofence exemption (ADR 0040) is tested with the fence, in
+// AttendanceCaptureTest.
 
 test('the evaluator never lets official business excuse a rest day or leave', function () {
     $rest = DayRules::fromShift(ResolvedShift::fallback('2026-09-19'));

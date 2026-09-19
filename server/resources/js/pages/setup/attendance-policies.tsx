@@ -112,8 +112,8 @@ export default function SetupAttendancePolicies() {
                 <p className="text-xs text-muted-foreground">
                     Which policy applies, most specific first: the one on
                     someone’s schedule assignment, then their schedule’s, their
-                    department’s, the company default, and otherwise the
-                    built-in rules.
+                    department’s, their primary work location’s, the company
+                    default, and otherwise the built-in rules.
                     {!hasDefault &&
                         policies.length > 0 &&
                         ' No policy is the company default yet, so anyone not covered by one is judged by the built-in rules.'}

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -24,6 +25,7 @@ class Employee extends Model
         'organization_id',
         'user_id',
         'employee_no',
+        'device_enrollment_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -137,6 +139,18 @@ class Employee extends Model
         // withTrashed so an employee on an archived schedule still resolves it
         // (attendance computation and the detail view depend on it).
         return $this->belongsTo(WorkSchedule::class)->withTrashed();
+    }
+
+    /**
+     * The sites this employee is based at, one marked primary (ADR 0040).
+     *
+     * @return BelongsToMany<WorkLocation, $this>
+     */
+    public function workLocations(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkLocation::class, 'employee_work_locations')
+            ->withPivot('is_primary')
+            ->withTimestamps();
     }
 
     /**
@@ -364,6 +378,21 @@ class Employee extends Model
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────
+
+    /**
+     * The employee a device knows by a reference — their employee number or
+     * their device enrolment id, exactly and ignoring case (ADR 0040).
+     *
+     * @param  Builder<Employee>  $query
+     */
+    public function scopeWhereDeviceReference(Builder $query, string $reference): void
+    {
+        $reference = mb_strtolower(trim($reference));
+
+        $query->where(fn (Builder $q) => $q
+            ->whereRaw('lower(employee_no) = ?', [$reference])
+            ->orWhereRaw('lower(device_enrollment_id) = ?', [$reference]));
+    }
 
     /**
      * Free-text search across the searchable columns.

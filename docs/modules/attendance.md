@@ -13,7 +13,12 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 (attendance policies, the day evaluator, minute buckets and flags — detailed in
 [Attendance Policies](./attendance-policies.md)) and
 [ADR 0039](../decisions/0039-attendance-requests-and-period-lock-the-engine-guards-the-lock.md)
-(requests, sign-off, periods and the lock); this is the *how*. Everything is
+(requests, sign-off, periods and the lock) and
+[ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md)
+(geofences, capture rules, devices, offline punches — the sites and devices themselves are
+in [Work Locations](./work-locations.md) and [Attendance Devices](./attendance-devices.md))
+and [ADR 0041](../decisions/0041-attendance-days-close-themselves.md) (the end-of-day
+job, recompute when inputs change, reminders); this is the *how*. Everything is
 tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
@@ -31,7 +36,11 @@ tenant-scoped (ADR 0005).
     **status pill** and an **anomaly flag** (late by N, missing time-out, left early,
     unscheduled absence, a half day, a break that ran over), beside an **exceptions
     panel** (the day's problems grouped by kind — including **half days** — each
-    actionable). A **status filter** narrows it (present / late / half day / … / holiday).
+    actionable — also **punched away from the site**, **closed automatically**, **device
+    punches out of order** and **clock was off**). A **status filter** narrows it
+    (present / late / half day / … / holiday), and on today's date offers **Not clocked
+    in yet**: people due at work whose shift has started and who have not clocked in,
+    leaving out leave, holidays and official business.
   - **Weekly View** — a matrix: employees down, Mon–Sun across, each cell a status tile
     (a holiday tile names the holiday); clicking a cell jumps to that day's log.
   - **Roster** — the **plan** rather than the record: employees down, the week across,
@@ -74,8 +83,10 @@ tenant-scoped (ADR 0005).
   concern the day** — each opening the review modal. A day in a **locked period** says so
   in its header and offers no action but the reminder to unlock the period.
 
-  Each punch is one row — time, source, GPS pin, note — with **the photo taken at it on
-  that row**, large enough to recognise a face and opening full-size in a new tab. A
+  Each punch is one row — time, source, GPS pin, note — with a **capture line** under it
+  (on site or off, with the nearest site and the distance — "Off site: 1.2 km from Main
+  Office"; the device that sent it; **sent offline** with when it arrived; the clock's
+  skew when it was off) and **the photo taken at it on that row**, large enough to recognise a face and opening full-size in a new tab. A
   punch with no photo still gets a tile, saying which of three things happened: the
   source never takes one (a web, kiosk or biometric punch), the mobile app was expected
   to and did not, or the file has since gone. "No evidence" and "evidence missing" are
@@ -126,7 +137,12 @@ tenant-scoped (ADR 0005).
   `GET /api/attendance/summary`, and the employee's own requests:
   `GET|POST /api/attendance/requests`, `GET /api/attendance/requests/{id}`,
   `PATCH /api/attendance/requests/{id}/cancel`. The session payload's `organization.timezone` is the
-  clock the app shows every time on.
+  clock the app shows every time on. A punch may carry `client_id` (a resend returns
+  `duplicate`), `punched_at` (the phone's time, for a punch queued offline) and
+  `sent_at` (the phone's clock when it sent, to measure skew) — see
+  [Mobile App](./mobile-app.md).
+- **Kiosks and scanners** (`/kiosk` and `/api/devices`, device-key authenticated) —
+  see [Attendance Devices](./attendance-devices.md).
 
 The daily log stays a per-person table — the right tool for "what happened today" — while
 the weekly/monthly tabs give the depth and the exceptions panel gives the utility (so it
@@ -135,8 +151,8 @@ big clock**, the way a punch clock should feel.
 
 ## Data model
 
-Two tables hold the record and two more what was asked and what is closed (see
-[attendance tables](../database/attendance-tables.md));
+Two tables hold the record, two more what was asked and what is closed, and three more
+where punches come from (see [attendance tables](../database/attendance-tables.md));
 three more hold the plan (see [scheduling tables](../database/scheduling-tables.md)):
 
 - **`attendance_records`** — one row per employee per day: what the day is judged
@@ -147,18 +163,27 @@ three more hold the plan (see [scheduling tables](../database/scheduling-tables.
   rest day / holiday`, ADR 0038),
   `first_in_at` / `last_out_at`, an `is_manual` flag, `remarks`, and the sign-off
   (`approval_status` — derived, ADR 0039 — `approved_by/at` and
-  `signed_off_overtime_minutes`). Unique on `(employee_id, work_date)`.
+  `signed_off_overtime_minutes`), and `closed_at` — when the end-of-day job handled a
+  forgotten clock-out. Unique on `(employee_id, work_date)`.
 - **`attendance_punches`** — the raw punch events the summary is built from: `type`
   (`clock_in | clock_out | break_start | break_end`), `punched_at`, `source`
-  (`web | mobile | kiosk | biometric | manual | correction`), GPS
+  (`web | mobile | kiosk | biometric | manual | correction | system`), GPS
   (`latitude / longitude / accuracy`), an optional `photo` selfie, a `note`, and
-  `recorded_by` (null when self-punched). Soft-deleted when an edit or a correction
+  `recorded_by` (null when self-punched). What capture established (ADR 0040): the
+  nearest `work_location_id`, `distance_meters`, `within_geofence`; the
+  `attendance_device_id` and the device's own `external_id` (unique together);
+  `device_punched_at` (the phone's time for an offline punch), `received_at` and
+  `clock_skew_seconds`. Soft-deleted when an edit or a correction
   replaces it; `attendance_request_id` / `replaced_by_request_id` name the correction
   that wrote or replaced it.
 - **`attendance_requests`** — corrections, overtime, official business and remote work,
   with their payload, reason, status and decision.
 - **`attendance_periods`** — the periods attendance closes on, their lock and unlock
   audit, and the path of the file written when each locked.
+- **`work_locations`** / **`employee_work_locations`** — sites and their fences, and who
+  is based where ([Work Locations](./work-locations.md)).
+- **`attendance_devices`** — kiosks and scanners, each with a hashed key
+  ([Attendance Devices](./attendance-devices.md)).
 - **`work_schedule_days`**, **`employee_schedule_assignments`** and
   **`shift_roster_entries`** — a template's cycle, who works it over which dates, and the
   one-off overrides (ADR 0037).
@@ -185,14 +210,15 @@ to work?" — the board, the roster, the punch engine, the mobile session and th
 all ask it. It walks one precedence chain, most specific first:
 
 **roster override → dated assignment → `employees.work_schedule_id` → department default
-→ organisation default → fallback** (Mon–Fri 08:00–17:00, eight hours).
+→ the primary work location's default → organisation default → fallback** (Mon–Fri
+08:00–17:00, eight hours).
 
 It returns a `ResolvedShift`: the day's `type`, whether it is a working day, its
 `segments` as clock-face pairs *and* as ordered UTC instants (each rolled past the one
 before it, so a split shift's evening half stays after its morning half), required and
 grace minutes, the core and accept windows, the schedule's name, and **`source`** — which
 link in the chain won, so the roster can say *why*. `forMany()` answers for a whole roster
-over a whole range in **five queries whatever the range**.
+over a whole range in **six queries whatever the range**.
 
 A template's cycle is indexed by weekday for a week, and by days elapsed from its anchor
 (plus the assignment's `cycle_offset`) for a rotation — so two crews four apart on a
@@ -213,11 +239,20 @@ belongs to:
 
 ### Punching
 
-**`AttendanceClock::punch(employee, type, context)`** runs in a transaction with a row
-lock on the employee: resolve the work date, find the day (or build it **unsaved**, with
-its rules frozen), **validate the transition** (no double clock-in, no clock-out before
-clock-in, breaks only while clocked in), and only then save the day, write the punch and
-recompute. **A refused punch writes nothing.** `nextExpected()` / `allowed()` drive the
+**`AttendanceClock::capture(employee, ?type, context)`** — which `punch()` wraps — runs
+in a transaction with a row lock on the employee: return the punch already received
+under the same device or client id, infer the type when none is given, resolve the work
+date, check the period lock, find the day (or build it **unsaved**, with its rules
+frozen), and then, **for a person** (web, mobile, kiosk, manual): the policy allows the
+source, an offline punch is inside its window, the transition is valid **at the instant
+given** (no double clock-in, no clock-out before clock-in, breaks only while clocked
+in — counting punches recorded after it), and the capture rules hold (the web IP
+allowlist, the mobile selfie). Then it **places** the punch — the nearest site, the
+distance and the fence verdict, refusing a person under a `block` geofence unless the
+day is approved remote work or official business — and only then saves the day, writes
+the punch and recomputes. **A refused punch writes nothing.** A **scanner's** punch is
+`record_only`: it skips the person checks and is never blocked, and the evaluator flags
+the day instead (ADR 0040). `nextExpected()` / `allowed()` drive the
 UI's buttons; `currentRecord()` is the day the clock card shows. `applyManualPunches()`
 backs HR manual entry and corrections.
 
@@ -286,13 +321,15 @@ same type for the same day is refused.
 | `correction` | Any of time in, break start, break end, time out, for a day that has begun | Opens the day if needed and replaces only the punches it names (the first clock-in, first break, last clock-out). The replaced ones are soft-deleted and name the request; the new ones are `source = correction`. The day is marked manual and recomputed. |
 | `overtime` | Minutes; a future day is a pre-approval | The day's approved overtime becomes `min(asked, worked past the shift)` and the day stops awaiting a decision. A pre-approval is matched when the day is evaluated. A rejection settles the day too. |
 | `official_business` | Up to 31 days, optional hours and place | Every working day in range is present, neither late nor short, and worth at least the shift's hours — even with no punches. Flag `official_business`. Leave and holidays still win. |
-| `remote_work` | Up to 31 days, optional hours and place | The days carry the `remote_work` flag; punches are still required. Phase 4's geofence reads it. |
+| `remote_work` | Up to 31 days, optional hours and place | The days carry the `remote_work` flag; punches are still required, but the geofence neither blocks nor flags them. |
 
 The grant is read by the evaluator (`DayContext::grantedOvertimeMinutes`) on every
 evaluation, so it survives a recompute and a re-apply.
 
 **Sign-off.** `approval_status` means *needs sign-off* and is derived on every
-evaluation: `pending` while the day carries a review flag (`unapproved_overtime` today),
+evaluation: `pending` while the day carries a review flag (`unapproved_overtime`,
+`outside_geofence`, `source_not_allowed`, `device_sequence_anomaly`, `clock_skew`,
+`auto_closed`),
 `approved` once signed off, null otherwise. **Sign off** grants the day's overtime as it
 stands (`signed_off_overtime_minutes`); overtime a later correction adds puts the day
 back to pending. **Sign off all** walks only the pending days, leaving the signer's own
@@ -319,6 +356,37 @@ recompute of any day inside a locked period — from the engine, so the web, the
 API and the assistant all hit it. Bulk re-apply, sign off all and recompute leave locked
 days as they are and say how many they left.
 
+## Closing days
+
+**`attendance:close-day`** (hourly, ADR 0041) closes each date on the organisation's own
+clock, from the day after `organizations.attendance_closed_through` (at most seven days
+back) up to yesterday:
+
+1. **Materialise** — everybody due at work that date (active or on leave, hired by then)
+   with no record gets one once their shift has ended: `absent`, `on_leave`, `holiday`,
+   or present on official business, snapshot included. Rest days are not written.
+2. **Forgotten clock-outs** — once `max_shift_span_minutes` has passed since the
+   clock-in, the day's policy decides: `flag` leaves it for HR; the two auto-close
+   actions write a `clock_out` with `source = system` at the shift's end (plus the
+   policy's minutes), flagged `auto_closed` and so pending sign-off. The record gets
+   `closed_at` either way.
+3. **Digest** — once nothing about the date is still waiting, `attendance_closed_through`
+   advances and each holder of `attendance.view` gets one notification of the date's
+   exceptions (a manager without it gets their own reports').
+
+**Recompute when inputs change.** `AttendanceInputs` watches leave, holidays, schedule
+assignments and roster entries, and dispatches `RecomputeAttendanceRange` after the
+response over the dates a change touches: every recorded day is re-evaluated and its
+holiday re-read, a day that records nothing anybody did is re-judged by the current
+plan, closed working days with no record get one (never before
+`attendance_closed_from`), and a locked period is left alone. A day somebody punched
+keeps its schedule and policy. A location change queues nothing.
+
+**Reminders.** `attendance:remind` (every 15 minutes) tells anybody whose working shift
+started at least the policy's `reminders.clock_in_after_minutes` ago and who has not
+clocked in — once per shift, never on leave, a non-working holiday, a rest day, or
+approved official business or remote work. Off unless the policy sets the minutes.
+
 ## Maintenance commands
 
 - **`php artisan attendance:recompute {--organization=} {--from=} {--to=} {--dry-run}`** —
@@ -335,6 +403,9 @@ days as they are and say how many they left.
   generates the current and next period on each company's calendar, and reminds holders
   of `attendance.period.manage` once when an open period's end is within
   `attendance_lock_reminder_days`.
+- **`php artisan attendance:close-day {--organization=}`** — scheduled hourly; see
+  *Closing days*. Run it once after deploying.
+- **`php artisan attendance:remind {--organization=}`** — scheduled every 15 minutes.
 - **`php artisan attendance:prune-orphan-days {--organization=} {--dry-run}`** — deletes the
   empty days refused overnight clock-outs used to leave: no punches, not entered by hand,
   no remarks, not a day of official business, and the same employee's previous day left
@@ -355,7 +426,9 @@ requests), `attendance.requests.review` (decide other people's), `attendance.per
 (the periods tab, generating and locking) and `attendance.period.unlock`. Built-in
 roles: **HR Manager** gets all of them; **Department Head** gets `attendance.request` and
 `attendance.requests.review`; **Staff** gets `attendance.clock` and `attendance.request`.
-The policies themselves are `setup.attendance-policies.view` / `.manage`. Assigning a schedule from the **employee profile**
+The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
+`setup.locations.view` / `.manage`, and devices `setup.devices.manage`. The device API
+takes a device key, not a user. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
 
 ## Assistant
@@ -378,6 +451,13 @@ The agent's **Attendance** capability (available with `attendance.view`,
   own.
 - **`review_attendance_request`** — approve or reject (gated by
   `attendance.requests.review`); refuses your own and anything in a locked period.
+- **`find_attendance_exceptions`** — "who hasn't clocked in?", "who is missing a
+  clock-out?", "who punched outside the office this week?": not clocked in, missing
+  clock-out, outside the site, auto-closed, absent, device anomalies, clock skew, or all
+  of them (gated by `attendance.view`).
+
+The 30-day brief also counts days punched away from the site, closed automatically,
+still missing a clock-out after closing, and with scanner punches out of order.
 
 Punches route through `AttendanceClock`, overrides through `RosterWriter`, and requests
 through `AttendanceRequestFiler` / `AttendanceRequestApprover`, so totals,

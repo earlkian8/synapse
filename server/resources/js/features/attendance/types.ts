@@ -28,7 +28,14 @@ export type AttendanceFlag =
     | 'holiday_worked'
     // What approved requests say about the day (ADR 0039).
     | 'official_business'
-    | 'remote_work';
+    | 'remote_work'
+    // What capture and the end-of-day job found (ADR 0040, ADR 0041).
+    | 'outside_geofence'
+    | 'source_not_allowed'
+    | 'device_sequence_anomaly'
+    | 'clock_skew'
+    | 'auto_closed'
+    | 'missing_clock_out';
 
 export type PunchSource =
     | 'web'
@@ -37,7 +44,9 @@ export type PunchSource =
     | 'biometric'
     | 'manual'
     /** Written by an approved correction request (ADR 0039). */
-    | 'correction';
+    | 'correction'
+    /** Written by the end-of-day job closing a forgotten clock-out (ADR 0041). */
+    | 'system';
 
 export type AttendanceEmployee = {
     id: number;
@@ -60,6 +69,17 @@ export type Punch = {
     photo: string | null;
     note: string | null;
     recorder: string | null;
+    /** The nearest work location, when the punch was placed (ADR 0040). */
+    location?: { name: string; radius_meters: number } | null;
+    distance_meters?: number | null;
+    /** On site, off site, or not checked (null). */
+    within_geofence?: boolean | null;
+    /** The kiosk or scanner that sent it. */
+    device?: { name: string; type: 'kiosk' | 'biometric' } | null;
+    /** A phone queued it while offline and sent it later. */
+    offline?: boolean;
+    received_at?: string | null;
+    clock_skew_seconds?: number | null;
 };
 
 export type AttendanceHoliday = {
@@ -401,6 +421,7 @@ export type ShiftSource =
     | 'assignment'
     | 'employee'
     | 'department'
+    | 'location'
     | 'organization'
     | 'fallback';
 

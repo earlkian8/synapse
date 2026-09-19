@@ -44,12 +44,30 @@ class AttendancePunch extends Model
     public const CAPTURE_SOURCES = ['web', 'mobile', 'kiosk', 'biometric', 'manual'];
 
     /**
-     * Where a punch originated: a capture source, or an approved correction
-     * request (ADR 0039), which no policy can switch off.
+     * Where a punch originated: a capture source, an approved correction
+     * request (ADR 0039), or the end-of-day job closing a forgotten clock-out
+     * (ADR 0041) — neither of which any policy can switch off.
      *
      * @var list<string>
      */
-    public const SOURCES = [...self::CAPTURE_SOURCES, 'correction'];
+    public const SOURCES = [...self::CAPTURE_SOURCES, 'correction', 'system'];
+
+    /**
+     * Sources where a person is punching for themselves, so the punch engine
+     * enforces the policy's capture rules and the day's order on them. A device's
+     * punch is recorded as it happened instead (ADR 0040).
+     *
+     * @var list<string>
+     */
+    public const PERSON_SOURCES = ['web', 'mobile', 'kiosk', 'manual'];
+
+    /**
+     * Sources whose punch is checked against a work location's fence: the ones
+     * that report where the person was. A kiosk or scanner is where it is.
+     *
+     * @var list<string>
+     */
+    public const LOCATED_SOURCES = ['web', 'mobile'];
 
     protected $fillable = [
         'organization_id',
@@ -61,6 +79,14 @@ class AttendancePunch extends Model
         'latitude',
         'longitude',
         'accuracy',
+        'work_location_id',
+        'distance_meters',
+        'within_geofence',
+        'attendance_device_id',
+        'external_id',
+        'device_punched_at',
+        'received_at',
+        'clock_skew_seconds',
         'photo',
         'note',
         'recorded_by',
@@ -75,6 +101,11 @@ class AttendancePunch extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'accuracy' => 'decimal:2',
+            'distance_meters' => 'integer',
+            'within_geofence' => 'boolean',
+            'device_punched_at' => 'datetime',
+            'received_at' => 'datetime',
+            'clock_skew_seconds' => 'integer',
         ];
     }
 
@@ -104,6 +135,26 @@ class AttendancePunch extends Model
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /**
+     * The site the punch was nearest, when it was checked against one (ADR 0040).
+     *
+     * @return BelongsTo<WorkLocation, $this>
+     */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(WorkLocation::class, 'work_location_id')->withTrashed();
+    }
+
+    /**
+     * The kiosk or scanner that sent the punch, when one did.
+     *
+     * @return BelongsTo<AttendanceDevice, $this>
+     */
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceDevice::class, 'attendance_device_id')->withTrashed();
     }
 
     /**

@@ -128,6 +128,21 @@ class AttendanceRecordResource extends JsonResource
                     'photo' => $punch->photo_url,
                     'note' => $punch->note,
                     'recorder' => $punch->relationLoaded('recorder') ? $punch->recorder?->full_name : null,
+
+                    // What capture learned (ADR 0040): the nearest site and
+                    // whether the punch was on it, the device that sent it, and
+                    // whether a phone queued it while offline.
+                    'location' => $punch->relationLoaded('location') && $punch->location !== null
+                        ? ['name' => $punch->location->name, 'radius_meters' => (int) $punch->location->radius_meters]
+                        : null,
+                    'distance_meters' => $punch->distance_meters,
+                    'within_geofence' => $punch->within_geofence,
+                    'device' => $punch->relationLoaded('device') && $punch->device !== null
+                        ? ['name' => $punch->device->name, 'type' => $punch->device->type]
+                        : null,
+                    'offline' => $punch->device_punched_at !== null,
+                    'received_at' => $punch->received_at?->toIso8601String(),
+                    'clock_skew_seconds' => $punch->clock_skew_seconds,
                 ])
                 ->values()
                 ->all()),

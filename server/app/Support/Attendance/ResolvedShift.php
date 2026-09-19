@@ -22,7 +22,7 @@ use Carbon\CarbonImmutable;
 final readonly class ResolvedShift
 {
     /** Where a shift came from, most specific first. */
-    public const SOURCES = ['roster', 'assignment', 'employee', 'department', 'organization', 'fallback'];
+    public const SOURCES = ['roster', 'assignment', 'employee', 'department', 'location', 'organization', 'fallback'];
 
     /**
      * @param  list<array{start: string, end: string}>  $segments  Clock-face "HH:MM" pairs, in order.

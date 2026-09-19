@@ -40,10 +40,16 @@ Notifier::toAll('Maintenance tonight', 'The system will be down at 10pm.', level
 role — or the super-admin role — so work goes to whoever may do it rather than to one
 named role; `except` leaves out the person a notice is about.
 
-Attendance (category `attendance`) sends three: a new request → every reviewer but the
+Attendance (category `attendance`) sends five: a new request → every reviewer but the
 employee; a decision → the employee and whoever filed it, with the reviewer's note; a
 period coming due → holders of `attendance.period.manage`, once (from
-`attendance:periods`). Every call funnels through
+`attendance:periods`); a **closed date's exceptions** → one digest per recipient, to
+holders of `attendance.view` for the whole company and to any manager without it for
+their own reports (from `attendance:close-day`, ADR 0041); and a **clock-in reminder**
+→ the employee, once per shift, when their policy sets one (from `attendance:remind`).
+`Notifier::holdersOf()` is the audience query behind `toPermission`, exposed so the
+digest can tell who already hears about everybody. The mobile app has no push channel
+of its own, so a reminder reaches a phone only as email or web push. Every call funnels through
 `SystemNotification` — the one notification class for the whole app.
 
 ---

@@ -18,6 +18,11 @@ Route::get('invite/{token}', [InvitationController::class, 'show'])
     ->middleware('throttle:20,1')
     ->name('invite.show');
 
+// The web kiosk (ADR 0040): a shared tablet at the door. Public on purpose —
+// nobody signs in on it. The page holds the device's key in the browser and
+// every punch it records goes to the key-authenticated device API.
+Route::inertia('kiosk', 'kiosk')->name('kiosk');
+
 // Switch the active organisation (employees / admins of more than one company).
 // Only `auth` — switching must work regardless of the new org's verification state.
 Route::middleware('auth')->post('organization/switch', [OrganizationSwitchController::class, 'update'])

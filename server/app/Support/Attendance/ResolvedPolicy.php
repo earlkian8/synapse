@@ -11,7 +11,7 @@ namespace App\Support\Attendance;
 final readonly class ResolvedPolicy
 {
     /** Where a policy came from, most specific first. */
-    public const SOURCES = ['assignment', 'schedule', 'department', 'organization', 'fallback'];
+    public const SOURCES = ['assignment', 'schedule', 'department', 'location', 'organization', 'fallback'];
 
     public function __construct(
         public AttendancePolicySettings $settings,

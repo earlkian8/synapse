@@ -19,6 +19,8 @@ export const DEFAULT_STATUS = 'all';
 /** The tabs across the top of the board. */
 export const STATUS_FILTERS = [
     { value: 'all', label: 'All' },
+    // Live, and only for today (ADR 0041): the shift has started, no clock-in.
+    { value: 'not_clocked_in', label: 'Not clocked in yet' },
     { value: 'present', label: 'Present' },
     { value: 'late', label: 'Late' },
     { value: 'undertime', label: 'Undertime' },
@@ -115,6 +117,12 @@ export const FLAG_LABELS: Record<AttendanceFlag, string> = {
     holiday_worked: 'Worked a holiday',
     official_business: 'Official business',
     remote_work: 'Worked remotely',
+    outside_geofence: 'Punched away from the site',
+    source_not_allowed: 'Punched from a source the policy doesn’t allow',
+    device_sequence_anomaly: 'Device punches out of order',
+    clock_skew: 'Stamped by a clock that was off',
+    auto_closed: 'Clock-out written automatically',
+    missing_clock_out: 'Still missing a clock-out',
 };
 
 /** Flags worth a chip — the ones the day's minutes do not already say. */
@@ -129,6 +137,12 @@ export const CHIP_FLAGS: AttendanceFlag[] = [
     'holiday_worked',
     'official_business',
     'remote_work',
+    'outside_geofence',
+    'source_not_allowed',
+    'device_sequence_anomaly',
+    'clock_skew',
+    'auto_closed',
+    'missing_clock_out',
 ];
 
 /** A flag's chip tone: something to act on, or something to know. */
@@ -145,6 +159,12 @@ export const FLAG_TONES: Record<AttendanceFlag, 'warn' | 'info'> = {
     holiday_worked: 'info',
     official_business: 'info',
     remote_work: 'info',
+    outside_geofence: 'warn',
+    source_not_allowed: 'warn',
+    device_sequence_anomaly: 'warn',
+    clock_skew: 'warn',
+    auto_closed: 'warn',
+    missing_clock_out: 'warn',
 };
 
 /**
@@ -157,6 +177,7 @@ export const SHIFT_SOURCE_LABELS: Record<ShiftSource, string> = {
     assignment: 'Assigned shift',
     employee: 'Assigned shift',
     department: 'Department default',
+    location: 'Work location default',
     organization: 'Company default',
     fallback: 'Default hours',
 };
@@ -194,6 +215,18 @@ export function recordAnomalies(record: AttendanceRecord): Anomaly[] {
 
     if (record.status === 'half_day') {
         out.push({ label: 'Judged a half day', tone: 'danger' });
+    }
+
+    if (record.flags?.includes('outside_geofence')) {
+        out.push({ label: 'Punched away from the site', tone: 'warn' });
+    }
+
+    if (record.flags?.includes('auto_closed')) {
+        out.push({ label: 'Clock-out written automatically', tone: 'warn' });
+    }
+
+    if (record.flags?.includes('device_sequence_anomaly')) {
+        out.push({ label: 'Device punches out of order', tone: 'warn' });
     }
 
     if (record.flags?.includes('break_exceeded')) {
@@ -240,6 +273,7 @@ export const SOURCE_LABELS: Record<PunchSource, string> = {
     biometric: 'Biometric',
     manual: 'Entered by hand',
     correction: 'Approved correction',
+    system: 'Closed automatically',
 };
 
 export const PUNCH_META: Record<PunchType, PunchMeta> = {

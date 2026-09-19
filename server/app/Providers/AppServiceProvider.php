@@ -12,6 +12,7 @@ use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
 use App\Support\Ai\GeminiClient;
+use App\Support\Attendance\AttendanceInputs;
 use App\Support\Attendance\PeriodLock;
 use App\Support\Ml\MlClient;
 use App\Support\PermissionRegistry;
@@ -88,6 +89,10 @@ class AppServiceProvider extends ServiceProvider
         $this->configureAuthorization();
         $this->configureRateLimiting();
         $this->recordLastLogin();
+
+        // Recorded attendance days follow leave, holidays and the roster when
+        // those change (ADR 0041).
+        AttendanceInputs::watch();
     }
 
     /**
@@ -106,6 +111,12 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(12)->by('assistant-min:'.$request->user()?->id),
             Limit::perDay(240)->by('assistant-day:'.$request->user()?->id),
         ]);
+
+        // A device sends punches in batches; a kiosk once per person at the
+        // counter. Keyed per device key, so one misbehaving scanner cannot
+        // crowd out the rest of the building (ADR 0040).
+        RateLimiter::for('attendance-device', fn (Request $request) => Limit::perMinute(120)
+            ->by('attendance-device:'.hash('sha256', (string) ($request->bearerToken() ?? $request->header('X-Device-Key') ?? $request->ip()))));
     }
 
     /**

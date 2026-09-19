@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Queries\AttendanceRangeQuery;
+use App\Queries\AttendanceRecordsIndexQuery;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Retrieval\RetrievedSubject;
@@ -74,6 +75,7 @@ class AttendanceModule extends Module implements ContributesContext
             'file_attendance_request' => 'fileRequest',
             'find_attendance_requests' => 'findRequests',
             'review_attendance_request' => 'reviewRequest',
+            'find_attendance_exceptions' => 'findExceptions',
         ];
     }
 
@@ -88,6 +90,7 @@ class AttendanceModule extends Module implements ContributesContext
             'set_roster_entry' => 'attendance.roster.manage',
             'file_attendance_request' => 'attendance.request',
             'review_attendance_request' => 'attendance.requests.review',
+            'find_attendance_exceptions' => 'attendance.view',
         ];
     }
 
@@ -116,6 +119,22 @@ class AttendanceModule extends Module implements ContributesContext
 
     /** How many shifts one read-out returns, so a whole month cannot flood the reply. */
     private const MAX_ROSTER_CARDS = 40;
+
+    /**
+     * The exceptions `find_attendance_exceptions` answers about, as somebody
+     * would name them (ADR 0040, ADR 0041).
+     *
+     * @var array<string, string>
+     */
+    private const EXCEPTION_LABELS = [
+        'not_clocked_in' => 'Not clocked in yet',
+        'missing_clock_out' => 'Missing a clock-out',
+        'outside_geofence' => 'Punched away from the site',
+        'auto_closed' => 'Clock-out written automatically',
+        'absent' => 'Absent without leave',
+        'device_anomaly' => 'Device punches out of order',
+        'clock_skew' => 'Stamped by a clock that was off',
+    ];
 
     /**
      * Why a shift applies, said the way somebody would say it.
@@ -236,6 +255,10 @@ class AttendanceModule extends Module implements ContributesContext
                 $recent,
             )),
             ($flags['official_business'] ?? 0) > 0 ? 'On approved official business '.$flags['official_business'].' day'.($flags['official_business'] === 1 ? '' : 's') : null,
+            ($flags['outside_geofence'] ?? 0) > 0 ? 'Punched away from the work site on '.$flags['outside_geofence'].' day'.($flags['outside_geofence'] === 1 ? '' : 's') : null,
+            ($flags['auto_closed'] ?? 0) > 0 ? 'Forgot to clock out on '.$flags['auto_closed'].' day'.($flags['auto_closed'] === 1 ? '' : 's').' (closed automatically by the policy)' : null,
+            ($flags['missing_clock_out'] ?? 0) > 0 ? 'Still missing a clock-out on '.$flags['missing_clock_out'].' closed day'.($flags['missing_clock_out'] === 1 ? '' : 's') : null,
+            ($flags['device_sequence_anomaly'] ?? 0) > 0 ? 'Biometric punches out of order on '.$flags['device_sequence_anomaly'].' day'.($flags['device_sequence_anomaly'] === 1 ? '' : 's') : null,
             $pending->isEmpty() ? null : 'Attendance requests awaiting a decision — '.implode('; ', $pending->map(
                 fn (AttendanceRequest $request): string => AttendanceRequestFiler::label($request).' (filed '.$request->created_at?->diffForHumans().')',
             )->all()),
@@ -267,6 +290,7 @@ class AttendanceModule extends Module implements ContributesContext
         - file_attendance_request asks for something the clock could not capture: a `correction` (the day's punches as they should read — give only the times that change, e.g. "I forgot to clock out yesterday, I left at 6" is time_out 18:00 for yesterday), `overtime` (minutes or hours; a future date is a pre-approval), `official_business` (a client visit or field work — the day counts as a full working day) or `remote_work`. A reason is required: ask for one if the user gave none. Leave `employee` out to file for the user themselves.
         - find_attendance_requests lists requests (pending by default). Without review rights it only shows the user's own.
         - review_attendance_request approves or rejects a pending request. Nobody reviews their own, and a day in a locked attendance period cannot be decided.
+        - find_attendance_exceptions answers "who hasn't clocked in?", "who is missing a clock-out?", "who punched outside the office this week?". `kind` is not_clocked_in (today only: the shift has started and there is no clock-in, not on leave or a holiday), missing_clock_out, outside_geofence, auto_closed (the end-of-day job wrote the clock-out), absent (no punches and no leave — past days only, today's are not final), device_anomaly, clock_skew, or all. Give `date`, or `from` and `to` (up to 31 days); it defaults to today.
         - Pass `employee` as a name or employee number.
         TXT;
     }
@@ -362,6 +386,20 @@ class AttendanceModule extends Module implements ContributesContext
                         'employee' => ['type' => 'STRING', 'description' => 'Employee name or number (optional).'],
                         'status' => ['type' => 'STRING', 'enum' => [...AttendanceRequest::STATUSES, 'all']],
                         'type' => ['type' => 'STRING', 'enum' => AttendanceRequest::TYPES],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'find_attendance_exceptions',
+                'description' => "Find attendance exceptions: who hasn't clocked in, who is missing a clock-out, who punched away from the site, absences, device problems.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'kind' => ['type' => 'STRING', 'enum' => [...array_keys(self::EXCEPTION_LABELS), 'all']],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD for one day (default today).'],
+                        'from' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the first day of a range.'],
+                        'to' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD, the last day of a range.'],
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number, to narrow it to one person (optional).'],
                     ],
                 ],
             ],
@@ -745,6 +783,112 @@ class AttendanceModule extends Module implements ContributesContext
             null,
             $this->requestCard($request, $approved ? 'approve' : 'reject', $approved ? 'positive' : 'danger'),
         );
+    }
+
+    /**
+     * Who needs a second look (ADR 0040, ADR 0041). Past days are read from the
+     * same day-matrix the weekly grid uses ({@see AttendanceRangeQuery}), so a
+     * day nobody punched counts as the absence it was; "not clocked in yet" is
+     * the board's live filter for today ({@see AttendanceRecordsIndexQuery}).
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function findExceptions(User $user, array $args): ToolResult
+    {
+        if ($user->cannot('attendance.view')) {
+            return $this->denied("view other people's attendance");
+        }
+
+        $kind = strtolower(trim((string) ($args['kind'] ?? 'all')));
+        $kind = array_key_exists($kind, self::EXCEPTION_LABELS) ? $kind : 'all';
+        $today = OrganizationClock::today();
+
+        $from = $this->date($args['from'] ?? $args['date'] ?? null) ?? $today;
+        $to = $this->date($args['to'] ?? $args['date'] ?? null) ?? $from;
+
+        if ($to < $from) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $to = min($to, $today, CarbonImmutable::parse($from)->addDays(self::MAX_ROSTER_DAYS - 1)->toDateString());
+
+        $employee = filled($args['employee'] ?? null) ? $this->locateEmployee($args) : null;
+
+        if (filled($args['employee'] ?? null) && $employee === null) {
+            return ToolResult::error('Looked up the employee', 'No matching employee found.');
+        }
+
+        $search = $employee !== null ? (string) $employee->employee_no : '';
+        $found = [];
+
+        if (($kind === 'not_clocked_in' || $kind === 'all') && $to === $today) {
+            foreach (app(AttendanceRecordsIndexQuery::class)->roster($today, null, $search) as $record) {
+                if (AttendanceRecordsIndexQuery::notClockedInYet($record)) {
+                    $found[] = [$record->employee, $today, 'not_clocked_in', 'Shift started '.OrganizationClock::local($record->scheduled_start_at)->format('g:i A')];
+                }
+            }
+        }
+
+        if ($kind !== 'not_clocked_in') {
+            foreach (app(AttendanceRangeQuery::class)->days($from, $to, null, $search) as $row) {
+                foreach ($row['cells'] as $cell) {
+                    foreach ($this->exceptionsIn($cell, $today) as [$exception, $detail]) {
+                        if ($kind === 'all' || $kind === $exception) {
+                            $found[] = [$row['employee'], $cell['date'], $exception, $detail];
+                        }
+                    }
+                }
+            }
+        }
+
+        $period = $from === $to
+            ? CarbonImmutable::parse($from)->format('D, M j')
+            : CarbonImmutable::parse($from)->format('M j').' – '.CarbonImmutable::parse($to)->format('M j');
+        $title = ($kind === 'all' ? 'Attendance exceptions' : self::EXCEPTION_LABELS[$kind]).' · '.$period;
+
+        if ($found === []) {
+            return ToolResult::found($title, 'None', []);
+        }
+
+        $cards = array_map(fn (array $item): array => $this->card(
+            kind: 'find',
+            tone: 'warning',
+            badge: self::EXCEPTION_LABELS[$item[2]],
+            title: $item[0]->full_name,
+            subtitle: CarbonImmutable::parse($item[1])->format('D, M j').($item[3] !== '' ? ' · '.$item[3] : ''),
+            avatar: ['name' => $item[0]->full_name, 'initials' => $item[0]->initials(), 'photo' => $item[0]->photo_url],
+            id: $item[0]->id,
+        ), array_slice($found, 0, self::MAX_ROSTER_CARDS));
+
+        return ToolResult::found($title, count($found).' found'.(count($found) > count($cards) ? ', showing '.count($cards) : ''), $cards);
+    }
+
+    /**
+     * The exceptions one day of the matrix shows, with a line of detail each.
+     *
+     * @param  array<string, mixed>  $cell
+     * @return list<array{0: string, 1: string}>
+     */
+    private function exceptionsIn(array $cell, string $today): array
+    {
+        $flags = $cell['flags'] ?? [];
+        $out = [];
+
+        if ($cell['status'] === 'absent' && $cell['first_in_at'] === null && $cell['date'] < $today) {
+            $out[] = ['absent', 'No punches, no leave'];
+        }
+
+        if (in_array('missing_clock_out', $flags, true) || ($cell['status'] === 'incomplete' && $cell['date'] < $today)) {
+            $out[] = ['missing_clock_out', $cell['first_in_at'] !== null ? 'In at '.OrganizationClock::local(CarbonImmutable::parse($cell['first_in_at']))->format('g:i A') : ''];
+        }
+
+        foreach (['outside_geofence' => 'outside_geofence', 'auto_closed' => 'auto_closed', 'device_sequence_anomaly' => 'device_anomaly', 'clock_skew' => 'clock_skew'] as $flag => $exception) {
+            if (in_array($flag, $flags, true)) {
+                $out[] = [$exception, ''];
+            }
+        }
+
+        return $out;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

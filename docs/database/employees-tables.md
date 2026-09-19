@@ -46,6 +46,7 @@ The hub. Soft-deletes.
 | `id` | bigint (PK) | |
 | `user_id` | FK → users, nullable, **unique** | Optional login link (ADR 0004). |
 | `employee_no` | string, unique | Canonical HR id (`EMP-NNNNN`). |
+| `device_enrollment_id` | string(64), nullable | The number a person is enrolled under on the company's biometric scanners, when it is not their `employee_no` ([ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md)). Matched by device punches and the kiosk, ignoring case. Unique per organisation. |
 | `first_name` / `middle_name` / `last_name` / `suffix` | string | `middle`/`suffix` nullable. |
 | `birth_date` | date, nullable | |
 | `gender` | string, nullable | male / female / other. |

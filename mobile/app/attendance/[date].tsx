@@ -17,7 +17,7 @@ import { formatClock, formatDate, formatMinutes, formatTime } from '@/lib/format
 import { attendanceMeta } from '@/lib/status';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
-import type { Paginated, AttendanceRecord } from '@/types/api';
+import type { Paginated, AttendanceRecord, Punch } from '@/types/api';
 
 export default function AttendanceDayScreen() {
   const { colors, spacing } = useTheme();
@@ -115,9 +115,9 @@ export default function AttendanceDayScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <AppText variant="label">{PUNCH_TIMELINE_LABEL[punch.type]}</AppText>
-                        {(punch.latitude != null || punch.note) && (
-                          <AppText variant="caption" faint numberOfLines={1}>
-                            {punch.note ?? `${punch.latitude?.toFixed(4)}, ${punch.longitude?.toFixed(4)}`}
+                        {(punch.latitude != null || punch.note || punch.location || punch.offline) && (
+                          <AppText variant="caption" faint numberOfLines={2}>
+                            {punchDetail(punch)}
                           </AppText>
                         )}
                       </View>
@@ -175,4 +175,27 @@ function Metric({ label, value }: { label: string; value: string }) {
       </AppText>
     </View>
   );
+}
+
+/**
+ * Where a punch was and how it arrived (ADR 0040), in a line: "On site at Makati
+ * Office", "Off site: 1.8 km from Makati Office", "Sent after being offline".
+ */
+function punchDetail(punch: Punch): string {
+  const meters = (value: number) => (value < 1000 ? `${value} m` : `${(value / 1000).toFixed(1)} km`);
+
+  const place =
+    punch.within_geofence === true
+      ? `On site at ${punch.location?.name ?? 'a work location'}`
+      : punch.within_geofence === false
+        ? punch.location && punch.distance_meters != null
+          ? `Off site: ${meters(punch.distance_meters)} from ${punch.location.name}`
+          : 'Off site: no location shared'
+        : punch.location
+          ? `At ${punch.location.name}`
+          : punch.latitude != null
+            ? `${punch.latitude.toFixed(4)}, ${punch.longitude?.toFixed(4)}`
+            : null;
+
+  return [punch.note, place, punch.offline ? 'Sent after being offline' : null].filter(Boolean).join(' · ');
 }

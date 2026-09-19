@@ -1,4 +1,14 @@
-import { CameraOff, ImageOff, MapPin, StickyNote } from 'lucide-react';
+import {
+    CameraOff,
+    CloudOff,
+    ImageOff,
+    MapPin,
+    MapPinCheck,
+    MapPinX,
+    ScanLine,
+    StickyNote,
+    TabletSmartphone,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useOrganizationTimeZone } from '@/hooks/use-organization-time-zone';
 import { cn } from '@/lib/utils';
@@ -88,11 +98,104 @@ function PunchRow({ punch }: { punch: Punch }) {
                     )}
                     {punch.recorder && <span>by {punch.recorder}</span>}
                 </div>
+
+                <Capture punch={punch} />
             </div>
 
             <PunchPhoto punch={punch} />
         </li>
     );
+}
+
+/**
+ * What capture learned about a punch (ADR 0040): whether it was on site, what
+ * sent it, and whether a phone queued it offline. One quiet line, and only
+ * when there is something to say — most web punches at a company without
+ * locations have nothing here.
+ */
+function Capture({ punch }: { punch: Punch }) {
+    const timeZone = useOrganizationTimeZone();
+    const skewMinutes =
+        punch.clock_skew_seconds != null
+            ? Math.round(Math.abs(punch.clock_skew_seconds) / 60)
+            : 0;
+
+    const place = (() => {
+        if (punch.within_geofence === true) {
+            return {
+                icon: MapPinCheck,
+                tone: 'text-emerald-600 dark:text-emerald-400',
+                text: `On site at ${punch.location?.name ?? 'a work location'}${punch.distance_meters != null ? `, ${formatMeters(punch.distance_meters)} from its centre` : ''}`,
+            };
+        }
+
+        if (punch.within_geofence === false) {
+            return {
+                icon: MapPinX,
+                tone: 'text-rose-600 dark:text-rose-400',
+                text:
+                    punch.distance_meters != null && punch.location
+                        ? `Off site: ${formatMeters(punch.distance_meters)} from ${punch.location.name}`
+                        : 'Off site: no location was shared',
+            };
+        }
+
+        return punch.location
+            ? {
+                  icon: MapPin,
+                  tone: 'text-muted-foreground',
+                  text: `At ${punch.location.name}`,
+              }
+            : null;
+    })();
+
+    if (!place && !punch.device && !punch.offline) {
+        return null;
+    }
+
+    return (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
+            {place && (
+                <span
+                    className={cn('inline-flex items-center gap-1', place.tone)}
+                >
+                    <place.icon className="size-3 shrink-0" />
+                    {place.text}
+                </span>
+            )}
+            {punch.device && (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    {punch.device.type === 'kiosk' ? (
+                        <TabletSmartphone className="size-3 shrink-0" />
+                    ) : (
+                        <ScanLine className="size-3 shrink-0" />
+                    )}
+                    {punch.device.name}
+                </span>
+            )}
+            {punch.offline && (
+                <span
+                    className="inline-flex items-center gap-1 text-muted-foreground"
+                    title="The phone was offline and sent this punch when it reconnected. The time is the one the phone gave it."
+                >
+                    <CloudOff className="size-3 shrink-0" />
+                    Sent after being offline
+                    {punch.received_at &&
+                        `, arrived ${formatTime(punch.received_at, timeZone)}`}
+                </span>
+            )}
+            {skewMinutes > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">
+                    Sender’s clock off by {skewMinutes} min
+                </span>
+            )}
+        </div>
+    );
+}
+
+/** "80 m", "1.2 km". */
+function formatMeters(meters: number): string {
+    return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
 /**
@@ -106,6 +209,7 @@ const NO_PHOTO: Record<Punch['source'], string> = {
     biometric: 'Biometric',
     manual: 'By hand',
     correction: 'Corrected',
+    system: 'Automatic',
 };
 
 /**

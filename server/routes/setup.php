@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Controllers\Recruitment\RecruitmentPipelineController;
+use App\Http\Controllers\Setup\AttendanceDeviceController;
 use App\Http\Controllers\Setup\AttendancePolicyController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Setup\RatingScaleController;
 use App\Http\Controllers\Setup\ReviewTemplateController;
 use App\Http\Controllers\Setup\ScheduleSetupController;
 use App\Http\Controllers\Setup\SetupWizardController;
+use App\Http\Controllers\Setup\WorkLocationController;
 use App\Http\Controllers\Setup\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,6 +89,26 @@ Route::middleware(['auth', 'verified'])
         Route::delete('attendance-policies/{attendancePolicy}', [AttendancePolicyController::class, 'destroy'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.destroy');
         Route::patch('attendance-policies/{attendancePolicy}/restore', [AttendancePolicyController::class, 'restore'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.restore');
         Route::delete('attendance-policies/{attendancePolicy}/force', [AttendancePolicyController::class, 'forceDelete'])->middleware('can:setup.attendance-policies.manage')->name('attendance-policies.force-delete');
+
+        // Locations — the company's sites, each a fence drawn on a map, who is
+        // based where, and the schedule and policy a site's people default to
+        // (ADR 0040). Addressed by hashid; restore / force take it as a string.
+        Route::get('locations', [WorkLocationController::class, 'index'])->middleware('can:setup.locations.view')->name('locations.index');
+        Route::post('locations', [WorkLocationController::class, 'store'])->middleware('can:setup.locations.manage')->name('locations.store');
+        Route::post('locations/{workLocation}', [WorkLocationController::class, 'update'])->middleware('can:setup.locations.manage')->name('locations.update');
+        Route::put('locations/{workLocation}/people', [WorkLocationController::class, 'people'])->middleware('can:setup.locations.manage')->name('locations.people');
+        Route::delete('locations/{workLocation}', [WorkLocationController::class, 'destroy'])->middleware('can:setup.locations.manage')->name('locations.destroy');
+        Route::patch('locations/{workLocation}/restore', [WorkLocationController::class, 'restore'])->middleware('can:setup.locations.manage')->name('locations.restore');
+        Route::delete('locations/{workLocation}/force', [WorkLocationController::class, 'forceDelete'])->middleware('can:setup.locations.manage')->name('locations.force-delete');
+
+        // Devices — kiosks and biometric scanners, each with a key shown once
+        // (ADR 0040); a scanner that cannot push is fed from its CSV export.
+        Route::get('devices', [AttendanceDeviceController::class, 'index'])->middleware('can:setup.devices.manage')->name('devices.index');
+        Route::post('devices', [AttendanceDeviceController::class, 'store'])->middleware('can:setup.devices.manage')->name('devices.store');
+        Route::post('devices/{attendanceDevice}', [AttendanceDeviceController::class, 'update'])->middleware('can:setup.devices.manage')->name('devices.update');
+        Route::post('devices/{attendanceDevice}/key', [AttendanceDeviceController::class, 'rotateKey'])->middleware('can:setup.devices.manage')->name('devices.rotate-key');
+        Route::post('devices/{attendanceDevice}/import', [AttendanceDeviceController::class, 'import'])->middleware('can:setup.devices.manage')->name('devices.import');
+        Route::delete('devices/{attendanceDevice}', [AttendanceDeviceController::class, 'destroy'])->middleware('can:setup.devices.manage')->name('devices.destroy');
 
         // Departments (org structure).
         Route::get('departments', [DepartmentController::class, 'index'])->middleware('can:setup.departments.view')->name('departments.index');

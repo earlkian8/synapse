@@ -72,6 +72,15 @@ class SecurityHeaders
     }
 
     /**
+     * The map on Company Setup → Locations (ADR 0040): OpenStreetMap's tiles,
+     * and its Nominatim geocoder when somebody searches for an address. The map
+     * library itself is bundled; only these two hosts are third-party.
+     */
+    private const MAP_IMAGES = ['https://tile.openstreetmap.org'];
+
+    private const MAP_CONNECT = ['https://nominatim.openstreetmap.org'];
+
+    /**
      * Build the Content-Security-Policy.
      *
      * Inline scripts (the dark-mode bootstrap + Vite tags) are allowed via the
@@ -81,7 +90,7 @@ class SecurityHeaders
     protected function contentSecurityPolicy(string $nonce): string
     {
         $scriptSrc = ["'self'", "'nonce-{$nonce}'"];
-        $connectSrc = ["'self'"];
+        $connectSrc = ["'self'", ...self::MAP_CONNECT];
 
         // When the Vite dev server is running, HMR needs eval, its own origin
         // and a websocket. Only relax the policy in that case.
@@ -96,7 +105,7 @@ class SecurityHeaders
             "default-src 'self'",
             'script-src '.implode(' ', $scriptSrc),
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob:",
+            "img-src 'self' data: blob: ".implode(' ', self::MAP_IMAGES),
             "font-src 'self'",
             'connect-src '.implode(' ', $connectSrc),
             "object-src 'none'",

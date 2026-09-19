@@ -79,6 +79,7 @@ class AttendanceRecord extends Model
         'approved_by',
         'approved_at',
         'signed_off_overtime_minutes',
+        'closed_at',
     ];
 
     protected function casts(): array
@@ -105,6 +106,7 @@ class AttendanceRecord extends Model
             'is_manual' => 'boolean',
             'approved_at' => 'datetime',
             'signed_off_overtime_minutes' => 'integer',
+            'closed_at' => 'datetime',
         ];
     }
 
@@ -167,6 +169,21 @@ class AttendanceRecord extends Model
     public function isOpen(): bool
     {
         return $this->first_in_at !== null && $this->last_out_at === null;
+    }
+
+    /**
+     * Whether the day records nothing a person did — no punch (not even one an
+     * edit replaced), nothing entered by hand, no remark. Such a day only
+     * restates the plan: the end-of-day job wrote it to say somebody was absent,
+     * on leave or on a holiday (ADR 0041), or an approval opened it ahead of
+     * time. When the plan changes it may be re-judged by the plan as it now
+     * stands; a day somebody punched keeps its rules until HR re-applies them.
+     */
+    public function isPlaceholder(): bool
+    {
+        return ! $this->is_manual
+            && blank($this->remarks)
+            && ! AttendancePunch::withTrashed()->where('attendance_record_id', $this->id)->exists();
     }
 
     /**

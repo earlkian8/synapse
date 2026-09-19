@@ -19,6 +19,9 @@ class UpdateEmployeeRequest extends FormRequest
 
         return [
             'employee_no' => ['nullable', 'string', 'max:50', TenantRule::unique('employees', 'employee_no')->ignore($employee->id)],
+            // The id a biometric scanner knows them by, when it is not their
+            // employee number (ADR 0040).
+            'device_enrollment_id' => ['nullable', 'string', 'max:64', TenantRule::unique('employees', 'device_enrollment_id')->ignore($employee->id)],
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],

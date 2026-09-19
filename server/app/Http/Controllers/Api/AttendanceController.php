@@ -54,42 +54,56 @@ class AttendanceController extends Controller
 
     /**
      * Record a punch (clock in/out or break) from the mobile app.
+     *
+     * A punch the app queued while offline (ADR 0040) carries the time the phone
+     * gave it and is judged at that time — within the policy's window, and
+     * flagged when the phone's clock was off. Every punch carries the app's own
+     * id for it, so a resend after a lost response returns the punch already
+     * recorded instead of a second one.
      */
     public function punch(PunchRequest $request): JsonResponse
     {
         $employee = $this->employee($request);
+        $offline = $request->filled('punched_at');
 
         $photo = $request->hasFile('photo')
             ? $request->file('photo')->store('attendance/punches', 'public')
             : null;
 
         try {
-            $record = $this->clock->punch($employee, $request->string('type')->toString(), [
+            $captured = $this->clock->capture($employee, $request->string('type')->toString(), [
                 'source' => 'mobile',
                 'latitude' => $request->input('latitude'),
                 'longitude' => $request->input('longitude'),
                 'accuracy' => $request->input('accuracy'),
                 'photo' => $photo,
                 'note' => $request->input('note'),
+                'external_id' => $request->input('client_id'),
+                'punched_at' => $offline ? $request->date('punched_at') : null,
+                'offline' => $offline,
+                'sent_at' => $request->input('sent_at'),
             ]);
         } catch (AttendancePunchException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $record->load('punches');
+        $record = $captured->record->load('punches');
 
-        ActivityLogger::log(
-            event: 'updated',
-            description: 'Mobile punch ('.$request->string('type')->toString().')',
-            subject: $record,
-            logName: 'attendance',
-            subjectLabel: $employee->full_name,
-        );
+        if (! $captured->duplicate) {
+            ActivityLogger::log(
+                event: 'updated',
+                description: 'Mobile punch ('.$request->string('type')->toString().')'.($offline ? ', sent after being offline' : ''),
+                subject: $record,
+                logName: 'attendance',
+                subjectLabel: $employee->full_name,
+            );
+        }
 
         return response()->json([
             'data' => (new AttendanceRecordResource($record))->resolve($request),
             'next_expected' => $this->clock->nextExpected($record),
             'allowed' => $this->clock->allowed($record),
+            'duplicate' => $captured->duplicate,
         ]);
     }
 

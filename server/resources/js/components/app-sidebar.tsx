@@ -32,6 +32,8 @@ import {
     UserRoundMinus,
     Users,
     Workflow,
+    MapPinned,
+    ScanLine,
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
@@ -198,6 +200,20 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/attendance-policies',
         icon: Scale,
         permission: 'setup.attendance-policies.view',
+    },
+    {
+        // Sites and their fences (ADR 0040).
+        title: 'Locations',
+        href: '/setup/locations',
+        icon: MapPinned,
+        permission: 'setup.locations.view',
+    },
+    {
+        // Kiosks and biometric scanners (ADR 0040).
+        title: 'Devices',
+        href: '/setup/devices',
+        icon: ScanLine,
+        permission: 'setup.devices.manage',
     },
     {
         title: 'Leave Types',

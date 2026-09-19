@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeScheduleAssignment;
 use App\Models\ShiftRosterEntry;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
@@ -23,11 +24,13 @@ use Illuminate\Support\Collection;
  *  3. **employee** — the denormalised `employees.work_schedule_id`, for rows made
  *     before assignments existed (or by a seeder that only set the pointer).
  *  4. **department** — the department's default schedule.
- *  5. **organization** — the company's default schedule.
- *  6. **fallback** — Mon–Fri 08:00–17:00, eight hours ({@see ResolvedShift::fallback()}).
+ *  5. **location** — the default schedule of the person's primary work
+ *     location (ADR 0040).
+ *  6. **organization** — the company's default schedule.
+ *  7. **fallback** — Mon–Fri 08:00–17:00, eight hours ({@see ResolvedShift::fallback()}).
  *
  * {@see forMany()} answers for a whole roster over a whole range in a fixed
- * number of queries — five, whatever the range — so the weekly grid and the
+ * number of queries — six, whatever the range — so the weekly grid and the
  * monthly report do not grow a query per day.
  */
 class ShiftResolver
@@ -69,6 +72,10 @@ class ShiftResolver
         $roster = $this->rosterEntries($ids, $from, $to);
         $assignments = $this->assignments($ids, $from, $to);
         $departmentDefaults = $this->departmentDefaults($employees);
+        $locationDefaults = array_map(
+            fn (WorkLocation $location): ?int => $location->default_work_schedule_id !== null ? (int) $location->default_work_schedule_id : null,
+            WorkLocation::primaryFor($employees),
+        );
         $organizationDefault = $this->organizationDefault();
 
         $this->preloadSchedules(array_filter(array_merge(
@@ -76,6 +83,7 @@ class ShiftResolver
             $assignments->flatten(1)->pluck('work_schedule_id')->all(),
             $employees->pluck('work_schedule_id')->all(),
             array_values($departmentDefaults),
+            array_values($locationDefaults),
             [$organizationDefault],
         )));
 
@@ -85,6 +93,7 @@ class ShiftResolver
             $ownRoster = $roster->get($employee->id) ?? collect();
             $ownAssignments = $assignments->get($employee->id) ?? collect();
             $departmentDefault = $departmentDefaults[$employee->department_id] ?? null;
+            $locationDefault = $locationDefaults[$employee->id] ?? null;
 
             foreach ($dates as $date) {
                 $out[$employee->id][$date] = $this->resolve(
@@ -93,6 +102,7 @@ class ShiftResolver
                     $ownAssignments->first(fn (EmployeeScheduleAssignment $a): bool => $this->covers($a, $date)),
                     $employee->work_schedule_id,
                     $departmentDefault,
+                    $locationDefault,
                     $organizationDefault,
                 );
             }
@@ -110,6 +120,7 @@ class ShiftResolver
         ?EmployeeScheduleAssignment $assignment,
         ?int $employeeScheduleId,
         ?int $departmentScheduleId,
+        ?int $locationScheduleId,
         ?int $organizationScheduleId,
     ): ResolvedShift {
         if ($roster !== null) {
@@ -124,7 +135,7 @@ class ShiftResolver
             }
         }
 
-        foreach ([[$employeeScheduleId, 'employee'], [$departmentScheduleId, 'department'], [$organizationScheduleId, 'organization']] as [$id, $source]) {
+        foreach ([[$employeeScheduleId, 'employee'], [$departmentScheduleId, 'department'], [$locationScheduleId, 'location'], [$organizationScheduleId, 'organization']] as [$id, $source]) {
             $shift = $this->fromSchedule($id, $date, $source);
 
             if ($shift !== null) {

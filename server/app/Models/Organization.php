@@ -42,6 +42,8 @@ class Organization extends Model
         'timezone',
         'attendance_period_frequency',
         'attendance_lock_reminder_days',
+        'attendance_closed_from',
+        'attendance_closed_through',
         'default_work_schedule_id',
         'tin',
         'sss_employer_no',
@@ -85,6 +87,9 @@ class Organization extends Model
             'setup_completed_at' => 'datetime',
             'setup_steps' => 'array',
             'attendance_lock_reminder_days' => 'integer',
+            // The first and last dates the end-of-day job has closed (ADR 0041).
+            'attendance_closed_from' => 'date',
+            'attendance_closed_through' => 'date',
         ];
     }
 

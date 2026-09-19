@@ -107,6 +107,8 @@ class MyAttendanceController extends Controller
                 'accuracy' => $request->input('accuracy'),
                 'photo' => $photo,
                 'note' => $request->input('note'),
+                // Checked against the policy's web address allowlist (ADR 0040).
+                'ip' => $request->ip(),
             ]);
         } catch (AttendancePunchException $e) {
             return $this->respond($e->getMessage(), 'warning');

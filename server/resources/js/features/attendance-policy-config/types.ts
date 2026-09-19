@@ -48,6 +48,10 @@ export type PolicySettings = {
         action: MissingClockOutAction;
         after_minutes: number;
     };
+    /** Clock-in reminders (ADR 0041); null sends none. */
+    reminders: {
+        clock_in_after_minutes: number | null;
+    };
     night: {
         enabled: boolean;
         start: string; // "HH:MM"
@@ -58,6 +62,10 @@ export type PolicySettings = {
         selfie_required: boolean;
         geofence: GeofenceMode;
         web_ip_allowlist: string[];
+        /** How old a punch a phone queued offline may be (ADR 0040). */
+        offline_window_hours: number;
+        /** How far a sender's clock may be off before it is flagged. */
+        max_clock_skew_minutes: number;
     };
 };
 

@@ -39,16 +39,18 @@ this is the *how*. Everything is tenant-scoped (ADR 0005).
 
 `App\Support\Attendance\PolicyResolver` — most specific first:
 
-**assignment → schedule → department → company default → built-in fallback**
+**assignment → schedule → department → work location → company default → built-in fallback**
 
 1. the policy on the **dated assignment** covering the date;
 2. the policy on the **schedule** the day's shift came from — including one a roster
    override borrowed for the day;
 3. the **department's** policy;
-4. the policy marked **company default** (not archived);
-5. the **built-in fallback** — a policy with nothing set.
+4. the policy of the person's **primary work location** (or their only one —
+   [Work Locations](./work-locations.md), ADR 0040);
+5. the policy marked **company default** (not archived);
+6. the **built-in fallback** — a policy with nothing set.
 
-`forMany()` resolves a whole roster over a range in five queries whatever the range, and
+`forMany()` resolves a whole roster over a range in six queries whatever the range, and
 in one when the company has no policies at all. `ResolvedPolicy` carries the settings, the
 id and name, and the **source** (which link won).
 
@@ -90,17 +92,20 @@ are whole minutes; "off" is `null`.
 | | `weekly_after_minutes` | 2400 | Overtime once the Mon–Sun week's **regular** minutes pass this — so under `daily_and_weekly` a minute already paid as daily overtime is never counted again. |
 | | `min_block_minutes` | 0 | Less than this in a day is not overtime at all. |
 | | `count_early_clock_in` | true | Off: on a fixed shift, minutes before the start are not worked (so never overtime). |
-| | `requires_approval` | false | On: overtime is computed but not approved (flag `unapproved_overtime`) until Phase 3's approval flow signs it off. |
+| | `requires_approval` | false | On: overtime is computed but not approved (flag `unapproved_overtime`) until it is signed off or an overtime request is approved (ADR 0039). |
 | | `rest_day_all_overtime` | false | Every minute worked on a rest day is overtime. |
 | | `holiday_all_overtime` | false | Every minute worked on a regular or special non-working holiday is overtime. |
-| **Missing clock-out** | `action` | `flag` | `flag`, `auto_close_at_shift_end`, `auto_close_after_minutes`. **Stored now; applied by the end-of-day job (Phase 4).** |
+| **Missing clock-out** | `action` | `flag` | `flag`, `auto_close_at_shift_end`, `auto_close_after_minutes` — applied by the end-of-day job once `max_shift_span_minutes` has passed since the clock-in (ADR 0041). An auto-close writes a `system` clock-out, flagged `auto_closed`, which needs sign-off. |
 | | `after_minutes` | 120 | For `auto_close_after_minutes`. |
 | **Night differential** | `enabled` | false | Minutes worked inside the window are bucketed. |
 | | `start` / `end` | 22:00 / 06:00 | On the organisation's clock; an end at or before the start crosses midnight. |
-| **Capture** | `allowed_sources` | all five | `web`, `mobile`, `kiosk`, `biometric`, `manual` — at least one. **Stored now; enforced in Phase 4**, like the rest of this group. |
-| | `selfie_required` | false | |
-| | `geofence` | `off` | `off`, `flag`, `block`. |
-| | `web_ip_allowlist` | [] | IP addresses or CIDR ranges (up to 50). Empty allows any network. |
+| **Reminders** | `clock_in_after_minutes` | off | Remind somebody who has not clocked in this many minutes into their shift (5–240), once per shift (ADR 0041). |
+| **Capture** | `allowed_sources` | all five | `web`, `mobile`, `kiosk`, `biometric`, `manual` — at least one. A person's punch from another source is refused; a scanner's is recorded and flagged `source_not_allowed` (ADR 0040). |
+| | `selfie_required` | false | A mobile punch without a photo is refused. |
+| | `geofence` | `off` | `off` records where a web or mobile punch was; `flag` accepts one outside every fence and flags `outside_geofence`; `block` refuses it, naming the nearest site and the distance. Approved remote work or official business excuses the day. See [Work Locations](./work-locations.md). |
+| | `web_ip_allowlist` | [] | IP addresses or CIDR ranges (up to 50). Empty allows any network. A web punch from elsewhere is refused; behind a proxy, set `TRUSTED_PROXIES`. |
+| | `offline_window_hours` | 72 | How old a punch a phone queued offline may be when it arrives (1–720). Older needs a correction request. |
+| | `max_clock_skew_minutes` | 10 | A phone's or device's clock further off than this is accepted and flagged `clock_skew` (1–1440). |
 
 Validation lives in `AttendancePolicyRequest` — `settingsRules()` for each field and
 `validateSettings()` for the ones that must agree — shared by the editor, the wizard and
@@ -137,7 +142,11 @@ forgiven. In order:
    approved overtime; night; rest day; holiday.
 7. **Thresholds** — on a working day only: absent (too late, too short), then half day.
 8. **Status and flags.** An open day is `incomplete`; otherwise late, then undertime, then
-   present.
+   present. The capture flags come from the punches (ADR 0040): `outside_geofence`
+   (unless remote work or official business), `source_not_allowed`,
+   `device_sequence_anomaly` (scanner punches only), `clock_skew` and `auto_closed`; and
+   `missing_clock_out` on a day the end-of-day job closed while still open. Each of them
+   but `missing_clock_out` puts the day to pending sign-off.
 
 `DayResult::applyTo()` writes the verdict onto a record; `first_in_at` / `last_out_at`
 stay the raw punches.
@@ -194,6 +203,7 @@ assignment goes with that screen's own permission.
 
 ## Assistant
 
-No new tools. The retrieved brief about a person reports overtime and how much of it
-awaits approval, half days, night, rest-day and holiday minutes, and breaks that ran over.
-Approval tools arrive with Phase 3.
+No tools of its own. The retrieved brief about a person reports overtime and how much of
+it awaits approval, half days, night, rest-day and holiday minutes, breaks that ran over,
+and days punched away from the site or closed automatically. Requests and exceptions are
+the [attendance module's](./attendance.md#assistant) tools.

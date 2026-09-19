@@ -93,6 +93,7 @@ function FormBody({
 
     const { data, setData, post, processing, errors, transform } = useForm({
         employee_no: employee?.employee_no ?? '',
+        device_enrollment_id: employee?.device_enrollment_id ?? '',
         first_name: employee?.first_name ?? '',
         middle_name: employee?.middle_name ?? '',
         last_name: employee?.last_name ?? '',
@@ -415,6 +416,22 @@ function FormBody({
                                 value={data.employee_no}
                                 onChange={(e) =>
                                     setData('employee_no', e.target.value)
+                                }
+                                className="font-mono text-sm"
+                            />
+                        </FormField>
+                        <FormField
+                            label="Device enrolment ID"
+                            error={errors.device_enrollment_id}
+                            hint="What a biometric scanner knows them by, if not their employee number."
+                        >
+                            <Input
+                                value={data.device_enrollment_id}
+                                onChange={(e) =>
+                                    setData(
+                                        'device_enrollment_id',
+                                        e.target.value,
+                                    )
                                 }
                                 className="font-mono text-sm"
                             />

@@ -24,6 +24,10 @@ createInertiaApp({
             // anywhere yet (ADR 0026) — it cannot assume the app shell.
             case name === 'invite':
                 return null;
+            // The kiosk is a shared tablet at the door (ADR 0040): nobody is
+            // signed in on it, so it has no app shell at all.
+            case name === 'kiosk':
+                return null;
             // Company setup is pre-dashboard chrome: a brand-new company has
             // nothing for the sidebar to link to yet, and the wizard carries its
             // own rail. See RequireCompanySetup.

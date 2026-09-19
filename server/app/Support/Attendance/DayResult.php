@@ -20,7 +20,7 @@ use Carbon\CarbonImmutable;
  */
 final readonly class DayResult
 {
-    /** Every flag the evaluator can raise. Phase 4 adds capture flags. */
+    /** Every flag the evaluator can raise. */
     public const FLAGS = [
         'official_business',
         'remote_work',
@@ -34,14 +34,33 @@ final readonly class DayResult
         'unapproved_overtime',
         'rest_day_worked',
         'holiday_worked',
+        // What capture and the end-of-day job found (ADR 0040, ADR 0041).
+        'outside_geofence',
+        'source_not_allowed',
+        'device_sequence_anomaly',
+        'clock_skew',
+        'auto_closed',
+        'missing_clock_out',
     ];
 
     /**
      * Flags that put a day in front of a manager before it counts (ADR 0039). A
      * day carrying one is `approval_status = pending` until somebody signs it
-     * off. Phase 4 adds `auto_closed` and `outside_geofence`.
+     * off. From ADR 0040 and 0041, so does every punch that could not be
+     * trusted as it stood — taken off site, from a source the policy does not
+     * allow, out of order on a device, from a clock that was wrong — and a
+     * clock-out the end-of-day job wrote. A day still missing its clock-out is
+     * not among them: it needs a correction, not a signature, and the period
+     * checklist already counts it.
      */
-    public const REVIEW_FLAGS = ['unapproved_overtime'];
+    public const REVIEW_FLAGS = [
+        'unapproved_overtime',
+        'outside_geofence',
+        'source_not_allowed',
+        'device_sequence_anomaly',
+        'clock_skew',
+        'auto_closed',
+    ];
 
     /**
      * @param  list<string>  $flags

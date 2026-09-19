@@ -76,6 +76,22 @@ class Notifier
         ?User $actor = null,
         array $except = [],
     ): int {
+        $recipients = self::holdersOf($permission)
+            ->when($except !== [], fn (Collection $users) => $users->reject(fn (User $user): bool => in_array($user->id, $except, true)));
+
+        return self::deliver($recipients, $title, $body, $url, $level, $category, $actor);
+    }
+
+    /**
+     * Every active member of the current organisation who holds a permission —
+     * through any role that grants it, or the super-admin role that holds them
+     * all. The audience {@see toPermission()} reaches, for a caller that has to
+     * know who is in it (the attendance digest, ADR 0041).
+     *
+     * @return Collection<int, User>
+     */
+    public static function holdersOf(string $permission): Collection
+    {
         $roles = Role::query()
             ->where(fn ($query) => $query
                 ->where('name', Role::SUPER_ADMIN)
@@ -83,17 +99,15 @@ class Notifier
             ->pluck('id');
 
         if ($roles->isEmpty()) {
-            return 0;
+            return new Collection;
         }
 
-        $recipients = User::query()
+        return User::query()
             ->where('is_active', true)
             ->inCurrentOrganization()
             ->whereHas('roles', fn ($query) => $query->whereIn('roles.id', $roles))
-            ->when($except !== [], fn ($query) => $query->whereNotIn('users.id', $except))
-            ->get();
-
-        return self::deliver($recipients, $title, $body, $url, $level, $category, $actor);
+            ->get()
+            ->toBase();
     }
 
     /**

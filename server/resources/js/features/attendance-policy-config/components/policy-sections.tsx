@@ -1,5 +1,6 @@
 import {
     AlarmClock,
+    BellRing,
     Coffee,
     Hourglass,
     Moon,
@@ -448,9 +449,11 @@ export function PolicySections({
                     'A forgotten clock-out',
                 )}
             >
-                <Pending>
-                    Saved now; applied once the end-of-day job closes days.
-                </Pending>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                    Decided the morning after, once the shift can no longer
+                    claim a punch. A clock-out the policy writes waits for
+                    sign-off.
+                </p>
                 <Choice
                     label="When nobody clocks out"
                     value={s.missing_clock_out.action}
@@ -474,11 +477,22 @@ export function PolicySections({
                 )}
             </Section>
 
+            <Section {...section('reminders', BellRing, 'Reminders')}>
+                <OptionalMinutes
+                    label="Remind people who haven’t clocked in"
+                    offLabel="No reminders"
+                    hint="Minutes into the shift. Nobody on leave, a holiday, a rest day, official business or remote work is reminded."
+                    value={s.reminders.clock_in_after_minutes}
+                    fallback={15}
+                    max={240}
+                    onChange={(clock_in_after_minutes) =>
+                        onChange('reminders', { clock_in_after_minutes })
+                    }
+                    error={error('reminders', 'clock_in_after_minutes')}
+                />
+            </Section>
+
             <Section {...section('capture', ScanFace, 'How people punch')}>
-                <Pending>
-                    Saved now; enforced once punch capture rules are switched
-                    on.
-                </Pending>
                 <div className="space-y-2">
                     <span className="text-sm">Ways to punch</span>
                     <div className="flex flex-wrap gap-1.5">
@@ -538,6 +552,30 @@ export function PolicySections({
                         onChange('capture', { web_ip_allowlist })
                     }
                     errors={errors}
+                />
+                <Minutes
+                    label="Accept offline punches up to"
+                    hint="How old a punch the app saved without a connection may be when it arrives. Older ones need a correction request."
+                    unit="h"
+                    value={s.capture.offline_window_hours}
+                    min={1}
+                    max={720}
+                    step={12}
+                    onChange={(offline_window_hours) =>
+                        onChange('capture', { offline_window_hours })
+                    }
+                    error={error('capture', 'offline_window_hours')}
+                />
+                <Minutes
+                    label="Flag a device clock off by more than"
+                    hint="A phone or scanner whose clock is this far from ours still records the punch, but the day waits for sign-off."
+                    value={s.capture.max_clock_skew_minutes}
+                    min={1}
+                    max={1440}
+                    onChange={(max_clock_skew_minutes) =>
+                        onChange('capture', { max_clock_skew_minutes })
+                    }
+                    error={error('capture', 'max_clock_skew_minutes')}
                 />
             </Section>
         </div>
@@ -692,6 +730,7 @@ function Minutes({
     min = 0,
     max,
     step = 5,
+    unit = 'min',
     error,
 }: {
     label: string;
@@ -701,6 +740,8 @@ function Minutes({
     min?: number;
     max: number;
     step?: number;
+    /** The field is in minutes unless it says hours. */
+    unit?: 'min' | 'h';
     error?: string;
 }) {
     const id = useId();
@@ -729,7 +770,9 @@ function Minutes({
                         className="h-8 w-24"
                     />
                     <span className="text-xs text-muted-foreground tabular-nums">
-                        min{value >= 60 ? ` · ${formatDuration(value)}` : ''}
+                        {unit === 'h'
+                            ? 'hours'
+                            : `min${value >= 60 ? ` · ${formatDuration(value)}` : ''}`}
                     </span>
                 </div>
                 {hint && (
@@ -825,15 +868,6 @@ function OptionalMinutes({
                 <InputError message={error} className="mt-1.5" />
             </div>
         </div>
-    );
-}
-
-/** A group whose rules are recorded now and take effect later. */
-function Pending({ children }: { children: ReactNode }) {
-    return (
-        <p className="rounded-md bg-muted/60 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
-            {children}
-        </p>
     );
 }
 

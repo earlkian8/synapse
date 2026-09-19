@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/text';
+import { useQueuedPunches } from '@/features/attendance/punch-queue';
 import { useTheme } from '@/theme/theme';
 
 const ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -21,8 +22,10 @@ const ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: 
  * the brand colour is the whole shape rather than a marker.
  */
 export function TabBar({ state, navigation }: BottomTabBarProps) {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, status } = useTheme();
   const insets = useSafeAreaInsets();
+  // Punches saved while offline and not yet sent (ADR 0040).
+  const waiting = useQueuedPunches().length;
 
   return (
     <View
@@ -85,6 +88,27 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
                 }}
               >
                 <Ionicons name={meta.active} size={28} color={colors.onAccent} />
+                {waiting > 0 && (
+                  <View
+                    accessibilityLabel={`${waiting} ${waiting === 1 ? 'punch' : 'punches'} waiting to send`}
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      minWidth: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      paddingHorizontal: 5,
+                      backgroundColor: status.late,
+                      borderWidth: 2,
+                      borderColor: colors.card,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <AppText style={{ color: colors.text, fontSize: 11, fontWeight: '800' }}>{waiting}</AppText>
+                  </View>
+                )}
               </View>
               <AppText variant="caption" style={{ color: tint, marginTop: 2, fontSize: 11, fontWeight: focused ? '700' : '500' }}>
                 {meta.label}

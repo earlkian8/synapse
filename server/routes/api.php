@@ -3,10 +3,12 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
+use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Middleware\AuthenticateDevice;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +31,17 @@ Route::post('auth/login', [AuthController::class, 'login'])
 Route::post('auth/register', [AuthController::class, 'register'])
     ->middleware('throttle:6,1')
     ->name('api.auth.register');
+
+// Kiosks and biometric devices (ADR 0040), authenticated by a device key
+// rather than a user; the key says which organisation they belong to. The
+// interactive kiosk endpoints take a kiosk's key only.
+Route::prefix('devices')->middleware('throttle:attendance-device')->group(function () {
+    Route::get('me', [DeviceController::class, 'show'])->middleware(AuthenticateDevice::class)->name('api.devices.me');
+    Route::post('punches', [DeviceController::class, 'punches'])->middleware(AuthenticateDevice::class)->name('api.devices.punches');
+
+    Route::post('kiosk/lookup', [DeviceController::class, 'lookup'])->middleware(AuthenticateDevice::class.':kiosk')->name('api.devices.kiosk.lookup');
+    Route::post('kiosk/punch', [DeviceController::class, 'punch'])->middleware(AuthenticateDevice::class.':kiosk')->name('api.devices.kiosk.punch');
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
