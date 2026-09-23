@@ -9,17 +9,14 @@ import {
   View,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { BrandLockup, EntryScreen, entryColors as colors } from '@/components/ui/entry-screen';
 import { Input } from '@/components/ui/input';
-import { Logo } from '@/components/ui/logo';
 import { AppText } from '@/components/ui/text';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { FixedScheme } from '@/theme/theme';
-import { palette } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -54,114 +51,95 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.navy }}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <EntryScreen>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
+          keyboardShouldPersistTaps="handled"
         >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Animated.View entering={FadeIn.duration(500)} style={{ alignItems: 'center', marginBottom: 36 }}>
-              <Logo width={176} surface="dark" />
-              <AppText
-                variant="display"
-                style={{ color: palette.white, letterSpacing: 2, marginTop: 14 }}
-              >
-                SYNAPSE
+          <Animated.View entering={FadeIn.duration(500)} style={{ marginBottom: 40 }}>
+            <BrandLockup markWidth={168} tagline="Intelligent HR Management" />
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.duration(500).delay(150)} style={{ gap: 16 }}>
+            <View style={{ gap: 4 }}>
+              <AppText variant="heading">Welcome back</AppText>
+              <AppText variant="caption" muted>
+                Sign in to your SYNAPSE account.
               </AppText>
-              <AppText variant="body" style={{ color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-                Intelligent HR Management
-              </AppText>
-            </Animated.View>
-
-            <FixedScheme scheme="light">
-              <Animated.View
-                entering={FadeIn.duration(500).delay(150)}
-                style={{
-                  backgroundColor: palette.white,
-                  borderRadius: 24,
-                  padding: 22,
-                  gap: 16,
-                }}
-              >
-                <View style={{ gap: 4 }}>
-                  <AppText variant="heading" style={{ color: palette.navy }}>
-                    Welcome back
-                  </AppText>
-                  <AppText variant="caption" style={{ color: palette.neutral[500] }}>
-                    Sign in to your SYNAPSE account.
-                  </AppText>
-                </View>
-
-                <Input
-                  label="Email"
-                  placeholder="you@company.com"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="email"
-                  value={email}
-                  onChangeText={setEmail}
-                  error={errors.email}
-                  editable={!submitting}
-                />
-
-                <View style={{ position: 'relative' }}>
-                  <Input
-                    label="Password"
-                    placeholder="••••••••"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={setPassword}
-                    error={errors.password}
-                    editable={!submitting}
-                    onSubmitEditing={onSubmit}
-                    returnKeyType="go"
-                  />
-                  <Pressable
-                    onPress={() => setShowPassword((v) => !v)}
-                    hitSlop={10}
-                    style={{ position: 'absolute', right: 14, top: 38 }}
-                  >
-                    <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={palette.neutral[500]} />
-                  </Pressable>
-                </View>
-
-                <Button
-                  label="Sign in"
-                  onPress={onSubmit}
-                  loading={submitting}
-                  disabled={!email || !password}
-                  size="lg"
-                />
-              </Animated.View>
-            </FixedScheme>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 24,
-              }}
-            >
-              <AppText variant="caption" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                New here?
-              </AppText>
-              <Link href="/(auth)/register" replace asChild>
-                <Pressable hitSlop={8}>
-                  <AppText variant="caption" style={{ color: palette.teal, fontWeight: '600' }}>
-                    Create an account
-                  </AppText>
-                </Pressable>
-              </Link>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
+
+            <Input
+              label="Email"
+              placeholder="you@company.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
+              error={errors.email}
+              editable={!submitting}
+            />
+
+            <View style={{ position: 'relative' }}>
+              <Input
+                label="Password"
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                error={errors.password}
+                editable={!submitting}
+                onSubmitEditing={onSubmit}
+                returnKeyType="go"
+              />
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                style={{ position: 'absolute', right: 14, top: 38 }}
+              >
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={colors.textFaint} />
+              </Pressable>
+            </View>
+
+            <Button
+              label="Sign in"
+              variant="secondary"
+              onPress={onSubmit}
+              loading={submitting}
+              disabled={!email || !password}
+              size="lg"
+              style={{ marginTop: 4 }}
+            />
+          </Animated.View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 28,
+            }}
+          >
+            <AppText variant="caption" color={colors.textMuted}>
+              New here?
+            </AppText>
+            <Link href="/(auth)/register" replace asChild>
+              <Pressable hitSlop={8}>
+                <AppText variant="caption" color={colors.secondaryText} style={{ fontWeight: '700' }}>
+                  Create an account
+                </AppText>
+              </Pressable>
+            </Link>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </EntryScreen>
   );
 }

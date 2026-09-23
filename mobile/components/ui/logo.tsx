@@ -5,8 +5,8 @@ import { useTheme } from '@/theme/theme';
 const MARK = require('@/assets/images/synapse-mark.png');
 const MARK_REVERSED = require('@/assets/images/synapse-mark-reversed.png');
 
-/** Which ground the mark is being placed on. `dark` is the brand's navy field — the
- *  sign-in screens and the splash — which stays dark whatever the phone is set to. */
+/** Which ground the mark is being placed on. `auto` follows the scheme; the entry
+ *  screens pass `light`, because their ground is white whatever the phone is set to. */
 type Surface = 'auto' | 'light' | 'dark';
 
 type LogoProps = {
@@ -20,8 +20,8 @@ type LogoProps = {
  *
  * Two colourways, because about 60% of the artwork is deep navy and vanishes on a dark
  * ground: the original for light surfaces, and a reversed one — white figure, teal
- * network — for the navy field and dark mode. Landscape (about 4:3), so it is sized by
- * width and never squeezed into a square.
+ * network — for dark mode. Landscape (about 4:3), so it is sized by width and never
+ * squeezed into a square.
  */
 export function Logo({ width = 160, surface = 'auto' }: LogoProps) {
   const { scheme } = useTheme();

@@ -7,10 +7,12 @@ import { useTheme } from '@/theme/theme';
 
 /**
  * `primary` is the ERP's near-black button — the default for anything you press.
+ * `secondary` is the brand navy, for the main action on the entry screens (sign in,
+ * create an account), where the brand speaks before the app does.
  * `accent` is the brand teal, held for the one action this app exists for: punching in
  * and out. Spending it anywhere else is what made every screen read as teal.
  */
-type Variant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
 
 type ButtonProps = {
@@ -49,6 +51,7 @@ export function Button({
 
   const bg: Record<Variant, string> = {
     primary: colors.primary,
+    secondary: colors.secondary,
     accent: colors.accent,
     outline: 'transparent',
     ghost: 'transparent',
@@ -57,6 +60,7 @@ export function Button({
 
   const fg: Record<Variant, string> = {
     primary: colors.onPrimary,
+    secondary: colors.onSecondary,
     accent: colors.onAccent,
     outline: colors.text,
     ghost: colors.accentText,

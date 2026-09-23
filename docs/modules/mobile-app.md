@@ -127,21 +127,28 @@ require approval — identical to the web `LeaveRequestController`.
   signed-in shell: white page and cards separated by the ERP's own neutral hairlines
   (its `oklch()` greys converted to sRGB — the Tailwind `neutral` ramp), near-black
   `primary` for anything you press, and the brand teal `#0ABFBF` held back for one job,
-  marking what is active. Navy `#0F2044` is the *pre-app* field only — sign-in,
-  register, splash and the workspace picker — and appears nowhere behind the app itself.
+  marking what is active. Navy `#0F2044` is the **secondary** colour (`secondary` /
+  `onSecondary` / `secondaryText`, lifted to `#4064A8` / `#A8B9E6` after dark): the
+  SYNAPSE wordmark, and the main action and links on the entry screens. No screen is a
+  navy field any more.
   `theme/color.ts` carries the colour maths: sRGB ⇄ OKLCH, WCAG contrast, and
   `readableOn()`, which walks a colour's lightness until it can legibly carry text on a
   given surface. Status tones and the colours HR picks for leave and award types are
   rendered through `readable()` from `useTheme()` rather than painted raw, so a
   tenant-chosen colour can never land as 2.5:1 text on a white card. `FixedScheme` pins
-  one subtree to a scheme, for the sign-in card that stays white whatever the phone's
-  appearance setting says.
-- `components/ui/` — the shared kit (Button, Card, Pill, Input, Sheet, Toast, …), plus
-  `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep navy
-  and vanishes on a dark ground, so `Logo` takes the original on light surfaces and a
-  reversed one (white figure, teal network) on dark; `surface="dark"` forces the reversed
-  mark on the splash and sign-in screens, which are navy whatever the phone is set to.
-  The mark is landscape (about 4:3), so it is sized by width and never squeezed into a
-  square. The app, splash and adaptive icons in `assets/images/` are generated from the
-  same artwork, each at the padding its slot wants.
+  one subtree to a scheme — `EntryScreen` uses it.
+- `components/ui/` — the shared kit (Button, Card, Pill, Input, Sheet, Toast, …), plus:
+  - `entry-screen.tsx`: `EntryScreen`, the ground of the four entry screens (cold-start
+    splash, sign-in, register, workspace picker). It is white and light-scheme whatever
+    the phone is set to, with dark status-bar icons. `BrandLockup` is the mark over the
+    navy wordmark, and `entryColors` gives the light palette to a screen reading colours
+    outside the ground. The main action there is `Button variant="secondary"` (navy).
+  - `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep
+    navy and vanishes on a dark ground, so `Logo` takes the original on light surfaces
+    and a reversed one (white figure, teal network) on dark; the entry screens pass
+    `surface="light"`. The mark is landscape (about 4:3), so it is sized by width and
+    never squeezed into a square. The app, splash and adaptive icons in `assets/images/`
+    are generated from the same artwork, each at the padding its slot wants. The splash
+    icon is the original colourway on a white splash; the launcher icon keeps its navy
+    tile.
 - `features/<module>/` — `api.ts` + components, mirroring the web feature folders.

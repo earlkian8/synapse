@@ -4,13 +4,15 @@
  * The ERP is a white product. Its signed-in shell is `--background: oklch(1 0 0)` with
  * a neutral (zero-chroma) grey ramp for ink and hairlines, a near-black `--primary` for
  * anything you press, and the brand teal held back for one job: showing which thing is
- * active. Navy is the *pre-app* field — the sign-in and workspace-picker backdrop — and
- * appears nowhere behind the app itself.
+ * active. Navy is the brand's **secondary** colour — the SYNAPSE wordmark and the main
+ * action on the entry screens (sign-in, register, workspace picker, splash), which are
+ * white like everything else, as the ERP's own sign-in is on a phone.
  *
- * This app used to invert that: navy slabs on Home and Awards, teal as the fill for
- * every primary control, and 500-level status colours set as text on white (~2.5:1).
- * It now follows the ERP. White is the surface; ink is the type and the primary action;
- * teal marks selection; colour appears only where it carries meaning.
+ * This app used to invert that: navy slabs on Home and Awards, a navy field behind
+ * sign-in, teal as the fill for every primary control, and 500-level status colours set
+ * as text on white (~2.5:1). It now follows the ERP. White is the surface; ink is the
+ * type and the primary action; navy is second; teal marks selection; colour appears
+ * only where it carries meaning.
  *
  * Every value below is checked against WCAG AA (4.5:1 for text, 3:1 for a shape that
  * carries meaning on its own) on the surface it is used on. Colours that arrive from
@@ -37,9 +39,8 @@ const neutral = {
 } as const;
 
 export const palette = {
-  /** The pre-app field: sign-in, register, splash, workspace picker. Not used in-app. */
+  /** The brand navy — the secondary colour (16:1 on white). See `secondary` below. */
   navy: '#0F2044',
-  navyDeep: '#0B1530',
   /** Brand teal. A fill and a marker — it is too light to carry text on white. */
   teal: '#0ABFBF',
   /** Teal deepened until a shape filled with it is visible on white (3:1) — the light
@@ -90,6 +91,13 @@ export type ColorScheme = {
   primary: string;
   onPrimary: string;
 
+  /** The brand navy, second to white: a fill for the entry screens' main action, and
+   *  the wordmark and links as type. Lifted in the dark scheme, where navy on near-black
+   *  is a shape nobody can find. */
+  secondary: string; //     a fill — always visible on the surface (3:1)
+  onSecondary: string; //   what goes on top of a `secondary` fill
+  secondaryText: string; // navy as type (4.5:1)
+
   /** Teal, split by job. */
   accent: string; //     fills, edges and rings — always visible on the surface (3:1)
   accentSoft: string; // a tint to sit an icon or initials on
@@ -116,6 +124,10 @@ const light: ColorScheme = {
 
   primary: neutral[900], // 17.9:1 on white
   onPrimary: neutral[50], // 17.2:1 on primary
+
+  secondary: palette.navy, // 16.0:1 on white
+  onSecondary: neutral[0], // 16.0:1 on navy
+  secondaryText: palette.navy,
 
   accent: palette.tealDeep, // 3.0:1 on white
   accentSoft: 'rgba(10, 191, 191, 0.12)',
@@ -147,6 +159,10 @@ const dark: ColorScheme = {
 
   primary: neutral[50],
   onPrimary: neutral[900],
+
+  secondary: '#4064A8', // 3.1:1 on the dark card; white type on it at 5.6:1
+  onSecondary: neutral[0],
+  secondaryText: '#A8B9E6', // 9.2:1 on the dark card
 
   accent: palette.teal, // 7.9:1 on the dark card — the brand teal needs no help here
   accentSoft: 'rgba(10, 191, 191, 0.2)',

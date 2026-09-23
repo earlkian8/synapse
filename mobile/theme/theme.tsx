@@ -84,11 +84,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 /**
  * Re-provides the theme in a fixed scheme for one subtree.
  *
- * The sign-in, register and workspace-picker screens sit on the navy field and put a
- * card on top of it that is white whatever the phone's appearance setting says. Without
- * this, the fields and labels inside that card resolved against the *dark* scheme on a
- * phone set to dark — pale grey type on white, around 2:1. The card declares the surface
- * it actually is, and everything inside it resolves against that.
+ * The entry screens — splash, sign-in, register, workspace picker — are white whatever
+ * the phone's appearance setting says (see `EntryScreen`). Without this, their fields
+ * and labels resolved against the *dark* scheme on a phone set to dark — pale grey type
+ * on white, around 2:1. The ground declares the surface it actually is, and everything
+ * inside it resolves against that.
  */
 export function FixedScheme({
   scheme,

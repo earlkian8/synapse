@@ -1,22 +1,19 @@
 import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Logo } from '@/components/ui/logo';
-import { AppText } from '@/components/ui/text';
-import { palette } from '@/theme/tokens';
+import { BrandLockup, EntryScreen } from '@/components/ui/entry-screen';
 
 /** Bridge route shown on cold start while the session is restored; the root
  * navigator redirects away to the auth stack or the app shell. A branded splash
- * (no spinner) keeps the cold-start feeling like the rest of the app. */
+ * (no spinner) on the white entry ground, continuing the native splash before it. */
 export default function Index() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.navy }}>
-      <Animated.View entering={FadeIn.duration(400)} style={{ alignItems: 'center', gap: 16 }}>
-        <Logo width={168} surface="dark" />
-        <AppText variant="display" style={{ color: palette.white, letterSpacing: 2 }}>
-          SYNAPSE
-        </AppText>
-      </Animated.View>
-    </View>
+    <EntryScreen>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View entering={FadeIn.duration(400)}>
+          <BrandLockup markWidth={168} />
+        </Animated.View>
+      </View>
+    </EntryScreen>
   );
 }
