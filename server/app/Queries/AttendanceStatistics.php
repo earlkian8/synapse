@@ -3,7 +3,6 @@
 namespace App\Queries;
 
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 
 class AttendanceStatistics
 {
@@ -30,10 +29,8 @@ class AttendanceStatistics
             'absent' => $counts['absent'] ?? 0,
             'on_leave' => $counts['on_leave'] ?? 0,
             'avg_hours' => $workedRows > 0 ? round($workedMinutes / $workedRows / 60, 1) : 0.0,
-            // Days waiting for sign-off, and requests waiting for a decision
-            // (ADR 0039) — both real queues now.
+            // Days waiting for sign-off.
             'pending' => AttendanceRecord::where('approval_status', 'pending')->count(),
-            'pending_requests' => AttendanceRequest::where('status', 'pending')->count(),
         ];
     }
 }

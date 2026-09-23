@@ -30,7 +30,7 @@ export type QueuedPunch = {
   photoUri?: string | null;
 };
 
-/** A queued punch the server refused, and why — it needs a correction instead. */
+/** A queued punch the server refused, and why — HR has to enter it instead. */
 export type RefusedPunch = { punch: QueuedPunch; message: string };
 
 type Owner = { userId: number; organizationId: number };

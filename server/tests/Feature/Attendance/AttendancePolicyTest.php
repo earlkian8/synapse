@@ -447,7 +447,7 @@ test('a schedule, a department and an assignment can each name a policy', functi
         'days' => array_map(fn (int $i): array => ['is_rest_day' => $i >= 5, 'segments' => [['start' => '08:00', 'end' => '17:00']], 'required_minutes' => 480], range(0, 6)),
     ])->assertSessionHasNoErrors();
 
-    $this->post(route('attendance.roster.assign'), [
+    $this->post(route('setup.roster.assign'), [
         'employee_ids' => [$employee->id],
         'work_schedule_id' => $schedule->id,
         'effective_from' => '2026-09-01',
@@ -467,7 +467,7 @@ test('a policy from another company cannot be attached', function () {
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
-    $this->post(route('attendance.roster.assign'), [
+    $this->post(route('setup.roster.assign'), [
         'employee_ids' => [Employee::factory()->create()->id],
         'work_schedule_id' => $schedule->id,
         'effective_from' => '2026-09-01',

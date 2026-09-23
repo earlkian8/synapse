@@ -92,7 +92,7 @@ are whole minutes; "off" is `null`.
 | | `weekly_after_minutes` | 2400 | Overtime once the Mon–Sun week's **regular** minutes pass this — so under `daily_and_weekly` a minute already paid as daily overtime is never counted again. |
 | | `min_block_minutes` | 0 | Less than this in a day is not overtime at all. |
 | | `count_early_clock_in` | true | Off: on a fixed shift, minutes before the start are not worked (so never overtime). |
-| | `requires_approval` | false | On: overtime is computed but not approved (flag `unapproved_overtime`) until it is signed off or an overtime request is approved (ADR 0039). |
+| | `requires_approval` | false | On: overtime is computed but not approved (flag `unapproved_overtime`) until the day is signed off. |
 | | `rest_day_all_overtime` | false | Every minute worked on a rest day is overtime. |
 | | `holiday_all_overtime` | false | Every minute worked on a regular or special non-working holiday is overtime. |
 | **Missing clock-out** | `action` | `flag` | `flag`, `auto_close_at_shift_end`, `auto_close_after_minutes` — applied by the end-of-day job once `max_shift_span_minutes` has passed since the clock-in (ADR 0041). An auto-close writes a `system` clock-out, flagged `auto_closed`, which needs sign-off. |
@@ -102,9 +102,9 @@ are whole minutes; "off" is `null`.
 | **Reminders** | `clock_in_after_minutes` | off | Remind somebody who has not clocked in this many minutes into their shift (5–240), once per shift (ADR 0041). |
 | **Capture** | `allowed_sources` | all five | `web`, `mobile`, `kiosk`, `biometric`, `manual` — at least one. A person's punch from another source is refused; a scanner's is recorded and flagged `source_not_allowed` (ADR 0040). |
 | | `selfie_required` | false | A mobile punch without a photo is refused. |
-| | `geofence` | `off` | `off` records where a web or mobile punch was; `flag` accepts one outside every fence and flags `outside_geofence`; `block` refuses it, naming the nearest site and the distance. Approved remote work or official business excuses the day. See [Work Locations](./work-locations.md). |
+| | `geofence` | `off` | `off` records where a web or mobile punch was; `flag` accepts one outside every fence and flags `outside_geofence`; `block` refuses it, naming the nearest site and the distance. See [Work Locations](./work-locations.md). |
 | | `web_ip_allowlist` | [] | IP addresses or CIDR ranges (up to 50). Empty allows any network. A web punch from elsewhere is refused; behind a proxy, set `TRUSTED_PROXIES`. |
-| | `offline_window_hours` | 72 | How old a punch a phone queued offline may be when it arrives (1–720). Older needs a correction request. |
+| | `offline_window_hours` | 72 | How old a punch a phone queued offline may be when it arrives (1–720). Older is refused; HR enters it instead. |
 | | `max_clock_skew_minutes` | 10 | A phone's or device's clock further off than this is accepted and flagged `clock_skew` (1–1440). |
 
 Validation lives in `AttendancePolicyRequest` — `settingsRules()` for each field and
@@ -142,8 +142,8 @@ forgiven. In order:
    approved overtime; night; rest day; holiday.
 7. **Thresholds** — on a working day only: absent (too late, too short), then half day.
 8. **Status and flags.** An open day is `incomplete`; otherwise late, then undertime, then
-   present. The capture flags come from the punches (ADR 0040): `outside_geofence`
-   (unless remote work or official business), `source_not_allowed`,
+   present. The capture flags come from the punches (ADR 0040): `outside_geofence`,
+   `source_not_allowed`,
    `device_sequence_anomaly` (scanner punches only), `clock_skew` and `auto_closed`; and
    `missing_clock_out` on a day the end-of-day job closed while still open. Each of them
    but `missing_clock_out` puts the day to pending sign-off.
@@ -166,8 +166,7 @@ re-judge later ones until they are re-applied.
 `GET /attendance/export?tab=period` — the anchor `date`'s month, or `from` and `to`
 (`Y-m-d`, at most 62 days); honours `department` and `search`. Offered on the monthly tab
 as **Payroll summary**. One row per employee; figures in **whole minutes**, never money
-(ADR 0019). The same file is written when an attendance period locks, and kept as that
-period's **payroll file** (ADR 0039). The columns, in order
+(ADR 0019). The columns, in order
 (`PeriodSummaryExport::COLUMNS`):
 
 | Column | Meaning |
@@ -205,5 +204,5 @@ assignment goes with that screen's own permission.
 
 No tools of its own. The retrieved brief about a person reports overtime and how much of
 it awaits approval, half days, night, rest-day and holiday minutes, breaks that ran over,
-and days punched away from the site or closed automatically. Requests and exceptions are
-the [attendance module's](./attendance.md#assistant) tools.
+and days punched away from the site or closed automatically. Exceptions are the
+[attendance module's](./attendance.md#assistant) tools.

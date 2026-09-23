@@ -208,7 +208,6 @@ const NO_PHOTO: Record<Punch['source'], string> = {
     kiosk: 'Kiosk punch',
     biometric: 'Biometric',
     manual: 'By hand',
-    correction: 'Corrected',
     system: 'Automatic',
 };
 

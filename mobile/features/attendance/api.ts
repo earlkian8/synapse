@@ -1,13 +1,5 @@
 import { api } from '@/lib/api';
-import type {
-  AttendanceRecord,
-  AttendanceRequest,
-  AttendanceRequestType,
-  AttendanceSummary,
-  Paginated,
-  PunchType,
-  TodayResponse,
-} from '@/types/api';
+import type { AttendanceRecord, AttendanceSummary, Paginated, PunchType, TodayResponse } from '@/types/api';
 
 export type PunchPayload = {
   type: PunchType;
@@ -20,21 +12,6 @@ export type PunchPayload = {
   clientId?: string;
   /** When it was made, for a punch sent after being offline. */
   punchedAt?: string;
-};
-
-export type FileRequestPayload = {
-  type: AttendanceRequestType;
-  start_date: string;
-  end_date?: string;
-  reason: string;
-  time_in?: string;
-  break_start?: string;
-  break_end?: string;
-  time_out?: string;
-  minutes?: number;
-  start_time?: string;
-  end_time?: string;
-  location?: string;
 };
 
 export const attendanceApi = {
@@ -71,13 +48,4 @@ export const attendanceApi = {
 
   summary: (from: string, to: string) =>
     api.get<AttendanceSummary>(`/attendance/summary?from=${from}&to=${to}`),
-
-  // My requests (ADR 0039) — decided in the ERP.
-  requests: () => api.get<Paginated<AttendanceRequest>>('/attendance/requests?per_page=50'),
-
-  fileRequest: (payload: FileRequestPayload) =>
-    api.post<{ data: AttendanceRequest; message: string }>('/attendance/requests', payload),
-
-  cancelRequest: (id: number) =>
-    api.patch<{ data: AttendanceRequest; message: string }>(`/attendance/requests/${id}/cancel`),
 };

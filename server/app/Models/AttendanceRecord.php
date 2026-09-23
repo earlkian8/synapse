@@ -139,8 +139,8 @@ class AttendanceRecord extends Model
     }
 
     /**
-     * Punches an edit or an approved correction replaced — kept, soft-deleted,
-     * so the day's trail survives (ADR 0039).
+     * Punches an edit replaced — kept, soft-deleted, so the day's trail
+     * survives.
      *
      * @return HasMany<AttendancePunch, $this>
      */
@@ -151,7 +151,7 @@ class AttendanceRecord extends Model
 
     /**
      * The user who signed the day off — approving what needed review on it, such
-     * as overtime awaiting approval (ADR 0039).
+     * as overtime awaiting approval.
      *
      * @return BelongsTo<User, $this>
      */
@@ -175,31 +175,15 @@ class AttendanceRecord extends Model
      * Whether the day records nothing a person did — no punch (not even one an
      * edit replaced), nothing entered by hand, no remark. Such a day only
      * restates the plan: the end-of-day job wrote it to say somebody was absent,
-     * on leave or on a holiday (ADR 0041), or an approval opened it ahead of
-     * time. When the plan changes it may be re-judged by the plan as it now
-     * stands; a day somebody punched keeps its rules until HR re-applies them.
+     * on leave or on a holiday (ADR 0041). When the plan changes it may be
+     * re-judged by the plan as it now stands; a day somebody punched keeps its
+     * rules until HR re-applies them.
      */
     public function isPlaceholder(): bool
     {
         return ! $this->is_manual
             && blank($this->remarks)
             && ! AttendancePunch::withTrashed()->where('attendance_record_id', $this->id)->exists();
-    }
-
-    /**
-     * The attendance requests that concern this day: a correction or overtime for
-     * its date, and official business or remote work whose range covers it.
-     *
-     * @return Builder<AttendanceRequest>
-     */
-    public function relatedRequests(): Builder
-    {
-        $date = $this->work_date->toDateString();
-
-        return AttendanceRequest::query()
-            ->where('employee_id', $this->employee_id)
-            ->overlapping($date, $date)
-            ->orderByDesc('created_at');
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────

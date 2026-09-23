@@ -15,8 +15,8 @@ const RETRY_MS = 30_000;
  * Sends punches queued while offline (ADR 0040): now, every half minute, and
  * whenever the app comes back to the foreground — so a punch made in a dead spot
  * arrives without anybody having to remember it. A punch the server refuses (too
- * old, out of order) is dropped and the person told, since only a correction
- * request can put it right.
+ * old, out of order) is dropped and the person told, since only HR entering the
+ * time can put it right.
  */
 export function PunchQueueRunner() {
   const { user, organization } = useAuth();

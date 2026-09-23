@@ -62,7 +62,8 @@ class Notifier
      * Notify every active member of the current organisation who holds a
      * permission — through any role that grants it, or the super-admin role that
      * holds them all. For work that goes to whoever may do it rather than to one
-     * named role (ADR 0039: attendance requests to their reviewers).
+     * named role (ADR 0041: the end-of-day digest to whoever manages
+     * attendance).
      *
      * @param  list<int>  $except  User ids left out — typically whoever the notice is about.
      */

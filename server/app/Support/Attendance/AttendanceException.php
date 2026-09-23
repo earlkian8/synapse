@@ -9,9 +9,7 @@ use RuntimeException;
  * is written to be shown as it is. Controllers map it to a warning toast (web)
  * or a 422 (API), and the assistant to a failed tool result.
  *
- * {@see AttendancePunchException} (a punch the day's state does not allow),
- * {@see AttendanceLockedException} (a day in a locked period) and
- * {@see AttendanceRequestException} (a request that cannot be filed or decided)
- * are its kinds.
+ * {@see AttendancePunchException} (a punch the day's state does not allow) is
+ * its one kind; a refused sign-off throws it plainly.
  */
 class AttendanceException extends RuntimeException {}

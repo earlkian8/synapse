@@ -10,11 +10,12 @@ overrides — lives in [scheduling tables](./scheduling-tables.md)
 ([ADR 0037](../decisions/0037-schedules-are-templates-assignments-are-dated-a-resolver-decides-the-day.md)).
 How the day is **judged** — the company's attendance policies — is `attendance_policies`
 below ([ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md),
-`…_create_attendance_policies`), which also added the minute buckets and `flags`. What
-employees **ask for** and what is **closed** — `attendance_requests` and
-`attendance_periods` — are below ([ADR 0039](../decisions/0039-attendance-requests-and-period-lock-the-engine-guards-the-lock.md),
-`…_create_attendance_requests_and_periods`), which also made punches soft-deletable and
-added the sign-off grant. **Where punches come from** — `work_locations`,
+`…_create_attendance_policies`), which also added the minute buckets and `flags`.
+`…_create_attendance_requests_and_periods` made punches soft-deletable and added the
+sign-off grant; the request and period tables it created were dropped again by
+`…_remove_attendance_requests_and_periods`
+([ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)).
+**Where punches come from** — `work_locations`,
 `employee_work_locations` and `attendance_devices` — and what capture records on each
 punch are below ([ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md),
 `…_create_work_locations_and_attendance_devices`), which also added `closed_at` for the
@@ -45,7 +46,7 @@ day's punches (never trusted from the client).
 | `undertime_minutes` | uint | `fixed`: time clocked out before `scheduled_end_at`. `flexible`: the worse of leaving before `core_end_at` and falling below `required_minutes`. `hours_only`: `required_minutes − worked`. |
 | `regular_minutes` | uint | `worked − overtime` (ADR 0038). With `overtime_minutes` a partition of the worked minutes. |
 | `overtime_minutes` | uint | By the policy's basis: `daily` beyond its threshold (or `required_minutes`), `weekly` the part of the day that carries the Mon–Sun week's regular minutes past its threshold, `daily_and_weekly` both without counting a minute twice; a whole rest day or holiday when the policy says so; nothing below the minimum block. The built-in fallback is `worked − required_minutes`, clamped at 0. |
-| `approved_overtime_minutes` | uint | The overtime that needs no further sign-off: all of it under a policy that does not require approval; under one that does, `min(overtime, granted)`, where granted is the larger of `signed_off_overtime_minutes` and the day's approved overtime requests (ADR 0039). |
+| `approved_overtime_minutes` | uint | The overtime that needs no further sign-off: all of it under a policy that does not require approval; under one that does, `min(overtime, signed_off_overtime_minutes)` — nothing until the day is signed off. |
 | `night_minutes` | uint | Worked minutes inside the policy's night window, on the organisation's clock. A tag over worked minutes, not more of them. |
 | `rest_day_minutes` | uint | Worked minutes on a day that was not a working day. A tag. |
 | `holiday_minutes` | uint | Worked minutes on a `regular` or `special_non_working` holiday. A tag. |
@@ -102,7 +103,7 @@ mobile app's punches are fully auditable.
 | `device_punched_at` | timestamp, nullable | The phone's own time for a punch it queued offline (ADR 0040); null for a live punch. |
 | `received_at` | timestamp, nullable | When the server received it. |
 | `clock_skew_seconds` | int, nullable | The sender's clock minus the server's when it sent the punch (from `sent_at`). Beyond the policy's `max_clock_skew_minutes`, the day is flagged `clock_skew`. |
-| `source` | string | `web \| mobile \| kiosk \| biometric \| manual \| correction \| system` — `correction` written by an approved correction (ADR 0039), `system` by the end-of-day job's auto-close (ADR 0041). |
+| `source` | string | `web \| mobile \| kiosk \| biometric \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). |
 | `attendance_device_id` | FK → attendance_devices, nullable | The kiosk or scanner that sent it (null on delete). |
 | `external_id` | string(100), nullable | The sender's own id for the punch — a device's, or a phone's client id for a queued punch — so a resend is recognised. |
 | `latitude` / `longitude` | decimal(10,7), nullable | GPS fix. |
@@ -113,58 +114,10 @@ mobile app's punches are fully auditable.
 | `photo` | string, nullable | Selfie path (public disk). |
 | `note` | string, nullable | |
 | `recorded_by` | FK → users, nullable | Null when the employee self-punched. |
-| `attendance_request_id` | FK → attendance_requests, nullable | The correction that wrote this punch. |
-| `replaced_by_request_id` | FK → attendance_requests, nullable | The correction that replaced it. |
-| timestamps, `deleted_at` | | Soft-deleted when an HR edit or a correction replaces it, so the day keeps what it said before. |
+| timestamps, `deleted_at` | | Soft-deleted when an HR edit replaces it, so the day keeps what it said before. |
 
 **Indexes:** `(employee_id, punched_at)`; unique `(attendance_device_id, external_id)`;
 `(employee_id, external_id)`.
-
-## `attendance_requests`
-
-What an employee asks attendance to know (ADR 0039).
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | bigint (PK) | Addressed by hashid (by id on the mobile API, self-scoped). |
-| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
-| `employee_id` | FK → employees | Whose. Cascade on delete. |
-| `type` | string | `correction \| overtime \| official_business \| remote_work`. |
-| `start_date` / `end_date` | date | Equal for the single-day types; at most 31 days apart. |
-| `attendance_record_id` | FK → attendance_records, nullable | The day it concerns, when one exists (null on delete). |
-| `payload` | json, nullable | `correction`: `time_in`, `break_start`, `break_end`, `time_out` (each "HH:MM" or null — null keeps the punch). `overtime`: `minutes`, `pre_approval`. `official_business` / `remote_work`: `start_time`, `end_time`, `location`. |
-| `reason` | text | Required. |
-| `attachment` | string, nullable | Path on the public disk. |
-| `status` | string | `pending \| approved \| rejected \| cancelled`. |
-| `reviewer_id` | FK → users, nullable | Who decided it. |
-| `reviewed_at` | timestamp, nullable | |
-| `review_note` | text, nullable | Shown to the employee. |
-| `requested_by` | FK → users, nullable | Who filed it — HR can file on somebody's behalf. |
-| timestamps, `deleted_at` | | |
-
-**Indexes:** `(employee_id, start_date)`; `(organization_id, status)`; `type`.
-
-## `attendance_periods`
-
-The periods attendance closes on (ADR 0039). Generated on
-`organizations.attendance_period_frequency` (`weekly \| bi_weekly \| semi_monthly \|
-monthly`, default `semi_monthly`), contiguous and never overlapping; reminders follow
-`organizations.attendance_lock_reminder_days` (default 2).
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | bigint (PK) | Addressed by hashid. |
-| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
-| `start_date` / `end_date` | date | |
-| `status` | string | `open \| locked`. Nothing about a day inside a locked period can change. |
-| `locked_by` / `locked_at` | FK → users / timestamp, nullable | |
-| `lock_note` | text, nullable | Why it was locked with the checklist still open. |
-| `unlocked_by` / `unlocked_at` / `unlock_reason` | nullable | The last unlock; always with a reason. |
-| `export_path` | string, nullable | The period summary written at the lock, on the private `local` disk. |
-| `reminded_at` | timestamp, nullable | When the lock reminder went out, so it goes once. |
-| timestamps | | |
-
-**Indexes:** unique `(organization_id, start_date)`; `(organization_id, status)`.
 
 ## `work_locations`
 

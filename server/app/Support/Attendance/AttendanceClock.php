@@ -2,10 +2,8 @@
 
 namespace App\Support\Attendance;
 
-use App\Models\AttendancePeriod;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
@@ -46,10 +44,6 @@ use Symfony\Component\HttpFoundation\IpUtils;
  *
  * The punch windows are the policy's too: how early a clock-in still counts
  * towards a shift, and how long an open shift keeps claiming punches.
- *
- * **A locked period is frozen here** (ADR 0039). Every write this engine makes
- * to a day — a punch, a manual edit, a correction, a sign-off, a re-apply, a
- * delete — asks {@see PeriodLock} first, so no caller can forget to.
  *
  * **It enforces for people and records for devices** (ADR 0040). A person on
  * the web, the phone or a kiosk is held to the day's policy — where they may
@@ -102,7 +96,7 @@ class AttendanceClock
      *     time, and records nothing.
      *  2. **An untyped punch is inferred** — a scanner often only knows "a
      *     punch happened": out when a shift is open, otherwise in.
-     *  3. The work date, the period lock and the day are found as for any punch.
+     *  3. The work date and the day are found as for any punch.
      *  4. **For a person** (`record_only` unset) the day's policy is enforced:
      *     where they may punch from, how old a queued punch may be, the day's
      *     order, the web address allowlist, the selfie, and — in `block` mode —
@@ -155,7 +149,6 @@ class AttendanceClock
             $type ??= $this->inferType($employee, $at);
 
             $date = $this->workDateFor($employee, $at, $type);
-            $this->lock()->assertOpen($date);
 
             $record = $this->findRecord($employee->id, $date, lock: true) ?? $this->newRecord($employee, $date);
             $policy = $this->rulesFor($record)->policy;
@@ -172,7 +165,7 @@ class AttendanceClock
                 $this->assertCaptureRules($policy, $source, $context);
             }
 
-            $placement = $this->place($employee, $date, $policy, $source, $context, enforce: ! $recordOnly);
+            $placement = $this->place($employee, $policy, $source, $context, enforce: ! $recordOnly);
 
             if (! $record->exists) {
                 $record->save();
@@ -258,15 +251,10 @@ class AttendanceClock
     /**
      * Find (or create) the employee's record for the given date, freezing the
      * schedule and holiday it will be judged by the first time the day is touched.
-     * For HR's explicit entry of a day and an approved request — a punch goes
-     * through {@see punch()}. Refused inside a locked period.
-     *
-     * @throws AttendanceLockedException
+     * For HR's explicit entry of a day — a punch goes through {@see punch()}.
      */
     public function openRecord(Employee $employee, string $date): AttendanceRecord
     {
-        $this->lock()->assertOpen($date);
-
         $record = $this->findRecord($employee->id, $date);
 
         if ($record !== null) {
@@ -322,18 +310,15 @@ class AttendanceClock
      * work date. A reading earlier than the one before it is the next morning, so a
      * night shift is entered the way it is worked: in 22:00, out 06:00.
      *
-     * The punches it replaces are soft-deleted, not erased (ADR 0039).
+     * The punches it replaces are soft-deleted, not erased.
      *
      * @param  array{time_in?: ?string, break_start?: ?string, break_end?: ?string, time_out?: ?string}  $times  Clock-face "HH:MM" values.
      *
-     * @throws AttendanceLockedException
+     * @throws AttendancePunchException
      */
     public function applyManualPunches(AttendanceRecord $record, array $times, int $recordedBy): void
     {
-        $this->lock()->assertOpen($record->work_date->toDateString());
-
-        // A policy can take entry by HR away (ADR 0040); a day is then fixed
-        // through a correction request, which leaves a trail.
+        // A policy can take entry by HR away (ADR 0040).
         $this->assertSourceAllowed($this->rulesFor($record)->policy, 'manual');
 
         $record->punches()->delete();
@@ -372,82 +357,10 @@ class AttendanceClock
     }
 
     /**
-     * Apply an approved correction request (ADR 0039). Unlike HR's manual edit,
-     * which retypes the whole day, a correction changes only the punches it names:
-     * a forgotten clock-out gains a clock-out and keeps the clock-in the employee
-     * actually made.
-     *
-     * Each punch it changes is the one the day shows for that field — the first
-     * clock-in, the first break, the last clock-out. The replaced punch is
-     * soft-deleted and names the request; its replacement is `source =
-     * correction` and names it too. A reading earlier than the punch before it is
-     * the next morning, as in {@see applyManualPunches()}.
-     *
-     * @param  array<string, ?string>  $times  Clock-face "HH:MM" values keyed by AttendanceRequest::CORRECTION_FIELDS.
-     *
-     * @throws AttendanceLockedException
-     */
-    public function applyCorrection(AttendanceRecord $record, array $times, AttendanceRequest $request, int $recordedBy): void
-    {
-        $this->lock()->assertOpen($record->work_date->toDateString());
-
-        $punches = $record->punches()->get();
-        $current = [
-            'time_in' => $punches->firstWhere('type', 'clock_in'),
-            'break_start' => $punches->firstWhere('type', 'break_start'),
-            'break_end' => $punches->firstWhere('type', 'break_end'),
-            'time_out' => $punches->where('type', 'clock_out')->last(),
-        ];
-
-        $date = $record->work_date->toDateString();
-        $nextDate = CarbonImmutable::parse($date)->addDay()->toDateString();
-        $map = ['time_in' => 'clock_in', 'break_start' => 'break_start', 'break_end' => 'break_end', 'time_out' => 'clock_out'];
-        $previous = null;
-
-        foreach ($map as $field => $type) {
-            $time = trim((string) ($times[$field] ?? ''));
-            $existing = $current[$field];
-
-            if ($time === '') {
-                // Kept as it is — but it still decides whether a later reading
-                // is the next morning.
-                $previous = $existing !== null ? CarbonImmutable::instance($existing->punched_at)->utc() : $previous;
-
-                continue;
-            }
-
-            $at = OrganizationClock::at($date, $time);
-
-            if ($previous !== null && $at->lt($previous)) {
-                $at = OrganizationClock::at($nextDate, $time);
-            }
-
-            if ($existing !== null) {
-                $existing->forceFill(['replaced_by_request_id' => $request->id])->save();
-                $existing->delete();
-            }
-
-            $record->punches()->create([
-                'employee_id' => $record->employee_id,
-                'type' => $type,
-                'punched_at' => $at,
-                'source' => 'correction',
-                'recorded_by' => $recordedBy,
-                'attendance_request_id' => $request->id,
-            ]);
-
-            $previous = $at;
-        }
-
-        $record->is_manual = true;
-        $this->refresh($record);
-    }
-
-    /**
-     * Sign a day off (ADR 0039): somebody with the authority to has looked at
-     * what needed review on it. The overtime the day shows now is granted — the
-     * evaluator reads the grant back on every recompute, so it survives one, and
-     * overtime a later correction adds is not quietly approved with it.
+     * Sign a day off: somebody with the authority to has looked at what needed
+     * review on it. The overtime the day shows now is granted — the evaluator
+     * reads the grant back on every recompute, so it survives one, and overtime
+     * a later edit adds is not quietly approved with it.
      *
      * Nobody signs off their own day.
      *
@@ -455,8 +368,6 @@ class AttendanceClock
      */
     public function signOff(AttendanceRecord $record, User $by): void
     {
-        $this->lock()->assertOpen($record->work_date->toDateString());
-
         $record->loadMissing('employee:id,user_id');
 
         if ($record->employee?->user_id !== null && $record->employee->user_id === $by->id) {
@@ -473,14 +384,10 @@ class AttendanceClock
     }
 
     /**
-     * Delete a day and its punches. Refused inside a locked period.
-     *
-     * @throws AttendanceLockedException
+     * Delete a day and its punches.
      */
     public function deleteRecord(AttendanceRecord $record): void
     {
-        $this->lock()->assertOpen($record->work_date->toDateString());
-
         $record->delete();
     }
 
@@ -488,15 +395,11 @@ class AttendanceClock
      * Write the record for a day nobody punched (ADR 0041), judged by a shift,
      * holiday and policy the caller has already resolved — the end-of-day job
      * resolves a whole organisation's day at once. The day comes out absent, on
-     * leave, a holiday or official business, and is marked closed. An existing
-     * record is returned untouched, so closing a day twice writes nothing.
-     *
-     * @throws AttendanceLockedException
+     * leave or a holiday, and is marked closed. An existing record is returned
+     * untouched, so closing a day twice writes nothing.
      */
     public function materialise(Employee $employee, ResolvedShift $shift, ?Holiday $holiday, ?ResolvedPolicy $policy): AttendanceRecord
     {
-        $this->lock()->assertOpen($shift->date);
-
         $existing = $this->findRecord($employee->id, $shift->date);
 
         if ($existing !== null) {
@@ -532,13 +435,9 @@ class AttendanceClock
      *    sign-off: the hours are the plan's, not the person's.
      *
      * Returns `auto_closed` or `flagged`.
-     *
-     * @throws AttendanceLockedException
      */
     public function closeForgottenDay(AttendanceRecord $record): string
     {
-        $this->lock()->assertOpen($record->work_date->toDateString());
-
         $rules = $this->rulesFor($record);
         $policy = $rules->policy;
         $record->closed_at = now();
@@ -622,8 +521,6 @@ class AttendanceClock
                 ->whereDate('work_date', '<=', $before)
                 ->sum($column);
 
-        $requests = $this->requestContext($record, $date->toDateString());
-
         return new DayContext(
             scheduledStart: $record->scheduled_start_at !== null ? CarbonImmutable::instance($record->scheduled_start_at)->utc() : null,
             scheduledEnd: $record->scheduled_end_at !== null ? CarbonImmutable::instance($record->scheduled_end_at)->utc() : null,
@@ -635,51 +532,9 @@ class AttendanceClock
             monthExcusedLateMinutesBefore: $rules->policy->needsMonthContext()
                 ? $sum('excused_late_minutes', $date->startOfMonth())
                 : 0,
-            grantedOvertimeMinutes: $requests['grantedOvertimeMinutes'],
-            officialBusiness: $requests['officialBusiness'],
-            remoteWork: $requests['remoteWork'],
+            grantedOvertimeMinutes: $record->signed_off_overtime_minutes,
             closed: $record->closed_at !== null,
         );
-    }
-
-    /**
-     * What decided attendance requests say about a day (ADR 0039), in one query:
-     *
-     *  - **Granted overtime** — null while nobody has decided it. Once an
-     *    overtime request for the day is approved or rejected, or HR signs the
-     *    day off, it is the larger of the sign-off and the approved requests'
-     *    minutes (a sign-off already covers what was asked for, so they are not
-     *    added). A pre-approval filed before the day is matched here, whenever the
-     *    day is evaluated.
-     *  - **Official business** and **remote work** covering the day.
-     *
-     * @return array{grantedOvertimeMinutes: ?int, officialBusiness: bool, remoteWork: bool}
-     */
-    private function requestContext(AttendanceRecord $record, string $date): array
-    {
-        $requests = AttendanceRequest::query()
-            ->where('employee_id', $record->employee_id)
-            ->whereIn('status', ['approved', 'rejected'])
-            ->overlapping($date, $date)
-            ->get(['id', 'type', 'status', 'payload']);
-
-        $overtime = $requests->where('type', 'overtime');
-        $signedOff = $record->signed_off_overtime_minutes;
-
-        $granted = $overtime->isEmpty() && $signedOff === null
-            ? null
-            : max(
-                (int) $signedOff,
-                (int) $overtime->where('status', 'approved')->sum(fn (AttendanceRequest $request): int => $request->requestedMinutes()),
-            );
-
-        $approved = $requests->where('status', 'approved');
-
-        return [
-            'grantedOvertimeMinutes' => $granted,
-            'officialBusiness' => $approved->contains('type', 'official_business'),
-            'remoteWork' => $approved->contains('type', 'remote_work'),
-        ];
     }
 
     /**
@@ -692,7 +547,6 @@ class AttendanceClock
     public function reapplySchedule(AttendanceRecord $record, ?array $holidays = null): bool
     {
         $date = $record->work_date->toDateString();
-        $this->lock()->assertOpen($date);
 
         $record->loadMissing('employee');
 
@@ -726,32 +580,11 @@ class AttendanceClock
      * for every row; a period-wide re-apply over a month of a 200-person company
      * is 6,000 days.
      *
-     * A day inside a locked period is left exactly as it is (ADR 0039), and
-     * counted into `$skipped`.
-     *
      * @param  EloquentCollection<int, AttendanceRecord>  $records  With `employee` loaded.
      * @param  array<string, Holiday>  $holidays  The range's holidays keyed by "Y-m-d".
      */
-    public function reapplyMany(EloquentCollection $records, array $holidays, ?int &$skipped = null): int
+    public function reapplyMany(EloquentCollection $records, array $holidays): int
     {
-        $skipped = 0;
-
-        if ($records->isEmpty()) {
-            return 0;
-        }
-
-        $locked = $this->lockedPeriodsBetween(
-            (string) $records->min(fn (AttendanceRecord $record): string => $record->work_date->toDateString()),
-            (string) $records->max(fn (AttendanceRecord $record): string => $record->work_date->toDateString()),
-        );
-
-        $records = $records->reject(function (AttendanceRecord $record) use ($locked, &$skipped): bool {
-            $isLocked = $locked->contains(fn (AttendancePeriod $period): bool => $period->covers($record->work_date->toDateString()));
-            $skipped += $isLocked ? 1 : 0;
-
-            return $isLocked;
-        });
-
         if ($records->isEmpty()) {
             return 0;
         }
@@ -799,21 +632,6 @@ class AttendanceClock
         $rules['holiday_type'] = $holiday?->type;
         $rules['holiday_name'] = $holiday?->name;
         $record->rules = $rules;
-    }
-
-    /**
-     * The locked periods touching [from, to], read fresh — for walking a range of
-     * days that must leave the frozen ones alone.
-     *
-     * @return EloquentCollection<int, AttendancePeriod>
-     */
-    public function lockedPeriodsBetween(string $from, string $to): EloquentCollection
-    {
-        return AttendancePeriod::query()
-            ->where('status', 'locked')
-            ->whereDate('start_date', '<=', $to)
-            ->whereDate('end_date', '>=', $from)
-            ->get();
     }
 
     /**
@@ -1036,7 +854,7 @@ class AttendanceClock
             if (! in_array($punch->type, $this->allowedFor($state), true)) {
                 throw new AttendancePunchException(
                     'That punch would come before one already recorded at '
-                    .OrganizationClock::local($punch->punched_at)->format('g:i A').'. Ask for a correction instead.',
+                    .OrganizationClock::local($punch->punched_at)->format('g:i A').'. Ask HR to fix the day instead.',
                 );
             }
 
@@ -1074,7 +892,7 @@ class AttendanceClock
         if ($at->lt($receivedAt->subHours($policy->offlineWindowHours))) {
             throw new AttendancePunchException(
                 'This punch was made '.OrganizationClock::local($at)->format('M j, g:i A')
-                .', more than '.$policy->offlineWindowHours.' hours ago. Ask for a correction instead.',
+                .', more than '.$policy->offlineWindowHours.' hours ago. Ask HR to enter it instead.',
             );
         }
 
@@ -1118,8 +936,7 @@ class AttendanceClock
      *  - `flag` — a punch not shown to be on site (outside, or with no position
      *    at all) is accepted, and the evaluator flags the day.
      *  - `block` — such a punch from a person is refused, naming the nearest site
-     *    and how far off it was. A day of approved remote work or official
-     *    business is exempt.
+     *    and how far off it was.
      *
      * A company with no locations has nothing to check against, so nothing is.
      *
@@ -1128,7 +945,7 @@ class AttendanceClock
      *
      * @throws AttendancePunchException
      */
-    private function place(Employee $employee, string $date, AttendancePolicySettings $policy, string $source, array $context, bool $enforce): array
+    private function place(Employee $employee, AttendancePolicySettings $policy, string $source, array $context, bool $enforce): array
     {
         $unplaced = ['work_location_id' => null, 'distance_meters' => null, 'within_geofence' => null];
 
@@ -1154,27 +971,13 @@ class AttendanceClock
             // No position while the policy checks one: not shown to be on site.
             : [...$unplaced, 'within_geofence' => $policy->geofence === 'off' ? null : false];
 
-        if (! $enforce || $policy->geofence !== 'block' || $placement['within_geofence'] !== false || $this->awayFromSiteExcused($employee, $date)) {
+        if (! $enforce || $policy->geofence !== 'block' || $placement['within_geofence'] !== false) {
             return $placement;
         }
 
         throw new AttendancePunchException($verdict === null
             ? 'Your attendance policy needs to know you are on site. Turn on location and try again.'
             : 'You are '.self::distance($verdict->distanceMeters).' from '.$verdict->location->name.'. Punches have to be made on site.');
-    }
-
-    /**
-     * Whether an approved request says the employee is meant to be away from the
-     * site that day — remote work or official business.
-     */
-    private function awayFromSiteExcused(Employee $employee, string $date): bool
-    {
-        return AttendanceRequest::query()
-            ->where('employee_id', $employee->id)
-            ->where('status', 'approved')
-            ->whereIn('type', ['remote_work', 'official_business'])
-            ->overlapping($date, $date)
-            ->exists();
     }
 
     /**
@@ -1344,14 +1147,6 @@ class AttendanceClock
         $record->setRelation('punches', new EloquentCollection);
 
         return $record;
-    }
-
-    /**
-     * The request-scoped lock guard (ADR 0039).
-     */
-    private function lock(): PeriodLock
-    {
-        return app(PeriodLock::class);
     }
 
     private function isOnApprovedLeave(int $employeeId, string $date): bool

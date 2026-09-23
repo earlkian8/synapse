@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\DB;
  * goes through {@see AttendanceClock::capture()} with `record_only`: it is
  * written as it came, even out of order or twice, and the evaluator flags the
  * day (`device_sequence_anomaly`) for sign-off. What is refused is only what
- * cannot be written at all: a row that names nobody the company employs, a row
- * that is not a punch, a day inside a locked period.
+ * cannot be written at all: a row that names nobody the company employs, or a
+ * row that is not a punch.
  *
  *  - **Idempotent** on the device and its own id for the punch: devices resend,
  *    and a resend returns `duplicate`.

@@ -32,11 +32,9 @@ use Illuminate\Support\Collection;
  *     break nobody punched; note a break that ran over.
  *  5. **Late and undertime** against the shift, after grace (per day, or out of a
  *     monthly allowance). An over-long break is owed like leaving early.
- *     Approved official business (ADR 0039) forgives both, and makes the day
- *     worth at least the shift's hours.
  *  6. **Buckets** — overtime (daily, weekly, both, rest-day / holiday), regular,
  *     approved overtime, night, rest day, holiday. Overtime is approved outright
- *     unless the policy asks for approval; then up to what has been granted.
+ *     unless the policy asks for approval; then up to what a sign-off granted.
  *  7. **Thresholds** — very late or very short is a half day, or an absence.
  *  8. **Status and flags.** What capture recorded on the punches (ADR 0040)
  *     becomes flags here too — a punch off site, from a source the policy does
@@ -67,14 +65,7 @@ class AttendanceCalculator
         $lastOut = self::immutable($punches->where('type', 'clock_out')->last()?->punched_at);
 
         if ($punches->isEmpty()) {
-            return self::officialBusinessCovers($rules, $context)
-                ? new DayResult(
-                    status: 'present',
-                    flags: ['official_business'],
-                    workedMinutes: $rules->requiredMinutes,
-                    regularMinutes: $rules->requiredMinutes,
-                )
-                : new DayResult(status: self::noPunchStatus($rules, $context->onApprovedLeave));
+            return new DayResult(status: self::noPunchStatus($rules, $context->onApprovedLeave));
         }
 
         // 1. Round.
@@ -116,19 +107,6 @@ class AttendanceCalculator
         $undertime = self::undertime($rules, $worked, $closed ? $judgedOut : null, $context->scheduledEnd)
             + ($closed ? $breakExcess : 0);
 
-        // A day on official business is a full working day (ADR 0039): the part of
-        // it spent away from the clock is neither late nor short, and the day is
-        // worth at least the shift's hours.
-        if (self::officialBusinessCovers($rules, $context)) {
-            [$late, $excused, $undertime] = [0, 0, 0];
-            $worked = $closed ? max($worked, $rules->requiredMinutes) : $worked;
-            $flags[] = 'official_business';
-        }
-
-        if ($context->remoteWork) {
-            $flags[] = 'remote_work';
-        }
-
         array_push($flags, ...self::captureFlags($punches, $rules, $context));
 
         // 6. Buckets.
@@ -139,8 +117,7 @@ class AttendanceCalculator
         $restDay = $rules->isWorkingDay ? 0 : $worked;
         $holiday = $rules->isNonWorkingHoliday() ? $worked : 0;
 
-        // Awaiting approval only until somebody decides: a rejected request, or
-        // one that granted less than was worked, is a decision too.
+        // Awaiting approval only until somebody signs the day off.
         if ($overtime > $approved && $context->grantedOvertimeMinutes === null) {
             $flags[] = 'unapproved_overtime';
         }
@@ -211,8 +188,8 @@ class AttendanceCalculator
 
     /**
      * How much of the day's overtime is approved. All of it, unless the policy
-     * wants approval — then what has been granted (approved overtime requests,
-     * or HR signing the day off), never more than was worked (ADR 0039).
+     * wants approval — then what signing the day off granted, never more than
+     * was worked.
      */
     private static function approvedOvertime(AttendancePolicySettings $policy, DayContext $context, int $overtime): int
     {
@@ -227,8 +204,7 @@ class AttendanceCalculator
      * What the punches' capture says about the day (ADR 0040, ADR 0041):
      *
      *  - `outside_geofence` — a punch was not shown to be on site, while the
-     *    policy checks where people punch. A day of approved remote work or
-     *    official business is exempt: being elsewhere was the point.
+     *    policy checks where people punch.
      *  - `source_not_allowed` — a device sent a punch from a source the policy
      *    does not allow. A person's punch like that is refused; a device's is
      *    recorded, and flagged.
@@ -245,9 +221,7 @@ class AttendanceCalculator
     {
         $policy = $rules->policy;
         $flags = [];
-        $excused = $context->remoteWork || $context->officialBusiness;
-
-        if ($policy->geofence !== 'off' && ! $excused && $punches->contains(fn (AttendancePunch $punch): bool => $punch->within_geofence === false)) {
+        if ($policy->geofence !== 'off' && $punches->contains(fn (AttendancePunch $punch): bool => $punch->within_geofence === false)) {
             $flags[] = 'outside_geofence';
         }
 
@@ -306,18 +280,6 @@ class AttendanceCalculator
         }
 
         return false;
-    }
-
-    /**
-     * Whether approved official business makes this a full working day — only a
-     * working day, and never one approved leave or a holiday already excuses.
-     */
-    private static function officialBusinessCovers(DayRules $rules, DayContext $context): bool
-    {
-        return $context->officialBusiness
-            && $rules->isWorkingDay
-            && ! $rules->isNonWorkingHoliday()
-            && ! $context->onApprovedLeave;
     }
 
     /**

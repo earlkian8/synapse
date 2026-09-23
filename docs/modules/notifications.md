@@ -31,22 +31,20 @@ returning the recipient count.
 ```php
 Notifier::toUser($user, 'Welcome to SYNAPSE', 'Your account is ready.', url: '/dashboard', level: 'success');
 Notifier::toRole('hr-manager', 'Policy update', 'The 2026 leave policy is live.');
-Notifier::toPermission('attendance.requests.review', 'Attendance request to review', '…', except: [$employee->user_id]);
+Notifier::toPermission('attendance.view', 'Attendance exceptions for Fri, Sep 18', '…');
 Notifier::toAll('Maintenance tonight', 'The system will be down at 10pm.', level: 'warning');
 ```
 
 `toRole`, `toPermission` and `toAll` target **active** users only. `toPermission`
-(ADR 0039) reaches the current organisation's members who hold a permission through any
+reaches the current organisation's members who hold a permission through any
 role — or the super-admin role — so work goes to whoever may do it rather than to one
 named role; `except` leaves out the person a notice is about.
 
-Attendance (category `attendance`) sends five: a new request → every reviewer but the
-employee; a decision → the employee and whoever filed it, with the reviewer's note; a
-period coming due → holders of `attendance.period.manage`, once (from
-`attendance:periods`); a **closed date's exceptions** → one digest per recipient, to
-holders of `attendance.view` for the whole company and to any manager without it for
-their own reports (from `attendance:close-day`, ADR 0041); and a **clock-in reminder**
-→ the employee, once per shift, when their policy sets one (from `attendance:remind`).
+Attendance (category `attendance`) sends two: a **closed date's exceptions** → one
+digest per recipient, to holders of `attendance.view` for the whole company and to any
+manager without it for their own reports (from `attendance:close-day`, ADR 0041); and a
+**clock-in reminder** → the employee, once per shift, when their policy sets one (from
+`attendance:remind`).
 `Notifier::holdersOf()` is the audience query behind `toPermission`, exposed so the
 digest can tell who already hears about everybody. The mobile app has no push channel
 of its own, so a reminder reaches a phone only as email or web push. Every call funnels through

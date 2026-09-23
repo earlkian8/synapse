@@ -33,7 +33,7 @@ class AttendanceExportController extends Controller
 {
     /**
      * The payroll period summary's columns, in order — written by
-     * {@see PeriodSummaryExport}, which a locked period's file uses too.
+     * {@see PeriodSummaryExport}.
      */
     public const PERIOD_COLUMNS = PeriodSummaryExport::COLUMNS;
 

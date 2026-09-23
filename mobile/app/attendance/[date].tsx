@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pill } from '@/components/ui/pill';
@@ -22,7 +21,6 @@ import type { Paginated, AttendanceRecord, Punch } from '@/types/api';
 export default function AttendanceDayScreen() {
   const { colors, spacing } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
-  const router = useRouter();
   const { organization } = useAuth();
 
   const { data, loading } = useQuery<Paginated<AttendanceRecord>>(
@@ -35,17 +33,6 @@ export default function AttendanceDayScreen() {
   const punches = record?.punches ?? [];
   const selfie = punches.find((p) => p.photo)?.photo ?? null;
 
-  // A missed or wrong punch is fixed by asking (ADR 0039) — unless the day's
-  // period is locked, when nothing about it can change.
-  const correction = (
-    <Button
-      label="Request a correction"
-      variant="outline"
-      onPress={() => router.push(`/attendance/request?type=correction&date=${date}`)}
-      icon={<Ionicons name="create-outline" size={18} color={colors.text} />}
-    />
-  );
-
   return (
     <Screen edges={['top', 'bottom']}>
       <ScreenHeader title={formatDate(date)} subtitle="Daily time record" back />
@@ -54,10 +41,7 @@ export default function AttendanceDayScreen() {
         {loading ? (
           <Skeleton height={120} radius={18} />
         ) : !record ? (
-          <>
-            <EmptyState icon="document-outline" title="No record" message="Nothing was recorded for this day." />
-            {correction}
-          </>
+          <EmptyState icon="document-outline" title="No record" message="Nothing was recorded for this day." />
         ) : (
           <>
             <Card elevated>
@@ -137,16 +121,6 @@ export default function AttendanceDayScreen() {
                 </AppText>
                 <Image source={{ uri: selfie }} style={{ width: '100%', height: 220, borderRadius: 18 }} contentFit="cover" />
               </View>
-            )}
-
-            {record.is_locked ? (
-              <Card>
-                <AppText variant="caption" muted>
-                  {record.locked_period ?? 'This period'} is locked, so this day can no longer be changed.
-                </AppText>
-              </Card>
-            ) : (
-              correction
             )}
 
             {record.remarks && (

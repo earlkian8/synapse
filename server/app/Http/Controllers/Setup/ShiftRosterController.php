@@ -1,28 +1,35 @@
 <?php
 
-namespace App\Http\Controllers\Attendance;
+namespace App\Http\Controllers\Setup;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\AssignScheduleRequest;
 use App\Http\Requests\Attendance\RosterEntryRequest;
+use App\Models\AttendancePolicy;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\ShiftRosterEntry;
 use App\Models\WorkSchedule;
+use App\Queries\AttendanceRecordsIndexQuery;
 use App\Queries\ShiftRosterQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\RosterWriter;
 use App\Support\Attendance\ScheduleAssigner;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 /**
- * The roster's write side (ADR 0037): one-off shift overrides, and putting people
- * on a schedule from a date. The board itself is a tab on
- * {@see AttendanceController::index()}, built by {@see ShiftRosterQuery}.
+ * The shift roster (ADR 0037) — who is due to work what, day by day. It is
+ * configuration rather than a record: the plan Attendance judges each day
+ * against, so it lives in Company Setup beside the schedules it is made of.
  *
- * Both actions go through the canonical writers, so the assistant and the
- * employee profile leave exactly the same history. Thin controller.
+ * The board is built by {@see ShiftRosterQuery}. Its writes — one-off shift
+ * overrides, and putting people on a schedule from a date — go through the
+ * canonical writers, so the assistant and the employee profile leave exactly
+ * the same history. Thin controller.
  */
 class ShiftRosterController extends Controller
 {
@@ -30,6 +37,42 @@ class ShiftRosterController extends Controller
         private readonly RosterWriter $roster,
         private readonly ScheduleAssigner $assigner,
     ) {}
+
+    /**
+     * The week containing `date` (the organisation's this week by default),
+     * optionally narrowed to one department or a search.
+     */
+    public function index(Request $request, ShiftRosterQuery $roster, AttendanceRecordsIndexQuery $dates): Response
+    {
+        $date = $dates->date($request);
+        $department = $request->integer('department') ?: null;
+        $search = $request->string('search')->toString();
+
+        return Inertia::render('setup/roster', [
+            'roster' => fn () => $roster->toArray($date, $department, $search),
+            'options' => [
+                'departments' => Department::orderBy('name')->get(['id', 'name']),
+                // The templates the override and assign dialogs choose from.
+                'schedules' => WorkSchedule::query()
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'type', 'cycle_length_days'])
+                    ->map(fn (WorkSchedule $schedule): array => [
+                        'id' => $schedule->id,
+                        'name' => $schedule->name,
+                        'type' => $schedule->type,
+                        'cycle_length_days' => (int) $schedule->cycle_length_days,
+                    ]),
+                // What an assignment can single somebody out to be judged by (ADR 0038).
+                'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
+            ],
+            'can' => ['manage' => $request->user()->can('setup.roster.manage')],
+            'filters' => [
+                'date' => $date,
+                'search' => $search,
+                'department' => $department,
+            ],
+        ]);
+    }
 
     /**
      * Set (or correct) one employee's shift for one date.
@@ -82,8 +125,8 @@ class ShiftRosterController extends Controller
     }
 
     /**
-     * Put one or more people on a schedule from a date. Used by the roster's bulk
-     * action and by the employee profile's "Assign schedule".
+     * Put one or more people on a schedule from a date — the roster's bulk
+     * action.
      */
     public function assign(AssignScheduleRequest $request): RedirectResponse
     {

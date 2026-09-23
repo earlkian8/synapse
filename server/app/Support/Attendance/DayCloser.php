@@ -22,10 +22,10 @@ use Illuminate\Support\Collection as SupportCollection;
  * punching:
  *
  *  1. **Materialise.** Everybody due to work that date who has no record gets
- *     one — absent, on leave, a holiday, or present on official business — with
- *     its snapshot, once their shift has ended (after that no clock-in can open
- *     the day). So every past working day is a record, and the board, the report
- *     and the payroll summary read it rather than guess.
+ *     one — absent, on leave or a holiday — with its snapshot, once their shift
+ *     has ended (after that no clock-in can open the day). So every past working
+ *     day is a record, and the board, the report and the payroll summary read it
+ *     rather than guess.
  *  2. **Handle forgotten clock-outs** as each day's policy says
  *     ({@see AttendanceClock::closeForgottenDay()}), once the shift can no longer
  *     claim a punch — its `max_shift_span_minutes` since the clock-in. A night
@@ -35,7 +35,7 @@ use Illuminate\Support\Collection as SupportCollection;
  *     its exceptions goes to each recipient.
  *
  * Sign-off needs no step of its own: a day the job auto-closed carries
- * `auto_closed`, a review flag, so it is `pending` by derivation (ADR 0039).
+ * `auto_closed`, a review flag, so it is `pending` by derivation.
  *
  * Dates are walked from the day after the last one closed (at most
  * {@see CATCH_UP_DAYS} back, so a scheduler that stopped for a week catches up
@@ -115,7 +115,6 @@ class DayCloser
         $shifts = $this->shifts->forMany($employees, $from, $to);
         $policies = $this->policies->forMany($employees, $shifts);
         $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
-        $locked = $this->clock->lockedPeriodsBetween($from, $to);
 
         $existing = AttendanceRecord::query()
             ->whereIn('employee_id', $employees->pluck('id'))
@@ -131,8 +130,7 @@ class DayCloser
                 if (! $shift->isWorkingDay
                     || $existing->has($employee->id.'|'.$date)
                     || ! $this->employedOn($employee, $date)
-                    || ! $this->hasEnded($shift, $now)
-                    || $locked->contains(fn ($period): bool => $period->covers($date))) {
+                    || ! $this->hasEnded($shift, $now)) {
                     continue;
                 }
 
@@ -152,11 +150,6 @@ class DayCloser
      */
     private function closeDate(string $date, array &$report): bool
     {
-        if ($this->clock->lockedPeriodsBetween($date, $date)->isNotEmpty()) {
-            // A locked period is final already.
-            return true;
-        }
-
         $employees = $this->workforce($date);
         $shifts = $this->shifts->forMany($employees, $date, $date);
         $now = CarbonImmutable::now();

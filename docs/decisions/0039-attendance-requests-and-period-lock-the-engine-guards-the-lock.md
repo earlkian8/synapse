@@ -1,6 +1,6 @@
 # 0039 — Attendance requests and period lock; the engine guards the lock
 
-- **Status:** Accepted
+- **Status:** Superseded by [0042 — No attendance requests or periods; the roster is setup](./0042-no-attendance-requests-or-periods-the-roster-is-setup.md), except its sign-off
 - **Date:** 2026-09-18
 - **Builds on:** [0036 — Attendance judged in local time on shift-anchored dates](./0036-attendance-judged-in-local-time-on-shift-anchored-dates.md),
   [0038 — Attendance policies: presets and typed options, snapshotted per day](./0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md)

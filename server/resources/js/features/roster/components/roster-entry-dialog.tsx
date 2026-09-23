@@ -16,10 +16,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import type { GridEmployee, ScheduleRef } from '@/features/attendance/types';
 import { cn } from '@/lib/utils';
 import { SHIFT_SOURCE_LABELS } from '../constants';
-import { attendanceRoutes } from '../routes';
-import type { GridEmployee, RosterCell, ScheduleRef } from '../types';
+import { rosterRoutes } from '../routes';
+import type { RosterCell } from '../types';
 
 export type RosterTarget = { employee: GridEmployee; cell: RosterCell };
 
@@ -140,7 +141,7 @@ function FormBody({
                     : null,
         }));
 
-        post(attendanceRoutes.rosterEntry, {
+        post(rosterRoutes.entry, {
             preserveScroll: true,
             onSuccess: () => onDone(),
         });
@@ -151,7 +152,7 @@ function FormBody({
             return;
         }
 
-        destroy(attendanceRoutes.rosterEntryDestroy(cell.entry_hashid), {
+        destroy(rosterRoutes.entryDestroy(cell.entry_hashid), {
             preserveScroll: true,
             onSuccess: () => onDone(),
         });

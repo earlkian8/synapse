@@ -59,8 +59,7 @@ See [attendance tables](../database/attendance-tables.md).
 - **Only located sources are checked**: web and mobile. A kiosk or scanner punch takes
   its device's site.
 - **What the verdict does is the attendance policy's call** (`capture.geofence`: off,
-  flag, block). See [Attendance Policies](./attendance-policies.md#settings). An
-  approved remote-work or official-business request excuses the day.
+  flag, block). See [Attendance Policies](./attendance-policies.md#settings).
 - **Default schedule and policy.** A site is a link in both precedence chains, between
   the department and the organisation:
   *roster → assignment → employee → department → **location** → organisation →

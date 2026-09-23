@@ -22,8 +22,6 @@ final readonly class DayResult
 {
     /** Every flag the evaluator can raise. */
     public const FLAGS = [
-        'official_business',
-        'remote_work',
         'late',
         'undertime',
         'half_day',
@@ -44,14 +42,13 @@ final readonly class DayResult
     ];
 
     /**
-     * Flags that put a day in front of a manager before it counts (ADR 0039). A
-     * day carrying one is `approval_status = pending` until somebody signs it
-     * off. From ADR 0040 and 0041, so does every punch that could not be
-     * trusted as it stood — taken off site, from a source the policy does not
-     * allow, out of order on a device, from a clock that was wrong — and a
-     * clock-out the end-of-day job wrote. A day still missing its clock-out is
-     * not among them: it needs a correction, not a signature, and the period
-     * checklist already counts it.
+     * Flags that put a day in front of a manager before it counts. A day
+     * carrying one is `approval_status = pending` until somebody signs it off.
+     * From ADR 0040 and 0041, so does every punch that could not be trusted as
+     * it stood — taken off site, from a source the policy does not allow, out
+     * of order on a device, from a clock that was wrong — and a clock-out the
+     * end-of-day job wrote. A day still missing its clock-out is not among
+     * them: it needs HR to enter the time, not a signature.
      */
     public const REVIEW_FLAGS = [
         'unapproved_overtime',
@@ -118,7 +115,7 @@ final readonly class DayResult
     }
 
     /**
-     * What `approval_status` means from ADR 0039 on — *needs sign-off* — derived
+     * What `approval_status` means — *needs sign-off* — derived
      * rather than stored, so it cannot drift from the day: `pending` while the day
      * carries a review flag, `approved` once somebody has signed it off and
      * nothing new needs review, and null for a day nobody has to look at.

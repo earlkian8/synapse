@@ -3,30 +3,22 @@
 namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Setup\ShiftRosterController;
 use App\Http\Requests\Attendance\ReapplyScheduleRequest;
 use App\Http\Requests\Attendance\StoreAttendanceRecordRequest;
 use App\Http\Requests\Attendance\UpdateAttendanceRecordRequest;
-use App\Http\Resources\AttendancePeriodResource;
 use App\Http\Resources\AttendanceRecordResource;
-use App\Http\Resources\AttendanceRequestResource;
-use App\Models\AttendancePeriod;
-use App\Models\AttendancePolicy;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
-use App\Models\WorkSchedule;
 use App\Queries\AttendanceMonthlyReport;
 use App\Queries\AttendanceRecordsIndexQuery;
-use App\Queries\AttendanceRequestsIndexQuery;
 use App\Queries\AttendanceStatistics;
 use App\Queries\AttendanceWeeklyQuery;
-use App\Queries\ShiftRosterQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendanceException;
-use App\Support\Attendance\PeriodLocker;
 use App\Support\HolidayCalendar;
-use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -37,19 +29,20 @@ use Inertia\Response;
 
 /**
  * The HR-facing attendance board — a day's Daily Time Records for the whole team,
- * with manual entry, corrections and sign-off; the request inbox and the periods
- * (ADR 0039) are two more of its tabs. Self-service clocking lives in
+ * with manual entry, corrections and sign-off. Self-service clocking lives in
  * {@see MyAttendanceController}; the mobile API in App\Http\Controllers\Api.
+ * The shift roster — the plan rather than the record — is Company Setup's
+ * ({@see ShiftRosterController}).
  */
 class AttendanceController extends Controller
 {
     public function __construct(private readonly AttendanceClock $clock) {}
 
     /**
-     * The attendance workspace: a daily log, a weekly grid, a monthly report, the
-     * shift roster, the request inbox and the periods. Only the active tab's dataset is built
-     * — the other closures stay cheap on the (default) daily tab and are fetched
-     * on demand via Inertia partial reloads when the tab changes.
+     * The attendance workspace: a daily log, a weekly grid and a monthly report.
+     * Only the active tab's dataset is built — the other closures stay cheap on
+     * the (default) daily tab and are fetched on demand via Inertia partial
+     * reloads when the tab changes.
      */
     public function index(
         Request $request,
@@ -57,9 +50,6 @@ class AttendanceController extends Controller
         AttendanceStatistics $statistics,
         AttendanceWeeklyQuery $weekly,
         AttendanceMonthlyReport $monthly,
-        ShiftRosterQuery $roster,
-        AttendanceRequestsIndexQuery $requests,
-        PeriodLocker $locker,
     ): Response {
         $date = $query->date($request);
         $tab = $this->tab($request);
@@ -76,18 +66,6 @@ class AttendanceController extends Controller
             'report' => fn () => $tab === 'monthly'
                 ? $monthly->toArray($date, $department, $search)
                 : null,
-            // The plan rather than the record: what each person is due to work
-            // this week, and why (ADR 0037).
-            'roster' => fn () => $tab === 'roster' && $request->user()->can('attendance.roster.view')
-                ? $roster->toArray($date, $department, $search)
-                : null,
-            // What people asked for, and what attendance closes on (ADR 0039).
-            'requests' => fn () => $tab === 'requests' && $request->user()->can('attendance.requests.review')
-                ? AttendanceRequestResource::collection($requests->get($request))->resolve($request)
-                : null,
-            'periods' => fn () => $tab === 'periods' && $request->user()->can('attendance.period.manage')
-                ? $this->periods($request, $locker)
-                : null,
             'stats' => $statistics->toArray($date),
             'options' => $this->indexOptions(),
             'can' => $this->permissions($request),
@@ -97,40 +75,8 @@ class AttendanceController extends Controller
                 'search' => $search,
                 'status' => $query->status($request),
                 'department' => $department,
-                'request_status' => $requests->status($request),
-                'request_type' => $requests->type($request),
             ],
         ]);
-    }
-
-    /**
-     * The periods, newest first, each open one with its lock checklist, and the
-     * calendar they are generated on.
-     *
-     * @return array<string, mixed>
-     */
-    private function periods(Request $request, PeriodLocker $locker): array
-    {
-        $organization = app(Tenancy::class)->organization();
-
-        $periods = AttendancePeriod::query()
-            ->with(['locker:id,first_name,middle_name,last_name,suffix', 'unlocker:id,first_name,middle_name,last_name,suffix'])
-            ->orderByDesc('start_date')
-            ->limit(24)
-            ->get()
-            ->each(function (AttendancePeriod $period) use ($locker): void {
-                if (! $period->isLocked()) {
-                    $period->checklist = $locker->checklist($period);
-                }
-            });
-
-        return [
-            'items' => AttendancePeriodResource::collection($periods)->resolve($request),
-            'settings' => [
-                'frequency' => $organization?->attendance_period_frequency ?? 'semi_monthly',
-                'reminder_days' => (int) ($organization?->attendance_lock_reminder_days ?? 2),
-            ],
-        ];
     }
 
     /**
@@ -140,7 +86,7 @@ class AttendanceController extends Controller
     {
         $tab = $request->string('tab')->toString();
 
-        return in_array($tab, ['today', 'weekly', 'monthly', 'roster', 'requests', 'periods'], true) ? $tab : 'today';
+        return in_array($tab, ['today', 'weekly', 'monthly'], true) ? $tab : 'today';
     }
 
     /**
@@ -159,9 +105,6 @@ class AttendanceController extends Controller
             'replacedPunches',
             'approver:id,first_name,middle_name,last_name,suffix',
         ]);
-
-        // The requests that concern the day (ADR 0039).
-        $attendanceRecord->setRelation('dayRequests', $attendanceRecord->relatedRequests()->get());
 
         return new AttendanceRecordResource($attendanceRecord);
     }
@@ -227,7 +170,7 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Sign a day off (ADR 0039): what was awaiting review on it — overtime that
+     * Sign a day off: what was awaiting review on it — overtime that
      * needs approval — is approved as it stands.
      */
     public function approve(Request $request, AttendanceRecord $attendanceRecord): RedirectResponse
@@ -298,7 +241,6 @@ class AttendanceController extends Controller
         $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
         $total = 0;
         $changed = 0;
-        $locked = 0;
 
         AttendanceRecord::query()
             ->whereBetween('work_date', [$from, $to])
@@ -309,10 +251,9 @@ class AttendanceController extends Controller
             ->with('employee')
             ->orderBy('work_date')
             ->orderBy('id')
-            ->chunk(200, function ($records) use ($holidays, &$total, &$changed, &$locked): void {
-                $changed += $this->clock->reapplyMany($records, $holidays, $skipped);
-                $total += $records->count() - $skipped;
-                $locked += $skipped;
+            ->chunk(200, function ($records) use ($holidays, &$total, &$changed): void {
+                $changed += $this->clock->reapplyMany($records, $holidays);
+                $total += $records->count();
             });
 
         $period = CarbonImmutable::parse($from)->format('M j').($from === $to ? '' : ' – '.CarbonImmutable::parse($to)->format('M j'));
@@ -321,18 +262,16 @@ class AttendanceController extends Controller
             ActivityLogger::log(
                 event: 'updated',
                 description: "Re-applied current schedules and policies to {$total} attendance ".str('record')->plural($total)." ({$period})",
-                properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed, 'locked' => $locked],
+                properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed],
                 logName: 'attendance',
                 subjectLabel: 'Attendance',
             );
         }
 
-        $frozen = $locked > 0 ? " {$locked} ".str('day')->plural($locked).' in a locked period left as they are.' : '';
-
         return $this->respond(
             $total > 0
-                ? "Re-applied to {$total} ".str('day')->plural($total)." — {$changed} changed.{$frozen}"
-                : ($locked > 0 ? 'Every recorded day in that period is locked.' : 'No recorded days in that period.'),
+                ? "Re-applied to {$total} ".str('day')->plural($total)." — {$changed} changed."
+                : 'No recorded days in that period.',
             $total > 0 ? 'success' : 'info',
         );
     }
@@ -340,8 +279,7 @@ class AttendanceController extends Controller
     /**
      * Sign off every day still awaiting it — a one-click way to clear the queue
      * instead of one day at a time. Only pending days are touched; each goes
-     * through the engine, so a day in a locked period, or the signer's own, is
-     * left and counted.
+     * through the engine, so the signer's own day is left and counted.
      */
     public function approveAll(Request $request): RedirectResponse
     {
@@ -371,7 +309,7 @@ class AttendanceController extends Controller
             );
         }
 
-        $left = $skipped > 0 ? " {$skipped} left — your own, or in a locked period." : '';
+        $left = $skipped > 0 ? " {$skipped} left — your own." : '';
 
         return $this->respond(
             $count > 0
@@ -416,12 +354,6 @@ class AttendanceController extends Controller
         return [
             'manage' => $user->can('attendance.manage'),
             'clock' => $user->can('attendance.clock'),
-            'viewRoster' => $user->can('attendance.roster.view'),
-            'manageRoster' => $user->can('attendance.roster.manage'),
-            'request' => $user->can('attendance.request'),
-            'reviewRequests' => $user->can('attendance.requests.review'),
-            'managePeriods' => $user->can('attendance.period.manage'),
-            'unlockPeriods' => $user->can('attendance.period.unlock'),
         ];
     }
 
@@ -432,18 +364,6 @@ class AttendanceController extends Controller
     {
         return [
             'departments' => Department::orderBy('name')->get(['id', 'name']),
-            // The templates the roster's override and assign dialogs choose from.
-            'schedules' => WorkSchedule::query()
-                ->orderBy('name')
-                ->get(['id', 'name', 'type', 'cycle_length_days'])
-                ->map(fn (WorkSchedule $schedule): array => [
-                    'id' => $schedule->id,
-                    'name' => $schedule->name,
-                    'type' => $schedule->type,
-                    'cycle_length_days' => (int) $schedule->cycle_length_days,
-                ]),
-            // What an assignment can single somebody out to be judged by (ADR 0038).
-            'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
             'employees' => Employee::query()
                 ->orderBy('first_name')
                 ->limit(500)

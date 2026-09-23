@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ResolvesOrganizations;
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Support\Attendance\DayCloser;
@@ -24,9 +23,8 @@ use Illuminate\Support\Facades\Cache;
  * working shift started at least the policy's `reminders.clock_in_after_minutes`
  * ago, is still under way, and has not clocked in is told — once per shift.
  *
- * Nobody is reminded on a rest day, on approved leave, on a holiday nobody works,
- * or on a day of approved official business or remote work. A policy that sets no
- * minutes sends nothing, which is the built-in default.
+ * Nobody is reminded on a rest day, on approved leave or on a holiday nobody
+ * works. A policy that sets no minutes sends nothing, which is the built-in default.
  *
  * The reminder is an ordinary notification (in the app, by email and by web push,
  * as the person chose). The mobile app has no push channel of its own yet.
@@ -99,13 +97,6 @@ class RemindAttendance extends Command
             ->whereDate('end_date', '>=', $yesterday)
             ->get(['employee_id', 'start_date', 'end_date']);
 
-        $away = AttendanceRequest::query()
-            ->whereIn('employee_id', $ids)
-            ->where('status', 'approved')
-            ->whereIn('type', ['official_business', 'remote_work'])
-            ->overlapping($yesterday, $today)
-            ->get(['employee_id', 'start_date', 'end_date']);
-
         $covers = fn ($rows, int $employeeId, string $date): bool => $rows->contains(
             fn ($row): bool => $row->employee_id === $employeeId
                 && $row->start_date->toDateString() <= $date
@@ -125,7 +116,6 @@ class RemindAttendance extends Command
                     || $clockedIn->has($employee->id.'|'.$date)
                     || DayRules::fromShift($shift, $holidays[$date] ?? null)->isNonWorkingHoliday()
                     || $covers($onLeave, $employee->id, $date)
-                    || $covers($away, $employee->id, $date)
                     || $employee->user === null || ! $employee->user->is_active) {
                     continue;
                 }
@@ -138,7 +128,7 @@ class RemindAttendance extends Command
                 $sent += Notifier::toUser(
                     $employee->user,
                     "You haven't clocked in",
-                    'Your shift started at '.OrganizationClock::local($start)->format('g:i A').'. Clock in now, or ask for a correction if you already started.',
+                    'Your shift started at '.OrganizationClock::local($start)->format('g:i A').'. Clock in now, or ask HR to record the time if you already started.',
                     url: '/attendance/me',
                     level: 'warning',
                     category: 'attendance',

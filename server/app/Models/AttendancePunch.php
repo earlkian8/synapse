@@ -17,11 +17,8 @@ use Illuminate\Support\Str;
  * carrying its capture context — source, GPS coordinates and an optional selfie —
  * so a mobile DTR app's punches are fully auditable.
  *
- * A punch is never erased by a correction (ADR 0039): it is soft-deleted, and one
- * an approved correction replaced names that request (`replaced_by_request_id`),
- * while the punch it wrote in its place names it too (`attendance_request_id`,
- * `source = correction`). The trail of who asked, and what the day said before,
- * survives.
+ * A punch HR's edit replaces is never erased: it is soft-deleted, so what the
+ * day said before survives.
  */
 class AttendancePunch extends Model
 {
@@ -44,13 +41,12 @@ class AttendancePunch extends Model
     public const CAPTURE_SOURCES = ['web', 'mobile', 'kiosk', 'biometric', 'manual'];
 
     /**
-     * Where a punch originated: a capture source, an approved correction
-     * request (ADR 0039), or the end-of-day job closing a forgotten clock-out
-     * (ADR 0041) — neither of which any policy can switch off.
+     * Where a punch originated: a capture source, or the end-of-day job closing
+     * a forgotten clock-out (ADR 0041), which no policy can switch off.
      *
      * @var list<string>
      */
-    public const SOURCES = [...self::CAPTURE_SOURCES, 'correction', 'system'];
+    public const SOURCES = [...self::CAPTURE_SOURCES, 'system'];
 
     /**
      * Sources where a person is punching for themselves, so the punch engine
@@ -90,8 +86,6 @@ class AttendancePunch extends Model
         'photo',
         'note',
         'recorded_by',
-        'attendance_request_id',
-        'replaced_by_request_id',
     ];
 
     protected function casts(): array
@@ -155,16 +149,6 @@ class AttendancePunch extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(AttendanceDevice::class, 'attendance_device_id')->withTrashed();
-    }
-
-    /**
-     * The correction request that wrote this punch, when one did.
-     *
-     * @return BelongsTo<AttendanceRequest, $this>
-     */
-    public function request(): BelongsTo
-    {
-        return $this->belongsTo(AttendanceRequest::class, 'attendance_request_id');
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

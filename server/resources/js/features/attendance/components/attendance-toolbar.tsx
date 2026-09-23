@@ -38,7 +38,7 @@ type Props = {
 function shiftPeriod(date: string, tab: AttendanceTab, dir: 1 | -1): string {
     const d = new Date(`${date}T00:00:00`);
 
-    if (tab === 'weekly' || tab === 'roster') {
+    if (tab === 'weekly') {
         d.setDate(d.getDate() + 7 * dir);
     } else if (tab === 'monthly') {
         d.setDate(1);
@@ -59,17 +59,8 @@ function weekStart(date: string): string {
     return toDateKey(d);
 }
 
-/**
- * Whether the displayed period already contains (or is after) today.
- *
- * The roster is the one view that reads forward — you plan next week — so it is
- * never "at the latest": the stepper keeps going.
- */
+/** Whether the displayed period already contains (or is after) today. */
 function atLatest(date: string, tab: AttendanceTab, today: string): boolean {
-    if (tab === 'roster') {
-        return false;
-    }
-
     if (tab === 'monthly') {
         return date.slice(0, 7) >= today.slice(0, 7);
     }
@@ -94,7 +85,7 @@ function periodLabel(date: string, tab: AttendanceTab, today: string): string {
         });
     }
 
-    if (tab === 'weekly' || tab === 'roster') {
+    if (tab === 'weekly') {
         const start = new Date(`${weekStart(date)}T00:00:00`);
         const end = new Date(start);
         end.setDate(start.getDate() + 6);
@@ -120,14 +111,10 @@ function periodLabel(date: string, tab: AttendanceTab, today: string): string {
     });
 }
 
-// The requests and periods tabs have no date to step through, and no toolbar.
 const RESET_LABEL: Record<AttendanceTab, string> = {
     today: 'Today',
     weekly: 'This week',
     monthly: 'This month',
-    roster: 'This week',
-    requests: 'Today',
-    periods: 'Today',
 };
 
 export function AttendanceToolbar({
@@ -192,7 +179,7 @@ export function AttendanceToolbar({
                             id="attendance-date"
                             type="date"
                             value={filters.date}
-                            max={filters.tab === 'roster' ? undefined : today}
+                            max={today}
                             onChange={(event) => onDate(event.target.value)}
                             className="absolute inset-0 cursor-pointer opacity-0"
                             aria-label="Pick a date"
@@ -224,33 +211,31 @@ export function AttendanceToolbar({
                     )}
                 </div>
 
-                {filters.tab !== 'roster' && (
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                        <a href={exportUrl}>
+                            <Download className="size-4" />
+                            Export
+                        </a>
+                    </Button>
+                    {periodExportUrl && (
                         <Button variant="outline" size="sm" asChild>
-                            <a href={exportUrl}>
+                            <a
+                                href={periodExportUrl}
+                                title="One row per employee for the month: days worked, absences, half days, and every minute bucket — regular, overtime, approved overtime, night, rest day, holiday."
+                            >
                                 <Download className="size-4" />
-                                Export
+                                Payroll summary
                             </a>
                         </Button>
-                        {periodExportUrl && (
-                            <Button variant="outline" size="sm" asChild>
-                                <a
-                                    href={periodExportUrl}
-                                    title="One row per employee for the month: days worked, absences, half days, and every minute bucket — regular, overtime, approved overtime, night, rest day, holiday."
-                                >
-                                    <Download className="size-4" />
-                                    Payroll summary
-                                </a>
-                            </Button>
-                        )}
-                        {canManage && (
-                            <Button size="sm" onClick={onManualEntry}>
-                                <Plus className="size-4" />
-                                Manual entry
-                            </Button>
-                        )}
-                    </div>
-                )}
+                    )}
+                    {canManage && (
+                        <Button size="sm" onClick={onManualEntry}>
+                            <Plus className="size-4" />
+                            Manual entry
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Filters: search + department (+ status on the daily log) */}

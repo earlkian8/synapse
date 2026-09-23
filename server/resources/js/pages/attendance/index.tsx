@@ -3,25 +3,13 @@ import { CalendarCheck, CheckCheck, RefreshCw, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { AssignScheduleDialog } from '@/features/attendance/components/assign-schedule-dialog';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
 import { AttendanceViewTabs } from '@/features/attendance/components/attendance-view-tabs';
 import { ExceptionsPanel } from '@/features/attendance/components/exceptions-panel';
-import { FileRequestDialog } from '@/features/attendance/components/file-request-dialog';
-import type { RequestDraft } from '@/features/attendance/components/file-request-dialog';
 import { ManualEntryDialog } from '@/features/attendance/components/manual-entry-dialog';
 import { MonthlyReportTable } from '@/features/attendance/components/monthly-report-table';
-import { PeriodsPanel } from '@/features/attendance/components/periods-panel';
 import { RecordDetailDialog } from '@/features/attendance/components/record-detail-dialog';
-import { RequestReviewDialog } from '@/features/attendance/components/request-review-dialog';
-import { RequestsInbox } from '@/features/attendance/components/requests-inbox';
-import { RosterEntryDialog } from '@/features/attendance/components/roster-entry-dialog';
-import type { RosterTarget } from '@/features/attendance/components/roster-entry-dialog';
-import {
-    AssignScheduleButton,
-    RosterGrid,
-} from '@/features/attendance/components/roster-grid';
 import { TodayLogTable } from '@/features/attendance/components/today-log-table';
 import { WeeklyGrid } from '@/features/attendance/components/weekly-grid';
 import { periodRange } from '@/features/attendance/constants';
@@ -30,33 +18,13 @@ import { attendanceRoutes } from '@/features/attendance/routes';
 import type {
     AttendanceIndexPageProps,
     AttendanceRecord,
-    AttendanceRequestItem,
-    DayRequest,
 } from '@/features/attendance/types';
 
 export default function AttendanceIndex() {
-    const {
-        records,
-        week,
-        report,
-        roster,
-        requests,
-        periods,
-        stats,
-        options,
-        can,
-        filters,
-    } = usePage<AttendanceIndexPageProps>().props;
-    const {
-        setTab,
-        setDate,
-        goToDay,
-        setSearch,
-        setStatus,
-        setDepartment,
-        setRequestStatus,
-        setRequestType,
-    } = useAttendanceFilters(filters);
+    const { records, week, report, stats, options, can, filters } =
+        usePage<AttendanceIndexPageProps>().props;
+    const { setTab, setDate, goToDay, setSearch, setStatus, setDepartment } =
+        useAttendanceFilters(filters);
 
     const [detail, setDetail] = useState<AttendanceRecord | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -72,20 +40,6 @@ export default function AttendanceIndex() {
 
     const [reapplyOpen, setReapplyOpen] = useState(false);
     const [reapplying, setReapplying] = useState(false);
-
-    const [rosterTarget, setRosterTarget] = useState<RosterTarget | null>(null);
-    const [rosterOpen, setRosterOpen] = useState(false);
-    const [assignOpen, setAssignOpen] = useState(false);
-
-    // Requests (ADR 0039): the one being reviewed, and one being filed for somebody.
-    const [review, setReview] = useState<AttendanceRequestItem | null>(null);
-    const [reviewOpen, setReviewOpen] = useState(false);
-    const [fileDraft, setFileDraft] = useState<RequestDraft | null>(null);
-    const [fileOpen, setFileOpen] = useState(false);
-
-    // The day's figures are about what happened; the roster, the requests and
-    // the periods are about something else.
-    const showsDays = ['today', 'weekly', 'monthly'].includes(filters.tab);
 
     // The period on screen — the day, the week or the month — is what a bulk
     // re-apply covers.
@@ -145,27 +99,6 @@ export default function AttendanceIndex() {
                 },
             },
         );
-
-    const openReview = (request: AttendanceRequestItem) => {
-        setDetailOpen(false);
-        setReview(request);
-        setReviewOpen(true);
-    };
-
-    // A request listed in the day modal carries less than the inbox's; the
-    // review modal fetches the rest.
-    const openDayRequest = (request: DayRequest, record: AttendanceRecord) =>
-        openReview({
-            ...request,
-            id: 0,
-            attachment: null,
-            reviewed_at: null,
-            created_at: null,
-            created_human: null,
-            locked_period: record.locked_period ?? null,
-            employee: record.employee,
-            can: { review: false, cancel: false },
-        });
 
     const openDetail = (record: AttendanceRecord) => {
         setDetail(record);
@@ -257,7 +190,7 @@ export default function AttendanceIndex() {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        {can.manage && showsDays && stats.pending > 0 && (
+                        {can.manage && stats.pending > 0 && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -271,12 +204,7 @@ export default function AttendanceIndex() {
                                 {stats.pending === 1 ? 'day' : 'days'}
                             </Button>
                         )}
-                        {filters.tab === 'roster' && can.manageRoster && (
-                            <AssignScheduleButton
-                                onClick={() => setAssignOpen(true)}
-                            />
-                        )}
-                        {can.manage && showsDays && (
+                        {can.manage && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -295,69 +223,27 @@ export default function AttendanceIndex() {
                     </div>
                 </div>
 
-                {showsDays && <AttendanceStatsCards stats={stats} />}
+                <AttendanceStatsCards stats={stats} />
 
-                <AttendanceViewTabs
-                    value={filters.tab}
-                    visible={{
-                        roster: can.viewRoster,
-                        requests: can.reviewRequests,
-                        periods: can.managePeriods,
-                    }}
-                    pendingRequests={stats.pending_requests}
-                    onChange={setTab}
-                />
+                <AttendanceViewTabs value={filters.tab} onChange={setTab} />
 
                 <div className="flex flex-col gap-4">
-                    {filters.tab === 'requests' &&
-                        (requests ? (
-                            <RequestsInbox
-                                requests={requests}
-                                filters={filters}
-                                departments={options.departments}
-                                canFile={can.manage}
-                                onSearch={setSearch}
-                                onDepartment={setDepartment}
-                                onStatus={setRequestStatus}
-                                onType={setRequestType}
-                                onOpen={openReview}
-                                onFile={() => {
-                                    setFileDraft({ type: 'correction' });
-                                    setFileOpen(true);
-                                }}
-                            />
-                        ) : (
-                            <Loading />
-                        ))}
-
-                    {filters.tab === 'periods' &&
-                        (periods ? (
-                            <PeriodsPanel
-                                periods={periods}
-                                canUnlock={can.unlockPeriods}
-                            />
-                        ) : (
-                            <Loading />
-                        ))}
-
-                    {(showsDays || filters.tab === 'roster') && (
-                        <AttendanceToolbar
-                            filters={filters}
-                            departments={options.departments}
-                            canManage={can.manage}
-                            exportUrl={exportUrl}
-                            periodExportUrl={
-                                filters.tab === 'monthly'
-                                    ? periodExportUrl
-                                    : undefined
-                            }
-                            onDate={setDate}
-                            onSearch={setSearch}
-                            onStatus={setStatus}
-                            onDepartment={setDepartment}
-                            onManualEntry={() => openManual(null)}
-                        />
-                    )}
+                    <AttendanceToolbar
+                        filters={filters}
+                        departments={options.departments}
+                        canManage={can.manage}
+                        exportUrl={exportUrl}
+                        periodExportUrl={
+                            filters.tab === 'monthly'
+                                ? periodExportUrl
+                                : undefined
+                        }
+                        onDate={setDate}
+                        onSearch={setSearch}
+                        onStatus={setStatus}
+                        onDepartment={setDepartment}
+                        onManualEntry={() => openManual(null)}
+                    />
 
                     {filters.tab === 'today' && (
                         <TodayTab
@@ -381,23 +267,6 @@ export default function AttendanceIndex() {
                         ) : (
                             <Loading />
                         ))}
-
-                    {filters.tab === 'roster' &&
-                        (roster ? (
-                            <RosterGrid
-                                roster={roster}
-                                canManage={can.manageRoster}
-                                onPickCell={(row, cell) => {
-                                    setRosterTarget({
-                                        employee: row.employee,
-                                        cell,
-                                    });
-                                    setRosterOpen(true);
-                                }}
-                            />
-                        ) : (
-                            <Loading />
-                        ))}
                 </div>
             </div>
 
@@ -410,20 +279,6 @@ export default function AttendanceIndex() {
                 onApprove={approve}
                 onReapply={reapply}
                 onDelete={askDelete}
-                onOpenRequest={openDayRequest}
-            />
-
-            <RequestReviewDialog
-                request={review}
-                open={reviewOpen}
-                onOpenChange={setReviewOpen}
-            />
-
-            <FileRequestDialog
-                draft={fileDraft}
-                employees={options.employees}
-                open={fileOpen}
-                onOpenChange={setFileOpen}
             />
 
             <ManualEntryDialog
@@ -431,22 +286,6 @@ export default function AttendanceIndex() {
                 employees={options.employees}
                 open={manualOpen}
                 onOpenChange={setManualOpen}
-            />
-
-            <RosterEntryDialog
-                target={rosterTarget}
-                schedules={options.schedules}
-                open={rosterOpen}
-                onOpenChange={setRosterOpen}
-            />
-
-            <AssignScheduleDialog
-                employees={roster?.rows.map((row) => row.employee) ?? []}
-                schedules={options.schedules}
-                policies={options.policies}
-                action={attendanceRoutes.rosterAssign}
-                open={assignOpen}
-                onOpenChange={setAssignOpen}
             />
 
             <ConfirmDialog
@@ -464,7 +303,7 @@ export default function AttendanceIndex() {
                 open={approveOpen}
                 onOpenChange={setApproveOpen}
                 title={`Sign off ${stats.pending} ${stats.pending === 1 ? 'day' : 'days'}?`}
-                description="Every day awaiting sign-off is approved as it stands — its overtime counts as approved. Your own days, and days in a locked period, are left."
+                description="Every day awaiting sign-off is approved as it stands — its overtime counts as approved. Your own days are left."
                 confirmLabel="Sign off all"
                 processing={approving}
                 onConfirm={approveAllPending}

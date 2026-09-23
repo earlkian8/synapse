@@ -11,10 +11,8 @@ use App\Queries\AttendanceRangeQuery;
  * every figure in whole minutes so nothing is lost to rounding on the way into a
  * payroll system — minutes, never money (ADR 0019).
  *
- * Written in two places, from this one class: the board's download
- * ({@see AttendanceExportController}, `tab=period`), and the file a period keeps
- * when it locks ({@see PeriodLocker}, ADR 0039), so what payroll received and
- * what the board would download for the same dates are the same columns.
+ * Written by the board's download ({@see AttendanceExportController},
+ * `tab=period`).
  */
 class PeriodSummaryExport
 {
@@ -66,20 +64,5 @@ class PeriodSummaryExport
                 $minutes['holiday'],
             ]);
         }
-    }
-
-    /**
-     * The whole company's summary for [from, to], as a string — the file a
-     * locked period keeps.
-     */
-    public function contents(string $from, string $to): string
-    {
-        $handle = fopen('php://temp', 'r+');
-        $this->write($handle, $from, $to);
-        rewind($handle);
-        $contents = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $contents;
     }
 }

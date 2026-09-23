@@ -481,7 +481,7 @@ export function PolicySections({
                 <OptionalMinutes
                     label="Remind people who haven’t clocked in"
                     offLabel="No reminders"
-                    hint="Minutes into the shift. Nobody on leave, a holiday, a rest day, official business or remote work is reminded."
+                    hint="Minutes into the shift. Nobody on leave, a holiday or a rest day is reminded."
                     value={s.reminders.clock_in_after_minutes}
                     fallback={15}
                     max={240}
@@ -555,7 +555,7 @@ export function PolicySections({
                 />
                 <Minutes
                     label="Accept offline punches up to"
-                    hint="How old a punch the app saved without a connection may be when it arrives. Older ones need a correction request."
+                    hint="How old a punch the app saved without a connection may be when it arrives. Older ones are refused; HR enters them instead."
                     unit="h"
                     value={s.capture.offline_window_hours}
                     min={1}

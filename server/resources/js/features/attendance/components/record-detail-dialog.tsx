@@ -1,8 +1,6 @@
 import {
     BadgeCheck,
-    ChevronRight,
     CircleDashed,
-    Lock,
     Pencil,
     RefreshCw,
     Trash2,
@@ -21,20 +19,16 @@ import { useOrganizationTimeZone } from '@/hooks/use-organization-time-zone';
 import { cn } from '@/lib/utils';
 import {
     CHIP_FLAGS,
-    describeRequest,
     FLAG_LABELS,
     FLAG_TONES,
-    formatDateRange,
     formatDuration,
     formatTime,
     PUNCH_META,
-    REQUEST_TYPE_LABELS,
 } from '../constants';
 import { attendanceRoutes } from '../routes';
-import type { AttendanceRecord, DayRequest, ReplacedPunch } from '../types';
+import type { AttendanceRecord, ReplacedPunch } from '../types';
 import { AttendanceStatusBadge } from './attendance-status-badge';
 import { PunchTimeline } from './punch-timeline';
-import { RequestStatusBadge } from './request-status-badge';
 
 type Props = {
     record: AttendanceRecord | null;
@@ -45,8 +39,6 @@ type Props = {
     onApprove: (record: AttendanceRecord) => void;
     onReapply: (record: AttendanceRecord) => void;
     onDelete: (record: AttendanceRecord) => void;
-    /** Open one of the requests that concern the day (ADR 0039). */
-    onOpenRequest: (request: DayRequest, record: AttendanceRecord) => void;
 };
 
 /**
@@ -62,10 +54,8 @@ type Props = {
  * day with photos said each punch twice; putting the photo on its own row says
  * it once, and lets a punch that has none say so.
  *
- * Under the trail sit the requests that concern the day and the punches an edit
- * or a correction replaced (ADR 0039), so the history of a fixed day reads in
- * one place. A day in a locked period says so, and offers nothing that would be
- * refused.
+ * Under the trail sit the punches an edit replaced, so the history of a fixed
+ * day reads in one place.
  */
 export function RecordDetailDialog({
     record,
@@ -76,7 +66,6 @@ export function RecordDetailDialog({
     onApprove,
     onReapply,
     onDelete,
-    onOpenRequest,
 }: Props) {
     if (!record) {
         return null;
@@ -93,7 +82,6 @@ export function RecordDetailDialog({
                     onApprove={onApprove}
                     onReapply={onReapply}
                     onDelete={onDelete}
-                    onOpenRequest={onOpenRequest}
                 />
             </ModalContent>
         </Modal>
@@ -107,7 +95,6 @@ function Body({
     onApprove,
     onReapply,
     onDelete,
-    onOpenRequest,
 }: {
     record: AttendanceRecord;
     canManage: boolean;
@@ -115,7 +102,6 @@ function Body({
     onApprove: (record: AttendanceRecord) => void;
     onReapply: (record: AttendanceRecord) => void;
     onDelete: (record: AttendanceRecord) => void;
-    onOpenRequest: (request: DayRequest, record: AttendanceRecord) => void;
 }) {
     const employee = record.employee;
     const [detail, setDetail] = useState<AttendanceRecord>(record);
@@ -150,9 +136,7 @@ function Body({
     const punches = detail.punches ?? [];
     const withPhoto = punches.filter((punch) => punch.photo).length;
     const hasRecord = Boolean(record.hashid);
-    const locked = Boolean(detail.is_locked ?? record.is_locked);
-    const needsApproval = detail.approval_status === 'pending' && !locked;
-    const requests = detail.requests ?? [];
+    const needsApproval = detail.approval_status === 'pending';
     const replaced = detail.replaced_punches ?? [];
     const approval = detail.approval_status;
     const chips = (detail.flags ?? []).filter((flag) =>
@@ -218,15 +202,6 @@ function Body({
                         {record.is_manual && (
                             <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                                 Recorded by hand
-                            </span>
-                        )}
-                        {locked && (
-                            <span className="inline-flex items-center gap-1 rounded bg-[#0ABFBF]/10 px-1.5 py-0.5 text-[11px] text-[#0a8b91] dark:text-[#0ABFBF]">
-                                <Lock className="size-3" />
-                                Locked
-                                {(detail.locked_period ?? record.locked_period)
-                                    ? ` · ${detail.locked_period ?? record.locked_period}`
-                                    : ''}
                             </span>
                         )}
                         {/* …and the attendance policy (ADR 0038). */}
@@ -335,58 +310,6 @@ function Body({
                     {replaced.length > 0 && <Replaced punches={replaced} />}
                 </section>
 
-                {requests.length > 0 && (
-                    <section className="space-y-2">
-                        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                            Requests about this day
-                        </h3>
-                        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-                            {requests.map((request) => (
-                                <li key={request.hashid}>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            onOpenRequest(request, detail)
-                                        }
-                                        className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50"
-                                    >
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block text-sm font-medium">
-                                                {
-                                                    REQUEST_TYPE_LABELS[
-                                                        request.type
-                                                    ]
-                                                }
-                                                {request.start_date !==
-                                                    request.end_date && (
-                                                    <span className="font-normal text-muted-foreground">
-                                                        {' '}
-                                                        ·{' '}
-                                                        {formatDateRange(
-                                                            request.start_date,
-                                                            request.end_date,
-                                                        )}
-                                                    </span>
-                                                )}
-                                            </span>
-                                            <span className="block truncate text-xs text-muted-foreground">
-                                                {describeRequest(
-                                                    request.type,
-                                                    request.payload,
-                                                )}
-                                            </span>
-                                        </span>
-                                        <RequestStatusBadge
-                                            status={request.status}
-                                        />
-                                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
-
                 <section className="grid gap-3 sm:grid-cols-2">
                     <Note label="Remarks" value={detail.remarks}>
                         Nothing was written about this day.
@@ -414,15 +337,7 @@ function Body({
                 </section>
             </ModalBody>
 
-            {canManage && locked && (
-                <ModalFooter>
-                    <p className="mr-auto text-xs text-muted-foreground">
-                        Unlock the period to change this day.
-                    </p>
-                </ModalFooter>
-            )}
-
-            {canManage && !locked && (
+            {canManage && (
                 <ModalFooter className="justify-between">
                     <div className="flex items-center gap-2">
                         <Button
@@ -475,8 +390,8 @@ function Body({
 }
 
 /**
- * Punches an HR edit or an approved correction replaced — kept, and shown so a
- * fixed day still says what it said before.
+ * Punches an HR edit replaced — kept, and shown so a fixed day still says what
+ * it said before.
  */
 function Replaced({ punches }: { punches: ReplacedPunch[] }) {
     const timeZone = useOrganizationTimeZone();
@@ -495,11 +410,6 @@ function Replaced({ punches }: { punches: ReplacedPunch[] }) {
                         <span className="line-through decoration-muted-foreground/60">
                             {PUNCH_META[punch.type].label}{' '}
                             {formatTime(punch.punched_at, timeZone)}
-                        </span>{' '}
-                        <span className="text-muted-foreground/80">
-                            {punch.by_request
-                                ? 'by a correction'
-                                : 'by an edit'}
                         </span>
                     </li>
                 ))}

@@ -78,7 +78,7 @@ Authenticated by `Authorization: Bearer <key>` or `X-Device-Key: <key>`
 
   Every row gets a result: `accepted`, `duplicate` (the same `external_id` from this
   device again; devices resend), `unknown_employee`, `invalid`, or `refused` (for
-  example, a day inside a locked period). One activity entry is written per batch.
+  example, a policy that no longer accepts the source). One activity entry is written per batch.
 - **`POST /api/devices/kiosk/lookup`** and **`POST /api/devices/kiosk/punch`**: the
   kiosk page's calls, for a **kiosk's key only**. A scanner's key cannot reveal whose a
   number is.
@@ -95,7 +95,7 @@ it came, and the evaluator flags the day:
 - `clock_skew`: the device's clock was further off than the policy's
   `capture.max_clock_skew_minutes`.
 
-All three are review flags, so the day waits for sign-off (ADR 0039) instead of being
+All three are review flags, so the day waits for sign-off instead of being
 lost or refused.
 
 ## CSV import

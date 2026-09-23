@@ -34,6 +34,7 @@ import {
     Workflow,
     MapPinned,
     ScanLine,
+    CalendarCog,
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
@@ -194,6 +195,14 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/schedule',
         icon: CalendarClock,
         permission: 'setup.schedule.view',
+    },
+    {
+        // Who is due to work what, day by day (ADR 0037) — the plan each day
+        // of attendance is judged against.
+        title: 'Shift Roster',
+        href: '/setup/roster',
+        icon: CalendarCog,
+        permission: 'setup.roster.view',
     },
     {
         title: 'Attendance Policies',

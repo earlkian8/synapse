@@ -8,22 +8,22 @@ use App\Models\WorkSchedule;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /*
-| The roster's screens and endpoints (ADR 0037): the board tab, one-off overrides,
-| and putting people on a schedule from a date. The resolution rules themselves
+| The roster's screens and endpoints (ADR 0037): the Company Setup page, one-off
+| overrides, and putting people on a schedule from a date. The resolution rules themselves
 | are covered by ShiftSchedulingTest.
 */
 
 // ── The board ────────────────────────────────────────────────────────────────
 
-test('the roster tab renders a week of resolved shifts', function () {
+test('the roster page renders a week of resolved shifts', function () {
     actingAsSuperAdmin();
     $schedule = nineToFive();
     Employee::factory()->count(2)->create(['work_schedule_id' => $schedule->id]);
 
-    $this->get(route('attendance.index', ['tab' => 'roster', 'date' => '2026-09-16']))
+    $this->get(route('setup.roster.index', ['date' => '2026-09-16']))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('attendance/index')
+            ->component('setup/roster')
             ->where('roster.start', '2026-09-14')
             ->where('roster.end', '2026-09-20')
             ->has('roster.days', 7)
@@ -35,14 +35,31 @@ test('the roster tab renders a week of resolved shifts', function () {
 });
 
 test('the roster is withheld from someone without the roster permission', function () {
-    actingAsUserWith(['attendance.view']);
+    actingAsUserWith(['attendance.view', 'setup.schedule.view']);
     Employee::factory()->create();
+
+    $this->get(route('setup.roster.index'))->assertForbidden();
+});
+
+test('the roster can be read without being changed', function () {
+    actingAsUserWith(['setup.roster.view']);
+    Employee::factory()->create();
+
+    $this->get(route('setup.roster.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('roster.rows', 1)
+            ->where('can.manage', false));
+});
+
+test('the attendance board no longer carries the roster', function () {
+    actingAsSuperAdmin();
 
     $this->get(route('attendance.index', ['tab' => 'roster']))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('roster', null)
-            ->where('can.viewRoster', false));
+            ->where('filters.tab', 'today')
+            ->missing('roster'));
 });
 
 // ── Overrides ────────────────────────────────────────────────────────────────
@@ -55,7 +72,7 @@ test('an override is written, shows on the board, and can be cleared', function 
         'segments' => [['start' => '22:00', 'end' => '06:00']],
     ]);
 
-    $this->post(route('attendance.roster.store'), [
+    $this->post(route('setup.roster.store'), [
         'employee_id' => $employee->id,
         'date' => '2026-09-16',
         'work_schedule_id' => $nights->id,
@@ -67,13 +84,13 @@ test('an override is written, shows on the board, and can be cleared', function 
     expect($entry->employee_id)->toBe($employee->id)
         ->and($entry->reason)->toBe('Covering for Ben');
 
-    $this->get(route('attendance.index', ['tab' => 'roster', 'date' => '2026-09-16']))
+    $this->get(route('setup.roster.index', ['date' => '2026-09-16']))
         ->assertInertia(fn (Assert $page) => $page
             ->where('roster.rows.0.cells.2.source', 'roster')
             ->where('roster.rows.0.cells.2.label', '22:00–06:00')
             ->where('roster.rows.0.cells.2.reason', 'Covering for Ben'));
 
-    $this->delete(route('attendance.roster.destroy', $entry->hashid))->assertSessionHasNoErrors();
+    $this->delete(route('setup.roster.destroy', $entry->hashid))->assertSessionHasNoErrors();
 
     expect(ShiftRosterEntry::count())->toBe(0);
 });
@@ -83,7 +100,7 @@ test('setting an override twice corrects it rather than stacking a second', func
     $employee = Employee::factory()->create();
 
     foreach (['Swap', 'Corrected'] as $reason) {
-        $this->post(route('attendance.roster.store'), [
+        $this->post(route('setup.roster.store'), [
             'employee_id' => $employee->id,
             'date' => '2026-09-16',
             'segments' => [['start' => '10:00', 'end' => '19:00']],
@@ -99,7 +116,7 @@ test('an override needs a schedule, its own hours, or a rest day', function () {
     actingAsSuperAdmin();
     $employee = Employee::factory()->create();
 
-    $this->post(route('attendance.roster.store'), [
+    $this->post(route('setup.roster.store'), [
         'employee_id' => $employee->id,
         'date' => '2026-09-16',
     ])->assertSessionHasErrors('segments');
@@ -112,7 +129,7 @@ test('a rest-day override keeps neither hours nor a schedule', function () {
     $employee = Employee::factory()->create();
     $schedule = nineToFive();
 
-    $this->post(route('attendance.roster.store'), [
+    $this->post(route('setup.roster.store'), [
         'employee_id' => $employee->id,
         'date' => '2026-09-16',
         'is_rest_day' => true,
@@ -134,7 +151,7 @@ test('the roster assigns a schedule to a selection from a date', function () {
     $schedule = nineToFive('Night Shift');
     $employees = Employee::factory()->count(3)->create(['work_schedule_id' => null]);
 
-    $this->post(route('attendance.roster.assign'), [
+    $this->post(route('setup.roster.assign'), [
         'employee_ids' => $employees->pluck('id')->all(),
         'work_schedule_id' => $schedule->id,
         'effective_from' => '2026-09-16',
@@ -260,10 +277,10 @@ test('the company default schedule can be chosen and cleared', function () {
 // ── Authorization ────────────────────────────────────────────────────────────
 
 test('setting an override requires the roster manage permission', function () {
-    actingAsUserWith(['attendance.view', 'attendance.roster.view']);
+    actingAsUserWith(['attendance.view', 'setup.roster.view']);
     $employee = Employee::factory()->create();
 
-    $this->post(route('attendance.roster.store'), [
+    $this->post(route('setup.roster.store'), [
         'employee_id' => $employee->id,
         'date' => '2026-09-16',
         'is_rest_day' => true,
@@ -274,7 +291,7 @@ test('assigning a schedule from the roster requires the roster manage permission
     actingAsUserWith(['attendance.view']);
     $employee = Employee::factory()->create();
 
-    $this->post(route('attendance.roster.assign'), [
+    $this->post(route('setup.roster.assign'), [
         'employee_ids' => [$employee->id],
         'work_schedule_id' => nineToFive()->id,
         'effective_from' => '2026-09-16',

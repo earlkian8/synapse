@@ -1,11 +1,9 @@
 <?php
 
 use App\Jobs\RecomputeAttendanceRange;
-use App\Models\AttendancePeriod;
 use App\Models\AttendancePolicy;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
@@ -66,12 +64,12 @@ function closePolicy(array $settings): array
 
 test('closing a day records everybody who was due and did not punch — absent, on leave, a holiday', function () {
     at('2026-09-19 09:00');
-    $absent = requestWorker();
-    $onLeave = requestWorker();
-    $worked = requestWorker();
-    $notYetHired = requestWorker();
+    $absent = dayShiftWorker();
+    $onLeave = dayShiftWorker();
+    $worked = dayShiftWorker();
+    $notYetHired = dayShiftWorker();
     $notYetHired->forceFill(['date_hired' => '2026-09-19'])->save();
-    $gone = requestWorker();
+    $gone = dayShiftWorker();
     $gone->forceFill(['employment_status' => 'resigned'])->save();
 
     LeaveRequest::factory()->create([
@@ -97,7 +95,7 @@ test('closing a day records everybody who was due and did not punch — absent, 
 
 test('a holiday nobody works is recorded as a holiday, and a rest day is not recorded at all', function () {
     at('2026-09-21 09:00');
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     testOrganization()->forceFill(['attendance_closed_through' => '2026-09-17'])->save();
     Holiday::create(['name' => 'Founders Day', 'date' => '2026-09-18', 'type' => 'regular', 'is_recurring' => false]);
 
@@ -112,7 +110,7 @@ test('a holiday nobody works is recorded as a holiday, and a rest day is not rec
 test('a day is not closed while somebody could still clock in to it', function () {
     // Friday 16:00: the day shift has not ended.
     at('2026-09-18 16:00');
-    requestWorker();
+    dayShiftWorker();
     testOrganization()->forceFill(['attendance_closed_through' => '2026-09-17'])->save();
 
     closeDays();
@@ -123,11 +121,11 @@ test('a day is not closed while somebody could still clock in to it', function (
 
 test('each organisation closes on its own clock', function () {
     $manila = testOrganization();
-    requestWorker();
+    dayShiftWorker();
 
     $newYork = Organization::factory()->create(['timezone' => 'America/New_York']);
     app(Tenancy::class)->runFor($newYork, function () use ($newYork) {
-        requestWorker();
+        dayShiftWorker();
         $newYork->forceFill(['timezone' => 'America/New_York'])->save();
     });
 
@@ -187,7 +185,7 @@ test('a night shift’s forgotten clock-out is closed the morning after, at the 
 
 test('a policy that flags forgotten clock-outs leaves the day open for HR, marked as missing one', function () {
     at('2026-09-18 08:00');
-    $employee = requestWorker(null, closePolicy(['missing_clock_out' => ['action' => 'flag']]));
+    $employee = dayShiftWorker(null, closePolicy(['missing_clock_out' => ['action' => 'flag']]));
     app(AttendanceClock::class)->punch($employee, 'clock_in', ['source' => 'mobile']);
 
     at('2026-09-19 09:00');
@@ -204,7 +202,7 @@ test('a policy that flags forgotten clock-outs leaves the day open for HR, marke
 
 test('closing a while after the shift writes the clock-out that long after it', function () {
     at('2026-09-18 08:00');
-    $employee = requestWorker(null, closePolicy(['missing_clock_out' => ['action' => 'auto_close_after_minutes', 'after_minutes' => 120]]));
+    $employee = dayShiftWorker(null, closePolicy(['missing_clock_out' => ['action' => 'auto_close_after_minutes', 'after_minutes' => 120]]));
     app(AttendanceClock::class)->punch($employee, 'clock_in', ['source' => 'mobile']);
 
     at('2026-09-19 09:00');
@@ -227,9 +225,9 @@ test('closing twice changes nothing the second time, and each recipient hears on
     $managerUser = memberWith(['attendance.clock']);
     $manager = Employee::factory()->create(['user_id' => $managerUser->id]);
 
-    $absent = requestWorker();
+    $absent = dayShiftWorker();
     $absent->forceFill(['manager_id' => $manager->id])->save();
-    $alsoAbsent = requestWorker();
+    $alsoAbsent = dayShiftWorker();
 
     $snapshot = fn (): array => AttendanceRecord::query()->orderBy('id')->get()
         ->map(fn (AttendanceRecord $record): string => $record->id.' '.$record->status.' '.$record->updated_at->toIso8601String())
@@ -259,22 +257,11 @@ test('a date with nothing wrong sends no digest', function () {
     Notification::fake();
     at('2026-09-19 09:00');
     memberWith(['attendance.view']);
-    workedDay(requestWorker(), '2026-09-18', ['time_in' => '08:00', 'time_out' => '17:00']);
+    workedDay(dayShiftWorker(), '2026-09-18', ['time_in' => '08:00', 'time_out' => '17:00']);
 
     closeDays();
 
     Notification::assertNothingSent();
-});
-
-test('a day in a locked period is not written, and the job moves past it', function () {
-    at('2026-09-19 09:00');
-    requestWorker();
-    AttendancePeriod::create(['start_date' => '2026-09-16', 'end_date' => '2026-09-18', 'status' => 'locked', 'locked_at' => now()]);
-
-    closeDays();
-
-    expect(AttendanceRecord::count())->toBe(0)
-        ->and(testOrganization()->refresh()->attendance_closed_through->toDateString())->toBe('2026-09-18');
 });
 
 // ── Reminders ────────────────────────────────────────────────────────────────
@@ -284,19 +271,13 @@ test('whoever has not clocked in by the policy’s minutes is reminded, once', f
     at('2026-09-18 08:20');
 
     $reminded = memberWith(['attendance.clock']);
-    $late = requestWorker($reminded, closePolicy(['reminders' => ['clock_in_after_minutes' => 15]]));
+    $late = dayShiftWorker($reminded, closePolicy(['reminders' => ['clock_in_after_minutes' => 15]]));
 
-    $clockedIn = requestWorker(memberWith(['attendance.clock']));
+    $clockedIn = dayShiftWorker(memberWith(['attendance.clock']));
     app(AttendanceClock::class)->punch($clockedIn, 'clock_in', ['source' => 'mobile']);
 
     $onLeaveUser = memberWith(['attendance.clock']);
-    LeaveRequest::factory()->create(['employee_id' => requestWorker($onLeaveUser)->id, 'start_date' => '2026-09-18', 'end_date' => '2026-09-18', 'status' => 'approved']);
-
-    $remoteUser = memberWith(['attendance.clock']);
-    AttendanceRequest::create([
-        'employee_id' => requestWorker($remoteUser)->id, 'type' => 'remote_work', 'start_date' => '2026-09-18', 'end_date' => '2026-09-18',
-        'payload' => [], 'reason' => 'Home.', 'status' => 'approved',
-    ]);
+    LeaveRequest::factory()->create(['employee_id' => dayShiftWorker($onLeaveUser)->id, 'start_date' => '2026-09-18', 'end_date' => '2026-09-18', 'status' => 'approved']);
 
     $this->artisan('attendance:remind')->assertSuccessful();
     $this->artisan('attendance:remind')->assertSuccessful();
@@ -305,13 +286,12 @@ test('whoever has not clocked in by the policy’s minutes is reminded, once', f
     Notification::assertSentTo($reminded, SystemNotification::class, fn (SystemNotification $notification) => str_contains($notification->body, '8:00 AM'));
     Notification::assertNotSentTo($clockedIn->user, SystemNotification::class);
     Notification::assertNotSentTo($onLeaveUser, SystemNotification::class);
-    Notification::assertNotSentTo($remoteUser, SystemNotification::class);
 });
 
 test('nobody is reminded before the minutes have passed, on a rest day, on a holiday, or without a policy asking', function () {
     Notification::fake();
     $user = memberWith(['attendance.clock']);
-    requestWorker($user, closePolicy(['reminders' => ['clock_in_after_minutes' => 30]]));
+    dayShiftWorker($user, closePolicy(['reminders' => ['clock_in_after_minutes' => 30]]));
 
     at('2026-09-18 08:20');
     $this->artisan('attendance:remind');
@@ -330,7 +310,7 @@ test('nobody is reminded before the minutes have passed, on a rest day, on a hol
 
 test('approving leave turns the day the job recorded as absent into leave', function () {
     at('2026-09-19 09:00');
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     closeDays();
     expect(AttendanceRecord::sole()->status)->toBe('absent');
 
@@ -348,7 +328,7 @@ test('approving leave turns the day the job recorded as absent into leave', func
 
 test('the recompute runs once the response has gone, with no worker', function () {
     at('2026-09-19 09:00');
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     closeDays();
 
     LeaveRequest::factory()->create(['employee_id' => $employee->id, 'start_date' => '2026-09-18', 'end_date' => '2026-09-18', 'status' => 'approved']);
@@ -357,21 +337,9 @@ test('the recompute runs once the response has gone, with no worker', function (
     expect(AttendanceRecord::sole()->status)->toBe('on_leave');
 });
 
-test('inside a locked period nothing moves', function () {
-    at('2026-09-19 09:00');
-    $employee = requestWorker();
-    closeDays();
-    AttendancePeriod::create(['start_date' => '2026-09-16', 'end_date' => '2026-09-18', 'status' => 'locked', 'locked_at' => now()]);
-
-    LeaveRequest::factory()->create(['employee_id' => $employee->id, 'start_date' => '2026-09-18', 'end_date' => '2026-09-18', 'status' => 'approved']);
-    app()->terminate();
-
-    expect(AttendanceRecord::sole()->status)->toBe('absent');
-});
-
 test('a holiday added late reaches a day somebody worked, without re-judging its schedule', function () {
     at('2026-09-19 09:00');
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     $record = workedDay($employee, '2026-09-18', ['time_in' => '08:00', 'time_out' => '17:00']);
     $rulesBefore = $record->rules;
 
@@ -388,7 +356,7 @@ test('a holiday added late reaches a day somebody worked, without re-judging its
 
 test('a new assignment that makes a recorded absence a rest day makes it a day off', function () {
     at('2026-09-19 09:00');
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     closeDays();
 
     $fourDays = WorkSchedule::create(['name' => 'Mon–Thu', 'type' => 'fixed', 'grace_minutes' => 0, 'cycle_length_days' => 7]);
@@ -411,10 +379,10 @@ test('the board’s live filter shows who has not clocked in yet', function () {
     at('2026-09-18 08:30');
     actingAsUserWith(['attendance.view']);
 
-    $missing = requestWorker();
-    $in = requestWorker();
+    $missing = dayShiftWorker();
+    $in = dayShiftWorker();
     app(AttendanceClock::class)->punch($in, 'clock_in', ['source' => 'mobile']);
-    $leave = requestWorker();
+    $leave = dayShiftWorker();
     LeaveRequest::factory()->create(['employee_id' => $leave->id, 'start_date' => '2026-09-18', 'end_date' => '2026-09-18', 'status' => 'approved']);
 
     $this->get(route('attendance.index', ['status' => 'not_clocked_in']))
@@ -427,8 +395,8 @@ test('the board’s live filter shows who has not clocked in yet', function () {
 test('the assistant finds who has not clocked in, and who punched off site', function () {
     at('2026-09-18 08:30');
     $user = actingAsUserWith(['attendance.view']);
-    $missing = requestWorker();
-    $away = requestWorker(null, closePolicy(['capture' => ['geofence' => 'flag']]));
+    $missing = dayShiftWorker();
+    $away = dayShiftWorker(null, closePolicy(['capture' => ['geofence' => 'flag']]));
     WorkLocation::create(['name' => 'HQ', 'latitude' => 14.5547, 'longitude' => 121.0244, 'radius_meters' => 100]);
 
     at('2026-09-17 08:00');
@@ -447,6 +415,6 @@ test('the assistant finds who has not clocked in, and who punched off site', fun
         ->and(collect($offSite->cards)->pluck('title')->all())->toBe([$away->full_name])
         ->and($offSite->cards[0]['subtitle'])->toStartWith('Thu, Sep 17');
 
-    $denied = $module->run(actingAsUserWith(['attendance.request']), 'find_attendance_exceptions', []);
+    $denied = $module->run(actingAsUserWith(['attendance.clock']), 'find_attendance_exceptions', []);
     expect($denied->failed())->toBeTrue();
 });

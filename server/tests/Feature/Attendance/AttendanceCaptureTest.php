@@ -3,7 +3,6 @@
 use App\Models\AttendancePolicy;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\WorkLocation;
@@ -11,7 +10,6 @@ use App\Models\WorkSchedule;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Attendance\AttendancePunchException;
-use App\Support\Attendance\AttendanceRequestApprover;
 use App\Support\Attendance\GeofenceCheck;
 use App\Support\Attendance\PolicyResolver;
 use App\Support\Attendance\SchedulePatternWriter;
@@ -57,7 +55,7 @@ function northOf(float $meters): array
 /** A worker on the day shift judged by a policy with these capture settings. */
 function captureWorker(array $capture = [], ?User $user = null): Employee
 {
-    return requestWorker($user, ['capture' => [...AttendancePolicySettings::fallback()->toArray()['capture'], ...$capture]]);
+    return dayShiftWorker($user, ['capture' => [...AttendancePolicySettings::fallback()->toArray()['capture'], ...$capture]]);
 }
 
 // ── The fence ────────────────────────────────────────────────────────────────
@@ -189,42 +187,6 @@ test('a company with no locations has nothing to check against, so nothing is', 
     $this->postJson('/api/attendance/punch', ['type' => 'clock_in', ...northOf(5000)])->assertOk();
 
     expect(AttendancePunch::sole()->within_geofence)->toBeNull();
-});
-
-test('remote work exempts the day from the geofence', function () {
-    $user = actingAsUserWith(['attendance.clock']);
-    $employee = captureWorker(['geofence' => 'block'], $user);
-    office();
-    AttendanceRequest::create([
-        'employee_id' => $employee->id, 'type' => 'remote_work', 'start_date' => '2026-09-18', 'end_date' => '2026-09-18',
-        'payload' => [], 'reason' => 'Working from home.', 'status' => 'approved',
-    ]);
-    Sanctum::actingAs($user);
-
-    $this->postJson('/api/attendance/punch', ['type' => 'clock_in', ...northOf(8000), 'accuracy' => 10])->assertOk();
-
-    $record = AttendanceRecord::sole();
-
-    expect(AttendancePunch::sole()->within_geofence)->toBeFalse()
-        ->and($record->flags)->toContain('remote_work')
-        ->and($record->flags)->not->toContain('outside_geofence')
-        ->and($record->approval_status)->toBeNull();
-});
-
-test('approving remote work afterwards clears the day’s geofence flag', function () {
-    $user = actingAsUserWith(['attendance.clock']);
-    $employee = captureWorker(['geofence' => 'flag'], $user);
-    office();
-    Sanctum::actingAs($user);
-
-    $this->postJson('/api/attendance/punch', ['type' => 'clock_in', ...northOf(8000), 'accuracy' => 10])->assertOk();
-    expect(AttendanceRecord::sole()->flags)->toContain('outside_geofence');
-
-    $request = pendingRequest($employee, 'remote_work', '2026-09-18', []);
-    $reviewer = actingAsUserWith(['attendance.requests.review']);
-    app(AttendanceRequestApprover::class)->approve($request, $reviewer);
-
-    expect(AttendanceRecord::sole()->flags)->not->toContain('outside_geofence');
 });
 
 // ── Capture rules ────────────────────────────────────────────────────────────

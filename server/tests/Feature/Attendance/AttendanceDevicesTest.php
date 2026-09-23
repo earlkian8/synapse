@@ -42,7 +42,7 @@ function registerDevice(string $type = 'biometric', array $attributes = []): arr
 /** A day-shift worker with a known employee number. */
 function scannedWorker(string $number = 'EMP-00042', array $attributes = []): Employee
 {
-    $employee = requestWorker();
+    $employee = dayShiftWorker();
     $employee->forceFill(['employee_no' => $number, ...$attributes])->save();
 
     return $employee;
@@ -168,7 +168,7 @@ test('each row is answered: an unknown person or an unreadable row is reported, 
 
 test('a device’s punch in a source the policy does not allow is recorded and flagged', function () {
     [, $key] = registerDevice();
-    $employee = requestWorker(null, ['capture' => ['allowed_sources' => ['mobile'], 'selfie_required' => false, 'geofence' => 'off', 'web_ip_allowlist' => []]]);
+    $employee = dayShiftWorker(null, ['capture' => ['allowed_sources' => ['mobile'], 'selfie_required' => false, 'geofence' => 'off', 'web_ip_allowlist' => []]]);
     $employee->forceFill(['employee_no' => 'EMP-00042'])->save();
 
     sendPunches($key, [['external_id' => 'E1', 'employee_ref' => 'EMP-00042', 'punched_at' => '2026-09-18 08:00', 'type' => 'clock_in']])
@@ -345,7 +345,7 @@ test('locations are drawn, staffed with a primary site, archived and kept while 
     $this->post(route('setup.locations.store'), ['name' => 'Tiny', 'latitude' => 1, 'longitude' => 1, 'radius_meters' => 5])
         ->assertSessionHasErrors('radius_meters');
 
-    $record = workedDay(requestWorker(), '2026-09-17', ['time_in' => '08:00', 'time_out' => '17:00']);
+    $record = workedDay(dayShiftWorker(), '2026-09-17', ['time_in' => '08:00', 'time_out' => '17:00']);
     $record->punches()->first()->forceFill(['work_location_id' => $location->id])->save();
 
     $this->delete(route('setup.locations.destroy', $location));

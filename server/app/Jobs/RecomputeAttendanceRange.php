@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Models\AttendancePeriod;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\Organization;
@@ -28,20 +27,18 @@ use Illuminate\Foundation\Queue\Queueable;
  * judged by (ADR 0036, 0038):
  *
  *  - **Every day in range is re-evaluated**, so what is read live — approved
- *    leave, approved requests — reaches it: a leave approval turns `absent` into
- *    `on_leave`.
+ *    leave — reaches it: a leave approval turns `absent` into `on_leave`.
  *  - **The holiday is re-read from the calendar**, for every day: a holiday is a
  *    fact about the date, not a rule the day was judged by.
- *  - **A day that records nothing a person did** — the end-of-day job's absence,
- *    an approval's day opened ahead of time ({@see AttendanceRecord::isPlaceholder()})
- *    — is re-judged by the plan as it now stands: a new assignment that makes the
- *    date a rest day makes that absence a day off.
+ *  - **A day that records nothing a person did** — the end-of-day job's absence
+ *    ({@see AttendanceRecord::isPlaceholder()}) — is re-judged by the plan as it
+ *    now stands: a new assignment that makes the date a rest day makes that
+ *    absence a day off.
  *  - **A day somebody punched keeps its schedule and policy.** Re-applying the
  *    current ones stays HR's explicit action.
  *  - **Working days the job has already closed that now have no record** — a rest
  *    day that became a working day — get one, as the job would have written;
  *    never before the first date it closed.
- *  - **Nothing in a locked period moves** (ADR 0039).
  *
  * It needs no worker: it is dispatched to run once the response has gone, in the
  * same process — for the reason SystemNotification pins its channels to `sync`:
@@ -74,7 +71,6 @@ class RecomputeAttendanceRange implements ShouldQueue
 
         $tenancy->runFor($organization, function () use ($organization, $clock, $closer): void {
             $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($this->from), CarbonImmutable::parse($this->to));
-            $locked = $clock->lockedPeriodsBetween($this->from, $this->to);
             $changed = 0;
 
             AttendanceRecord::query()
@@ -83,14 +79,10 @@ class RecomputeAttendanceRange implements ShouldQueue
                 ->with('employee')
                 ->orderBy('work_date')
                 ->orderBy('id')
-                ->chunk(200, function (Collection $records) use ($clock, $holidays, $locked, &$changed): void {
+                ->chunk(200, function (Collection $records) use ($clock, $holidays, &$changed): void {
                     foreach ($records as $record) {
                         /** @var AttendanceRecord $record */
                         $date = $record->work_date->toDateString();
-
-                        if ($locked->contains(fn (AttendancePeriod $period): bool => $period->covers($date))) {
-                            continue;
-                        }
 
                         if ($record->employee !== null && $record->isPlaceholder()) {
                             $changed += $clock->reapplySchedule($record, $holidays) ? 1 : 0;

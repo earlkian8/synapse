@@ -1,9 +1,7 @@
 <?php
 
 use App\Models\AttendancePolicy;
-use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
-use App\Models\AttendanceRequest;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Permission;
@@ -194,17 +192,16 @@ function seedDefaultPipeline(): RecruitmentPipeline
 
 /*
 |--------------------------------------------------------------------------
-| Attendance request helpers (ADR 0039)
+| Attendance helpers
 |--------------------------------------------------------------------------
 |
-| Shared by AttendanceRequestsTest and AttendancePeriodsTest: a Mon–Fri
-| 08:00–17:00 worker in Asia/Manila, a day entered through the engine, and a
-| request filed straight into the table.
+| Shared by the capture, devices and end-of-day tests: a Mon–Fri 08:00–17:00
+| worker in Asia/Manila, and a day entered through the engine.
 |
 */
 
 /** A Mon–Fri 08:00–17:00 schedule, judged by settings laid over the fallback. */
-function requestSchedule(array $policy = []): WorkSchedule
+function dayShiftSchedule(array $policy = []): WorkSchedule
 {
     testOrganization()->forceFill(['timezone' => 'Asia/Manila'])->save();
 
@@ -229,9 +226,9 @@ function requestSchedule(array $policy = []): WorkSchedule
 }
 
 /** An employee on the day shift, optionally the signed-in user's own record. */
-function requestWorker(?User $user = null, array $policy = []): Employee
+function dayShiftWorker(?User $user = null, array $policy = []): Employee
 {
-    $schedule = requestSchedule($policy);
+    $schedule = dayShiftSchedule($policy);
     $employee = Employee::factory()->create(['work_schedule_id' => null, 'user_id' => $user?->id]);
     app(ScheduleAssigner::class)->assign($employee, $schedule, '2026-09-01');
 
@@ -246,25 +243,4 @@ function workedDay(Employee $employee, string $date, array $times): AttendanceRe
     $clock->applyManualPunches($record, $times, User::factory()->create()->id);
 
     return $record->refresh();
-}
-
-/** A pending request filed straight into the table. */
-function pendingRequest(Employee $employee, string $type, string $start, array $payload, ?string $end = null): AttendanceRequest
-{
-    return AttendanceRequest::create([
-        'employee_id' => $employee->id,
-        'type' => $type,
-        'start_date' => $start,
-        'end_date' => $end ?? $start,
-        'payload' => $payload,
-        'reason' => 'Because.',
-        'status' => 'pending',
-    ]);
-}
-
-function localTimes(AttendanceRecord $record): array
-{
-    return $record->punches()->get()
-        ->map(fn (AttendancePunch $punch): string => $punch->type.' '.$punch->punched_at->setTimezone('Asia/Manila')->format('H:i'))
-        ->all();
 }

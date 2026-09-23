@@ -56,14 +56,12 @@ class AttendanceRecordsIndexQuery
 
     /**
      * The live "not clocked in yet" filter (ADR 0041): due at work, the shift
-     * has started, and no clock-in — not on leave, not a holiday, not a rest day,
-     * not away on official business.
+     * has started, and no clock-in — not on leave, not a holiday, not a rest day.
      */
     public static function notClockedInYet(AttendanceRecord $record): bool
     {
         return $record->status === 'absent'
             && $record->first_in_at === null
-            && ! in_array('official_business', $record->flags ?? [], true)
             && $record->scheduled_start_at !== null
             && $record->scheduled_start_at->lte(now());
     }
