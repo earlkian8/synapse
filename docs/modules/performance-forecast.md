@@ -94,10 +94,11 @@ cycles back* covers none until a third cycle closes. *KPI attainment* is flagged
 as repeating the appraisal overall rather than adding to it. Deadline adherence
 and peer feedback are not recorded anywhere.
 
-The middle group is the actionable one, and it is the same finding in all three
-surfaces: attendance rate, days late, approved overtime and training completions
-are recorded daily (the awards board already computes several of them) but are
-not currently among the inputs.
+The middle group is the actionable one, and it is the same finding on this surface
+and its sibling: attendance rate, days late, approved overtime and training
+completions are recorded daily (the awards board already computes several of them)
+but are not currently among the inputs. [Attrition Risk](./attrition-risk.md) is the
+surface that does feed 90-day absences, lateness and overtime into its score.
 
 The panel is **frontend-only**: counts are fabricated in the browser and persisted
 to `localStorage`, and no retraining runs behind it. Only the counts are

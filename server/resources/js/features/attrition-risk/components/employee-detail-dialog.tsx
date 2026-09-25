@@ -17,9 +17,10 @@ import {
     TIER_DESCRIPTIONS,
 } from '../constants';
 import type { RiskScore } from '../types';
+import { FactorList } from './factor-list';
 import { RiskBadge } from './risk-badge';
 
-/** A drill-down on one employee's attrition risk: score, confidence, signals. */
+/** A drill-down on one employee's attrition risk: score, confidence, and why. */
 export function EmployeeDetailDialog({
     score,
     onOpenChange,
@@ -29,7 +30,7 @@ export function EmployeeDetailDialog({
 }) {
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 {score && score.employee && (
                     <>
                         <DialogHeader>
@@ -87,9 +88,7 @@ export function EmployeeDetailDialog({
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                {TIER_DESCRIPTIONS[score.tier]} · simulated
-                                probability of leaving{' '}
-                                {(score.probability * 100).toFixed(1)}%
+                                {TIER_DESCRIPTIONS[score.tier]}
                             </p>
                         </div>
 
@@ -100,9 +99,9 @@ export function EmployeeDetailDialog({
                                     {confidenceLabel(score.confidence)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                    {formatConfidence(score.confidence)}{' '}
-                                    simulated confidence, based on this demo
-                                    employee's tenure
+                                    {formatConfidence(score.confidence)} of the
+                                    inputs come from this employee's own
+                                    records; the rest were estimated
                                 </span>
                             </div>
                             <div className="flex w-24 flex-col gap-1">
@@ -117,18 +116,28 @@ export function EmployeeDetailDialog({
                             </div>
                         </div>
 
-                        {/* What we based it on */}
+                        {/* What moved it */}
+                        {score.factors.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                    What moves this score
+                                </h3>
+                                <FactorList factors={score.factors} />
+                            </div>
+                        )}
+
+                        {/* What it is based on */}
                         <div className="flex flex-col gap-2">
                             <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                                 What this is based on
                             </h3>
                             <FeatureGrid features={score.features} />
                             <p className="mt-1 text-xs text-muted-foreground">
-                                These are simulated signals for a fabricated
-                                employee — not real HR data. Pay rates, equity,
-                                engagement surveys and demographic / protected
-                                attributes are deliberately excluded, mirroring
-                                what a real deployment would omit.
+                                A risk score is a prompt for a conversation, not
+                                a verdict. It reflects patterns among people who
+                                did and did not resign — it cannot see why this
+                                person might, and no demographic or protected
+                                attribute is used.
                             </p>
                         </div>
                     </>
@@ -143,31 +152,32 @@ function FeatureGrid({
 }: {
     features: Record<string, number | string>;
 }) {
-    const rows = INPUT_FIELDS.filter((f) => features[f.key] !== undefined);
-
-    if (rows.length === 0) {
-        return (
-            <p className="text-sm text-muted-foreground">
-                No recorded signals for this employee yet.
-            </p>
-        );
-    }
-
     return (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {rows.map((field) => (
-                <div
-                    key={field.key}
-                    className="flex flex-col gap-0.5 rounded-lg border border-sidebar-border/60 bg-card/40 px-3 py-2 dark:border-sidebar-border"
-                >
-                    <dt className="text-[11px] text-muted-foreground">
-                        {field.label}
-                    </dt>
-                    <dd className="text-sm font-medium tabular-nums">
-                        {field.format(features[field.key])}
-                    </dd>
-                </div>
-            ))}
+            {INPUT_FIELDS.map((field) => {
+                const value = features[field.key];
+                const recorded = value !== undefined && value !== null;
+
+                return (
+                    <div
+                        key={field.key}
+                        className="flex flex-col gap-0.5 rounded-lg border border-sidebar-border/60 bg-card/40 px-3 py-2 dark:border-sidebar-border"
+                    >
+                        <dt className="text-[11px] text-muted-foreground">
+                            {field.label}
+                        </dt>
+                        <dd
+                            className={cn(
+                                'text-sm font-medium tabular-nums',
+                                !recorded &&
+                                    'font-normal text-muted-foreground italic',
+                            )}
+                        >
+                            {recorded ? field.format(value) : 'Not on record'}
+                        </dd>
+                    </div>
+                );
+            })}
         </dl>
     );
 }

@@ -2,17 +2,15 @@
 
 namespace App\Support\Reports;
 
+use App\Models\AttritionRiskRun;
 use App\Models\PerformanceForecastRun;
 use App\Models\PromotionReadinessRun;
 
 /**
- * Decision-support signals pulled from the *persisted* ML model runs (promotion
- * readiness, performance forecast). Reading the stored summaries — not the
- * live inference service — keeps signals available even when the model API is offline,
- * and means a report never blocks on a network call.
- *
- * Attrition Risk is not included here — it's a frontend-only demo surface with no
- * persisted, tenant-real data to report on (see ADR 0030).
+ * Decision-support signals pulled from the *persisted* ML model runs (attrition
+ * risk, promotion readiness, performance forecast). Reading the stored summaries —
+ * not the live inference service — keeps signals available even when the model API
+ * is offline, and means a report never blocks on a network call.
  *
  * These ride alongside the relevant reports as headline chips, and feed the LLM
  * insights so the "why" can lean on the models, not just the descriptive numbers.
@@ -34,9 +32,34 @@ class MlSignals
         }
 
         return array_values(array_filter([
+            $this->attrition(),
             $this->promotion(),
             $this->forecast(),
         ]));
+    }
+
+    /**
+     * Latest attrition-risk run summary.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function attrition(): ?array
+    {
+        $run = AttritionRiskRun::query()->latestFirst()->first();
+
+        if ($run === null) {
+            return null;
+        }
+
+        return [
+            'key' => 'attrition',
+            'label' => 'Attrition risk',
+            'tone' => 'rose',
+            'href' => '/analytics/attrition',
+            'value' => $run->high_count.' high risk',
+            'detail' => $run->medium_count.' at watch · '.($run->created_at?->diffForHumans() ?? 'recently'),
+            'breakdown' => ['High risk' => $run->high_count, 'At watch' => $run->medium_count, 'Stable' => $run->low_count],
+        ];
     }
 
     /**

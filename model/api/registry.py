@@ -8,28 +8,28 @@ start-up and exposes a small, robust prediction surface:
   full-width DataFrame in the exact column order the pipeline expects and let the
   pipeline's own imputers fill anything missing (so partial inputs are fine).
 * **scoring** — probability for the classifiers, predicted value for the regressor.
-* **explanations** — for the linear promotion model we decompose each prediction
-  into the per-feature logit contributions, giving the UI an honest "why".
+* **explanations** — per-feature logit contributions for the linear promotion model,
+  what-if-typical deltas for the attrition forest, giving the UI an honest "why".
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
 
-MODEL_DIR = Path(__file__).resolve().parent.parent  # …/model
-ARTIFACTS = MODEL_DIR / "artifacts"
+from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
+from synapse_ml.paths import ARTIFACTS_DIR
 
 # Which artifacts to serve, and how each is scored.
 _SPECS = {
     "promotion": "classifier",
     "performance": "regressor",
+    "attrition": "classifier",
 }
 
 # Readiness/risk tier cut-offs on the probability scale (mirrors the notebooks).
@@ -40,8 +40,13 @@ TIER_BINS = ((0.33, "low"), (0.66, "medium"), (1.01, "high"))
 # imputes a constant, which would otherwise show up as spurious "drivers").
 PROTECTED_FEATURES = {"gender", "marital_status", "age", "education_level", "city_tier"}
 
+# Occlusion effects smaller than this (two risk points) are not offered as a reason.
+# On the attrition forest real drivers move a score by 10–35 points; below ~2 the
+# effect is the forest's own noise and reads as contradiction, not insight.
+OCCLUSION_FLOOR = 0.02
+
 # Human labels for the promotion features, so factor explanations read well.
-FEATURE_LABELS = {
+PROMOTION_FEATURE_LABELS = {
     "performance_score": "Current performance",
     "performance_last_year": "Performance last year",
     "performance_two_years_ago": "Performance two years ago",
@@ -75,6 +80,8 @@ FEATURE_LABELS = {
     "education_level": "Education level",
     "employment_type": "Employment type",
 }
+
+FEATURE_LABELS = {**PROMOTION_FEATURE_LABELS, **ATTRITION_FEATURE_LABELS}
 
 
 def _humanize(encoded_name: str) -> str:
@@ -134,7 +141,7 @@ class Registry:
 
     def load(self) -> None:
         for name, kind in _SPECS.items():
-            path = ARTIFACTS / name / f"{name}_model.joblib"
+            path = ARTIFACTS_DIR / name / f"{name}_model.joblib"
             if not path.exists():
                 continue
 
@@ -143,8 +150,8 @@ class Registry:
             numeric = list(prep.transformers_[0][2])
             categorical = list(prep.transformers_[1][2])
 
-            metrics_path = ARTIFACTS / name / "metrics.json"
-            metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
+            metrics_path = ARTIFACTS_DIR / name / "metrics.json"
+            metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
 
             self.models[name] = LoadedModel(
                 name=name,
@@ -175,40 +182,82 @@ class Registry:
         return [None] * len(pred), [round(float(v), 1) for v in pred]
 
     def contributions(self, name: str, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
-        """Per-instance logit contributions for a linear model (else None)."""
+        """Per-instance explanations: logit contributions for a linear model, what-if-
+        typical deltas for any other classifier, None for the regressor."""
         model = self.get(name)
-        # The final estimator, whatever its step is named ("clf" for the
-        # classifiers, "reg" for the performance regressor). Only linear models
-        # expose coef_; everything else (e.g. gradient boosting) returns None.
-        clf = model.pipeline.steps[-1][1]
-        if not hasattr(clf, "coef_"):
-            return [None] * len(feature_dicts)
+        # The final estimator, whatever its step is named ("clf" / "reg").
+        estimator = model.pipeline.steps[-1][1]
+        if hasattr(estimator, "coef_"):
+            return _linear_contributions(model, estimator, feature_dicts, top)
+        if model.kind == "classifier":
+            return _occlusion(model, feature_dicts, top)
+        return [None] * len(feature_dicts)
 
-        prep = model.pipeline.named_steps["prep"]
-        df = model.frame(feature_dicts)
-        encoded = np.asarray(prep.transform(df))
-        names = prep.get_feature_names_out()
-        coef = clf.coef_[0]
 
-        def is_protected(encoded_name: str) -> bool:
-            raw = encoded_name.split("__", 1)[-1]
-            return any(raw == p or raw.startswith(f"{p}_") for p in PROTECTED_FEATURES)
+def _factor(feature: str, impact: float) -> dict[str, Any]:
+    return {
+        "feature": feature.split("__", 1)[-1],
+        "label": _humanize(feature),
+        "impact": round(float(impact), 4),
+        "direction": "up" if impact >= 0 else "down",
+    }
 
-        # Encoded columns we are allowed to explain (drops protected attributes).
-        allowed = [j for j, n in enumerate(names) if not is_protected(n)]
 
-        results: list[list[dict[str, Any]] | None] = []
-        for row in encoded:
-            contrib = row * coef
-            ranked = sorted(allowed, key=lambda j: abs(contrib[j]), reverse=True)
-            results.append([
-                {
-                    "feature": names[j].split("__", 1)[-1],
-                    "label": _humanize(names[j]),
-                    "impact": round(float(contrib[j]), 4),
-                    "direction": "up" if contrib[j] >= 0 else "down",
-                }
-                for j in ranked[:top]
-                if abs(contrib[j]) > 1e-9
-            ])
-        return results
+def _is_protected(feature: str) -> bool:
+    raw = feature.split("__", 1)[-1]
+    return any(raw == p or raw.startswith(f"{p}_") for p in PROTECTED_FEATURES)
+
+
+def _linear_contributions(
+    model: LoadedModel, estimator: Any, feature_dicts: list[dict[str, Any]], top: int
+) -> list[list[dict[str, Any]]]:
+    """Each encoded feature's term in the logit (value × coefficient)."""
+    prep = model.pipeline.named_steps["prep"]
+    encoded = np.asarray(prep.transform(model.frame(feature_dicts)))
+    names = prep.get_feature_names_out()
+    allowed = [j for j, name in enumerate(names) if not _is_protected(name)]
+
+    results = []
+    for row in encoded:
+        contrib = row * estimator.coef_[0]
+        ranked = sorted(allowed, key=lambda j: abs(contrib[j]), reverse=True)
+        results.append([_factor(names[j], contrib[j]) for j in ranked[:top] if abs(contrib[j]) > 1e-9])
+    return results
+
+
+def _occlusion(model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int) -> list[list[dict[str, Any]]]:
+    """Model-agnostic explanation for a non-linear classifier.
+
+    For each input, the change in probability if that one input were *typical* (the
+    median / mode the pipeline's own imputers learned) instead of this employee's
+    value: positive means the employee's value pushes the probability up. An input
+    the caller did not send is imputed to exactly that typical value, so it can
+    never appear as a driver — only recorded facts are ever offered as a reason.
+    """
+    baseline = _baseline(model)
+    df = model.frame(feature_dicts)
+    base = model.pipeline.predict_proba(df)[:, 1]
+
+    explained = [f for f in model.features if f in baseline and not _is_protected(f)]
+    deltas = np.zeros((len(df), len(explained)))
+    for j, feature in enumerate(explained):
+        typical = df.copy()
+        typical[feature] = baseline[feature]
+        deltas[:, j] = base - model.pipeline.predict_proba(typical)[:, 1]
+
+    results = []
+    for row in deltas:
+        ranked = sorted(range(len(explained)), key=lambda j: abs(row[j]), reverse=True)
+        results.append([_factor(explained[j], row[j]) for j in ranked[:top] if abs(row[j]) >= OCCLUSION_FLOOR])
+    return results
+
+
+def _baseline(model: LoadedModel) -> dict[str, Any]:
+    """The "typical" value of every input: the medians / modes the pipeline's own
+    imputers learned from the training data."""
+    baseline: dict[str, Any] = {}
+    for _, transformer, columns in model.pipeline.named_steps["prep"].transformers_:
+        steps = getattr(transformer, "named_steps", {})
+        if "impute" in steps:
+            baseline.update(zip(columns, steps["impute"].statistics_, strict=True))
+    return baseline

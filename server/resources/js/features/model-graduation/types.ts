@@ -3,8 +3,9 @@
  * organisation accumulates enough of its own history to train on.
  *
  * Promotion Readiness and Performance Forecast are served by models trained on a
- * general workforce dataset rather than on the deploying organisation's records;
- * Attrition Risk has no trained model at all. Each surface embeds its own
+ * general workforce dataset, and Attrition Risk by one trained on a survey of
+ * workers at other employers — none on the deploying organisation's own records.
+ * Each surface embeds its own
  * readiness panel stating that plainly and tracking what would have to be true
  * before a locally trained model could replace it.
  */

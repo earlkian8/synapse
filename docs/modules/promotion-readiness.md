@@ -84,10 +84,11 @@ and salary at 100% coverage, but *latest appraisal rating* at 35 of 42, *previou
 cycle's rating* at 21 of 42, and *rating two cycles back* at 0 of 42 until a third
 cycle closes. Peer feedback and engagement are not recorded anywhere.
 
-The middle group is the actionable one, and it is the same finding in all three
-surfaces: attendance rate, days late, approved overtime and training completions
-are recorded daily (the awards board already computes several of them) but are
-not currently among the inputs.
+The middle group is the actionable one, and it is the same finding on this surface
+and its sibling: attendance rate, days late, approved overtime and training
+completions are recorded daily (the awards board already computes several of them)
+but are not currently among the inputs. [Attrition Risk](./attrition-risk.md) is the
+surface that does feed 90-day absences, lateness and overtime into its score.
 
 The panel is **frontend-only**: counts are fabricated in the browser and persisted
 to `localStorage`, and no retraining runs behind it. Only the counts are
@@ -109,6 +110,5 @@ delete an assessment). Built-in **HR Manager** gets both; Super Admin bypasses a
 
 ## Out of scope (this cut)
 
-The Attrition Prediction and Performance Forecast surfaces (the inference service already
-serves both models in the same shape), scheduled/automatic re-assessment, writing a
+Scheduled/automatic re-assessment, writing a
 recommendation back onto the employee record, and an assistant capability.

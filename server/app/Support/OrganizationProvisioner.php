@@ -182,6 +182,7 @@ class OrganizationProvisioner
                     // Decision support (view-only) for their people
                     'analytics.performance.view',
                     'analytics.promotion.view',
+                    'analytics.attrition.view',
                 ],
             ],
 

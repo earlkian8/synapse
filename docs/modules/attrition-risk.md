@@ -1,107 +1,120 @@
 # Attrition Risk
 
-A **frontend-only demo** alongside the two real Predictive Workforce Analytics
-surfaces, [Promotion Readiness](./promotion-readiness.md) and
-[Performance Forecast](./performance-forecast.md). It shows what a flight-risk
-view could look like — a fabricated roster scored 0–100 into **Stable / At watch /
-High risk** tiers — entirely in the browser. There is **no server, database, or
-trained model behind it.** See
-[ADR 0030](../decisions/0030-attrition-risk-frontend-only.md) for why (it
-supersedes the original design in
-[ADR 0021](../decisions/0021-attrition-risk.md)).
+The third **Predictive Workforce Analytics** surface, alongside
+[Promotion Readiness](./promotion-readiness.md) and
+[Performance Forecast](./performance-forecast.md). HR runs an **assessment** that scores
+every active employee's flight risk with a trained model, producing a 0–100 **risk
+score**, a **Stable / At watch / High risk** tier, a **confidence**, and the **factors**
+behind each score — so a retention conversation can happen before a resignation, not
+after. Predictions come from the standalone **ML inference service** (FastAPI, see
+`model/api`), called server-side; everything is tenant-scoped (ADR 0005). See
+[ADR 0043](../decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md) for the
+design and [attrition-risk tables](../database/attrition-risk-tables.md) for the schema.
 
-> Status: **Active (demo)** · Route: `/analytics/attrition` (`Route::inertia`, no
-> controller, no permission — open to any authenticated user)
-> Sidebar: Analytics & AI → Attrition Risk
+> Status: **Active** · Route prefix: `/analytics/attrition`
+> Sidebar: Analytics & AI → Attrition Risk (gated by `analytics.attrition.view`)
 
-## What it does
+## Surfaces
 
-- **`/analytics/attrition`** — the same surface the real design called for:
-  headline metric cards (assessed, high risk, at watch, average risk), a cohort
-  **risk-distribution bar**, and a **ranked roster** with search, tier filter, a
-  history selector across past runs, and a per-employee **detail dialog** (score,
-  tier, simulated probability, confidence, and the synthetic signals behind it).
-  "Run assessment" and "Delete" both work — they just don't touch a server.
+- **`/analytics/attrition`** — headline cards (assessed, high risk, at watch, average
+  risk), a cohort **risk-distribution bar**, and the **ranked roster** — every active
+  employee by risk score, with their tier and the strongest thing pushing their risk up.
+  Search, filter by tier, and pick a past run from the history selector. HR can **run a
+  new assessment** or **delete** a historical one. Selecting an employee opens a **detail
+  dialog**: the score, the tier, the confidence, *what moves this score* (each input's
+  effect, rose raising risk, emerald lowering it), and *what it is based on* — every one
+  of the eight inputs with the employee's recorded value, or "Not on record" where it was
+  estimated.
 
-## How it works — `features/attrition-risk/mock-engine.ts`
+## How an assessment works
 
-1. **A stable roster** (~46 fabricated employees: name, department, position, and
-   a baseline tenure/income/performance/overtime profile) is generated once from a
-   fixed PRNG seed, so it's the same roster on every page load.
-2. **"Run assessment"** scores that roster with a small, self-consistent synthetic
-   logistic formula — overtime, a long stretch since the last promotion, low
-   performance and thin training push risk up; tenure, recent training and higher
-   pay pull it down — jittered per run so repeat assessments vary. This is
-   explicitly **not** a fitted model; it makes no predictive claim.
-3. The run (header stats + one score per employee, mirroring the original
-   `RiskRun` / `RiskScore` shape) is written to **`localStorage`**
-   (`synapse:attrition-risk:runs`, capped at 10). The page seeds one run on first
-   visit so it's never empty.
-4. **History and delete** read/write that same local store — no network call, no
-   loading state beyond a short simulated delay kept for UX continuity with the
-   original "Assessing…" spinner.
+`App\Support\Ml\AttritionRiskAssessor` is the single source of truth for "assess
+attrition risk":
 
-A `DemoBanner` on the page says plainly that the data is simulated and generated
-in the browser; the detail dialog's copy was reworded ("simulated probability",
-"simulated confidence") so nothing implies a live model or real HR data.
+1. Gather all **active** employees with their promotions and four 90-day attendance
+   aggregates (tracked days, absences, late arrivals, overtime minutes).
+2. `App\Support\Ml\AttritionFeatureMapper` maps each to the model's eight inputs:
+
+   | Input | From |
+   |---|---|
+   | `employment_type` | Employee record (`regular`, `probationary`, `part_time`, `contractual`) |
+   | `tenure_years` | `date_hired` |
+   | `monthly_salary` | `basic_salary` |
+   | `ever_promoted`, `years_since_promotion` | Latest promotion; never promoted = the whole tenure |
+   | `absences_90d` | Attendance days with status `absent` (leave, rest days, holidays excluded) |
+   | `lates_90d` | Attendance days with `late_minutes > 0` |
+   | `overtime_hours_90d` | Sum of worked `overtime_minutes` ÷ 60 |
+
+   Values go in their natural units; the model bands them itself. An employee with **no
+   attendance tracked** in the window gets no attendance inputs (they are imputed, and
+   confidence drops to 5/8) rather than zeros that would claim a perfect record. No
+   demographic or protected attribute is ever sent.
+3. The batch is scored by the inference service (`MlClient::predict('attrition', …)`).
+4. The result is persisted as an `AttritionRiskRun` header (model version, tier counts,
+   average risk and confidence) with one `AttritionRiskScore` per employee (probability,
+   score, tier, confidence, factors, and the feature snapshot for audit). The run is
+   activity-logged (`attrition-risk`).
+
+If the service is unreachable, or running without the attrition model trained, the
+action degrades gracefully — a plain "temporarily unavailable" toast, no run recorded —
+and the page shows the same message as a banner; existing assessments stay visible.
+Nothing about the model itself (algorithm, version, metrics) reaches the browser.
+
+## The model
+
+A **Random Forest** trained on two exports of an attrition survey, merged and cleaned by
+`model/synapse_ml/attrition/survey.py` (155 usable responses: 50 who resigned
+voluntarily, 105 still employed) — see `model/notebooks/01_attrition_model.ipynb`. The
+survey data lives in the git-ignored `model/data/` (see `model/data/README.md`).
+
+- **How good it is:** cross-validated ROC-AUC **0.63 ± 0.04** (chance is 0.50),
+  PR-AUC 0.45 against a 0.32 base rate; a permutation test puts that at p = 0.03. Real,
+  but modest.
+- **What it leans on:** tenure, salary and time since the last promotion most; then
+  absences and late arrivals.
+- **Its limit:** the two surveys reached different populations, and a model trained on
+  one does not rank the other well. Treat scores as a provisional, population-level
+  prior until the model is retrained on this organisation's own departures.
+- **Reading the score:** it is *relative*, not a probability — 70 means the profile
+  looks much more like people who left than people who stayed. Tiers cut at 33 / 66. On
+  held-out survey rows, 24% of "Stable" had left against 36–38% of "At watch" and "High
+  risk".
+- **Factors** are what-if-typical deltas: how much the score would move if that one
+  input were the typical value. Effects under two points are not shown.
 
 ## Where these scores come from (model graduation)
 
-The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
-in one line that there is no trained model behind this surface at all. Expanded, it shows the
-three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
-retraining gate drawn closed, the requirement furthest from satisfied, and the
-full requirement ledger — each row opening a drill-down with the statistical
-justification for its threshold.
+The page embeds the **`ModelProvenance`** panel beneath its header: these scores come
+from a survey of workers at other employers, not this organisation's own departure
+history. Because every score is now **stored**, it can be matched to who later leaves —
+the `outcome_linkage` requirement is met and the surface reads `collecting`, like the
+other two. Its headline requirement is **80 recorded departures** (10 to 20 outcomes for
+each of the 8 inputs), which a stable organisation accrues slowest of the three.
 
-Attrition is the honest outlier of the three. Because scores are generated in the
-browser and never stored, the prediction-to-outcome link sits at **zero** — and
-that, rather than elapsed time, is what blocks it. Waiting does not move that
-requirement, so this surface reads `provisional` where the other two read
-`collecting`. Its headline requirement is **80 recorded departures**, which a
-stable organisation produces slowest of all.
-
-### What each score draws on
-
-Beneath the requirement ledger, the panel lists **every input the score uses**,
-with how many employee records actually carry it — grouped by whether the value
-reaches the score at all:
-
-| State | Meaning |
-|---|---|
-| **Used now** | Read from your records and fed into every score. |
-| **Recorded, not used** | The system already holds it; wiring it in needs no new data entry. |
-| **Not recorded anywhere** | No module produces it, so it cannot be filled in. |
-
-This surface has **no "Used now" group at all** — nothing is fed in, because there
-is no model. Departure-scoped fields count against departures rather than
-headcount, so *departure reason* reads 4 of 6 and *exit interview notes* 0 of 6.
-Engagement, exit interviews and pay-against-market are not recorded anywhere.
-
-The middle group is the actionable one, and it is the same finding in all three
-surfaces: attendance rate, days late, approved overtime and training completions
-are recorded daily (the awards board already computes several of them) but are
-not currently among the inputs.
-
-The panel is **frontend-only**: counts are fabricated in the browser and persisted
-to `localStorage`, and no retraining runs behind it. Only the counts are
-simulated — the thresholds and their reasoning are real. Shared implementation
-lives in `resources/js/features/model-graduation/`; see
-[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
-
-## What was removed
-
-Everything server-side: `AttritionRiskController` / `AttritionRiskRunController`,
-`AttritionRiskRun` / `AttritionRiskScore` models and resources,
-`AttritionRiskAssessor` / `AttritionFeatureMapper`, the
-`attrition_risk_runs` / `attrition_risk_scores` migration, the
-`analytics.attrition.view` / `analytics.attrition.manage` permissions, the
-attrition entry in `MlSignals` (Reports' ML signal chips), the `attrition` slot in
-the FastAPI registry, the trained model artifact, both datasets, the training
-notebook, and the attrition logs. Full accounting in
-[ADR 0030](../decisions/0030-attrition-risk-frontend-only.md).
+The field-coverage list shows **Used now**: hire date, employment type, salary, time
+since last promotion, and the three 90-day attendance counts. **Recorded, not used**:
+department (the survey's free-text answers could not be matched to a department list)
+and training completions (the survey did not ask). **Not recorded anywhere**: exit
+interviews, engagement, pay against market. The panel's counts are simulated (ADR 0031);
+its thresholds and reasoning are real.
 
 ## Permissions
 
-None. The route carries only `auth` + `verified` (like Dashboard and Reports) —
-there is nothing to authorize against a fabricated, per-browser demo.
+`analytics.attrition.view` (the overview & detail), `analytics.attrition.manage` (run /
+delete an assessment). **HR Manager** gets both; **Department Head** gets view; Super
+Admin bypasses all gates. Reports show the latest run as an *Attrition risk* signal chip
+on the Workforce and Attendance groups.
+
+## Running it locally
+
+1. `model/`: place the two survey exports in `data/raw/` (see `data/README.md`), then
+   execute `notebooks/01_attrition_model.ipynb` once (writes `artifacts/attrition/`).
+2. `model/`: `.venv/Scripts/python.exe -m api` (port 8001; `/health` should list
+   `attrition`).
+3. `server/`: `php artisan migrate`, then open **Analytics & AI → Attrition Risk** and
+   **Run assessment**.
+
+## Out of scope (this cut)
+
+Per-organisation retraining on offboarding history, scheduled re-assessment, writing a
+risk flag onto the employee record, and an assistant capability.

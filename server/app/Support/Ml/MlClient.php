@@ -47,7 +47,7 @@ class MlClient
     /**
      * Score a batch of instances against a model.
      *
-     * @param  'promotion'|'performance'  $model
+     * @param  'promotion'|'performance'|'attrition'  $model
      * @param  list<array{ref: string, features: array<string, mixed>}>  $instances
      * @return array{model: string, model_version: ?string, results: list<array<string, mixed>>}
      *

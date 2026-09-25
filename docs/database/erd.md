@@ -822,15 +822,17 @@ coverage) and a **rating trajectory**. See
 [Performance Forecast](../modules/performance-forecast.md) and
 [ADR 0018](../decisions/0018-performance-forecasting.md).
 
-> **Attrition Risk removed as a persisted table (2026-09-02).** `attrition_risk_runs`
-> and `attrition_risk_scores` — along with their model, controllers, mapper/assessor
-> and the trained artifact — are gone; the surface is now a **frontend-only demo**
-> that fabricates a roster and computes illustrative scores in the browser (nothing
-> persists server-side). The `ATTRITION_PREDICTION` entity below is kept in the
-> diagram only as the original proposed shape, for reference. See
-> [Attrition Risk](../modules/attrition-risk.md),
-> [ADR 0021](../decisions/0021-attrition-risk.md) (historical) and
-> [ADR 0030](../decisions/0030-attrition-risk-frontend-only.md).
+**Built (Attrition Risk)** — `attrition_risk_runs` + `attrition_risk_scores`, the
+third surface on the same service, restored on 2026-09-24 after a spell as a
+frontend-only demo. The model is a Random Forest trained on the merged attrition
+surveys; each score carries a probability, a Stable / At watch / High risk tier, a
+Laravel-derived **confidence** (how much of the record was real) and per-employee
+**factors** (what-if-typical deltas from the service). The `ATTRITION_PREDICTION`
+entity below maps onto that header-plus-lines shape as the other two do. See
+[Attrition Risk](../modules/attrition-risk.md),
+[attrition-risk tables](./attrition-risk-tables.md) and
+[ADR 0043](../decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md)
+(superseding [ADR 0030](../decisions/0030-attrition-risk-frontend-only.md)).
 
 ```mermaid
 erDiagram

@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import {
     ChevronRight,
     History,
@@ -7,7 +7,7 @@ import {
     Trash2,
     TrendingDown,
 } from 'lucide-react';
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,24 +19,26 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { deleteRun, runAssessment } from '@/features/attrition-risk/api';
-import { DemoBanner } from '@/features/attrition-risk/components/demo-banner';
+import {
+    deleteRun,
+    runAssessment,
+    viewRun,
+} from '@/features/attrition-risk/api';
 import { EmployeeDetailDialog } from '@/features/attrition-risk/components/employee-detail-dialog';
 import { RiskBadge } from '@/features/attrition-risk/components/risk-badge';
 import { RiskStatsCards } from '@/features/attrition-risk/components/risk-stats';
+import { ServiceBanner } from '@/features/attrition-risk/components/service-banner';
 import {
     formatConfidence,
     formatRelative,
     formatScore,
     scoreTone,
 } from '@/features/attrition-risk/constants';
-import {
-    getRunsSnapshot,
-    getServerRunsSnapshot,
-    subscribeRuns,
-    toSummary,
-} from '@/features/attrition-risk/mock-engine';
-import type { RiskScore, RiskTier } from '@/features/attrition-risk/types';
+import type {
+    AttritionRiskPageProps,
+    RiskScore,
+    RiskTier,
+} from '@/features/attrition-risk/types';
 import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
 import { cn } from '@/lib/utils';
 
@@ -48,28 +50,13 @@ const TIER_FILTERS: { value: RiskTier | 'all'; label: string }[] = [
 ];
 
 export default function AttritionRisk() {
-    // Attrition Risk is a frontend-only demo (no server data behind it) — runs
-    // live in localStorage, seeded with one run on first visit. Read via
-    // useSyncExternalStore (the same pattern as useAppearance/useIsMobile in
-    // this codebase) rather than a useEffect + setState: its getServerSnapshot
-    // keeps the SSR pass and the first client render both rendering "no runs
-    // yet", so the real, randomly-seeded scores only ever appear client-side —
-    // no hydration mismatch. See mock-engine.ts.
-    const runs = useSyncExternalStore(
-        subscribeRuns,
-        getRunsSnapshot,
-        getServerRunsSnapshot,
-    );
-    const [activeHashid, setActiveHashid] = useState<string | null>(null);
+    const { run, runs, service, can } = usePage<AttritionRiskPageProps>().props;
 
     const [processing, setProcessing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [search, setSearch] = useState('');
     const [tierFilter, setTierFilter] = useState<RiskTier | 'all'>('all');
     const [detail, setDetail] = useState<RiskScore | null>(null);
-
-    const run = runs.find((r) => r.hashid === activeHashid) ?? runs[0] ?? null;
-    const runSummaries = useMemo(() => runs.map(toSummary), [runs]);
 
     const filtered = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -94,9 +81,6 @@ export default function AttritionRisk() {
         runAssessment({
             onStart: () => setProcessing(true),
             onFinish: () => setProcessing(false),
-            // The store's own notify() already re-renders `runs` with the new
-            // run in front; just point the view at it.
-            onSuccess: (newRun) => setActiveHashid(newRun.hashid),
         });
     };
 
@@ -105,8 +89,6 @@ export default function AttritionRisk() {
             return;
         }
 
-        // If the deleted run was active, `run` falls back to `runs[0]` on its
-        // own once the store notifies — no need to manage that here.
         deleteRun(run.hashid, {
             onStart: () => setDeleting(true),
             onFinish: () => setDeleting(false),
@@ -126,28 +108,40 @@ export default function AttritionRisk() {
                             Attrition Risk
                         </h1>
                         <p className="max-w-2xl text-sm text-muted-foreground">
-                            A simulated flight-risk score for a demo roster —
-                            from overtime, tenure, promotion cadence, pay and
-                            recent training — previewing how HR could step in
-                            with retention before a resignation, not after.
+                            A flight-risk score for every active employee — from
+                            pay, tenure, promotion cadence, and the last 90 days
+                            of absences, late arrivals and overtime — so HR can
+                            open a retention conversation before a resignation,
+                            not after.
                         </p>
                     </div>
-                    <Button size="sm" onClick={handleRun} disabled={processing}>
-                        {processing ? (
-                            <Spinner />
-                        ) : (
-                            <Sparkles className="size-4" />
-                        )}
-                        {processing ? 'Assessing…' : 'Run assessment'}
-                    </Button>
+                    {can.manage && (
+                        <Button
+                            size="sm"
+                            onClick={handleRun}
+                            disabled={processing || !service.connected}
+                        >
+                            {processing ? (
+                                <Spinner />
+                            ) : (
+                                <Sparkles className="size-4" />
+                            )}
+                            {processing ? 'Assessing…' : 'Run assessment'}
+                        </Button>
+                    )}
                 </div>
 
-                <DemoBanner />
+                <ServiceBanner service={service} />
 
                 <ModelProvenance model="attrition" />
 
                 {!run ? (
-                    <EmptyState processing={processing} onRun={handleRun} />
+                    <EmptyState
+                        canManage={can.manage}
+                        connected={service.connected}
+                        processing={processing}
+                        onRun={handleRun}
+                    />
                 ) : (
                     <>
                         <RiskStatsCards run={run} />
@@ -161,18 +155,18 @@ export default function AttritionRisk() {
                                     : ''}
                             </span>
                             <div className="flex items-center gap-2">
-                                {runSummaries.length > 1 && (
+                                {runs.length > 1 && (
                                     <div className="flex items-center gap-1.5">
                                         <History className="size-3.5" />
                                         <Select
                                             value={run.hashid}
-                                            onValueChange={setActiveHashid}
+                                            onValueChange={viewRun}
                                         >
                                             <SelectTrigger className="h-8 w-56 text-xs">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {runSummaries.map((r) => (
+                                                {runs.map((r) => (
                                                     <SelectItem
                                                         key={r.hashid}
                                                         value={r.hashid}
@@ -189,16 +183,18 @@ export default function AttritionRisk() {
                                         </Select>
                                     </div>
                                 )}
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 text-muted-foreground hover:text-destructive"
-                                    onClick={handleDelete}
-                                    disabled={deleting}
-                                >
-                                    <Trash2 className="size-3.5" />
-                                    Delete
-                                </Button>
+                                {can.manage && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 text-muted-foreground hover:text-destructive"
+                                        onClick={handleDelete}
+                                        disabled={deleting}
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                        Delete
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
@@ -275,9 +271,10 @@ function RiskRow({
     score: RiskScore;
     onOpen: () => void;
 }) {
-    const overtime = score.features.OverTime === 'Yes';
-    const subtitle = overtime
-        ? 'Works overtime'
+    // The strongest thing pushing this person's risk up, when the model can say.
+    const topFactor = score.factors.find((f) => f.direction === 'up');
+    const subtitle = topFactor
+        ? `${topFactor.label} ↑`
         : `${formatConfidence(score.confidence)} confidence`;
 
     return (
@@ -328,9 +325,13 @@ function RiskRow({
 }
 
 function EmptyState({
+    canManage,
+    connected,
     processing,
     onRun,
 }: {
+    canManage: boolean;
+    connected: boolean;
     processing: boolean;
     onRun: () => void;
 }) {
@@ -341,13 +342,20 @@ function EmptyState({
             </span>
             <p className="text-sm font-medium">No assessment yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-                Run an assessment to generate a simulated flight-risk score for
-                the demo roster.
+                {canManage
+                    ? 'Run an assessment to score every active employee for flight risk from their employment, pay, promotion and attendance records.'
+                    : 'No attrition-risk assessment has been run yet.'}
             </p>
-            <Button className="mt-1" onClick={onRun} disabled={processing}>
-                {processing ? <Spinner /> : <Sparkles className="size-4" />}
-                {processing ? 'Assessing…' : 'Run first assessment'}
-            </Button>
+            {canManage && (
+                <Button
+                    className="mt-1"
+                    onClick={onRun}
+                    disabled={processing || !connected}
+                >
+                    {processing ? <Spinner /> : <Sparkles className="size-4" />}
+                    {processing ? 'Assessing…' : 'Run first assessment'}
+                </Button>
+            )}
         </div>
     );
 }

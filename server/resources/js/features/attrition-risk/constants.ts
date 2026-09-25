@@ -124,10 +124,37 @@ export function formatRelative(iso: string | null): string {
     return formatDateTime(iso);
 }
 
+/** "1.5 yrs" / "8 mos" — tenure-style durations read better in months under a year. */
+function formatYears(value: number | string): string {
+    const years = Number(value);
+
+    if (years < 1) {
+        const months = Math.max(0, Math.round(years * 12));
+
+        return `${months} ${months === 1 ? 'mo' : 'mos'}`;
+    }
+
+    return `${years.toFixed(1)} yrs`;
+}
+
+function plural(value: number | string, one: string, many: string): string {
+    const n = Math.round(Number(value));
+
+    return `${n} ${n === 1 ? one : many}`;
+}
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+    regular: 'Regular',
+    probationary: 'Probationary',
+    part_time: 'Part-time',
+    contractual: 'Contractual',
+};
+
 /**
- * The grounded features we surface in the detail dialog, with friendly labels
- * and formatters. Only those present in the snapshot are shown — the rest were
- * imputed by the pipeline and are deliberately not presented as fact.
+ * Every input the attrition model takes, with friendly labels and formatters —
+ * the same eight questions the survey it learned from asked. Only those present
+ * in an employee's snapshot are shown as recorded; the rest were imputed and are
+ * listed as "not on record" rather than presented as fact.
  */
 export const INPUT_FIELDS: {
     key: string;
@@ -135,43 +162,44 @@ export const INPUT_FIELDS: {
     format: (value: number | string) => string;
 }[] = [
     {
-        key: 'OverTime',
-        label: 'Works overtime',
-        format: (v) => String(v),
+        key: 'employment_type',
+        label: 'Employment type',
+        format: (v) => EMPLOYMENT_TYPE_LABELS[String(v)] ?? String(v),
     },
     {
-        key: 'MonthlyIncome',
-        label: 'Monthly income',
-        format: (v) => Number(v).toLocaleString(),
-    },
-    {
-        key: 'YearsAtCompany',
+        key: 'tenure_years',
         label: 'Tenure',
-        format: (v) => `${Number(v).toFixed(1)} yrs`,
+        format: formatYears,
     },
     {
-        key: 'YearsSinceLastPromotion',
+        key: 'monthly_salary',
+        label: 'Monthly salary',
+        format: (v) =>
+            `₱${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+    },
+    {
+        key: 'years_since_promotion',
         label: 'Since last promotion',
-        format: (v) => `${Number(v).toFixed(1)} yrs`,
+        format: formatYears,
     },
     {
-        key: 'YearsInCurrentRole',
-        label: 'In current role',
-        format: (v) => `${Number(v).toFixed(1)} yrs`,
+        key: 'ever_promoted',
+        label: 'Promoted here before',
+        format: (v) => (Number(v) > 0 ? 'Yes' : 'Never'),
     },
     {
-        key: 'PerformanceRating',
-        label: 'Latest rating',
-        format: (v) => `${Math.round(Number(v))} / 4`,
+        key: 'overtime_hours_90d',
+        label: 'Overtime, last 90 days',
+        format: (v) => `${Math.round(Number(v))} h`,
     },
     {
-        key: 'TrainingTimesLastYear',
-        label: 'Training (last year)',
-        format: (v) => `${Math.round(Number(v))}`,
+        key: 'absences_90d',
+        label: 'Absences, last 90 days',
+        format: (v) => plural(v, 'day', 'days'),
     },
     {
-        key: 'Department',
-        label: 'Department',
-        format: (v) => String(v),
+        key: 'lates_90d',
+        label: 'Late arrivals, last 90 days',
+        format: (v) => plural(v, 'time', 'times'),
     },
 ];

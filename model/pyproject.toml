@@ -1,0 +1,10 @@
+# Tool configuration for the modelling code. Dependencies are pinned in requirements.txt.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    # Raised inside FastAPI's own TestClient import; nothing here can act on it.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

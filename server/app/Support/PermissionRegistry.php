@@ -66,6 +66,8 @@ class PermissionRegistry
             'analytics.promotion.manage' => 'Run promotion-readiness assessments',
             'analytics.performance.view' => 'View performance forecast',
             'analytics.performance.manage' => 'Run performance forecasts',
+            'analytics.attrition.view' => 'View attrition risk',
+            'analytics.attrition.manage' => 'Run attrition-risk assessments',
         ],
         'Training & Development' => [
             'training.view' => 'View training programs & enrollments',

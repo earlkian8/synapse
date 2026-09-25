@@ -1,7 +1,9 @@
 # 0030 — Attrition Risk becomes a frontend-only demo surface
 
-- **Status:** Accepted
-- **Date:** 2026-09-02
+- **Status:** Superseded — Attrition Risk is a real, persisted surface again, with a
+  model trained on two attrition surveys of workers. See
+  [ADR 0043](./0043-attrition-risk-trained-on-the-attrition-surveys.md).
+- **Date:** 2026-09-02 (superseded 2026-09-24)
 - **Supersedes:** [ADR 0021 — Attrition Risk](./0021-attrition-risk.md)
 - **Related:** [Attrition Risk module](../modules/attrition-risk.md), ERD §10
   (../database/erd.md), [0017 — Predictive Analytics & ML inference](./0017-predictive-analytics-and-ml-inference.md),

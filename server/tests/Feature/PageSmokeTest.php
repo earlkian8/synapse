@@ -42,9 +42,6 @@ const PAGES = [
     // graceful-degradation path renders rather than throwing.
     'analytics.promotion-readiness.index' => 'analytics/promotion-readiness',
     'analytics.performance-forecast.index' => 'analytics/performance-forecast',
-
-    // Attrition Risk is a frontend-only demo surface (no server data or
-    // permission behind it) — see docs/decisions/0030-attrition-risk-frontend-only.md.
     'analytics.attrition.index' => 'analytics/attrition',
 
     // Company Setup
@@ -75,9 +72,8 @@ const PAGES = [
 /**
  * Pages that belong to the signed-in person rather than to a permission — the
  * account settings, their own notification preferences, their own assistant
- * history, the reports hub (which re-authorises each report individually,
- * so the catalogue itself is open and simply shows less), and Attrition Risk
- * (a frontend-only demo surface with no server data or permission behind it).
+ * history, and the reports hub (which re-authorises each report individually,
+ * so the catalogue itself is open and simply shows less).
  */
 const UNGATED = [
     'dashboard',
@@ -85,7 +81,6 @@ const UNGATED = [
     'appearance.edit',
     'reports.index',
     'system.notifications.index',
-    'analytics.attrition.index',
 ];
 
 /** Every CSV / file download, which renders nothing but must still stream. */

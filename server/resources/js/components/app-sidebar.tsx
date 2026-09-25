@@ -135,11 +135,10 @@ const offboardingNavItems: GatedNavItem[] = [
 
 const analyticsNavItems: GatedNavItem[] = [
     {
-        // A frontend-only demo surface (no permission behind it) — see
-        // docs/decisions/0030-attrition-risk-frontend-only.md.
         title: 'Attrition Risk',
         href: '/analytics/attrition',
         icon: TrendingDown,
+        permission: 'analytics.attrition.view',
     },
     {
         title: 'Performance Forecast',

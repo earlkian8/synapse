@@ -2,8 +2,8 @@
 Synapse ML Inference Service (FastAPI).
 
 A thin, stateless HTTP layer over the trained scikit-learn pipelines. The Laravel
-app calls it server-side to score employees for promotion readiness (and, in the
-same shape, performance forecasting).
+app calls it server-side to score employees for promotion readiness, attrition risk
+and (in the same shape) performance forecasting.
 
 Run from the ``model/`` directory inside the venv::
 
@@ -15,7 +15,7 @@ or simply::
 
 Endpoints:
     GET  /health                 — liveness + which models are loaded
-    POST /predict/{model_name}   — score a batch of instances (promotion|performance)
+    POST /predict/{model_name}   — score a batch of instances (promotion|performance|attrition)
 """
 
 from __future__ import annotations
@@ -45,6 +45,8 @@ registry = Registry()
 # Headline metrics surfaced on /health, per model.
 _HEADLINE_METRICS = (
     "algorithm", "test_roc_auc", "test_pr_auc", "test_r2", "test_mae",
+    # attrition is too small for a single held-out split; it reports repeated CV.
+    "cv_roc_auc", "cv_pr_auc", "permutation_p_value",
     "tuned_threshold", "positive_rate",
 )
 
@@ -82,7 +84,7 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
     try:
         model = registry.get(model_name)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Unknown model '{model_name}'.")
+        raise HTTPException(status_code=404, detail=f"Unknown model '{model_name}'.") from None
 
     if not request.instances:
         raise HTTPException(status_code=422, detail="No instances supplied.")
@@ -92,7 +94,7 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
     factor_sets = registry.contributions(model_name, feature_dicts)
 
     results: list[Result] = []
-    for inst, proba, score, factors in zip(request.instances, probabilities, scores, factor_sets):
+    for inst, proba, score, factors in zip(request.instances, probabilities, scores, factor_sets, strict=True):
         results.append(
             Result(
                 ref=inst.ref,

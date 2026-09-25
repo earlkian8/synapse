@@ -16,7 +16,8 @@ import type {
  *
  * The thresholds are the honest ones. They are what a real implementation would
  * have to enforce, and they are why none of the three surfaces graduates: an
- * organisation of this size needs years to reach them, and for attrition, decades.
+ * organisation of this size needs years to reach them, and for attrition, longer
+ * still — departures are the slowest outcome of the three to accrue.
  */
 
 /** Deterministic PRNG (mulberry32) — same seed always produces the same sequence. */
@@ -291,8 +292,9 @@ function performanceRequirements(c: Counters): Requirement[] {
 }
 
 /**
- * Attrition Risk — no model exists at all, and nothing is being recorded that one
- * could later learn from. Its gate is the furthest from opening of the three.
+ * Attrition Risk — scored by a model trained on an outside survey of workers, with
+ * every score stored so it can later be matched to who actually left. Its gate is
+ * still the furthest from opening of the three: departures accrue slowest.
  */
 function attritionRequirements(c: Counters): Requirement[] {
     const holdout = Math.floor(c.primary * 0.2);
@@ -308,7 +310,7 @@ function attritionRequirements(c: Counters): Requirement[] {
             unitOne: 'departure',
             summary:
                 'People who have actually left are the examples anything built from your records would learn from.',
-            basis: 'A model of this kind needs roughly 10 to 20 recorded outcomes for every piece of information it uses. Around 80 departures is the lower bound for the signals this surface shows — and a stable organisation produces them slowly, which is precisely why this gate is the hardest of the three to open.',
+            basis: 'A model of this kind needs roughly 10 to 20 recorded outcomes for every piece of information it uses. The risk score draws on 8, so around 80 departures is the lower bound — and a stable organisation produces them slowly, which is precisely why this gate is the hardest of the three to open.',
             source: 'Completed offboarding records with a final working day.',
             outlook: attritionOutlook(c),
         },
@@ -371,16 +373,14 @@ function attritionRequirements(c: Counters): Requirement[] {
             key: 'outcome_linkage',
             label: 'Scores checked against what happened',
             group: 'quality',
-            current: 0,
+            current: EMPLOYEES,
             required: EMPLOYEES,
             unit: 'scores matched to an outcome',
             unitOne: 'score matched to an outcome',
             summary:
-                'Nothing shown here is stored, so none of it can be matched to who actually left.',
-            basis: 'This surface generates its scores in the browser and keeps no server-side record, so there is nothing to compare against later. Until scores are persisted and matched to outcomes, no amount of elapsed time moves this surface closer to a model of its own.',
+                'Every risk score already stored can be matched to whether the person later left.',
+            basis: 'Without this link there is nothing to learn from later, however much time passes. It is the one requirement that has to hold from day one, because history cannot be reconstructed after the fact.',
             source: 'Stored risk scores joined to subsequent offboarding records.',
-            outlook:
-                'Waiting does not move this one. Scores would have to start being stored and matched to who actually left before any clock starts running — which is why this surface is the furthest of the three from a model of its own.',
         },
         isolationRequirement(),
     ]);
@@ -715,26 +715,75 @@ function performanceFields(c: Counters): FieldCoverage[] {
     ];
 }
 
+/** Attendance counts over the last 90 days, fed straight into the risk score. */
+function attritionAttendanceFields(): FieldCoverage[] {
+    const tracked = 38;
+    const note = `Counted from the daily attendance records. ${EMPLOYEES - tracked} employees have no attendance tracked in the window, so theirs is estimated rather than read — which lowers their confidence.`;
+
+    return [
+        {
+            key: 'absences',
+            label: 'Absences, last 90 days',
+            source: 'Attendance',
+            state: 'supplied',
+            covered: tracked,
+            total: EMPLOYEES,
+            note: `Approved leave, rest days and holidays are not absences. ${note}`,
+        },
+        {
+            key: 'late_days',
+            label: 'Late arrivals, last 90 days',
+            source: 'Attendance',
+            state: 'supplied',
+            covered: tracked,
+            total: EMPLOYEES,
+            note,
+        },
+        {
+            key: 'overtime',
+            label: 'Overtime hours, last 90 days',
+            source: 'Attendance',
+            state: 'supplied',
+            covered: tracked,
+            total: EMPLOYEES,
+            note: 'Hours worked beyond the shift, approved or not — the survey asked how much people worked, not how much was signed off.',
+        },
+    ];
+}
+
 function attritionFields(c: Counters): FieldCoverage[] {
-    // Nothing is fed here at all — the scores are illustrative — so every field
-    // the system does hold is 'available' rather than 'supplied'.
-    const core = coreFields().map((field) => ({
-        ...field,
-        state: 'available' as const,
-        note: `${field.note} Not fed in — this surface has no model.`,
-    }));
+    // Department is recorded but deliberately not an input: the survey's
+    // free-text departments could not be matched to anybody's department list.
+    const core = coreFields().map((field) =>
+        field.key === 'department'
+            ? {
+                  ...field,
+                  state: 'available' as const,
+                  note: 'Recorded on every employee, but not an input — the survey this model learned from could not be matched to a department list.',
+              }
+            : field,
+    );
 
     return [
         ...core,
-        ...unfedOperationalFields(),
+        ...attritionAttendanceFields(),
         {
             key: 'since_promotion',
             label: 'Time since last promotion',
             source: 'Employee 201 file',
-            state: 'available',
+            state: 'supplied',
             covered: 28,
             total: EMPLOYEES,
-            note: 'Recorded for employees with a promotion on file; the rest fall back to tenure.',
+            note: 'Recorded for employees with a promotion on file; for the rest, never having been promoted is itself the answer, and the wait is their whole tenure.',
+        },
+        {
+            key: 'training',
+            label: 'Trainings completed, last 12 months',
+            source: 'Training & Development',
+            state: 'available',
+            covered: 31,
+            total: EMPLOYEES,
+            note: 'Tracked, but the survey the model learned from did not ask about training, so it cannot be an input until the model is retrained on this organisation’s own history.',
         },
         {
             key: 'departure_reason',
@@ -877,7 +926,7 @@ function writeStored(model: ModelKey, check: ModelCheck): void {
 /*
  * A tiny external store per surface, read through `useSyncExternalStore` rather
  * than a `useEffect` + `setState` — the same pattern as `useAppearance` /
- * `useIsMobile` and the Attrition Risk demo. The server snapshot always returns
+ * `useIsMobile`. The server snapshot always returns
  * null, so the SSR pass and the first client render agree and no hydration
  * mismatch is possible. Each cached check is only ever replaced, never mutated,
  * so it is safe to hand straight back as the snapshot's reference identity.

@@ -57,12 +57,12 @@ export const MODEL_COPY: Record<
     attrition: {
         title: 'Where these risk scores come from',
         provenance:
-            'An illustrative calculation — there is no model behind this surface yet.',
+            'A survey of workers at other employers about why they stayed or left — not this organisation’s own departure history.',
         stages: {
             provisional:
-                'Scores are illustrative only. Nothing is being recorded that a model could later learn from.',
+                'Scoring from an outside survey of workers. Every score is marked provisional.',
             collecting:
-                'Still illustrative, but now recording each score against who actually left.',
+                'Still scoring provisionally, but now recording each score against who actually left.',
             graduated:
                 'Built from this organisation’s own departure history. Scores describe this workforce.',
         },
