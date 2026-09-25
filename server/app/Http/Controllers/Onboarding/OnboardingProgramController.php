@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Onboarding;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Onboarding\StoreOnboardingProgramRequest;
 use App\Http\Requests\Onboarding\UpdateOnboardingProgramRequest;
-use App\Http\Resources\OnboardingProgramResource;
-use App\Models\Department;
 use App\Models\OnboardingProgram;
+use App\Queries\Setup\OnboardingProgramsScreen;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,20 +19,9 @@ class OnboardingProgramController extends Controller
     /**
      * Manage onboarding programs (templates) and their blueprint tasks.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, OnboardingProgramsScreen $screen): Response
     {
-        $programs = OnboardingProgram::query()
-            ->with(['department:id,name', 'tasks'])
-            ->withCount(['tasks', 'cases'])
-            ->orderByDesc('is_default')
-            ->orderBy('name')
-            ->get();
-
-        return Inertia::render('setup/onboarding', [
-            'programs' => OnboardingProgramResource::collection($programs)->resolve($request),
-            'options' => ['departments' => Department::orderBy('name')->get(['id', 'name'])],
-            'can' => ['managePrograms' => $request->user()->can('onboarding.manage-programs')],
-        ]);
+        return Inertia::render('setup/onboarding', $screen->toArray($request));
     }
 
     /**

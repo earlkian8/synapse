@@ -1,76 +1,117 @@
 # Company Setup Wizard
 
 The guided walk-through a brand-new company is taken through **before its dashboard**.
-It lives under **Company Setup** at `/setup/wizard` and covers the six things the rest
-of the system reads from. Every step can be skipped, and a skip is remembered.
+It lives under **Company Setup** at `/setup/wizard` and has a step for **every Company
+Setup screen**, each carrying that screen's editors whole. Every step can be skipped,
+and a skip is remembered.
 
 > Status: **Active** · Route prefix: `/setup/wizard`
 > Sidebar: Company Setup → Setup Guide (gated by `setup.company.manage`)
 > See [ADR 0032](../decisions/0032-guided-company-setup.md),
-> [ADR 0034](../decisions/0034-a-company-writes-its-own-setup.md) and, for the
-> Attendance step, [ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md).
+> [ADR 0034](../decisions/0034-a-company-writes-its-own-setup.md),
+> [ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md)
+> (the Attendance step) and
+> [ADR 0044](../decisions/0044-the-setup-wizard-carries-every-company-setup-screen.md)
+> (a step per screen, the screen carried whole).
 
 ## Why it exists
 
 Registration provisions a whole tenant and nothing inside it (ADR 0005), and the
 configuration-driven modules ship no defaults on purpose (ADR 0029). The owner's first
-sign-in therefore landed on a dashboard of zeroes, behind which sat ten Company Setup
-screens in no stated order. This walks the six that block day-one work and leaves the
-other four to the finish screen.
+sign-in therefore landed on a dashboard of zeroes, behind which sat every Company Setup
+screen in no stated order. The wizard puts all of them in one order, offers a place to
+start where a sensible one exists, and lets the owner do everything the screen itself
+allows without leaving the walk-through.
 
 ## Surface
 
 Its own full-screen chrome — no app shell, because a brand-new company has nothing for
 the sidebar to link to yet. A deep-navy rail (the same field the sign-in screens and the
-workspace picker use) carries the company, the progress bar and the step ladder; the
-working pane beside it is the app's own light surface.
+workspace picker use) carries the company, the progress bar and the step ladder in three
+stretches; the working pane beside it is the app's own light surface.
 
-| Screen | What it asks |
-| --- | --- |
-| Welcome | What the six steps are, and that any of them can wait. |
-| 1 · Company | Display name and time zone (both required — the zone starts from the browser's, and is the clock attendance is judged on, ADR 0036), legal name, logo, contact details, employer registration numbers (folded away — a company registering today may not have them). |
-| 2 · Departments | Tick suggested functions, and name any the company has of its own. Nothing is pre-ticked; a department list is genuinely different at every company. |
-| 3 · Leave | Tick kinds of leave and set the days each carries, and define any others whole. The statutory PH entitlements are pre-ticked at the number the law sets. |
-| 4 · Attendance | Pick how days are judged — Philippines Labor Code / Standard 40-hour week / Flexible, no lateness / Shift work — each card listing the rules that make it different, or customise the chosen one in the same editor Company Setup uses, beside a worked example. Optionally write the hours most people work (a name, hours and working days). The policy becomes the company default, and the schedule the default schedule, when the company has none yet. |
-| 5 · Hiring | Pick one process shape (Standard / Fast Track / Executive Search), or draw the company's own stages. Each card shows its actual stages. |
-| 6 · Appraisals | Pick one framework (Balanced / Competency Review / Results & Conduct), or design one — sections, weights, criteria and the words a result is reported in. The selected card opens to show its sections and every criterion. |
-| Finish | What landed where, with "Do it now" on anything still open, plus the four Company Setup screens the wizard leaves out. |
+| Stretch | Step | Company Setup screen it carries | Suggestions to start from |
+| --- | --- | --- | --- |
+| Your company | 1 · Company | Company Profile, plus the join code (as on Employees → Access) | — (a form, prefilled; the zone starts from the browser's) |
+| | 2 · Departments | Departments — hierarchy, positions, heads, defaults | Common departments, customisable, or your own |
+| Time & attendance | 3 · Attendance rules | Attendance Policies | The presets, customisable in the policy editor; an optional default schedule |
+| | 4 · Schedules & holidays | Work Schedule & Holidays | The Philippine holiday calendar, ticked |
+| | 5 · Leave | Leave Types | Statutory and common leave, customisable, or your own |
+| | 6 · Locations | Locations — fences on the map, who is based where | — |
+| | 7 · Devices | Devices — kiosks and scanners, keys, CSV import | — |
+| | 8 · Shift roster | Shift Roster — the week, overrides, assignments | — |
+| Your people, hire to exit | 9 · Hiring | Recruitment Pipelines | Three process shapes, customisable, or draw your own |
+| | 10 · Onboarding | Onboarding Programs | The standard onboarding checklist |
+| | 11 · Appraisals | Performance Framework — frameworks, scales, criteria, review cycles | Three frameworks, customisable, or design your own |
+| | 12 · Awards | Award Types | The common award types |
+| | 13 · Offboarding | Offboarding Programs | The standard exit clearance |
+
+Around them: a **welcome** (the three stretches, and that any step can wait) and a
+**send-off** (where each step landed, with *Review* or *Do it now* on each, and
+"Finish, and bring your people in", which closes setup and opens Employees → Access).
+
+**Email & Notifications** (in the sidebar) has no screen yet, so it has no step.
+
+## A step
+
+Top to bottom:
+
+1. **Suggestions**, where there are any — a tray on its own muted surface. It is open
+   while the step's module is empty and folds to one line ("4 common departments you
+   haven't added") once it is not. Its button adds and *stays*, so what was added can be
+   nested, renamed or extended straight away below.
+2. **The Company Setup editor** — the screen's own manager component with the screen's
+   own props, under a section heading. Every create, edit, default, archive, restore and
+   delete the screen offers is here, posting to the screen's routes.
+3. **The footer** — Back, *Skip this step*, and one forward action: "Add 5 leave types
+   and continue" while suggestions are picked, otherwise **Continue**, which needs the
+   module to hold something and says so when it doesn't. Only the button that started a
+   save spins.
+
+The Appraisals step also asks for a **review cycle** when a framework exists without
+one — an appraisal can only happen inside a cycle.
+
+A step whose module the signed-in person may not configure is **shown, not hidden**,
+marked "No access", with skipping as its forward action and no screen data sent.
 
 ## Choose one, then make it yours
 
-Every offer carries a **Customise** action, and every step a way to start from nothing
-(ADR 0034). Customising lifts an offer out of the suggestion list and into the
-company's own — prefilled, so nobody faces an empty form unless they ask to — and the
-suggestion then reads "In your list" rather than staying on offer twice.
+Every offer carries a **Customise** action where a step has one, and every step a way to
+start from nothing (ADR 0034) — now also the editor under the tray.
 
-| Step | What the company can write | What stays the server's |
+| Step | What the company can write in the tray | What stays the server's |
 | --- | --- | --- |
 | Departments | Name, code, description | The wording of a **ticked** suggestion |
-| Leave | Name, code, description, colour, days, and the paid / half-day / approval flags | Everything about a **ticked** suggestion but its days — a statutory entitlement is not a request-body field |
-| Attendance | The policy's name, and — when customised — every setting, held to `AttendancePolicyRequest`'s rules; the default schedule's name, hours and days | An **adopted** preset's settings, resolved from `AttendancePolicyPresets` rather than posted |
-| Hiring | The process name, every stage name, and their order | A stage's `kind`, and the rule that a process has exactly one hired stage and at least one rejected one |
-| Appraisals | The framework's name and description, its sections and weights, which criteria sit where and at what weight, the wording of a criterion it writes, and the rating bands | A **catalogue** criterion's wording (resolved from its key) and every rating scale, which is named from the shared library rather than described |
+| Leave | Name, code, description, colour, days, and the paid / half-day / approval flags | Everything about a **ticked** suggestion but its days |
+| Attendance | The policy's name, and — when customised — every setting, held to `AttendancePolicyRequest`'s rules; the default schedule's name, hours and days | An **adopted** preset's settings |
+| Holidays | Which ones | Every holiday's **date**, type and recurrence — a key is posted, never a date |
+| Hiring | The process name, every stage name, and their order | A stage's `kind` |
+| Onboarding / Offboarding | The checklist's name | Its lines (changed afterwards in the program editor below) and, for a clearance, where each item is routed |
+| Appraisals | Name, description, sections and weights, criteria, rating bands | A catalogue criterion's wording and every rating scale |
+| Awards | Which ones | Name, meaning and colour of each |
 
 Anything the company writes is held to the rules its module's own screen enforces, so
-the wizard cannot create something Company Setup would refuse to save. A criterion the
-company writes here joins its **criteria catalogue** — unlike a one-off in the framework
-editor, which stays inside the one framework: in the wizard there is no catalogue yet,
-and writing a criterion is how it gets built.
+the wizard cannot create something Company Setup would refuse to save.
 
-Designing a **rating scale** is the one thing the wizard leaves out. A scale has bounds
-and anchors the whole scoring apparatus reads; the six-instrument library is offered
-instead, and Company Setup → Performance Framework is one click away.
+The holiday calendar offers the fixed regular and special non-working days as
+**recurring**, and the movable ones — Maundy Thursday, Good Friday, Black Saturday
+(Easter, computed) and National Heroes Day (last Monday of August) — on their **next**
+date, not recurring. Days proclaimed each year (Eid'l Fitr, Eid'l Adha, Chinese New
+Year) are left to the holiday editor below the tray.
 
-The step ladder is free to move around — the steps are independent. A step whose module
-the signed-in person may not configure is **shown, not hidden**, marked "No access", with
-skipping as its forward action.
+An adopted **exit clearance** routes each item to the department carrying its code
+(`IT`, `FIN`, `HR`) — the codes the suggested departments use — and `__own__` to the
+leaver's own department; an item whose department does not exist yet stays unrouted.
 
-Each step confirms itself with a toast, saying what it created ("6 leave types added").
-The wizard is the app's only surface with a pinned action bar bottom-right, where toasts
-land, so it **lifts the toaster clear of its own footer** — see `toast-clearance.tsx` and
-the two variables `components/ui/sonner.tsx` reads.
+## The URL, and the redirect
 
-## The redirect
+`GET /setup/wizard/{view}` — `view` is `intro`, a step key, or `done` — renders that
+view, with the step's Company Setup screen as the `screen` prop. With no view named the
+server opens where the company left off (`CompanySetup::initialView`): the welcome when
+nothing is answered, the first pending step, or the send-off when everything is answered
+or setup is finished. Because the view is in the URL, a step's editors can post to their
+own routes and come `back()` to the same step; the roster's week, department and search
+are query parameters on the step's URL, reloaded as a partial reload of `screen`.
 
 `RequireCompanySetup` (in the `web` group, right after `SetCurrentOrganization`) sends an
 owner to the wizard until setup is closed. It is deliberately narrow — it acts only on:
@@ -99,111 +140,103 @@ No new table. Two columns on `organizations` (see
 
 Neither is `$fillable` — they are tenant state written only by `CompanySetup`, the same
 reasoning as `join_code`. Organisations that predate the wizard were back-filled as
-complete by the migration.
+complete by the migration; organisations part-way through it gained the seven new steps
+as pending.
 
 ## Backend
 
-- **`Setup\SetupWizardController`** — `show` (renders `setup/wizard` with the blueprints,
-  the progress, what the company already has, and a per-step `can` map) plus one action
-  per step, `skip` and `finish`.
-- **`Support\Setup\CompanySetup`** — the step vocabulary (`STEPS`, `DONE`/`SKIPPED`/
-  `PENDING`, `ABILITIES`) and the progress reads/writes. `resumeStep()` answers the first
-  step still unanswered.
-- **`Support\Setup\SetupBlueprints`** — every starting point the wizard offers:
-  departments, leave types, pipelines, the criteria catalogue, the frameworks that draw
-  on it, and the instrument library a bespoke framework measures on. Blueprints are
-  resolved from here by **key**, never trusted as content.
+- **`Setup\SetupWizardController`** — `show` (renders `setup/wizard` with the view, the
+  step's screen, the progress, what is configured, the blueprints, what the company
+  already has, and a per-step `can` map) plus one action per suggestion set, `continue`,
+  `skip` and `finish`.
+- **`Queries\Setup\*Screen`** (implementing `SetupScreen`) — one class per Company Setup
+  screen, building exactly the props that screen renders with. The screen's controller
+  `index` and the wizard step both call it.
+- **`Support\Setup\CompanySetup`** — the step vocabulary (`STEPS`, `ABILITIES`,
+  `SCREENS`, `views()`, `DONE`/`SKIPPED`/`PENDING`), the progress reads/writes,
+  `initialView()` and `configured()` (whether each step's module holds anything; the
+  roster counts once there is a default schedule, an assignment or an override).
+- **`Support\Setup\SetupBlueprints`** — every starting point: departments, leave types,
+  holidays (with the Easter computation), pipelines, onboarding checklists, the criteria
+  catalogue and frameworks, instruments, award types and exit clearances (the
+  provisioner's `STANDARD_ITEMS`). Resolved by **key**, never trusted as content. The
+  holiday, award and onboarding seeders read the same lists.
 - **`Support\Setup\SetupDefinition`** — where an adopted answer and a bespoke one
-  become the same thing. A blueprint key is resolved; the company's own definition is
-  taken as written, except for the parts the modules downstream read as meaning, which
-  are resolved from `SetupBlueprints` either way.
-- **`Support\Setup\SetupInstaller`** (was `BlueprintInstaller`) — writes a definition
-  into the current tenant, without knowing which route it came by. Every method is
-  idempotent against what the company already has, so a double submit (or a second owner
-  walking the wizard) cannot produce two "Vacation Leave"s. Scales and criteria resolve
-  **by name**, so a second framework that also measures "Communication" reuses the
-  catalogue rather than splitting it.
+  become the same thing.
+- **`Support\Setup\SetupInstaller`** — writes a definition into the current tenant.
+  Idempotent against what the company already has: a code or a name that exists is
+  passed over, so a double submit cannot produce two "Vacation Leave"s, two "Christmas
+  Day"s or two "Standard Onboarding"s. The first onboarding checklist and the first exit
+  clearance become the default.
 - **`Support\Setup\CompanyProfileWriter`** — the shared profile write, called by both
   this wizard and `CompanyProfileController`.
-- **FormRequests** in `Http/Requests/Setup/Wizard/` — one per step, plus `WizardSkipRequest`.
-  The company step reuses `UpdateCompanyProfileRequest` unchanged. The attendance step
-  (`WizardAttendanceRequest`) takes a preset key and, when customised, settings held to
-  `AttendancePolicyRequest::settingsRules()`; writing its default schedule additionally
-  needs `setup.schedule.manage`. The other four each validate two answers: a blueprint key, or the company's own definition held to the
-  rules of the module's own request (`LeaveTypeRequest`,
-  `StoreRecruitmentPipelineRequest`, `ReviewTemplateRequest`). A leave type or
-  department left without a code gets one derived from its name — initials for a
-  multi-word leave type ("Typhoon Leave" → `TL`), so a derived code looks like the ones
-  the blueprints carry.
-- Mutations are activity-logged (`logName: 'company-setup'`, and `'recruitment'` for the
-  pipeline), described as happening "during company setup".
+- **FormRequests** in `Http/Requests/Setup/Wizard/` — one per suggestion set
+  (`WizardHolidaysRequest`, `WizardAwardTypesRequest`, `WizardProgramRequest` for both
+  checklists), `WizardContinueRequest` (the step's own ability, and a configured module)
+  and `WizardSkipRequest`.
+- Mutations are activity-logged (`logName: 'company-setup'`, and `'recruitment'`,
+  `'onboarding'`, `'offboarding'` for those modules), described as happening "during
+  company setup".
 
 ## Frontend
 
 `resources/js/pages/setup/wizard.tsx` (registered as a layout-less page in `app.tsx`)
 over `features/setup-wizard/`:
 
-- `use-setup-wizard.ts` — which screen is on show, the ladder navigation, `skip` and
-  `finish`. Advancing is the client's decision, taken once the server confirms the step;
-  what is *recorded* stays the server's, re-read from props after every post.
-- `components/choice-card.tsx` — the wizard's main control. The real radio/checkbox stays
-  in the DOM, visually hidden, so keyboard and screen readers behave natively and the
-  card only styles `peer-checked`. A `bare` variant drops the card chrome where the row
-  is already the surface (the leave table); an `action` slot carries **Customise**,
-  swallowing its own click so pressing it never also ticks the box.
-- `components/custom-section.tsx`, `leave-type-fields.tsx`, `stage-editor.tsx` and
-  `framework-editor.tsx` — what the company writes for itself. Everything bespoke sits
-  on a **dashed hairline**, the same signal the framework editor already uses for a
-  criterion written by hand: the difference from an offer is authorship, not importance,
-  so it is drawn without a second accent colour.
-- `components/attendance-step.tsx` — reuses `features/attendance-policy-config`'s
-  `PolicySections` and `WorkedExample` when a preset is customised, so the wizard edits a
-  policy exactly as Company Setup does.
-- `components/wizard-rail.tsx`, `step-body.tsx`, `step-footer.tsx`,
-  `already-configured.tsx`, `toast-clearance.tsx`, and one component per screen.
-- `features/kpi-config/components/weight-controls.tsx` — the percent box, the running
-  tally and the split-evenly arithmetic, shared with the framework editor under Company
-  Setup so a weight reads and computes the same in both.
-- `components/ui/sonner.tsx` takes its bottom offset from
-  `--app-toast-offset-bottom` / `--app-toast-offset-bottom-mobile`, defaulting to
-  sonner's own values. The app mounts one `<Toaster>` globally, so that pair of
-  variables is how a page with a pinned action bar asks it to move; every other page
-  is exactly where it was.
-- `constants.ts` carries the step copy and the four Company Setup screens the wizard
-  leaves out; `routes.ts` mirrors the named routes.
+- `use-setup-wizard.ts` — navigation as visits to `/setup/wizard/{view}`, `skip`,
+  `advance` (continue), `finish`, and which of them is in flight.
+- `components/suggestions-panel.tsx` — the tray; `section-heading.tsx` — the heading
+  over an editor; `editor-step.tsx` — a step that is only its editor (locations,
+  devices, roster); `checklist-step.tsx` — onboarding and offboarding; one component per
+  other step.
+- The editors are the Company Setup **managers**: `DepartmentsManager`,
+  `PoliciesManager`, `ScheduleManager`, `LeaveTypesManager`, `LocationsManager`,
+  `DevicesManager`, `RosterManager`, `PipelinesManager`, `OnboardingProgramsManager`,
+  `KpiManager`, `AwardTypesManager`, `OffboardingProgramsManager` — each in its own
+  feature folder, each rendered by its Company Setup page too. `RosterManager` takes the
+  URL its filters reload against.
+- `components/choice-card.tsx`, `custom-section.tsx`, `leave-type-fields.tsx`,
+  `stage-editor.tsx`, `framework-editor.tsx` — the offers and what a company writes for
+  itself, unchanged (ADR 0034).
+- A step's forward action is a plain button, never a form submit: the editors' own
+  dialogs and forms must not set it off.
+- `components/ui/sonner.tsx` takes its bottom offset from `--app-toast-offset-bottom`,
+  which `toast-clearance.tsx` sets so toasts clear the wizard's footer.
 
 ## Permissions
 
 Reaching the wizard is `setup.company.manage`. Each step is gated by the ability of the
-module it configures:
+module it configures, and carries its screen only for somebody holding it:
 
 | Step | Ability |
 | --- | --- |
 | Company | `setup.company.manage` |
 | Departments | `setup.departments.manage` |
+| Attendance rules | `setup.attendance-policies.manage` (and `setup.schedule.manage` to write the default schedule) |
+| Schedules & holidays | `setup.schedule.manage` |
 | Leave | `setup.leave-types.manage` |
-| Attendance | `setup.attendance-policies.manage` (and `setup.schedule.manage` to write the default schedule) |
+| Locations | `setup.locations.manage` |
+| Devices | `setup.devices.manage` |
+| Shift roster | `setup.roster.manage` |
 | Hiring | `recruitment.configure-pipelines` |
+| Onboarding | `onboarding.manage-programs` |
 | Appraisals | `setup.kpi.manage` |
+| Awards | `setup.award-types.manage` |
+| Offboarding | `offboarding.manage-programs` |
 
-The Attendance step's ability arrived with ADR 0038. Built-in **HR Manager** (the owner)
-holds all of them.
+"Finish, and bring your people in" goes to Employees → Access only for somebody holding
+`employees.invite`; anybody else lands on the dashboard. Built-in **HR Manager** (the
+owner) holds all of them.
 
 ## Integrations
 
-- **Company Profile** — step 1 is the same payload, validation and writer.
-- **Departments / Leave Types / Attendance Policies / Recruitment Pipelines / Performance
-  Framework** — each
-  step creates records those screens read back and edit as normal, whether the company
-  adopted an offer or wrote its own.
+- **Every Company Setup screen** — a step renders the screen's manager with the
+  screen's props, so the two are the same editor.
+- **Employees → Access** — the join code card, and the send-off's hand-over.
 - **Seeding** — `OrganizationSeeder` marks a seeded tenant complete, so the demo account
-  lands on the dashboard rather than the wizard.
+  lands on the dashboard rather than the wizard; the holiday, award and onboarding
+  seeders read the wizard's suggestion lists.
 - **Tests** — `OrganizationFactory` defaults to a company already in use;
-  `newlyRegistered()` is the state that owes setup.
-
-## Out of scope (this cut)
-
-Other schedules (night shifts, split shifts, rotations), holidays, onboarding and
-offboarding programs, and award types — all named on the finish screen, none of them
-blocking day-one work. Inviting people is left
-to the Employees module, which already has an invitation flow (ADR 0026).
+  `newlyRegistered()` is the state that owes setup. `SetupWizardTest` covers the
+  original steps; `SetupWizardStepsTest` checks every step against its screen's props
+  and covers the new steps, `continue`, and the URL.

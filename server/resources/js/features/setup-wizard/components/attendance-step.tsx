@@ -5,6 +5,7 @@ import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { PoliciesManager } from '@/features/attendance-policy-config/components/policies-manager';
 import { PolicySections } from '@/features/attendance-policy-config/components/policy-sections';
 import { WorkedExample } from '@/features/attendance-policy-config/components/worked-example';
 import {
@@ -12,65 +13,77 @@ import {
     PUNCH_SOURCES,
 } from '@/features/attendance-policy-config/constants';
 import type {
+    AttendancePoliciesPageProps,
     PolicyPreset,
     PolicySettings,
     SampleDay,
 } from '@/features/attendance-policy-config/types';
 import { cn } from '@/lib/utils';
 import { setupWizardRoutes } from '../routes';
-import AlreadyConfigured from './already-configured';
+import type { StepControls } from '../types';
 import ChoiceCard from './choice-card';
+import SectionHeading from './section-heading';
 import StepBody from './step-body';
-import StepFooter from './step-footer';
+import StepFooter, { continueAction } from './step-footer';
+import SuggestionsPanel, { useSuggestionsOpen } from './suggestions-panel';
 
-type Props = {
+type Props = StepControls & {
+    screen: AttendancePoliciesPageProps;
     presets: PolicyPreset[];
     existingPolicies: string[];
     existingSchedules: string[];
-    onSaved: () => void;
-    onBack: () => void;
-    onSkip: () => void;
-    skipping: boolean;
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 /**
- * Step 4 — how the company's attendance days are judged (ADR 0038), and the
- * hours most of its people work.
+ * How the company's attendance days are judged (ADR 0038), and the hours most
+ * of its people work.
  *
  * A preset is always where it starts: each card leads with the rules that make
  * it different, because those are the whole difference between them. **Customise
  * these rules** opens the chosen preset up in the same editor Company Setup uses,
  * with a worked example beside it; what is saved is an ordinary policy that
  * screen reads back, and it becomes the company default so it applies from the
- * first punch.
+ * first punch. The Attendance Policies editor sits under it for everything
+ * after — a second policy for the warehouse, a different default, a rule
+ * changed.
  */
 export default function AttendanceStep({
+    screen,
     presets,
     existingPolicies,
     existingSchedules,
-    onSaved,
-    onBack,
-    onSkip,
-    skipping,
+    ...controls
 }: Props) {
+    const [open, setOpen] = useSuggestionsOpen(controls.configured);
+    // Which button started the save — the tray's (add, and stay) or the
+    // footer's (add, and continue) — so only that one spins.
+    const [continuing, setContinuing] = useState(false);
     const first = presets[0];
 
-    const { data, setData, post, transform, processing, errors, clearErrors } =
-        useForm({
-            preset: first?.key ?? '',
-            name: '',
-            customised: false,
-            settings: (first?.settings ?? null) as PolicySettings | null,
-            schedule: {
-                create: existingSchedules.length === 0,
-                name: 'Office Hours',
-                start: '08:00',
-                end: '17:00',
-                days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as string[],
-            },
-        });
+    const {
+        data,
+        setData,
+        post,
+        transform,
+        processing,
+        errors,
+        clearErrors,
+        reset,
+    } = useForm({
+        preset: first?.key ?? '',
+        name: '',
+        customised: false,
+        settings: (first?.settings ?? null) as PolicySettings | null,
+        schedule: {
+            create: existingSchedules.length === 0,
+            name: 'Office Hours',
+            start: '08:00',
+            end: '17:00',
+            days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as string[],
+        },
+    });
 
     const [sample, setSample] = useState<SampleDay>(DEFAULT_SAMPLE);
     const chosen = presets.find((preset) => preset.key === data.preset);
@@ -119,8 +132,9 @@ export default function AttendanceStep({
             schedule: { ...current.schedule, ...patch },
         }));
 
-    const submit = (event: React.FormEvent) => {
-        event.preventDefault();
+    /** Create the policy — then stay to see it among the others, or move on. */
+    const submit = (andContinue: boolean) => {
+        setContinuing(andContinue);
 
         transform((payload) => ({
             preset: payload.preset,
@@ -136,148 +150,189 @@ export default function AttendanceStep({
         post(setupWizardRoutes.attendance, {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: onSaved,
+            onFinish: () => setContinuing(false),
+            onSuccess: () => {
+                reset();
+
+                if (andContinue) {
+                    controls.onNext();
+                } else {
+                    setOpen(false);
+                }
+            },
         });
     };
 
     const policyName = data.name.trim() || chosen?.name || '';
+    const creates = policyName
+        ? `Creates "${policyName}"${data.schedule.create && data.schedule.name.trim() ? ` and "${data.schedule.name.trim()}"` : ''}`
+        : undefined;
+    const pending = open && data.preset !== '';
 
     return (
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
             <StepBody>
-                <AlreadyConfigured
-                    names={existingPolicies}
-                    noun="attendance policy"
-                    where="Company Setup → Attendance Policies"
-                />
-
-                {data.customised && data.settings !== null ? (
-                    <>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <h2 className="text-sm font-semibold text-foreground">
-                                    Your rules
-                                </h2>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                    Starting from {chosen?.name}. Change what
-                                    your company does differently; the example
-                                    shows the effect as you go.
-                                </p>
+                <SuggestionsPanel
+                    open={open}
+                    onOpenChange={setOpen}
+                    collapsible={controls.configured}
+                    title="Start from a preset"
+                    description="Each preset lists the rules that make it different. Pick the closest, then customise it if your company does something else."
+                    summary={`${presets.length} presets — Labor Code, a 40-hour week, flexible hours or shift work`}
+                    onSubmit={() => submit(false)}
+                    submitLabel={
+                        policyName ? `Create "${policyName}"` : 'Create policy'
+                    }
+                    submitDisabled={data.preset === ''}
+                    processing={processing && !continuing}
+                    note={creates}
+                >
+                    {data.customised && data.settings !== null ? (
+                        <>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <h2 className="text-sm font-semibold text-foreground">
+                                        Your rules
+                                    </h2>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Starting from {chosen?.name}. Change
+                                        what your company does differently; the
+                                        example shows the effect as you go.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => customise(false)}
+                                    className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                >
+                                    <ArrowLeft className="size-3.5" />
+                                    Back to the presets
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => customise(false)}
-                                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                            >
-                                <ArrowLeft className="size-3.5" />
-                                Back to the presets
-                            </button>
+
+                            <PolicySections
+                                settings={data.settings}
+                                onChange={changeSettings}
+                                errors={messages}
+                                sources={PUNCH_SOURCES}
+                            />
+
+                            <WorkedExample
+                                settings={data.settings}
+                                sample={sample}
+                                onSampleChange={setSample}
+                            />
+                        </>
+                    ) : (
+                        <div className="flex flex-col gap-2.5">
+                            {presets.map((preset) => (
+                                <ChoiceCard
+                                    key={preset.key}
+                                    mode="single"
+                                    name="attendance-preset"
+                                    value={preset.key}
+                                    checked={data.preset === preset.key}
+                                    onChange={() => choose(preset)}
+                                    title={preset.name}
+                                    description={preset.description}
+                                    action={
+                                        data.preset === preset.key ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => customise(true)}
+                                                className="mt-1 ml-7 text-[11px] font-medium text-[#0a8b91] underline-offset-4 hover:underline dark:text-[#0ABFBF]"
+                                            >
+                                                Customise these rules
+                                            </button>
+                                        ) : undefined
+                                    }
+                                >
+                                    <ul className="mt-1 grid gap-1 pl-7 sm:grid-cols-2">
+                                        {preset.highlights.map((line) => (
+                                            <li
+                                                key={line}
+                                                className="flex items-start gap-1.5 text-[11px] leading-snug text-foreground/80"
+                                            >
+                                                <Check
+                                                    aria-hidden
+                                                    className="mt-px size-3 shrink-0 text-[#0a8b91] dark:text-[#0ABFBF]"
+                                                />
+                                                {line}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </ChoiceCard>
+                            ))}
+                            <InputError message={errors.preset} />
                         </div>
+                    )}
 
-                        <PolicySections
-                            settings={data.settings}
-                            onChange={changeSettings}
-                            errors={messages}
-                            sources={PUNCH_SOURCES}
+                    <div className="max-w-sm">
+                        <Label htmlFor="policy-name" className="mb-1.5 block">
+                            Call it something else{' '}
+                            <span className="text-muted-foreground">
+                                (optional)
+                            </span>
+                        </Label>
+                        <Input
+                            id="policy-name"
+                            value={data.name}
+                            onChange={(event) =>
+                                setData('name', event.target.value)
+                            }
+                            placeholder={chosen?.name ?? 'Head office'}
                         />
-
-                        <WorkedExample
-                            settings={data.settings}
-                            sample={sample}
-                            onSampleChange={setSample}
-                        />
-                    </>
-                ) : (
-                    <div className="flex flex-col gap-2.5">
-                        {presets.map((preset) => (
-                            <ChoiceCard
-                                key={preset.key}
-                                mode="single"
-                                name="attendance-preset"
-                                value={preset.key}
-                                checked={data.preset === preset.key}
-                                onChange={() => choose(preset)}
-                                title={preset.name}
-                                description={preset.description}
-                                action={
-                                    data.preset === preset.key ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => customise(true)}
-                                            className="mt-1 ml-7 text-[11px] font-medium text-[#0a8b91] underline-offset-4 hover:underline dark:text-[#0ABFBF]"
-                                        >
-                                            Customise these rules
-                                        </button>
-                                    ) : undefined
-                                }
-                            >
-                                <ul className="mt-1 grid gap-1 pl-7 sm:grid-cols-2">
-                                    {preset.highlights.map((line) => (
-                                        <li
-                                            key={line}
-                                            className="flex items-start gap-1.5 text-[11px] leading-snug text-foreground/80"
-                                        >
-                                            <Check
-                                                aria-hidden
-                                                className="mt-px size-3 shrink-0 text-[#0a8b91] dark:text-[#0ABFBF]"
-                                            />
-                                            {line}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </ChoiceCard>
-                        ))}
-                        <InputError message={errors.preset} />
+                        <InputError message={errors.name} className="mt-1.5" />
                     </div>
-                )}
 
-                <div className="max-w-sm">
-                    <Label htmlFor="policy-name" className="mb-1.5 block">
-                        Call it something else{' '}
-                        <span className="text-muted-foreground">
-                            (optional)
-                        </span>
-                    </Label>
-                    <Input
-                        id="policy-name"
-                        value={data.name}
-                        onChange={(event) =>
-                            setData('name', event.target.value)
-                        }
-                        placeholder={chosen?.name ?? 'Head office'}
+                    <DefaultSchedule
+                        schedule={data.schedule}
+                        existing={existingSchedules}
+                        onChange={setSchedule}
+                        errors={messages}
                     />
-                    <InputError message={errors.name} className="mt-1.5" />
-                </div>
 
-                <DefaultSchedule
-                    schedule={data.schedule}
-                    existing={existingSchedules}
-                    onChange={setSchedule}
-                    errors={messages}
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                        {existingPolicies.length > 0
+                            ? 'Your current company default stays as it is; this policy can be named on a schedule, a department or an assignment, or made the default below.'
+                            : 'The policy becomes the company default, so it applies to everybody unless a schedule, a department or someone’s own assignment names a different one.'}{' '}
+                        A day already recorded keeps the rules it was judged by.
+                    </p>
+                </SuggestionsPanel>
+
+                <PoliciesManager
+                    {...screen}
+                    heading={
+                        <SectionHeading
+                            title="Your attendance policies"
+                            hint="Edit a policy’s rules, star the one that is the company default, or add another for a site or a team that works differently."
+                        />
+                    }
                 />
-
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                    {existingPolicies.length > 0
-                        ? 'Your current company default stays as it is; this policy can be named on a schedule, a department or an assignment, or made the default later.'
-                        : 'The policy becomes the company default, so it applies to everybody unless a schedule, a department or someone’s own assignment names a different one.'}{' '}
-                    Every rule can be changed later; a day already recorded
-                    keeps the rules it was judged by.
-                </p>
             </StepBody>
 
             <StepFooter
-                onBack={onBack}
-                onSkip={onSkip}
-                processing={processing}
-                skipping={skipping}
-                disabled={data.preset === ''}
+                onBack={controls.onBack}
+                onSkip={controls.onSkip}
+                busy={controls.busy}
+                skipping={controls.skipping}
+                primary={
+                    pending
+                        ? {
+                              label: `Create "${policyName}" and continue`,
+                              onClick: () => submit(true),
+                              processing: processing && continuing,
+                              disabled: processing,
+                          }
+                        : continueAction(controls)
+                }
                 note={
-                    policyName
-                        ? `Creates "${policyName}"${data.schedule.create && data.schedule.name.trim() ? ` and "${data.schedule.name.trim()}"` : ''}`
-                        : undefined
+                    pending || controls.configured
+                        ? undefined
+                        : 'Create a policy, or skip this step for now.'
                 }
             />
-        </form>
+        </div>
     );
 }
 

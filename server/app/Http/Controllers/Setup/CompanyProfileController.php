@@ -4,10 +4,9 @@ namespace App\Http\Controllers\Setup;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\UpdateCompanyProfileRequest;
-use App\Http\Resources\CompanyProfileResource;
 use App\Models\Organization;
+use App\Queries\Setup\CompanyProfileScreen;
 use App\Support\ActivityLogger;
-use App\Support\OrganizationClock;
 use App\Support\Setup\CompanyProfileWriter;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
@@ -27,13 +26,9 @@ class CompanyProfileController extends Controller
     /**
      * Show the company profile.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request, CompanyProfileScreen $screen): Response
     {
-        return Inertia::render('setup/company', [
-            'company' => (new CompanyProfileResource($this->organization()))->resolve($request),
-            'timezones' => OrganizationClock::options(),
-            'can' => ['manage' => $request->user()->can('setup.company.manage')],
-        ]);
+        return Inertia::render('setup/company', $screen->toArray($request));
     }
 
     /**

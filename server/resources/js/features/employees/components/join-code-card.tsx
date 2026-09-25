@@ -10,6 +10,11 @@ type Props = {
     code: string | null;
     enabled: boolean;
     canManage: boolean;
+    /**
+     * What the card says while the code is on. The access screen's default
+     * points at the join requests listed under it; elsewhere there are none.
+     */
+    enabledHint?: string;
 };
 
 /**
@@ -21,7 +26,12 @@ type Props = {
  * together because that is how it gets read aloud, and the alphabet it is drawn
  * from has no O/0 or I/1 to mishear.
  */
-export function JoinCodeCard({ code, enabled, canManage }: Props) {
+export function JoinCodeCard({
+    code,
+    enabled,
+    canManage,
+    enabledHint = 'Staff enter this in the SYNAPSE app to reach your company. If their email matches a record here they join straight away; anyone else waits for you below.',
+}: Props) {
     const [copied, setCopied] = useState(false);
     const [confirmRotate, setConfirmRotate] = useState(false);
     const [rotating, setRotating] = useState(false);
@@ -101,7 +111,7 @@ export function JoinCodeCard({ code, enabled, canManage }: Props) {
 
                     <p className="max-w-md text-sm text-muted-foreground">
                         {enabled
-                            ? 'Staff enter this in the SYNAPSE app to reach your company. If their email matches a record here they join straight away; anyone else waits for you below.'
+                            ? enabledHint
                             : 'Joining by code is off. Invite people individually instead — their invitations still work.'}
                     </p>
                 </div>

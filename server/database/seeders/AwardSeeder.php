@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAward;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Setup\SetupBlueprints;
 use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
@@ -18,19 +19,6 @@ use Illuminate\Support\Collection;
  */
 class AwardSeeder extends Seeder
 {
-    /**
-     * The starter award types (name => [color, description]).
-     *
-     * @var array<string, array{color: string, description: string}>
-     */
-    private const TYPES = [
-        'Employee of the Month' => ['color' => '#f59e0b', 'description' => 'Outstanding all-round contribution for the month.'],
-        'Perfect Attendance' => ['color' => '#10b981', 'description' => 'No absences or tardiness for the period.'],
-        'Spot Award' => ['color' => '#0ABFBF', 'description' => 'On-the-spot recognition for going above and beyond.'],
-        'Innovation Award' => ['color' => '#8b5cf6', 'description' => 'A process improvement or idea that made an impact.'],
-        'Years of Service' => ['color' => '#3b82f6', 'description' => 'A milestone work anniversary with the company.'],
-    ];
-
     /**
      * A believable reason per type.
      *
@@ -76,7 +64,10 @@ class AwardSeeder extends Seeder
     {
         $types = collect();
 
-        foreach (self::TYPES as $name => $config) {
+        // The same starter types the setup wizard offers.
+        foreach (SetupBlueprints::awardTypes() as $config) {
+            $name = $config['name'];
+
             $types->put($name, AwardType::firstOrCreate(
                 ['name' => $name],
                 [

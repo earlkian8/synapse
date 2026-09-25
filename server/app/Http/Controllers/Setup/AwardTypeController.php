@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Setup;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\AwardTypeRequest;
-use App\Http\Resources\AwardTypeResource;
 use App\Models\AwardType;
+use App\Queries\Setup\AwardTypesScreen;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,13 +20,9 @@ use Inertia\Response;
  */
 class AwardTypeController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, AwardTypesScreen $screen): Response
     {
-        return Inertia::render('setup/award-types', [
-            'types' => AwardTypeResource::collection($this->listing()->get())->resolve($request),
-            'archived' => AwardTypeResource::collection($this->listing()->onlyTrashed()->get())->resolve($request),
-            'can' => ['manage' => $request->user()->can('setup.award-types.manage')],
-        ]);
+        return Inertia::render('setup/award-types', $screen->toArray($request));
     }
 
     public function store(AwardTypeRequest $request): RedirectResponse
@@ -110,16 +105,6 @@ class AwardTypeController extends Controller
         );
 
         return $this->respond('Award type permanently deleted.');
-    }
-
-    /**
-     * The base listing query, shared by the active and archived sets.
-     *
-     * @return Builder<AwardType>
-     */
-    private function listing(): Builder
-    {
-        return AwardType::query()->withCount('awards')->catalogueOrder();
     }
 
     private function findTrashed(string $hashid): AwardType

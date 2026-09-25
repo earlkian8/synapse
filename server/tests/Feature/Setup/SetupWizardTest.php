@@ -109,6 +109,12 @@ test('the wizard renders with its blueprints, progress and permissions', functio
             ->has('blueprints.leaveTypes', count(SetupBlueprints::leaveTypes()))
             ->has('blueprints.pipelines', count(SetupBlueprints::pipelines()))
             ->has('blueprints.frameworks', count(SetupBlueprints::frameworks()))
+            ->has('blueprints.holidays', count(SetupBlueprints::holidays(now())))
+            ->has('blueprints.awardTypes', count(SetupBlueprints::awardTypes()))
+            ->has('blueprints.onboardingPrograms', count(SetupBlueprints::onboardingPrograms()))
+            ->has('blueprints.offboardingPrograms', count(SetupBlueprints::offboardingPrograms()))
+            ->where('view', CompanySetup::INTRO)
+            ->has('progress.steps', count(CompanySetup::STEPS))
             ->where('progress.resume', CompanySetup::COMPANY)
             ->where('progress.completed', false)
             ->where('progress.steps.company', CompanySetup::PENDING)
@@ -772,7 +778,7 @@ test('a skipped step is remembered, and the wizard resumes past it', function ()
             ->etc());
 });
 
-test('a step that is not one of the five is refused', function () {
+test('a step that is not one of the wizard’s is refused', function () {
     actingAsSuperAdmin();
     unfinishedTenant();
 

@@ -1,24 +1,56 @@
 import type { TimezoneOption } from '@/components/timezone-select';
+import type { AttendancePoliciesPageProps } from '@/features/attendance-policy-config/types';
 import type { PolicyPreset } from '@/features/attendance-policy-config/types';
+import type { AwardTypeSetupPageProps } from '@/features/award-types-config/types';
 import type { CompanyProfile } from '@/features/company-profile/types';
+import type { DepartmentsPageProps } from '@/features/departments/types';
+import type { DevicesPageProps } from '@/features/devices/types';
+import type { KpiSetupPageProps } from '@/features/kpi-config/types';
+import type { LeaveTypesPageProps } from '@/features/leave-types/types';
+import type { LocationsPageProps } from '@/features/locations/types';
+import type { ProgramsPageProps as OffboardingProgramsPageProps } from '@/features/offboarding/types';
+import type { ProgramsPageProps as OnboardingProgramsPageProps } from '@/features/onboarding/types';
 import type {
     BandTone,
     RatingBand,
     ResultDisplay,
 } from '@/features/performance/types';
 import type {
+    PipelinesPageProps,
     StageDraft,
     StageKind,
 } from '@/features/recruitment-pipelines/types';
+import type { RosterPageProps } from '@/features/roster/types';
+import type {
+    HolidayType,
+    ScheduleSetupPageProps,
+} from '@/features/schedule-config/types';
 
-/** The six things a brand-new company is walked through, in wizard order. */
+/**
+ * Every Company Setup screen, as a step, in wizard order — the company and its
+ * shape, how its time is kept, then a person's life at the company from hire to
+ * exit. Mirrors `CompanySetup::STEPS`.
+ */
 export type SetupStep =
     | 'company'
     | 'departments'
-    | 'leave-types'
     | 'attendance'
+    | 'schedule'
+    | 'leave-types'
+    | 'locations'
+    | 'devices'
+    | 'roster'
     | 'recruitment'
-    | 'performance';
+    | 'onboarding'
+    | 'performance'
+    | 'awards'
+    | 'offboarding';
+
+/** What the working pane is showing: the welcome, one step, or the send-off. */
+export type WizardView = 'intro' | SetupStep | 'done';
+
+/** The rail's three stretches of the road, each a run of steps. */
+export type StepGroup = 'company' | 'time' | 'people';
 
 /** What the company did with a step. A skip is an answer, not an absence. */
 export type StepStatus = 'done' | 'skipped' | 'pending';
@@ -42,6 +74,46 @@ export type LeaveTypeBlueprint = {
     requires_approval: boolean;
     /** Pre-ticked in the wizard — the set almost every company needs. */
     recommended: boolean;
+};
+
+/**
+ * A holiday on the Philippine calendar, on its next date. `key` is what the
+ * server resolves it — and its date — by.
+ */
+export type HolidayBlueprint = {
+    key: string;
+    name: string;
+    date: string;
+    type: HolidayType;
+    /** A fixed date, kept every year; a movable one is only its next date. */
+    is_recurring: boolean;
+};
+
+/** A recognition most companies give out. */
+export type AwardTypeBlueprint = {
+    key: string;
+    name: string;
+    description: string;
+    color: string;
+};
+
+/** An onboarding checklist to start from. */
+export type OnboardingProgramBlueprint = {
+    key: string;
+    name: string;
+    description: string;
+    tasks: { title: string; category: string; due_offset_days: number }[];
+};
+
+/**
+ * An exit clearance to start from. An item's `department` is a code — the
+ * department it is routed to — or `__own__`, the leaver's own department.
+ */
+export type OffboardingProgramBlueprint = {
+    key: string;
+    name: string;
+    description: string;
+    items: { item: string; department: string }[];
 };
 
 /** A hiring process to start from (ADR 0029). */
@@ -108,28 +180,68 @@ export type SetupProgress = {
     completed: boolean;
 };
 
-/** What the company already has, so a step can say so instead of assuming empty. */
+/** What the company already has by name, so an offer it took reads "Already added". */
 export type ExistingConfiguration = {
     departments: string[];
     leaveTypes: string[];
     attendancePolicies: string[];
     schedules: string[];
+    holidays: string[];
     pipelines: string[];
+    onboardingPrograms: string[];
     frameworks: string[];
+    awardTypes: string[];
+    offboardingPrograms: string[];
+};
+
+/** The company step's screen: the profile, the clock choices, the join code. */
+export type CompanyScreen = {
+    company: CompanyProfile;
+    timezones: TimezoneOption[];
+    /** Only for somebody who may rotate it — it is a credential. */
+    joinCode: { code: string | null; enabled: boolean } | null;
+    can: { manage: boolean };
+};
+
+/**
+ * Each step's screen — exactly the props its Company Setup page renders with,
+ * because the step renders the same editors (`CompanySetup::SCREENS`).
+ */
+export type StepScreens = {
+    company: CompanyScreen;
+    departments: DepartmentsPageProps;
+    attendance: AttendancePoliciesPageProps;
+    schedule: ScheduleSetupPageProps;
+    'leave-types': LeaveTypesPageProps;
+    locations: LocationsPageProps;
+    devices: DevicesPageProps;
+    roster: RosterPageProps;
+    recruitment: PipelinesPageProps;
+    onboarding: OnboardingProgramsPageProps;
+    performance: KpiSetupPageProps;
+    awards: AwardTypeSetupPageProps;
+    offboarding: OffboardingProgramsPageProps;
 };
 
 export type SetupWizardPageProps = {
+    view: WizardView;
     company: CompanyProfile;
-    /** Every zone step one can offer. */
-    timezones: TimezoneOption[];
     progress: SetupProgress;
+    /** Whether each step's module already holds something to continue with. */
+    configured: Record<SetupStep, boolean>;
+    /** The step on show's Company Setup screen; null off a step, or without access. */
+    screen: StepScreens[SetupStep] | null;
     blueprints: {
         departments: DepartmentBlueprint[];
         leaveTypes: LeaveTypeBlueprint[];
         /** How a day is judged — each preset with its complete settings (ADR 0038). */
         attendancePolicies: PolicyPreset[];
+        holidays: HolidayBlueprint[];
         pipelines: PipelineBlueprint[];
+        onboardingPrograms: OnboardingProgramBlueprint[];
         frameworks: FrameworkBlueprint[];
+        awardTypes: AwardTypeBlueprint[];
+        offboardingPrograms: OffboardingProgramBlueprint[];
         /** What a company designing its own framework draws on. */
         criteria: CriterionBlueprint[];
         instruments: InstrumentBlueprint[];
@@ -137,8 +249,31 @@ export type SetupWizardPageProps = {
         tones: BandTone[];
     };
     existing: ExistingConfiguration;
-    /** Per step, because the six steps are six different permissions. */
+    /** Per step, because every step is a different module's permission. */
     can: Record<SetupStep, boolean>;
+    /** Whether the send-off can point at inviting people. */
+    canInvite: boolean;
+};
+
+/**
+ * What every step is handed by the page: whether its module holds anything yet,
+ * and the ways on, back and past it.
+ */
+export type StepControls = {
+    /** The step's module already holds something to continue with. */
+    configured: boolean;
+    /** Move on, recording the step as done (it must be configured). */
+    onContinue: () => void;
+    /** Move on after the step's own save has recorded it. */
+    onNext: () => void;
+    onBack: () => void;
+    onSkip: () => void;
+    /** Something whole-wizard is in flight; every button waits. */
+    busy: boolean;
+    /** …and it is this step's skip. */
+    skipping: boolean;
+    /** …and it is this step's continue. */
+    advancing: boolean;
 };
 
 /*

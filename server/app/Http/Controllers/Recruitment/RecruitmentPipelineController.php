@@ -5,15 +5,14 @@ namespace App\Http\Controllers\Recruitment;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Recruitment\StoreRecruitmentPipelineRequest;
 use App\Http\Requests\Recruitment\UpdateRecruitmentPipelineRequest;
-use App\Http\Resources\RecruitmentPipelineResource;
 use App\Models\RecruitmentPipeline;
+use App\Queries\Setup\RecruitmentPipelinesScreen;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use RuntimeException;
 
 /**
  * Company Setup: the hiring processes an organisation can assign to a job
@@ -23,19 +22,9 @@ use RuntimeException;
  */
 class RecruitmentPipelineController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, RecruitmentPipelinesScreen $screen): Response
     {
-        $pipelines = RecruitmentPipeline::query()
-            ->with('stages')
-            ->withCount('postings')
-            ->orderByDesc('is_default')
-            ->orderBy('name')
-            ->get();
-
-        return Inertia::render('setup/recruitment-pipelines', [
-            'pipelines' => RecruitmentPipelineResource::collection($pipelines)->resolve($request),
-            'can' => ['configure' => $request->user()->can('recruitment.configure-pipelines')],
-        ]);
+        return Inertia::render('setup/recruitment-pipelines', $screen->toArray($request));
     }
 
     /**

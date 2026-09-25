@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Requests\Offboarding\OffboardingProgramRequest;
-use App\Http\Resources\OffboardingProgramResource;
-use App\Models\Department;
 use App\Models\OffboardingProgram;
+use App\Queries\Setup\OffboardingProgramsScreen;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,20 +25,9 @@ class OffboardingProgramController extends Controller
     /**
      * Manage clearance templates and their blueprint items.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, OffboardingProgramsScreen $screen): Response
     {
-        $programs = OffboardingProgram::query()
-            ->with(['department:id,name', 'items', 'items.department:id,name'])
-            ->withCount(['items', 'cases'])
-            ->orderByDesc('is_default')
-            ->orderBy('name')
-            ->get();
-
-        return Inertia::render('setup/offboarding', [
-            'programs' => OffboardingProgramResource::collection($programs)->resolve($request),
-            'options' => ['departments' => Department::orderBy('name')->get(['id', 'name'])],
-            'can' => ['managePrograms' => $request->user()->can('offboarding.manage-programs')],
-        ]);
+        return Inertia::render('setup/offboarding', $screen->toArray($request));
     }
 
     /**

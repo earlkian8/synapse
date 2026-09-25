@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\AttendanceDeviceRequest;
 use App\Http\Requests\Setup\ImportDevicePunchesRequest;
-use App\Http\Resources\AttendanceDeviceResource;
 use App\Models\AttendanceDevice;
-use App\Models\WorkLocation;
+use App\Queries\Setup\DevicesScreen;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\DeviceCsvImport;
 use App\Support\Attendance\DevicePunchIngestor;
@@ -27,25 +26,9 @@ use Inertia\Response;
  */
 class AttendanceDeviceController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, DevicesScreen $screen): Response
     {
-        return Inertia::render('setup/devices', [
-            'devices' => AttendanceDeviceResource::collection(
-                AttendanceDevice::query()
-                    ->with('location:id,name')
-                    ->withCount('punches')
-                    ->orderByDesc('is_active')
-                    ->orderBy('name')
-                    ->get(),
-            )->resolve($request),
-            'locations' => WorkLocation::query()->active()->orderBy('name')->get(['id', 'name']),
-            // Where a device sends to, for the setup instructions.
-            'endpoints' => [
-                'punches' => route('api.devices.punches'),
-                'kiosk' => route('kiosk'),
-            ],
-            'can' => ['manage' => $request->user()->can('setup.devices.manage')],
-        ]);
+        return Inertia::render('setup/devices', $screen->toArray($request));
     }
 
     public function store(AttendanceDeviceRequest $request): RedirectResponse

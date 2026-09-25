@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Setup;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\LeaveTypeRequest;
-use App\Http\Resources\LeaveTypeResource;
 use App\Models\LeaveType;
+use App\Queries\Setup\LeaveTypesScreen;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,15 +18,9 @@ class LeaveTypeController extends Controller
     /**
      * Display the leave-type catalogue (Company Setup).
      */
-    public function index(Request $request): Response
+    public function index(Request $request, LeaveTypesScreen $screen): Response
     {
-        return Inertia::render('setup/leave-types', [
-            'types' => LeaveTypeResource::collection($this->listing()->get())->resolve($request),
-            'archived' => LeaveTypeResource::collection(
-                $this->listing()->onlyTrashed()->get()
-            )->resolve($request),
-            'can' => ['manage' => $request->user()->can('setup.leave-types.manage')],
-        ]);
+        return Inertia::render('setup/leave-types', $screen->toArray($request));
     }
 
     /**
@@ -135,19 +128,6 @@ class LeaveTypeController extends Controller
         );
 
         return $this->respond('Leave type permanently deleted.');
-    }
-
-    /**
-     * The base listing query, shared by the active and archived sets.
-     *
-     * @return Builder<LeaveType>
-     */
-    private function listing(): Builder
-    {
-        return LeaveType::query()
-            ->withCount('requests')
-            ->orderByDesc('is_active')
-            ->orderBy('name');
     }
 
     /**

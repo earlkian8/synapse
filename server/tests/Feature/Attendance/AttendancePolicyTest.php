@@ -477,20 +477,24 @@ test('a policy from another company cannot be attached', function () {
 
 // ── The wizard ───────────────────────────────────────────────────────────────
 
-test('the wizard offers the presets and walks six steps', function () {
+test('the wizard offers the presets, and judging days comes before the schedules it applies to', function () {
     actingAsSuperAdmin();
     testOrganization()->forceFill(['setup_completed_at' => null, 'setup_steps' => null])->save();
 
-    expect(CompanySetup::STEPS)->toBe(['company', 'departments', 'leave-types', 'attendance', 'recruitment', 'performance']);
+    expect(array_search('attendance', CompanySetup::STEPS, true))
+        ->toBeLessThan(array_search('schedule', CompanySetup::STEPS, true))
+        ->and(CompanySetup::ABILITIES['attendance'])->toBe('setup.attendance-policies.manage');
 
-    $this->get(route('setup.wizard.show'))
+    $this->get(route('setup.wizard.show', 'attendance'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->has('blueprints.attendancePolicies', count(AttendancePolicyPresets::all()))
             ->where('progress.steps.attendance', CompanySetup::PENDING)
             ->where('can.attendance', true)
             ->has('existing.attendancePolicies')
-            ->has('existing.schedules'));
+            ->has('existing.schedules')
+            ->has('screen.policies')
+            ->has('screen.presets'));
 });
 
 test('the attendance step adopts a preset as the default, with a default schedule', function () {

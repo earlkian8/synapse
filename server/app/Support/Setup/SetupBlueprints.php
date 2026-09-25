@@ -2,11 +2,16 @@
 
 namespace App\Support\Setup;
 
+use App\Models\OnboardingTask;
+use App\Support\OffboardingProvisioner;
 use App\Support\Performance\RatingScales;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 /**
  * The starting points the setup wizard offers — the departments, kinds of leave,
- * hiring processes and appraisal frameworks a company can adopt in one click
+ * holiday calendar, hiring processes, onboarding checklists, appraisal
+ * frameworks, award types and exit clearances a company can adopt in one click
  * instead of designing from nothing on its first day.
  *
  * These are **starting points, not defaults**: nothing here is applied unless the
@@ -328,6 +333,172 @@ class SetupBlueprints
             'type' => $scale['type'],
             'descriptor' => RatingScales::descriptor($scale),
         ], RatingScales::library());
+    }
+
+    /**
+     * The Philippine holiday calendar a company can adopt: the regular and
+     * special non-working days fixed by law (RA 9492, RA 10966 and the standing
+     * proclamations), each on its next occurrence from `$today`.
+     *
+     * A fixed-date holiday is offered as recurring, so one row honours it every
+     * year. A movable one — Holy Week, which follows Easter, and National Heroes
+     * Day, the last Monday of August — is offered on its next date and not as
+     * recurring, because next year it falls somewhere else. The days proclaimed
+     * afresh each year (Eid'l Fitr, Eid'l Adha, Chinese New Year) are not here:
+     * there is no date to offer until the proclamation names one.
+     *
+     * @return list<array{key: string, name: string, date: string, type: string, is_recurring: bool}>
+     */
+    public static function holidays(CarbonInterface $today): array
+    {
+        $today = CarbonImmutable::instance($today)->startOfDay();
+        $year = $today->year;
+
+        $fixed = [
+            ['new-year', "New Year's Day", '01-01', 'regular'],
+            ['edsa', 'EDSA People Power Anniversary', '02-25', 'special_non_working'],
+            ['araw-ng-kagitingan', 'Araw ng Kagitingan', '04-09', 'regular'],
+            ['labor-day', 'Labor Day', '05-01', 'regular'],
+            ['independence-day', 'Independence Day', '06-12', 'regular'],
+            ['ninoy-aquino-day', 'Ninoy Aquino Day', '08-21', 'special_non_working'],
+            ['all-saints', "All Saints' Day", '11-01', 'special_non_working'],
+            ['all-souls', "All Souls' Day", '11-02', 'special_non_working'],
+            ['bonifacio-day', 'Bonifacio Day', '11-30', 'regular'],
+            ['immaculate-conception', 'Feast of the Immaculate Conception', '12-08', 'special_non_working'],
+            ['christmas-eve', 'Christmas Eve', '12-24', 'special_non_working'],
+            ['christmas-day', 'Christmas Day', '12-25', 'regular'],
+            ['rizal-day', 'Rizal Day', '12-30', 'regular'],
+            ['last-day', 'Last Day of the Year', '12-31', 'special_non_working'],
+        ];
+
+        $holidays = array_map(fn (array $holiday): array => [
+            'key' => $holiday[0],
+            'name' => $holiday[1],
+            'date' => "{$year}-{$holiday[2]}",
+            'type' => $holiday[3],
+            'is_recurring' => true,
+        ], $fixed);
+
+        // The movable ones, each on the next date it falls on.
+        $movable = [
+            ['maundy-thursday', 'Maundy Thursday', 'regular', fn (int $y): CarbonImmutable => self::easter($y)->subDays(3)],
+            ['good-friday', 'Good Friday', 'regular', fn (int $y): CarbonImmutable => self::easter($y)->subDays(2)],
+            ['black-saturday', 'Black Saturday', 'special_non_working', fn (int $y): CarbonImmutable => self::easter($y)->subDay()],
+            ['national-heroes-day', 'National Heroes Day', 'regular', fn (int $y): CarbonImmutable => CarbonImmutable::create($y, 8, 1)->lastOfMonth(CarbonImmutable::MONDAY)],
+        ];
+
+        foreach ($movable as [$key, $name, $type, $on]) {
+            $date = $on($year);
+
+            if ($date->lt($today)) {
+                $date = $on($year + 1);
+            }
+
+            $holidays[] = [
+                'key' => $key,
+                'name' => $name,
+                'date' => $date->toDateString(),
+                'type' => $type,
+                'is_recurring' => false,
+            ];
+        }
+
+        // In calendar order, as a year reads.
+        usort($holidays, fn (array $a, array $b): int => substr($a['date'], 5) <=> substr($b['date'], 5));
+
+        return $holidays;
+    }
+
+    /**
+     * The recognitions most companies start with. Each is only a name, a meaning
+     * and a colour — what an award is given for is decided when it is given.
+     *
+     * @return list<array{key: string, name: string, description: string, color: string}>
+     */
+    public static function awardTypes(): array
+    {
+        return [
+            ['key' => 'employee-of-the-month', 'name' => 'Employee of the Month', 'description' => 'Outstanding all-round contribution for the month.', 'color' => '#f59e0b'],
+            ['key' => 'perfect-attendance', 'name' => 'Perfect Attendance', 'description' => 'No absences or tardiness for the period.', 'color' => '#10b981'],
+            ['key' => 'spot-award', 'name' => 'Spot Award', 'description' => 'On-the-spot recognition for going above and beyond.', 'color' => '#0ABFBF'],
+            ['key' => 'innovation-award', 'name' => 'Innovation Award', 'description' => 'A process improvement or idea that made an impact.', 'color' => '#8b5cf6'],
+            ['key' => 'years-of-service', 'name' => 'Years of Service', 'description' => 'A milestone work anniversary with the company.', 'color' => '#3b82f6'],
+        ];
+    }
+
+    /**
+     * Onboarding checklists to start from. A task's `category` is what the
+     * onboarding board groups by ({@see OnboardingTask::CATEGORIES}); its
+     * `due_offset_days` counts from the hire's start date.
+     *
+     * @return list<array{key: string, name: string, description: string, tasks: list<array{title: string, category: string, due_offset_days: int}>}>
+     */
+    public static function onboardingPrograms(): array
+    {
+        return [
+            [
+                'key' => 'standard',
+                'name' => 'Standard Onboarding',
+                'description' => 'The baseline checklist every new hire goes through in their first month.',
+                'tasks' => [
+                    ['title' => 'Sign employment contract', 'category' => 'paperwork', 'due_offset_days' => 1],
+                    ['title' => 'Submit government IDs & bank details', 'category' => 'paperwork', 'due_offset_days' => 3],
+                    ['title' => 'Issue laptop & peripherals', 'category' => 'equipment', 'due_offset_days' => 1],
+                    ['title' => 'Create email & system accounts', 'category' => 'access', 'due_offset_days' => 1],
+                    ['title' => 'Grant building / door access', 'category' => 'access', 'due_offset_days' => 2],
+                    ['title' => 'Company orientation & office tour', 'category' => 'orientation', 'due_offset_days' => 2],
+                    ['title' => 'Meet the team & assign a buddy', 'category' => 'orientation', 'due_offset_days' => 3],
+                    ['title' => 'Complete code of conduct & safety training', 'category' => 'training', 'due_offset_days' => 7],
+                    ['title' => 'Enrol in benefits (SSS, PhilHealth, Pag-IBIG)', 'category' => 'compliance', 'due_offset_days' => 14],
+                    ['title' => '30-day check-in with manager', 'category' => 'other', 'due_offset_days' => 30],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Exit clearances to start from — the provisioner's own standard list
+     * ({@see OffboardingProvisioner::STANDARD_ITEMS}), so a company that adopts
+     * it clears people exactly as one with no template at all would. An item is
+     * routed to the department carrying its code (`__own__` is the leaver's own
+     * department), which is why these codes match the suggested departments.
+     *
+     * @return list<array{key: string, name: string, description: string, items: list<array{item: string, department: string}>}>
+     */
+    public static function offboardingPrograms(): array
+    {
+        return [
+            [
+                'key' => 'standard',
+                'name' => 'Standard Exit Clearance',
+                'description' => 'The baseline clearance every departing employee goes through — IT, Finance, HR and their own department.',
+                'items' => OffboardingProvisioner::STANDARD_ITEMS,
+            ],
+        ];
+    }
+
+    /**
+     * Easter Sunday in the given year — the anonymous Gregorian computation, so
+     * Holy Week needs neither the calendar extension nor a table of dates.
+     */
+    private static function easter(int $year): CarbonImmutable
+    {
+        $a = $year % 19;
+        $b = intdiv($year, 100);
+        $c = $year % 100;
+        $d = intdiv($b, 4);
+        $e = $b % 4;
+        $f = intdiv($b + 8, 25);
+        $g = intdiv($b - $f + 1, 3);
+        $h = (19 * $a + $b - $d - $g + 15) % 30;
+        $i = intdiv($c, 4);
+        $k = $c % 4;
+        $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+        $m = intdiv($a + 11 * $h + 22 * $l, 451);
+        $month = intdiv($h + $l - 7 * $m + 114, 31);
+        $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+
+        return CarbonImmutable::create($year, $month, $day);
     }
 
     /**

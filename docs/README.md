@@ -42,7 +42,7 @@ commit history rather than repeating them.
 - [Events & Meetings](./modules/events.md) — scheduled events/meetings with a derived lifecycle + an invitee roster.
 - [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
 - [Company Profile (Company Setup)](./modules/company-profile.md) — the tenant's own identity, contact details, logo & statutory employer numbers.
-- [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided six-step walk-through a brand-new company gets before its dashboard.
+- [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided walk-through a brand-new company gets before its dashboard: a step for every Company Setup screen, each carrying that screen's editors, with suggestions to start from.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Work Locations (Company Setup)](./modules/work-locations.md) — sites drawn on a map, the fences punches are checked against, and who is based where.

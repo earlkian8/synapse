@@ -1,26 +1,33 @@
 import { useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
+import { DepartmentsManager } from '@/features/departments/components/departments-manager';
+import type { DepartmentsPageProps } from '@/features/departments/types';
 import { setupWizardRoutes } from '../routes';
-import type { DepartmentBlueprint, DepartmentDraft } from '../types';
-import AlreadyConfigured from './already-configured';
+import type {
+    DepartmentBlueprint,
+    DepartmentDraft,
+    StepControls,
+} from '../types';
 import ChoiceCard from './choice-card';
 import CustomSection, { CustomRow } from './custom-section';
+import SectionHeading from './section-heading';
 import StepBody from './step-body';
-import StepFooter from './step-footer';
+import StepFooter, { continueAction } from './step-footer';
+import SuggestionsPanel, { useSuggestionsOpen } from './suggestions-panel';
 
-type Props = {
+type Props = StepControls & {
+    screen: DepartmentsPageProps;
     blueprints: DepartmentBlueprint[];
     existing: string[];
-    onSaved: () => void;
-    onBack: () => void;
-    onSkip: () => void;
-    skipping: boolean;
 };
 
 /**
- * Step 2 — the org structure. Tick the functions the company has, reword the
- * ones it calls something else, and add the ones only it has.
+ * The org structure. Tick the functions the company has, reword the ones it
+ * calls something else, and add the ones only it has — then shape them in the
+ * same board Company Setup uses: nest them, give each a head, the schedule and
+ * policy its people default to, and the positions under it.
  *
  * Nothing is pre-ticked: a department list is the one thing on this screen that
  * really is different at every company, and a pre-filled one would be adopted
@@ -30,18 +37,29 @@ type Props = {
  * carries the name, code and description the company gave it.
  */
 export default function DepartmentsStep({
+    screen,
     blueprints,
     existing,
-    onSaved,
-    onBack,
-    onSkip,
-    skipping,
+    ...controls
 }: Props) {
-    const { data, setData, post, processing, errors, clearErrors, transform } =
-        useForm({
-            codes: [] as string[],
-            custom: [] as DepartmentDraft[],
-        });
+    const [open, setOpen] = useSuggestionsOpen(controls.configured);
+    // Which button started the save — the tray's (add, and stay) or the
+    // footer's (add, and continue) — so only that one spins.
+    const [continuing, setContinuing] = useState(false);
+
+    const {
+        data,
+        setData,
+        post,
+        processing,
+        errors,
+        clearErrors,
+        transform,
+        reset,
+    } = useForm({
+        codes: [] as string[],
+        custom: [] as DepartmentDraft[],
+    });
 
     const taken = new Set(existing.map((name) => name.toLowerCase()));
 
@@ -98,8 +116,13 @@ export default function DepartmentsStep({
         data.codes.length +
         data.custom.filter((row) => row.name.trim() !== '').length;
 
-    const submit = (event: React.FormEvent) => {
-        event.preventDefault();
+    const remaining = blueprints.filter(
+        (blueprint) => !taken.has(blueprint.name.toLowerCase()),
+    ).length;
+
+    /** Add what was picked — then stay to shape it, or move straight on. */
+    const submit = (andContinue: boolean) => {
+        setContinuing(andContinue);
 
         transform((payload) => ({
             ...payload,
@@ -115,9 +138,21 @@ export default function DepartmentsStep({
         post(setupWizardRoutes.departments, {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: onSaved,
+            onFinish: () => setContinuing(false),
+            onSuccess: () => {
+                reset();
+
+                if (andContinue) {
+                    controls.onNext();
+                } else {
+                    setOpen(false);
+                }
+            },
         });
     };
+
+    const pending = open && total > 0;
+    const addLabel = `Add ${total} ${total === 1 ? 'department' : 'departments'}`;
 
     const rows = data.custom.map((row, index) => (
         <CustomRow
@@ -188,25 +223,32 @@ export default function DepartmentsStep({
     ));
 
     return (
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
             <StepBody>
-                <AlreadyConfigured
-                    names={existing}
-                    noun="department"
-                    where="Company Setup → Departments"
-                />
-
-                <div>
-                    <h2 className="text-sm font-semibold">
-                        Common departments
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                        Pick the ones your company has. Call one something else
-                        with <span className="text-foreground">Customise</span>,
-                        and you can nest them and add positions later.
-                    </p>
-
-                    <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                <SuggestionsPanel
+                    open={open}
+                    onOpenChange={setOpen}
+                    collapsible={controls.configured}
+                    description={
+                        <>
+                            Pick the ones your company has. Call one something
+                            else with{' '}
+                            <span className="text-foreground">Customise</span>,
+                            or name your own — then nest them and add positions
+                            below.
+                        </>
+                    }
+                    summary={
+                        remaining === 0
+                            ? 'Name a department of your own'
+                            : `${remaining} common ${remaining === 1 ? 'department' : 'departments'} you haven't added, or name your own`
+                    }
+                    onSubmit={() => submit(false)}
+                    submitLabel={total === 0 ? 'Add departments' : addLabel}
+                    submitDisabled={total === 0}
+                    processing={processing && !continuing}
+                >
+                    <div className="grid gap-2.5 sm:grid-cols-2">
                         {blueprints.map((blueprint) => {
                             const already = taken.has(
                                 blueprint.name.toLowerCase(),
@@ -257,39 +299,55 @@ export default function DepartmentsStep({
                         })}
                     </div>
 
-                    <InputError message={errors.codes} className="mt-2" />
-                </div>
+                    <InputError message={errors.codes} />
 
-                <CustomSection
-                    title="Departments you name yourself"
-                    hint="Anything the list above doesn't cover, and anything you customised. A short code goes on reports and exports — leave it blank and we'll make one from the name."
-                    addLabel="Add a department"
-                    empty="Nothing here yet. Everything you add becomes a real department you can nest, staff and post jobs against."
-                    onAdd={() =>
-                        addRow({
-                            name: '',
-                            code: '',
-                            description: '',
-                            source: null,
-                        })
-                    }
-                >
-                    {rows.length > 0 ? rows : undefined}
-                </CustomSection>
+                    <CustomSection
+                        title="Departments you name yourself"
+                        hint="Anything the list above doesn't cover, and anything you customised. A short code goes on reports and exports — leave it blank and we'll make one from the name."
+                        addLabel="Add a department"
+                        empty="Nothing here yet. Everything you add becomes a real department you can nest, staff and post jobs against."
+                        onAdd={() =>
+                            addRow({
+                                name: '',
+                                code: '',
+                                description: '',
+                                source: null,
+                            })
+                        }
+                    >
+                        {rows.length > 0 ? rows : undefined}
+                    </CustomSection>
+                </SuggestionsPanel>
+
+                <SectionHeading
+                    title="Your departments"
+                    hint="Open a department to add the positions under it. Edit one to nest it under another, or to set the schedule and attendance policy its people default to. Heads can be named once people have joined."
+                />
+
+                <DepartmentsManager {...screen} showStats={false} />
             </StepBody>
 
             <StepFooter
-                onBack={onBack}
-                onSkip={onSkip}
-                processing={processing}
-                skipping={skipping}
-                disabled={total === 0}
+                onBack={controls.onBack}
+                onSkip={controls.onSkip}
+                busy={controls.busy}
+                skipping={controls.skipping}
+                primary={
+                    pending
+                        ? {
+                              label: `${addLabel} and continue`,
+                              onClick: () => submit(true),
+                              processing: processing && continuing,
+                              disabled: processing,
+                          }
+                        : continueAction(controls)
+                }
                 note={
-                    total === 0
+                    pending || controls.configured
                         ? undefined
-                        : `Creates ${total} ${total === 1 ? 'department' : 'departments'}`
+                        : 'Add a department, or skip this step for now.'
                 }
             />
-        </form>
+        </div>
     );
 }

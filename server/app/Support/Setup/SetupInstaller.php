@@ -3,9 +3,13 @@
 namespace App\Support\Setup;
 
 use App\Models\AttendancePolicy;
+use App\Models\AwardType;
 use App\Models\Department;
+use App\Models\Holiday;
 use App\Models\KpiCriterion;
 use App\Models\LeaveType;
+use App\Models\OffboardingProgram;
+use App\Models\OnboardingProgram;
 use App\Models\RatingScale;
 use App\Models\RecruitmentPipeline;
 use App\Models\ReviewTemplate;
@@ -95,6 +99,127 @@ class SetupInstaller
         }
 
         return $created;
+    }
+
+    /**
+     * Put the given holidays on the company calendar. A holiday already there by
+     * name is left alone — the company may have moved it to the date a
+     * proclamation named.
+     *
+     * @param  list<array{name: string, date: string, type: string, is_recurring: bool}>  $definitions
+     */
+    public static function holidays(array $definitions): int
+    {
+        $created = 0;
+
+        foreach ($definitions as $definition) {
+            if (Holiday::where('name', $definition['name'])->exists()) {
+                continue;
+            }
+
+            Holiday::create($definition);
+
+            $created++;
+        }
+
+        return $created;
+    }
+
+    /**
+     * Create the given award types.
+     *
+     * @param  list<array{name: string, description: string, color: string}>  $definitions
+     */
+    public static function awardTypes(array $definitions): int
+    {
+        $created = 0;
+
+        foreach ($definitions as $definition) {
+            if (AwardType::where('name', $definition['name'])->exists()) {
+                continue;
+            }
+
+            AwardType::create([...$definition, 'is_active' => true]);
+
+            $created++;
+        }
+
+        return $created;
+    }
+
+    /**
+     * Create an onboarding checklist. The first one a company has is its default,
+     * so a hire made before anything else is configured still starts with it.
+     * One already carrying the name is returned rather than duplicated.
+     *
+     * @param  array{name: string, description: string, tasks: list<array{title: string, category: string, due_offset_days: int}>}  $definition
+     */
+    public static function onboardingProgram(array $definition): OnboardingProgram
+    {
+        return DB::transaction(function () use ($definition): OnboardingProgram {
+            $existing = OnboardingProgram::where('name', $definition['name'])->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $program = OnboardingProgram::create([
+                'name' => $definition['name'],
+                'description' => $definition['description'],
+                'is_default' => ! OnboardingProgram::query()->where('is_default', true)->exists(),
+                'is_active' => true,
+            ]);
+
+            $program->enforceSingleDefault();
+            $program->syncBlueprint($definition['tasks']);
+
+            return $program;
+        });
+    }
+
+    /**
+     * Create an exit clearance. Each item is routed to the department carrying its
+     * code — `__own__` means the leaver's own — and one whose department the
+     * company does not have yet is left unrouted, which the template editor shows
+     * and lets HR fix. The first template is the default, as with onboarding.
+     *
+     * @param  array{name: string, description: string, items: list<array{item: string, department: string}>}  $definition
+     */
+    public static function offboardingProgram(array $definition): OffboardingProgram
+    {
+        return DB::transaction(function () use ($definition): OffboardingProgram {
+            $existing = OffboardingProgram::where('name', $definition['name'])->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $isDefault = ! OffboardingProgram::query()->where('is_default', true)->exists();
+
+            $program = OffboardingProgram::create([
+                'name' => $definition['name'],
+                'description' => $definition['description'],
+                'is_default' => $isDefault,
+                'is_active' => true,
+            ]);
+
+            $byCode = Department::query()
+                ->get(['id', 'code'])
+                ->keyBy(fn (Department $department): string => strtoupper((string) $department->code));
+
+            foreach ($definition['items'] as $index => $item) {
+                $own = $item['department'] === '__own__';
+
+                $program->items()->create([
+                    'item' => $item['item'],
+                    'department_id' => $own ? null : $byCode->get(strtoupper($item['department']))?->id,
+                    'use_employee_department' => $own,
+                    'sort_order' => $index,
+                ]);
+            }
+
+            return $program;
+        });
     }
 
     /**

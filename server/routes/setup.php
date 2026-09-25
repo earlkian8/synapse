@@ -22,6 +22,7 @@ use App\Http\Controllers\Setup\SetupWizardController;
 use App\Http\Controllers\Setup\ShiftRosterController;
 use App\Http\Controllers\Setup\WorkLocationController;
 use App\Http\Controllers\Setup\WorkScheduleController;
+use App\Support\Setup\CompanySetup;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,13 +41,26 @@ Route::middleware(['auth', 'verified'])
         // it is the company-profile ability; each step is gated by the ability of
         // the module it configures, because a step configures that module for
         // real — the wizard is a route through Company Setup, not a way around it.
-        Route::get('wizard', [SetupWizardController::class, 'show'])->middleware('can:setup.company.manage')->name('wizard.show');
+        //
+        // The view — welcome, a step, or the send-off — is in the URL, so the
+        // Company Setup editors a step carries can post and come `back()` to it.
+        Route::get('wizard/{view?}', [SetupWizardController::class, 'show'])
+            ->whereIn('view', CompanySetup::views())
+            ->middleware('can:setup.company.manage')
+            ->name('wizard.show');
         Route::post('wizard/company', [SetupWizardController::class, 'company'])->middleware('can:setup.company.manage')->name('wizard.company');
         Route::post('wizard/departments', [SetupWizardController::class, 'departments'])->middleware('can:setup.departments.manage')->name('wizard.departments');
         Route::post('wizard/leave-types', [SetupWizardController::class, 'leaveTypes'])->middleware('can:setup.leave-types.manage')->name('wizard.leave-types');
         Route::post('wizard/attendance', [SetupWizardController::class, 'attendance'])->middleware('can:setup.attendance-policies.manage')->name('wizard.attendance');
+        Route::post('wizard/holidays', [SetupWizardController::class, 'holidays'])->middleware('can:setup.schedule.manage')->name('wizard.holidays');
         Route::post('wizard/recruitment', [SetupWizardController::class, 'recruitment'])->middleware('can:recruitment.configure-pipelines')->name('wizard.recruitment');
+        Route::post('wizard/onboarding', [SetupWizardController::class, 'onboarding'])->middleware('can:onboarding.manage-programs')->name('wizard.onboarding');
         Route::post('wizard/performance', [SetupWizardController::class, 'performance'])->middleware('can:setup.kpi.manage')->name('wizard.performance');
+        Route::post('wizard/award-types', [SetupWizardController::class, 'awardTypes'])->middleware('can:setup.award-types.manage')->name('wizard.award-types');
+        Route::post('wizard/offboarding', [SetupWizardController::class, 'offboarding'])->middleware('can:offboarding.manage-programs')->name('wizard.offboarding');
+        // Moving on from a step done with its own editors; the step's ability is
+        // checked by the request, because it depends on which step.
+        Route::post('wizard/continue', [SetupWizardController::class, 'continue'])->middleware('can:setup.company.manage')->name('wizard.continue');
         Route::post('wizard/skip', [SetupWizardController::class, 'skip'])->middleware('can:setup.company.manage')->name('wizard.skip');
         Route::post('wizard/finish', [SetupWizardController::class, 'finish'])->middleware('can:setup.company.manage')->name('wizard.finish');
 

@@ -5,15 +5,12 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\AttendancePolicyPreviewRequest;
 use App\Http\Requests\Setup\AttendancePolicyRequest;
-use App\Http\Resources\AttendancePolicyResource;
 use App\Models\AttendancePolicy;
-use App\Models\AttendancePunch;
+use App\Queries\Setup\AttendancePoliciesScreen;
 use App\Support\ActivityLogger;
-use App\Support\Attendance\AttendancePolicyPresets;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Attendance\WorkedExample;
 use App\Support\Hashid;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,18 +32,9 @@ use Inertia\Response;
  */
 class AttendancePolicyController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, AttendancePoliciesScreen $screen): Response
     {
-        return Inertia::render('setup/attendance-policies', [
-            'policies' => AttendancePolicyResource::collection($this->listing()->get())->resolve($request),
-            'archivedPolicies' => AttendancePolicyResource::collection($this->listing()->onlyTrashed()->get())->resolve($request),
-            'presets' => AttendancePolicyPresets::forClient(),
-            // What a policy that sets nothing judges by — the built-in fallback,
-            // which is where "start from scratch" begins.
-            'fallback' => AttendancePolicySettings::fallback()->toArray(),
-            'sources' => AttendancePunch::CAPTURE_SOURCES,
-            'can' => ['manage' => $request->user()->can('setup.attendance-policies.manage')],
-        ]);
+        return Inertia::render('setup/attendance-policies', $screen->toArray($request));
     }
 
     public function store(AttendancePolicyRequest $request): RedirectResponse
@@ -184,17 +172,6 @@ class AttendancePolicyController extends Controller
                 (array) $request->validated('sample'),
             ),
         ]);
-    }
-
-    /**
-     * @return Builder<AttendancePolicy>
-     */
-    private function listing(): Builder
-    {
-        return AttendancePolicy::query()
-            ->withCount(['schedules', 'departments', 'assignments'])
-            ->orderByDesc('is_default')
-            ->orderBy('name');
     }
 
     private function findTrashed(string $hashid): AttendancePolicy

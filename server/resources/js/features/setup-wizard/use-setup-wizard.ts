@@ -2,100 +2,122 @@ import { router } from '@inertiajs/react';
 import { useCallback, useMemo, useState } from 'react';
 import { STEPS } from './constants';
 import { setupWizardRoutes } from './routes';
-import type { SetupProgress, SetupStep } from './types';
+import type { SetupProgress, SetupStep, WizardView } from './types';
 
-/** What the working pane is showing: the welcome, one step, or the send-off. */
-export type WizardView = 'intro' | SetupStep | 'done';
+export type { WizardView } from './types';
+
+/** What the wizard itself is in the middle of, so only that button spins. */
+type Busy = 'visit' | 'skip' | 'advance' | 'finish' | null;
 
 const ORDER: SetupStep[] = STEPS.map((meta) => meta.step);
 
 /**
- * The wizard's navigation and its two whole-wizard actions.
+ * The wizard's navigation and its whole-wizard actions.
  *
- * Which step is on screen is deliberately client state: a step posts and comes
- * back to the same page (`back()` from the controller), so advancing is the
- * client's decision, taken once the server has confirmed the step. The server
- * still owns what is *recorded* — `progress` is re-read from props after every
- * post, so the ladder and the finish screen can never disagree with the database.
+ * Which view is on screen lives in the URL (`/setup/wizard/{view}`), and the
+ * server renders it: a step carries its Company Setup screen's own props, and
+ * the editors on it save the way they do on that screen — post, then `back()` —
+ * which lands on the same step with its list refreshed. Moving between views is
+ * therefore a visit, and what is *recorded* stays the server's: `progress` is
+ * re-read from props after every post, so the ladder and the finish screen can
+ * never disagree with the database.
  */
-export function useSetupWizard(progress: SetupProgress) {
-    const [view, setView] = useState<WizardView>(() => {
-        if (progress.completed) {
-            return 'done';
-        }
-
-        const answered = ORDER.filter(
-            (step) => progress.steps[step] !== 'pending',
-        ).length;
-
-        // A company that has answered nothing has not started. One that has
-        // answered everything but never finished has only the send-off left —
-        // which is where finishing happens. Anything in between resumes where it
-        // left off rather than at the welcome again.
-        if (answered === 0) {
-            return 'intro';
-        }
-
-        return answered === ORDER.length ? 'done' : progress.resume;
-    });
-
-    const [working, setWorking] = useState(false);
+export function useSetupWizard(view: WizardView, progress: SetupProgress) {
+    const [busy, setBusy] = useState<Busy>(null);
 
     const index = ORDER.indexOf(view as SetupStep);
     const isStep = index !== -1;
 
-    const goNext = useCallback(() => {
-        setView((current) => {
-            const at = ORDER.indexOf(current as SetupStep);
-
-            if (at === -1) {
-                return ORDER[0];
-            }
-
-            return at === ORDER.length - 1 ? 'done' : ORDER[at + 1];
-        });
+    /** Open a view. The page stays mounted, so what the rail shows carries over. */
+    const visit = useCallback((next: WizardView) => {
+        router.get(
+            setupWizardRoutes.view(next),
+            {},
+            {
+                preserveState: true,
+                onStart: () => setBusy('visit'),
+                onFinish: () => setBusy(null),
+            },
+        );
     }, []);
+
+    const goNext = useCallback(() => {
+        visit(
+            index === -1
+                ? ORDER[0]
+                : index === ORDER.length - 1
+                  ? 'done'
+                  : ORDER[index + 1],
+        );
+    }, [index, visit]);
 
     const goBack = useCallback(() => {
-        setView((current) => {
-            if (current === 'done') {
-                return ORDER[ORDER.length - 1];
-            }
+        if (view === 'done') {
+            visit(ORDER[ORDER.length - 1]);
 
-            const at = ORDER.indexOf(current as SetupStep);
+            return;
+        }
 
-            return at <= 0 ? 'intro' : ORDER[at - 1];
-        });
-    }, []);
+        visit(index <= 0 ? 'intro' : ORDER[index - 1]);
+    }, [index, view, visit]);
 
     /** Record a step as passed over, then move on. */
     const skip = useCallback(
         (step: SetupStep) => {
-            setWorking(true);
-
             router.post(
                 setupWizardRoutes.skip,
                 { step },
                 {
                     preserveScroll: true,
                     preserveState: true,
+                    onStart: () => setBusy('skip'),
+                    // On success the next visit takes over the busy state.
                     onSuccess: () => goNext(),
-                    onFinish: () => setWorking(false),
+                    onError: () => setBusy(null),
+                    onCancel: () => setBusy(null),
                 },
             );
         },
         [goNext],
     );
 
-    /** Close setup and go to the dashboard. */
-    const finish = useCallback(() => {
-        setWorking(true);
+    /**
+     * Move on from a step whose work was done with its own editors. It is
+     * recorded as done first, unless it already is — then this is only a visit.
+     */
+    const advance = useCallback(
+        (step: SetupStep) => {
+            if (progress.steps[step] === 'done') {
+                goNext();
 
-        router.post(
-            setupWizardRoutes.finish,
-            {},
-            { onError: () => setWorking(false) },
-        );
+                return;
+            }
+
+            router.post(
+                setupWizardRoutes.continue,
+                { step },
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onStart: () => setBusy('advance'),
+                    // On success the next visit takes over the busy state.
+                    onSuccess: () => goNext(),
+                    onError: () => setBusy(null),
+                    onCancel: () => setBusy(null),
+                },
+            );
+        },
+        [goNext, progress.steps],
+    );
+
+    /** Close setup and go to the dashboard — or straight on to inviting people. */
+    const finish = useCallback((next?: 'people') => {
+        setBusy('finish');
+
+        router.post(setupWizardRoutes.finish, next ? { next } : {}, {
+            onError: () => setBusy(null),
+            onCancel: () => setBusy(null),
+        });
     }, []);
 
     const counts = useMemo(() => {
@@ -116,15 +138,17 @@ export function useSetupWizard(progress: SetupProgress) {
 
     return {
         view,
-        setView,
+        visit,
         /** 1-based position of the current step, or 0 outside the ladder. */
         position: isStep ? index + 1 : 0,
         isStep,
-        isFirstStep: index === 0,
-        working,
+        /** Anything whole-wizard in flight — every button waits for it. */
+        working: busy !== null,
+        busy,
         goNext,
         goBack,
         skip,
+        advance,
         finish,
         counts,
     };

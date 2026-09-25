@@ -1,16 +1,24 @@
 import {
+    Award,
     Building2,
+    CalendarClock,
+    CalendarDays,
     CalendarRange,
     Clock,
+    DoorOpen,
+    ListChecks,
+    MapPinned,
     Network,
+    ScanLine,
     Target,
     Workflow,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { SetupStep } from './types';
+import type { SetupStep, StepGroup } from './types';
 
 type StepMeta = {
     step: SetupStep;
+    group: StepGroup;
     icon: LucideIcon;
     /** The short name in the step ladder. */
     label: string;
@@ -18,14 +26,27 @@ type StepMeta = {
     title: string;
     /** One line saying what this step is for — and what depends on it. */
     purpose: string;
-    /** Where the same thing is configured afterwards. */
+    /** Where the same thing is configured afterwards, under Company Setup. */
     href: string;
 };
 
-/** The wizard's six steps, in the order the server walks them. */
+/** The three stretches of the road, in the order the rail and the welcome show them. */
+export const GROUPS: { group: StepGroup; label: string }[] = [
+    { group: 'company', label: 'Your company' },
+    { group: 'time', label: 'Time & attendance' },
+    { group: 'people', label: 'Your people, hire to exit' },
+];
+
+/**
+ * Every Company Setup screen as a step, in the order the server walks them
+ * (`CompanySetup::STEPS`). Where one step's options come from an earlier one —
+ * a site's default schedule, a device's site, a roster's schedules — the
+ * earlier one comes first.
+ */
 export const STEPS: StepMeta[] = [
     {
         step: 'company',
+        group: 'company',
         icon: Building2,
         label: 'Company',
         title: 'Tell us about your company',
@@ -35,15 +56,37 @@ export const STEPS: StepMeta[] = [
     },
     {
         step: 'departments',
+        group: 'company',
         icon: Network,
         label: 'Departments',
         title: 'How is your company organised?',
         purpose:
-            'Every employee, job posting and appraisal is filed under a department.',
+            'Every employee, job posting and appraisal is filed under a department and a position.',
         href: '/setup/departments',
     },
     {
+        step: 'attendance',
+        group: 'time',
+        icon: Clock,
+        label: 'Attendance rules',
+        title: 'How are your days judged?',
+        purpose:
+            'When someone is late or short, what counts as overtime, and the hours most people work.',
+        href: '/setup/attendance-policies',
+    },
+    {
+        step: 'schedule',
+        group: 'time',
+        icon: CalendarDays,
+        label: 'Schedules & holidays',
+        title: 'When do people work, and when is everyone off?',
+        purpose:
+            'The shifts people are put on, and the holidays that are never charged as leave.',
+        href: '/setup/schedule',
+    },
+    {
         step: 'leave-types',
+        group: 'time',
         icon: CalendarRange,
         label: 'Leave',
         title: 'What leave do you grant?',
@@ -51,16 +94,38 @@ export const STEPS: StepMeta[] = [
         href: '/setup/leave-types',
     },
     {
-        step: 'attendance',
-        icon: Clock,
-        label: 'Attendance',
-        title: 'How are your days judged?',
+        step: 'locations',
+        group: 'time',
+        icon: MapPinned,
+        label: 'Locations',
+        title: 'Where do your people work?',
         purpose:
-            'When someone is late or short, what counts as overtime, and the hours most people work.',
-        href: '/setup/attendance-policies',
+            'Each site is a fence on the map that web and app punches are placed against.',
+        href: '/setup/locations',
+    },
+    {
+        step: 'devices',
+        group: 'time',
+        icon: ScanLine,
+        label: 'Devices',
+        title: 'Any kiosks or scanners at the door?',
+        purpose:
+            'Biometric scanners and kiosk tablets that send punches alongside the web and the app.',
+        href: '/setup/devices',
+    },
+    {
+        step: 'roster',
+        group: 'time',
+        icon: CalendarClock,
+        label: 'Shift roster',
+        title: 'Who works which shift?',
+        purpose:
+            'The plan each day of attendance is judged against — who is due in, and when.',
+        href: '/setup/roster',
     },
     {
         step: 'recruitment',
+        group: 'people',
         icon: Workflow,
         label: 'Hiring',
         title: 'How do you hire?',
@@ -69,13 +134,44 @@ export const STEPS: StepMeta[] = [
         href: '/setup/recruitment-pipelines',
     },
     {
+        step: 'onboarding',
+        group: 'people',
+        icon: ListChecks,
+        label: 'Onboarding',
+        title: 'How does a new hire start?',
+        purpose:
+            'The checklist every new hire is given the moment they are hired.',
+        href: '/setup/onboarding',
+    },
+    {
         step: 'performance',
+        group: 'people',
         icon: Target,
         label: 'Appraisals',
         title: 'How do you review your people?',
         purpose:
-            'A framework decides what an appraisal measures, and how the result is reported.',
+            'A framework decides what an appraisal measures; a review cycle is when it happens.',
         href: '/setup/kpi',
+    },
+    {
+        step: 'awards',
+        group: 'people',
+        icon: Award,
+        label: 'Awards',
+        title: 'How do you recognise good work?',
+        purpose:
+            'The awards your people can be given, and what each one means.',
+        href: '/setup/award-types',
+    },
+    {
+        step: 'offboarding',
+        group: 'people',
+        icon: DoorOpen,
+        label: 'Offboarding',
+        title: 'How does someone leave well?',
+        purpose:
+            'The clearance every exit runs through, each item routed to the department that signs it off.',
+        href: '/setup/offboarding',
     },
 ];
 
@@ -84,31 +180,7 @@ export const STEP_META: Record<SetupStep, StepMeta> = Object.fromEntries(
     STEPS.map((meta) => [meta.step, meta]),
 ) as Record<SetupStep, StepMeta>;
 
-/**
- * The Company Setup screens the wizard deliberately leaves out — real settings,
- * but none of them block day-one work. Named on the finish screen so the owner
- * knows what else is there rather than discovering it by accident.
- */
-export const REMAINING_SETUP: { title: string; href: string; note: string }[] =
-    [
-        {
-            title: 'Work schedule & holidays',
-            href: '/setup/schedule',
-            note: 'Other shifts and rotations, and the holiday calendar attendance and leave both read.',
-        },
-        {
-            title: 'Onboarding programs',
-            href: '/setup/onboarding',
-            note: 'The checklist every new hire starts with.',
-        },
-        {
-            title: 'Offboarding programs',
-            href: '/setup/offboarding',
-            note: 'The clearance checklist an exit runs through.',
-        },
-        {
-            title: 'Award types',
-            href: '/setup/award-types',
-            note: 'The recognitions you give out.',
-        },
-    ];
+/** The group label a step sits under. */
+export const GROUP_LABEL: Record<StepGroup, string> = Object.fromEntries(
+    GROUPS.map(({ group, label }) => [group, label]),
+) as Record<StepGroup, string>;

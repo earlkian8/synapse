@@ -5,12 +5,10 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\AssignScheduleRequest;
 use App\Http\Requests\Attendance\RosterEntryRequest;
-use App\Models\AttendancePolicy;
-use App\Models\Department;
 use App\Models\Employee;
 use App\Models\ShiftRosterEntry;
 use App\Models\WorkSchedule;
-use App\Queries\AttendanceRecordsIndexQuery;
+use App\Queries\Setup\ShiftRosterScreen;
 use App\Queries\ShiftRosterQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\RosterWriter;
@@ -42,36 +40,9 @@ class ShiftRosterController extends Controller
      * The week containing `date` (the organisation's this week by default),
      * optionally narrowed to one department or a search.
      */
-    public function index(Request $request, ShiftRosterQuery $roster, AttendanceRecordsIndexQuery $dates): Response
+    public function index(Request $request, ShiftRosterScreen $screen): Response
     {
-        $date = $dates->date($request);
-        $department = $request->integer('department') ?: null;
-        $search = $request->string('search')->toString();
-
-        return Inertia::render('setup/roster', [
-            'roster' => fn () => $roster->toArray($date, $department, $search),
-            'options' => [
-                'departments' => Department::orderBy('name')->get(['id', 'name']),
-                // The templates the override and assign dialogs choose from.
-                'schedules' => WorkSchedule::query()
-                    ->orderBy('name')
-                    ->get(['id', 'name', 'type', 'cycle_length_days'])
-                    ->map(fn (WorkSchedule $schedule): array => [
-                        'id' => $schedule->id,
-                        'name' => $schedule->name,
-                        'type' => $schedule->type,
-                        'cycle_length_days' => (int) $schedule->cycle_length_days,
-                    ]),
-                // What an assignment can single somebody out to be judged by (ADR 0038).
-                'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
-            ],
-            'can' => ['manage' => $request->user()->can('setup.roster.manage')],
-            'filters' => [
-                'date' => $date,
-                'search' => $search,
-                'department' => $department,
-            ],
-        ]);
+        return Inertia::render('setup/roster', $screen->toArray($request));
     }
 
     /**

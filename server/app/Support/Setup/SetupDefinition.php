@@ -6,6 +6,8 @@ use App\Models\RecruitmentPipelineStage;
 use App\Support\Attendance\AttendancePolicyPresets;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Performance\RatingModel;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 /**
@@ -109,6 +111,90 @@ class SetupDefinition
         }
 
         return $definitions;
+    }
+
+    /**
+     * The holidays a step adopted, each on the date {@see SetupBlueprints}
+     * resolves it to today — a posted key names a holiday, never its date.
+     *
+     * @param  list<string>  $keys
+     * @return list<array{name: string, date: string, type: string, is_recurring: bool}>
+     */
+    public static function holidays(array $keys, CarbonInterface $today): array
+    {
+        $definitions = [];
+
+        foreach (SetupBlueprints::holidays($today) as $blueprint) {
+            if (in_array($blueprint['key'], $keys, true)) {
+                $definitions[] = Arr::except($blueprint, 'key');
+            }
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * The award types a step adopted, in the wording the blueprints hold.
+     *
+     * @param  list<string>  $keys
+     * @return list<array{name: string, description: string, color: string}>
+     */
+    public static function awardTypes(array $keys): array
+    {
+        $definitions = [];
+
+        foreach (SetupBlueprints::awardTypes() as $blueprint) {
+            if (in_array($blueprint['key'], $keys, true)) {
+                $definitions[] = Arr::except($blueprint, 'key');
+            }
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * The onboarding checklist a step adopted, under the company's own name for
+     * it when it gave one. Its tasks are the blueprint's; changing them is the
+     * program editor's job, one click away on the same step.
+     *
+     * @param  array<string, mixed>  $answer
+     * @return array{name: string, description: string, tasks: list<array{title: string, category: string, due_offset_days: int}>}|null
+     */
+    public static function onboardingProgram(array $answer): ?array
+    {
+        $blueprint = SetupBlueprints::find(SetupBlueprints::onboardingPrograms(), $answer['blueprint'] ?? null);
+
+        if ($blueprint === null) {
+            return null;
+        }
+
+        return [
+            'name' => self::text($answer['name'] ?? null) ?? $blueprint['name'],
+            'description' => $blueprint['description'],
+            'tasks' => $blueprint['tasks'],
+        ];
+    }
+
+    /**
+     * The exit clearance a step adopted, under the company's own name for it when
+     * it gave one.
+     *
+     * @param  array<string, mixed>  $answer
+     * @return array{name: string, description: string, items: list<array{item: string, department: string}>}|null
+     */
+    public static function offboardingProgram(array $answer): ?array
+    {
+        $blueprint = SetupBlueprints::find(SetupBlueprints::offboardingPrograms(), $answer['blueprint'] ?? null);
+
+        if ($blueprint === null) {
+            return null;
+        }
+
+        return [
+            'name' => self::text($answer['name'] ?? null) ?? $blueprint['name'],
+            'description' => $blueprint['description'],
+            'items' => $blueprint['items'],
+        ];
     }
 
     /**
