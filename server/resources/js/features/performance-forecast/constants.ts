@@ -20,6 +20,13 @@ export const BAND_STYLES: Record<ForecastBand, string> = {
     below: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
 };
 
+/** Each band as the end of "lands …", e.g. "lands above expectations". */
+export const BAND_PHRASES: Record<ForecastBand, string> = {
+    exceeds: 'above expectations',
+    on_track: 'on track',
+    below: 'below target',
+};
+
 /** Bands in display order (best first). */
 export const BAND_ORDER: ForecastBand[] = ['exceeds', 'on_track', 'below'];
 
@@ -72,17 +79,30 @@ export function formatConfidence(confidence: number | null): string {
     return confidence === null ? '—' : `${Math.round(confidence * 100)}%`;
 }
 
-/** Bucket a 0–1 confidence into a friendly label. */
+/**
+ * Words for a confidence — the chance the next rating lands in the forecast's
+ * band. Near a band's edge it is honestly close to a coin flip.
+ */
 export function confidenceLabel(confidence: number): string {
-    if (confidence >= 0.66) {
-        return 'High confidence';
+    if (confidence >= 0.8) {
+        return 'Likely';
     }
 
-    if (confidence >= 0.33) {
-        return 'Moderate confidence';
+    if (confidence >= 0.6) {
+        return 'More likely than not';
     }
 
-    return 'Low confidence';
+    return 'Could go either way';
+}
+
+/** A forecast's range, e.g. "60–75", or null for runs made before ranges. */
+export function formatRange(
+    low: number | null,
+    high: number | null,
+): string | null {
+    return low === null || high === null
+        ? null
+        : `${Math.round(low)}–${Math.round(high)}`;
 }
 
 /** Format an ISO timestamp as a friendly absolute date-time. */

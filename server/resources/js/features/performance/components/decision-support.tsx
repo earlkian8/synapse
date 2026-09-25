@@ -36,6 +36,13 @@ const BAND_META: Record<
     },
 };
 
+/** Each band as the end of "landing …". */
+const BAND_PHRASES: Record<ForecastBand, string> = {
+    below: 'below target',
+    on_track: 'on track',
+    exceeds: 'above expectations',
+};
+
 type Props = {
     support: DecisionSupportData;
     scores: PerformanceScore[];
@@ -246,8 +253,12 @@ function ForecastBody({
                 />
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-                {Math.round(forecast.confidence * 100)}% confidence · predicted
-                by the performance model
+                {forecast.predicted_low !== null &&
+                forecast.predicted_high !== null
+                    ? `Likely ${Math.round(forecast.predicted_low)}–${Math.round(forecast.predicted_high)} · `
+                    : ''}
+                {Math.round(forecast.confidence * 100)}% chance of landing{' '}
+                {BAND_PHRASES[forecast.band]} · from the performance model
             </p>
         </div>
     );

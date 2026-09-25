@@ -32,9 +32,12 @@ class PromotionReadinessRunController extends Controller
             return back();
         }
 
+        $declined = count($run->unassessed ?? []);
+
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => "Assessment complete — {$run->employees_scored} employees scored.",
+            'message' => "Assessment complete — {$run->employees_scored} employees scored."
+                .($declined > 0 ? " {$declined} with no completed appraisal were left out." : ''),
         ]);
 
         return redirect()->route('analytics.promotion-readiness.index');

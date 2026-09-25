@@ -1,15 +1,17 @@
 """
 Model registry for the Synapse inference service.
 
-Loads the trained scikit-learn pipelines from ``model/artifacts/<name>/`` once at
-start-up and exposes a small, robust prediction surface:
+Loads the trained models from ``model/artifacts/<name>/`` once at start-up. Two kinds
+of artifact are served:
 
-* **alignment** — callers send whatever employee features they have; we build a
-  full-width DataFrame in the exact column order the pipeline expects and let the
-  pipeline's own imputers fill anything missing (so partial inputs are fine).
-* **scoring** — probability for the classifiers, predicted value for the regressor.
-* **explanations** — per-feature logit contributions for the linear promotion model,
-  what-if-typical deltas for the attrition forest, giving the UI an honest "why".
+* **served models** (promotion, performance) — objects from ``synapse_ml`` that own
+  their whole contract: they read each record's inputs, decline a record that lacks a
+  required one, and return the score, tier or band, interval and explanation
+  themselves. The notebook, the tests and this service therefore run one code path.
+* **pipelines** (attrition) — a fitted scikit-learn ``Pipeline``. Callers send
+  whatever features they have; a full-width frame is built in the pipeline's column
+  order and its own imputers fill the rest. Explanations are logit contributions for
+  a linear model and what-if-typical deltas for any other classifier.
 """
 
 from __future__ import annotations
@@ -32,7 +34,8 @@ _SPECS = {
     "attrition": "classifier",
 }
 
-# Readiness/risk tier cut-offs on the probability scale (mirrors the notebooks).
+# Attrition's tier cut-offs on the probability scale (mirrors its notebook). The served
+# models carry their own tiers and bands.
 TIER_BINS = ((0.33, "low"), (0.66, "medium"), (1.01, "high"))
 
 # Demographic / protected attributes are never surfaced as decision factors — both
@@ -45,43 +48,7 @@ PROTECTED_FEATURES = {"gender", "marital_status", "age", "education_level", "cit
 # effect is the forest's own noise and reads as contradiction, not insight.
 OCCLUSION_FLOOR = 0.02
 
-# Human labels for the promotion features, so factor explanations read well.
-PROMOTION_FEATURE_LABELS = {
-    "performance_score": "Current performance",
-    "performance_last_year": "Performance last year",
-    "performance_two_years_ago": "Performance two years ago",
-    "manager_rating": "Manager rating",
-    "peer_feedback_score": "Peer feedback",
-    "kpi_achievement_percent": "KPI achievement",
-    "years_at_company": "Tenure at company",
-    "years_in_current_role": "Years in current role",
-    "years_since_last_promotion": "Years since last promotion",
-    "training_hours_last_year": "Training hours",
-    "certifications_count": "Certifications",
-    "skill_assessment_score": "Skill assessment",
-    "mentoring_sessions": "Mentoring sessions",
-    "cross_department_projects": "Cross-department projects",
-    "projects_completed": "Projects completed",
-    "tasks_completed": "Tasks completed",
-    "deadline_adherence_rate": "Deadline adherence",
-    "leadership_score": "Leadership",
-    "innovation_score": "Innovation",
-    "problem_solving_score": "Problem solving",
-    "employee_engagement_score": "Engagement",
-    "job_satisfaction_score": "Job satisfaction",
-    "internal_mobility_score": "Internal mobility",
-    "attendance_rate": "Attendance rate",
-    "late_days": "Late days",
-    "salary": "Salary",
-    "bonus_last_year": "Bonus last year",
-    "age": "Age",
-    "team_size": "Team size",
-    "department": "Department",
-    "education_level": "Education level",
-    "employment_type": "Employment type",
-}
-
-FEATURE_LABELS = {**PROMOTION_FEATURE_LABELS, **ATTRITION_FEATURE_LABELS}
+FEATURE_LABELS = dict(ATTRITION_FEATURE_LABELS)
 
 
 def _humanize(encoded_name: str) -> str:
@@ -112,6 +79,8 @@ class LoadedModel:
     categorical: list[str]
     features: list[str]
     metrics: dict[str, Any] = field(default_factory=dict)
+    # A synapse_ml served model (has ``assess``), or None for a plain pipeline.
+    served: Any = None
 
     @property
     def version(self) -> str | None:
@@ -145,23 +114,57 @@ class Registry:
             if not path.exists():
                 continue
 
-            pipeline = joblib.load(path)
-            prep = pipeline.named_steps["prep"]
-            numeric = list(prep.transformers_[0][2])
-            categorical = list(prep.transformers_[1][2])
-
+            artifact = joblib.load(path)
             metrics_path = ARTIFACTS_DIR / name / "metrics.json"
             metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
 
+            if hasattr(artifact, "assess"):
+                self.models[name] = LoadedModel(
+                    name=name,
+                    kind=artifact.kind,
+                    pipeline=None,
+                    numeric=list(artifact.features),
+                    categorical=[],
+                    features=list(artifact.features),
+                    metrics=metrics,
+                    served=artifact,
+                )
+                continue
+
+            prep = artifact.named_steps["prep"]
             self.models[name] = LoadedModel(
                 name=name,
                 kind=kind,
-                pipeline=pipeline,
-                numeric=numeric,
-                categorical=categorical,
+                pipeline=artifact,
+                numeric=list(prep.transformers_[0][2]),
+                categorical=list(prep.transformers_[1][2]),
                 features=list(prep.feature_names_in_),
                 metrics=metrics,
             )
+
+    def predict(self, name: str, feature_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One result dict per instance, whatever the kind of artifact."""
+        model = self.get(name)
+        if model.served is not None:
+            return model.served.assess(feature_dicts)
+
+        probabilities, scores = self.score(name, feature_dicts)
+        factor_sets = self.contributions(name, feature_dicts)
+        return [
+            {
+                "status": "scored",
+                "probability": proba,
+                "score": score,
+                "tier": tier_for(proba) if proba is not None else None,
+                "factors": factors or None,
+            }
+            for proba, score, factors in zip(probabilities, scores, factor_sets, strict=True)
+        ]
+
+    def unknown_inputs(self, name: str, feature_dicts: list[dict[str, Any]]) -> list[str]:
+        """Input names the callers sent that the model does not read."""
+        known = set(self.get(name).features)
+        return sorted({key for feats in feature_dicts for key in feats} - known)
 
     def get(self, name: str) -> LoadedModel:
         if name not in self.models:

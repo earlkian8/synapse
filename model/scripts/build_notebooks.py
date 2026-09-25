@@ -2,8 +2,8 @@
 Generate the Synapse HR-ERP "Predictive Workforce Analytics" notebooks with nbformat.
 
     notebooks/01_attrition_model.ipynb     — Random Forest attrition risk (attrition surveys)
-    notebooks/02_performance_model.ipynb   — Gradient Boosting performance forecasting
-    notebooks/03_promotion_model.ipynb     — Logistic Regression promotion-readiness assessment
+    notebooks/02_performance_model.ipynb   — Gradient Boosting forecast with conformal intervals
+    notebooks/03_promotion_model.ipynb     — calibrated Logistic Regression promotion readiness
 
 Run from model/:  python scripts/build_notebooks.py
 
@@ -61,25 +61,6 @@ import synapse_ml as sm
 run = sm.start_run("{model_name}")   # opens logs/{model_name}_<ts>.log + artifacts/{model_name}/
 log = run.log
 """
-
-PREPROCESS_IMPORTS = """
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-"""
-
-PREPROCESS_DEF = """
-preprocess = ColumnTransformer([
-    ("num", Pipeline([("impute", SimpleImputer(strategy="median")),
-                      ("scale", StandardScaler())]), numeric_cols),
-    ("cat", Pipeline([("impute", SimpleImputer(strategy="most_frequent")),
-                      ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]),
-     categorical_cols),
-])
-"""
-
 
 # ======================================================================================
 # 1) ATTRITION — Random Forest classification on the merged attrition surveys
@@ -327,7 +308,7 @@ run.finish(summary=f"RandomForest: CV ROC-AUC={rf_cv['roc_auc']:.3f}±{rf_cv['ro
 
 
 # ======================================================================================
-# 2) PERFORMANCE — Gradient Boosting regression
+# 2) PERFORMANCE — Gradient Boosting forecast with conformal intervals
 # ======================================================================================
 
 
@@ -336,172 +317,185 @@ def build_performance() -> nbf.NotebookNode:
     cells = []
 
     cells.append(md("""
-# 02 · Performance Forecasting — Gradient Boosting
+# 02 · Performance Forecast — Gradient Boosting with conformal intervals
 
-**Goal** — forecast an employee's upcoming **performance score** (continuous 40–100) from
-historical KPI completion (`kpi_achievement_percent`, `performance_last_year`,
-`performance_two_years_ago`), attendance consistency (`attendance_rate`, `late_days`,
-`avg_monthly_hours`) and training participation (`training_hours_last_year`,
-`certifications_count`, `skill_assessment_score`). This gives HR an early read on likely
-high/low performers, complementing the manual weighted-KPI scoring in the Performance module.
+**Goal** — forecast each employee's **next appraisal** (attainment, 0–100) with a range that
+can be trusted and a band (*Below / On track / Exceeds*) that says how likely it is to be right.
 
-**Algorithm — Gradient Boosting** (`HistGradientBoostingRegressor`, scikit-learn's
-histogram-based gradient boosting — the scalable variant for this ~100k-row table). Chosen
-for its accuracy on tabular data with non-linear feature interactions. Rationale + citations
-in `../MODEL-JUSTIFICATION.md`.
+**Data** — the reference workforce (`data/raw/employee_promotion_prediction.csv`, 100,000 rows,
+three years of ratings each). A forecast can only know what came *before* the period it
+forecasts, so the reference is read one cycle shifted: last year's rating → this year's.
 
-As confirmed, the performance model is built on the **promotion dataset**
-(`employee_promotion_prediction.csv`) — its `performance_score` column is the richest
-performance signal across the datasets. Logged to `logs/performance*.log`; artifacts under
-`artifacts/performance/`.
+**What the ERP can supply, and so what the model reads** — one input, `rating_latest`: the
+latest *completed* appraisal before the forecast period, as `overall_percent`. §2 shows why
+nothing else earns a place. The previous model read 40 columns, most of which the ERP never
+has, and three of them (manager rating, KPI attainment, the current score) from the very
+appraisal it claimed to forecast.
 
-> **Leakage note:** the `promoted` outcome is dropped (downstream of performance);
-> historical performance columns are kept as legitimate predictors.
+**Algorithm — Gradient Boosting**, monotone in the latest rating, chosen in §3. Its errors,
+measured on reference employees it never trained on, become each forecast's interval and
+confidence (split conformal prediction, §4).
+
+**Where the logic lives** — `synapse_ml.performance` (`features`, `model`, `evaluation`),
+tested under `tests/`. This notebook is the narrative.
 """))
 
     cells.append(code(SETUP_CELL.format(model_name="performance")))
 
-    cells.append(md("## 1 · Load data"))
+    cells.append(md("## 1 · Load the reference, in the contract's units"))
     cells.append(code("""
-df = run.load_csv("employee_promotion_prediction.csv")
-print(df.shape)
-df.head()
-"""))
-    cells.append(code("""
-import io
-_info = io.StringIO()
-df.info(buf=_info)
-log.info("dataframe info:\\n%s", _info.getvalue())
-df.describe().T
-"""))
+from sklearn.model_selection import train_test_split
+from synapse_ml.appraisal import reference
+from synapse_ml.performance import evaluation, features, model as models
 
-    cells.append(md("## 2 · Target distribution & drivers"))
-    cells.append(code("""
-TARGET = "performance_score"
-ID_COL = "employee_id"
-DROP = [ID_COL, "promoted"]   # promoted is downstream of performance -> leakage
+df = reference.load()
+X, y = features.reference_frame(df)
+log.info("reference rows=%d · next rating mean=%.1f sd=%.1f", len(y), y.mean(), y.std())
 
-y = df[TARGET].astype(float)
-log.info("target=%s · mean=%.2f std=%.2f min=%.2f max=%.2f",
-         TARGET, y.mean(), y.std(), y.min(), y.max())
+# A test set that neither the forecaster nor its error measurements ever see.
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=models.SEED)
+log.info("train=%d · test=%d", len(y_train), len(y_test))
 
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.histplot(y, bins=40, kde=True, ax=ax, color="#4c72b0")
-ax.set_title(f"Distribution of {TARGET}")
-run.save_fig(fig, "01_target_distribution"); plt.show()
-"""))
-    cells.append(code("""
-num_df = df.drop(columns=DROP).select_dtypes("number")
-corr = num_df.corr()[TARGET].drop(TARGET).sort_values()
-log.info("numeric correlation with %s:\\n%s", TARGET, corr.to_string())
-
-fig, ax = plt.subplots(figsize=(7, 8))
-corr.plot(kind="barh", ax=ax, color=np.where(corr > 0, "#dd8452", "#4c72b0"))
-ax.set_title(f"Correlation of numeric features with {TARGET}")
-run.save_fig(fig, "02_feature_correlation"); plt.show()
-"""))
-
-    cells.append(md("## 3 · Preprocessing & split"))
-    cells.append(code(PREPROCESS_IMPORTS + """
-X = df.drop(columns=DROP + [TARGET])
-numeric_cols, categorical_cols = sm.split_feature_types(df.drop(columns=DROP), target=TARGET)
-log.info("numeric=%d · categorical=%d %s", len(numeric_cols), len(categorical_cols), categorical_cols)
-""" + PREPROCESS_DEF + """
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-log.info("split · train=%s test=%s", X_train.shape, X_test.shape)
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+axes[0].hist(y, bins=60, color="#4c72b0"); axes[0].set_title("Next rating (reference)")
+for name, below in features.BANDS[:-1]:
+    axes[0].axvline(below, color="k", ls="--", lw=0.8)
+sample = df.sample(4000, random_state=0)
+axes[1].scatter(sample["performance_last_year"], sample["performance_score"], s=4, alpha=0.3)
+axes[1].plot([40, 100], [40, 100], "k--", lw=0.8)
+axes[1].set_xlabel("latest rating"); axes[1].set_ylabel("next rating"); axes[1].set_title("Latest → next")
+fig.tight_layout(); run.save_fig(fig, "01_target_distribution"); plt.show()
 """))
 
     cells.append(md("""
-## 4 · Gradient Boosting model
+## 2 · What earns a place as an input
 
-`HistGradientBoostingRegressor` — additive trees fit on the gradient of the squared-error
-loss. Read by 3-fold cross-validated R² (3 folds keep the 100k-row run quick), then fit on
-all training data.
+Held-out R² of the same gradient-boosting learner on different inputs. Columns the ERP cannot
+produce are shown only to measure what is given up by leaving them out.
 """))
     cells.append(code("""
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.model_selection import KFold
+from sklearn.model_selection import cross_val_score
 
-cv = KFold(n_splits=3, shuffle=True, random_state=42)
-model = Pipeline([
-    ("prep", preprocess),
-    ("reg", HistGradientBoostingRegressor(
-        learning_rate=0.05, max_iter=600, max_leaf_nodes=31,
-        l2_regularization=1.0, early_stopping=True, random_state=42)),
-])
-
-cv_r2 = cross_val_score(model, X_train, y_train, cv=cv, scoring="r2", n_jobs=-1)
-log.info("CV R2 = %.4f (+/- %.4f)", cv_r2.mean(), cv_r2.std())
-model.fit(X_train, y_train)
-log.info("fitted GradientBoosting on %d rows", len(X_train))
+learner = HistGradientBoostingRegressor(learning_rate=0.05, max_iter=300, random_state=models.SEED)
+cands = {
+    "latest rating (served)": ["performance_last_year"],
+    "+ rating before it": ["performance_last_year", "performance_two_years_ago"],
+    "+ tenure, time since promotion, certifications": ["performance_last_year", "performance_two_years_ago",
+        "years_at_company", "years_since_last_promotion", "certifications_count"],
+    "all 40 columns, minus same-appraisal ones": [c for c in df.select_dtypes("number").columns
+        if c not in ("employee_id", "promoted", "performance_score", "manager_rating",
+                     "kpi_achievement_percent", "peer_feedback_score", "bonus_last_year", "stock_options")],
+}
+inputs_table = pd.Series({name: cross_val_score(learner, df[cols], df["performance_score"], cv=3, scoring="r2").mean()
+                          for name, cols in cands.items()}, name="cv_r2").round(4)
+log.info("held-out R2 by input set:\\n%s", inputs_table.to_string())
+inputs_table
+"""))
+    cells.append(md("""
+The latest rating carries all of it. Nothing the ERP could add moves R² in the third decimal,
+and even the columns it will never have add under 0.005 — so the served model reads one input
+and cannot be misled by a missing one.
 """))
 
-    cells.append(md("## 5 · Evaluation"))
+    cells.append(md("## 3 · Which point forecaster — a like-for-like comparison"))
     cells.append(code("""
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+comparison = evaluation.compare(models.candidates(), X_train, y_train)
+log.info("5-fold CV on the training rows:\\n%s", comparison.round(4).to_string())
 
-pred = model.predict(X_test)
-mae = mean_absolute_error(y_test, pred)
-rmse = float(np.sqrt(mean_squared_error(y_test, pred)))
-r2 = r2_score(y_test, pred)
-log.info("test · MAE=%.3f RMSE=%.3f R2=%.4f", mae, rmse, r2)
-
-fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-axes[0].scatter(y_test, pred, s=6, alpha=0.25, color="#4c72b0")
-lims = [y_test.min(), y_test.max()]; axes[0].plot(lims, lims, "k--", lw=1)
-axes[0].set_xlabel("actual"); axes[0].set_ylabel("predicted")
-axes[0].set_title(f"Predicted vs actual · R2={r2:.3f}")
-resid = y_test - pred
-axes[1].scatter(pred, resid, s=6, alpha=0.25, color="#c44e52"); axes[1].axhline(0, color="k", lw=1)
-axes[1].set_xlabel("predicted"); axes[1].set_ylabel("residual")
-axes[1].set_title(f"Residuals · MAE={mae:.2f} RMSE={rmse:.2f}")
-fig.tight_layout(); run.save_fig(fig, "03_pred_vs_actual_residuals"); plt.show()
+fig, ax = plt.subplots(figsize=(7, 3.2))
+ax.barh(comparison.index, comparison["mae"], color="#55a868")
+ax.set_xlabel("mean absolute error (points)"); ax.set_title("5-fold CV · lower is better")
+run.save_fig(fig, "02_model_comparison"); plt.show()
+comparison.round(4)
 """))
-    cells.append(code("""
-# Permutation importance (model-agnostic) on a test subsample.
-from sklearn.inspection import permutation_importance
-
-sample = X_test.sample(min(4000, len(X_test)), random_state=42)
-perm = permutation_importance(model, sample, y_test.loc[sample.index], scoring="r2",
-                              n_repeats=5, random_state=42, n_jobs=-1)
-imp = pd.Series(perm.importances_mean, index=X_test.columns).sort_values().tail(15)
-log.info("top permutation importances:\\n%s", imp.sort_values(ascending=False).to_string())
-
-fig, ax = plt.subplots(figsize=(7, 6))
-imp.plot(kind="barh", ax=ax, color="#55a868")
-ax.set_title("Permutation importance (R2 drop) · top 15")
-run.save_fig(fig, "04_permutation_importance"); plt.show()
+    cells.append(md("""
+Gradient boosting and a straight line are within a hundredth of a point, and both beat
+carrying the last rating forward. Boosting is served because, constrained to be monotone, it
+bends where the scale does — near the floor and the ceiling — without ever forecasting a
+worse next rating from a better latest one (§6).
 """))
 
     cells.append(md("""
-## 6 · Forecast roster
+## 4 · Fit, then measure the errors on rows it never saw
 
-Forecast scores for the test set and flag the largest gaps vs. last year's score — the
-employees whose trajectory is bending up or down.
+`PerformanceForecastModel.fit` trains the forecaster on three quarters of the training rows
+and measures its errors on the last quarter, per region of the forecast (Mondrian conformal).
+Those errors become every forecast's interval and confidence.
 """))
     cells.append(code("""
-scored = X_test.copy()
-scored["forecast_score"] = pred.round(1)
-scored["actual_score"] = y_test.values.round(1)
-scored["delta_vs_last_year"] = (pred - X_test["performance_last_year"]).round(1)
-log.info("biggest forecast drops vs last year:\\n%s",
-         scored.nsmallest(5, "delta_vs_last_year")[
-             ["performance_last_year", "forecast_score", "delta_vs_last_year"]].to_string())
-run.checkpoint_df(scored.reset_index(names="row_id"), "forecast_roster")
-scored[["performance_last_year", "forecast_score", "actual_score", "delta_vs_last_year"]].head()
+model = models.PerformanceForecastModel().fit(X_train, y_train)
+log.info("fitted on %d rows · errors measured on %d · %d regions",
+         model.n_fit, model.n_calibration, len(model.conformal.residuals))
+
+examples = pd.DataFrame([{"latest": r, **model.forecast(r)} for r in (45, 55, 59, 61, 65, 70, 75, 79, 81, 90, 98)])
+log.info("example forecasts:\\n%s", examples.round(2).to_string())
+examples.round(2)
 """))
 
-    cells.append(md("## 7 · Persist model & metrics"))
+    cells.append(md("## 5 · Held out — does every promise hold?"))
+    cells.append(code("""
+held = evaluation.held_out(model, X_test, y_test)
+test = evaluation.summarise(held["actual"], held["point"])
+cov = evaluation.coverage(held)
+band_accuracy = float(held["band_right"].mean())
+log.info("test · MAE=%.2f RMSE=%.2f R2=%.4f · band accuracy=%.3f", test["mae"], test["rmse"], test["r2"], band_accuracy)
+log.info("interval coverage (target %.0f%%) by latest rating:\\n%s", features.COVERAGE * 100, cov.round(3).to_string())
+cov.round(3)
+"""))
+    cells.append(code("""
+rel = evaluation.confidence_reliability(held)
+log.info("stated confidence vs how often the band was right:\\n%s", rel.round(3).to_string())
+
+fig, axes = plt.subplots(1, 3, figsize=(17, 4.5))
+part = held.sample(3000, random_state=0).sort_values("latest")
+axes[0].fill_between(part["latest"], part["low"], part["high"], color="#4c72b0", alpha=0.2, label="80% interval")
+axes[0].plot(part["latest"], part["point"], color="#4c72b0", label="forecast")
+axes[0].scatter(part["latest"], part["actual"], s=3, color="#333333", alpha=0.3, label="actual")
+axes[0].set_xlabel("latest rating"); axes[0].set_title(f"Held-out forecasts · MAE {test['mae']:.2f}"); axes[0].legend()
+axes[1].bar(range(len(cov) - 1), cov["coverage"].iloc[:-1], color="#55a868")
+axes[1].set_xticks(range(len(cov) - 1), [str(i) for i in cov.index[:-1]], rotation=30)
+axes[1].axhline(features.COVERAGE, color="k", ls="--", lw=0.8); axes[1].set_ylim(0.6, 1)
+axes[1].set_title(f"Interval coverage by region · overall {cov.loc['all', 'coverage']:.3f}")
+axes[2].plot(rel["stated"], rel["observed"], "o-"); axes[2].plot([0.4, 1], [0.4, 1], "k--", lw=0.8)
+axes[2].set_xlabel("stated confidence"); axes[2].set_ylabel("band right"); axes[2].set_title("Is the confidence honest?")
+fig.tight_layout(); run.save_fig(fig, "03_held_out_reliability"); plt.show()
+"""))
+
+    cells.append(md("## 6 · Monotone, everywhere"))
+    cells.append(code("""
+mono = evaluation.monotonicity(model)
+log.info("monotonicity sweep: %s", mono)
+assert mono["point_decreases"] == 0 and mono["interval_never_excludes_point"], mono
+mono
+"""))
+
+    cells.append(md("""
+## 7 · Persist
+
+The served object is the fitted `PerformanceForecastModel` itself: the inference service calls
+its `assess`, so the service and this notebook run the same code. A record without a completed
+appraisal before the forecast period is *declined*, never forecast from a guess.
+"""))
     cells.append(code("""
 run.save_model(model, "performance_model")
+run.save_json(model.contract(), "feature_contract")
 run.save_metrics({
-    "algorithm": "HistGradientBoostingRegressor",
-    "cv_r2": float(cv_r2.mean()),
-    "test_mae": mae, "test_rmse": rmse, "test_r2": r2,
-    "target_mean": float(y.mean()), "target_std": float(y.std()),
-    "n_train": int(len(X_train)), "n_test": int(len(X_test)),
+    "algorithm": model.algorithm,
+    "inputs": model.features,
+    "comparison_cv_mae": comparison["mae"].round(4).to_dict(),
+    "test_mae": test["mae"], "test_rmse": test["rmse"], "test_r2": test["r2"],
+    "test_interval_coverage": float(cov.loc["all", "coverage"]),
+    "test_interval_coverage_by_region": {str(k): round(float(v), 4) for k, v in cov["coverage"].iloc[:-1].items()},
+    "test_interval_mean_width": float(cov.loc["all", "mean_width"]),
+    "interval_target_coverage": features.COVERAGE,
+    "test_band_accuracy": band_accuracy,
+    "confidence_reliability": rel.round(4).to_dict("records"),
+    "monotonicity": mono,
+    "n_fit": model.n_fit, "n_calibration": model.n_calibration, "n_test": int(len(y_test)),
 })
-run.finish(summary=f"GradientBoosting: test R2={r2:.3f}, MAE={mae:.2f}, RMSE={rmse:.2f}")
+run.finish(summary=f"Monotone GB + conformal: test MAE={test['mae']:.2f}, R2={test['r2']:.3f}, "
+                   f"80% interval coverage={cov.loc['all', 'coverage']:.3f}, band accuracy={band_accuracy:.3f}")
 """))
 
     nb.cells = cells
@@ -509,7 +503,7 @@ run.finish(summary=f"GradientBoosting: test R2={r2:.3f}, MAE={mae:.2f}, RMSE={rm
 
 
 # ======================================================================================
-# 3) PROMOTION — Logistic Regression classification (readiness scoring)
+# 3) PROMOTION — calibrated Logistic Regression, one submodel per history pattern
 # ======================================================================================
 
 
@@ -518,218 +512,245 @@ def build_promotion() -> nbf.NotebookNode:
     cells = []
 
     cells.append(md("""
-# 03 · Promotion Readiness Assessment — Logistic Regression
+# 03 · Promotion Readiness — calibrated Logistic Regression
 
-**Goal** — produce an objective **promotion-readiness score** from performance history
-(`performance_score`, `performance_last_year`, `manager_rating`), training completions
-(`training_hours_last_year`, `mentoring_sessions`), certifications (`certifications_count`,
-`skill_assessment_score`) and tenure (`years_at_company`, `years_in_current_role`,
-`years_since_last_promotion`).
+**Goal** — a readiness score HR can defend: how the employee's appraisal record compares with
+the records of people who were promoted, with the reasons in plain terms.
 
-**Algorithm — Logistic Regression** (`LogisticRegression`). Chosen because promotion is a
-high-stakes, must-be-defensible decision: logistic regression yields a calibrated probability
-and transparent, auditable coefficients (odds ratios) HR can explain to employees — exactly
-what an "objective readiness score" needs. Rationale + citations in
-`../MODEL-JUSTIFICATION.md`. Binary classification on `employee_promotion_prediction.csv`
-(~100k rows, ~10% promoted — strongly imbalanced).
+**Data** — the reference workforce (`data/raw/employee_promotion_prediction.csv`, 100,000 rows,
+10 % promoted).
 
-> **Leakage note:** `salary_increase_percent` is dropped — a raise is granted *as part of* a
-> promotion, so it would leak the outcome.
+**What the model reads** — only what the ERP records: the latest completed appraisal
+(`overall_percent`) and its **change** on the previous one.
+Department, salary, employment type and every demographic attribute are left out on purpose
+(§2). An employee with no completed appraisal is **declined**, not scored from a guess; one
+with a single appraisal is scored by a submodel that never needed the missing change (§5).
 
-Logged to `logs/promotion*.log`; artifacts under `artifacts/promotion/`.
+**Algorithm — Logistic Regression**, with a monotone calibration step (§4). The log-odds of
+promotion are close to linear in both inputs, so the model that is easiest to defend is also
+the one the data supports.
+
+**Where the logic lives** — `synapse_ml.promotion` (`features`, `model`, `evaluation`),
+tested under `tests/`. This notebook is the narrative.
 """))
 
     cells.append(code(SETUP_CELL.format(model_name="promotion")))
 
-    cells.append(md("## 1 · Load data"))
+    cells.append(md("## 1 · Load the reference, in the contract's units"))
     cells.append(code("""
-df = run.load_csv("employee_promotion_prediction.csv")
-print(df.shape)
-df.head()
-"""))
-    cells.append(code("""
-import io
-_info = io.StringIO()
-df.info(buf=_info)
-log.info("dataframe info:\\n%s", _info.getvalue())
-df.describe().T
-"""))
+from synapse_ml.appraisal import reference
+from synapse_ml.promotion import evaluation, features, model as models
 
-    cells.append(md("## 2 · Target & exploratory analysis"))
-    cells.append(code("""
-TARGET = "promoted"
-ID_COL = "employee_id"
-LEAKY = ["salary_increase_percent"]   # post-promotion artefact -> dropped
-DROP = [ID_COL] + LEAKY
-
-y = df[TARGET].astype(int)
-rate = y.mean()
-log.info("target=%s · positive rate=%.3f (%d of %d)", TARGET, rate, y.sum(), len(y))
-
-fig, ax = plt.subplots(figsize=(4, 3))
-y.value_counts().sort_index().plot(kind="bar", ax=ax, color=["#4c72b0", "#dd8452"])
-ax.set_xticklabels(["Not promoted (0)", "Promoted (1)"], rotation=0)
-ax.set_title(f"Promotion class balance · positive={rate:.1%}")
-run.save_fig(fig, "01_class_balance"); plt.show()
-"""))
-    cells.append(code("""
-fig, axes = plt.subplots(1, 2, figsize=(13, 4))
-for ax, col in zip(axes, ["years_since_last_promotion", "department"]):
-    rates = df.assign(_y=y).groupby(col)["_y"].mean().sort_values(ascending=False)
-    log.info("promotion rate by %s:\\n%s", col, rates.to_string())
-    rates.plot(kind="bar", ax=ax, color="#8172b3")
-    ax.set_title(f"Promotion rate by {col}"); ax.set_ylabel("rate")
-    ax.tick_params(axis="x", rotation=45)
-fig.tight_layout(); run.save_fig(fig, "02_promotion_by_driver"); plt.show()
-"""))
-    cells.append(code("""
-num_df = df.drop(columns=DROP + [TARGET]).select_dtypes("number").assign(_y=y)
-corr = num_df.corr()["_y"].drop("_y").sort_values()
-log.info("numeric correlation with promotion:\\n%s", corr.to_string())
-
-fig, ax = plt.subplots(figsize=(7, 8))
-corr.plot(kind="barh", ax=ax, color=np.where(corr > 0, "#dd8452", "#4c72b0"))
-ax.set_title("Correlation of numeric features with promotion")
-run.save_fig(fig, "03_numeric_correlation"); plt.show()
-"""))
-
-    cells.append(md("## 3 · Preprocessing & stratified split"))
-    cells.append(code(PREPROCESS_IMPORTS + """
-X = df.drop(columns=DROP + [TARGET])
-numeric_cols, categorical_cols = sm.split_feature_types(df.drop(columns=DROP), target=TARGET)
-log.info("numeric=%d · categorical=%d %s", len(numeric_cols), len(categorical_cols), categorical_cols)
-""" + PREPROCESS_DEF + """
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42)
-log.info("split · train=%s test=%s", X_train.shape, X_test.shape)
+df = reference.load()
+X, y = features.reference_frame(df)
+rate = float(y.mean())
+log.info("reference rows=%d · promoted=%d (%.1f%%)", len(y), y.sum(), rate * 100)
+X.describe().T.round(2)
 """))
 
     cells.append(md("""
-## 4 · Logistic Regression model
+## 2 · What drives promotion in the reference — and what is left out
 
-Scaling (done in preprocessing) matters for logistic regression's coefficients and
-convergence. `class_weight="balanced"` handles the 10% positive rate. Read by 5-fold ROC-AUC.
+Promotion is driven by **improvement**. With no change on the previous appraisal almost nobody
+is promoted at any level; with ten points or more, a quarter to a half are. Level matters too,
+but less.
 """))
+    cells.append(code("""
+grid = pd.crosstab(pd.cut(X["rating_latest"], [39, 55, 65, 75, 85, 101]),
+                   pd.cut(X["rating_change"], [-30, -5, 0, 5, 10, 30]), values=y, aggfunc="mean")
+log.info("promotion rate by latest rating (rows) and change (columns):\\n%s", grid.round(3).to_string())
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
+sns.heatmap(grid, annot=True, fmt=".2f", cmap="Greens", ax=axes[0], cbar=False)
+axes[0].set_title("Promotion rate · latest rating × change since previous")
+by_dept = df.groupby("department")["promoted"].mean().sort_values()
+by_dept.plot(kind="barh", ax=axes[1], color="#bbbbbb")
+axes[1].set_title("Promotion rate by the reference's departments (not used)")
+fig.tight_layout(); run.save_fig(fig, "01_promotion_drivers"); plt.show()
+grid.round(3)
+"""))
+    cells.append(md("""
+Department is the reference's largest single effect (Engineering promotes a third of its people,
+Support one in fifty) — and it is left out. It is a fact about that dataset's departments, not
+about readiness, and a tenant's departments ("Information Technology", "Sales & Marketing") do not
+match its names, so the old model's scores hinged on how a department happened to be spelled.
+Salary is in another currency and period; employment type has no effect and no part-time level.
+"""))
+
+    cells.append(md("## 3 · What each candidate input is worth, held out"))
     cells.append(code("""
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-model = Pipeline([
-    ("prep", preprocess),
-    ("clf", LogisticRegression(max_iter=2000, C=1.0, class_weight="balanced")),
+lr = make_pipeline(StandardScaler(), LogisticRegression(max_iter=5000))
+extra = df.assign(rating_change=X["rating_change"])
+input_sets = {
+    "latest only": ["performance_score"],
+    "latest + change (served)": ["performance_score", "rating_change"],
+    "+ time since promotion": ["performance_score", "rating_change", "years_since_last_promotion"],
+    "+ rating two cycles back": ["performance_score", "rating_change", "performance_two_years_ago"],
+    "+ tenure, certifications": ["performance_score", "rating_change", "years_at_company", "certifications_count"],
+    "+ attendance, lateness": ["performance_score", "rating_change", "attendance_rate", "late_days"],
+    "+ overtime": ["performance_score", "rating_change", "overtime_hours"],
+    "+ department": ["performance_score", "rating_change", *pd.get_dummies(df["department"], prefix="dept").columns[1:]],
+}
+extra = extra.join(pd.get_dummies(df["department"], prefix="dept").astype(float))
+coef = make_pipeline(StandardScaler(), LogisticRegression(max_iter=5000)).fit(
+    extra[input_sets["+ time since promotion"]], y)[-1].coef_[0]
+log.info("with time since promotion, its coefficient per SD is %.3f (negative: the recently promoted are promoted more)",
+         coef[-1])
+inputs_table = pd.Series({name: cross_val_score(lr, extra[cols], y, cv=5, scoring="roc_auc").mean()
+                          for name, cols in input_sets.items()}, name="cv_roc_auc").round(4)
+log.info("held-out ROC-AUC by input set:\\n%s", inputs_table.to_string())
+inputs_table
+"""))
+
+    cells.append(md("""
+Change is worth more than everything else together: it lifts ROC-AUC from 0.69 to 0.84. The
+rating two cycles back, tenure, certifications, attendance and lateness add a thousandth or
+less, so they are not asked for.
+
+Three inputs do add something and are left out on purpose:
+
+- **Department** (+0.08) — the reference's largest effect after change, and a fact about *its*
+  departments, which the tenant's do not match; §2.
+- **Overtime** (+0.008) — approved overtime depends on role and policy (exempt staff record
+  none), and a readiness score that rises with hours worked penalises part-time staff and
+  anyone with caring responsibilities. That fairness cost is not worth 0.008.
+
+Time since the last promotion adds a small but consistent 0.002 — and is still left out. It
+earns that only because in the reference the *recently* promoted are promoted again more often
+(its coefficient is negative), which runs against any real time-in-grade practice. Carried into
+a tenant it would be an artefact of this dataset, surfacing as explanations like "promoted eight
+months ago: +2 readiness" that HR would rightly distrust. 0.002 does not buy that.
+"""))
+    cells.append(md("## 4 · Which algorithm — a like-for-like comparison (both appraisals)"))
+    cells.append(code("""
+comparison = evaluation.compare(models.candidates(), X, y)
+log.info("5-fold CV, identical folds:\\n%s", comparison.round(4).to_string())
+comparison.round(4)
+"""))
+    cells.append(md("""
+Plain logistic regression already ranks as well as gradient boosting. What it misses is a gentle
+bend in calibration: a little low around the tier cut-offs, a little high at the very top. The
+served estimator recalibrates its scores with a quadratic Platt step fitted out of fold and held
+flat past its turning point — smooth, monotone, and about three times better calibrated (ECE)
+with the same ranking. (Isotonic recalibration scored similarly on ECE but produced a staircase:
+a few hundred distinct probabilities, ties across thousands of people, and exact 0 % / 100 %.)
+"""))
+    cells.append(code("""
+chosen = models.CalibratedLogistic()
+oof = evaluation.oof(chosen, X, y)
+plain = evaluation.oof(models.candidates()["Logistic Regression"], X, y)
+rel = evaluation.reliability_table(y, oof, bins=10)
+rel_plain = evaluation.reliability_table(y, plain, bins=10)
+log.info("reliability (calibrated):\\n%s", rel.round(4).to_string())
+
+from sklearn.metrics import PrecisionRecallDisplay, RocCurveDisplay, roc_auc_score
+fig, axes = plt.subplots(1, 3, figsize=(17, 4.5))
+RocCurveDisplay.from_predictions(y, oof, ax=axes[0]); axes[0].plot([0, 1], [0, 1], "k--", lw=0.8)
+axes[0].set_title(f"ROC (out of fold) · AUC {roc_auc_score(y, oof):.3f}")
+PrecisionRecallDisplay.from_predictions(y, oof, ax=axes[1])
+axes[1].axhline(rate, color="k", lw=0.8, ls="--"); axes[1].set_title("Precision-recall (dashed = base rate)")
+axes[2].plot(rel_plain["predicted"], rel_plain["observed"], "o-", color="#bbbbbb", label="plain LR")
+axes[2].plot(rel["predicted"], rel["observed"], "o-", color="#55a868", label="calibrated (served)")
+axes[2].plot([0, 0.5], [0, 0.5], "k--", lw=0.8); axes[2].legend()
+axes[2].set_xlabel("predicted"); axes[2].set_ylabel("promoted"); axes[2].set_title("Calibration (deciles)")
+fig.tight_layout(); run.save_fig(fig, "02_evaluation_curves"); plt.show()
+"""))
+
+    cells.append(md("""
+## 5 · Live records have gaps — one submodel per history pattern
+
+A live employee may have one completed appraisal, not two. The previous model filled the
+missing rating with the reference median, which *invents a change* — and change is the
+strongest signal. Here half the rows lose their previous appraisal, and two ways of scoring
+them are compared: the served pattern submodels, and one full model given the median change.
+"""))
+    cells.append(code("""
+patterns_table = evaluation.by_pattern(chosen, X, y)
+log.info("by history pattern:\\n%s", patterns_table.round(4).to_string())
+mixed = evaluation.mixed_history(chosen, X, y)
+log.info("mixed history (half without a previous appraisal):\\n%s", mixed.round(4).to_string())
+mixed.round(4)
+"""))
+    cells.append(md("""
+Filling the gap costs ranking and, worse, **calibration where the record is thin**: for people
+without a previous appraisal the median-filled model is an order of magnitude less calibrated.
+The pattern submodels are as calibrated for them as for everyone else — their score honestly
+reflects that the change is unknown.
+"""))
+
+    cells.append(md("## 6 · Fit, tiers, and the checks the score must pass"))
+    cells.append(code("""
+model = models.PromotionReadinessModel().fit(X, y)
+tiers = evaluation.tier_table(model, X, y, oof)
+log.info("tiers (out-of-fold probabilities) · base rate %.3f · cut-offs %s:\\n%s",
+         model.base_rate, {k: round(v, 3) for k, v in model.tiers.items()}, tiers.round(3).to_string())
+for pattern, sub in model.router.submodels.items():
+    log.info("odds ratios per SD · %-45s %s", " + ".join([*features.REQUIRED, *pattern]),
+             {k: round(v, 3) for k, v in sub.odds_ratios().items()})
+tiers.round(3)
+"""))
+    cells.append(code("""
+mono = evaluation.monotonicity(model)
+log.info("monotonicity sweep: %s", mono)
+assert sum(mono["violations"].values()) == 0, mono
+
+fair = evaluation.fairness(model, df, X, oof)
+log.info("readiness across attributes the model never sees:\\n%s", fair.round(3).to_string())
+fair.round(3)
+"""))
+    cells.append(code("""
+examples = pd.DataFrame([
+    {"rating_latest": 82.6, "rating_change": 2.4},
+    {"rating_latest": 80.2},
+    {"rating_latest": 80.2, "rating_change": 12.0},
+    {"rating_latest": 95.0, "rating_change": 0.0},
+    {"rating_latest": 65.0, "rating_change": -8.0},
+    {},
 ])
-
-cv_auc = cross_val_score(model, X_train, y_train, cv=cv, scoring="roc_auc", n_jobs=-1)
-log.info("CV ROC-AUC = %.4f (+/- %.4f)", cv_auc.mean(), cv_auc.std())
-model.fit(X_train, y_train)
-log.info("fitted LogisticRegression on %d rows", len(X_train))
-"""))
-
-    cells.append(md("## 5 · Evaluation"))
-    cells.append(code("""
-from sklearn.metrics import (roc_auc_score, average_precision_score, classification_report,
-                             confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay,
-                             PrecisionRecallDisplay)
-
-proba = model.predict_proba(X_test)[:, 1]
-pred = (proba >= 0.5).astype(int)
-roc = roc_auc_score(y_test, proba)
-pr_auc = average_precision_score(y_test, proba)
-report = classification_report(y_test, pred, target_names=["Not promoted", "Promoted"], digits=3)
-log.info("test ROC-AUC=%.4f · PR-AUC=%.4f", roc, pr_auc)
-log.info("classification report @0.5:\\n%s", report)
-print(report)
-"""))
-    cells.append(code("""
-fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-ConfusionMatrixDisplay(confusion_matrix(y_test, pred),
-                       display_labels=["Not", "Promoted"]).plot(ax=axes[0], colorbar=False)
-axes[0].set_title("Confusion matrix @ 0.5")
-RocCurveDisplay.from_predictions(y_test, proba, ax=axes[1])
-axes[1].set_title(f"ROC (AUC={roc:.3f})"); axes[1].plot([0, 1], [0, 1], "k--", lw=0.8)
-PrecisionRecallDisplay.from_predictions(y_test, proba, ax=axes[2])
-axes[2].set_title(f"Precision-Recall (AP={pr_auc:.3f})")
-fig.tight_layout(); run.save_fig(fig, "04_evaluation_curves"); plt.show()
-"""))
-    cells.append(code("""
-# Logistic-regression coefficients as odds ratios — the interpretability payoff.
-ohe = model.named_steps["prep"].named_transformers_["cat"].named_steps["ohe"]
-feat_names = numeric_cols + list(ohe.get_feature_names_out(categorical_cols))
-coefs = pd.Series(model.named_steps["clf"].coef_[0], index=feat_names)
-odds = np.exp(coefs).sort_values()
-log.info("odds ratios (exp(coef)):\\n%s", odds.to_string())
-
-top = pd.concat([odds.head(8), odds.tail(8)])
-fig, ax = plt.subplots(figsize=(7, 7))
-top.plot(kind="barh", ax=ax, color=np.where(top > 1, "#dd8452", "#4c72b0"))
-ax.axvline(1.0, color="k", lw=0.8)
-ax.set_title("Promotion odds ratios · strongest drivers (>1 ↑, <1 ↓)")
-run.save_fig(fig, "05_odds_ratios"); plt.show()
+assessed = model.assess(examples.to_dict("records"))
+shown = examples.assign(
+    status=[a["status"] for a in assessed], score=[a["score"] for a in assessed],
+    probability=[a["probability"] for a in assessed], tier=[a["tier"] for a in assessed],
+    basis=[a["basis"] for a in assessed],
+    factors=[", ".join(f"{f['label']} {f['impact']:+.0f}" for f in (a["factors"] or [])) for a in assessed],
+)
+log.info("example assessments:\\n%s", shown.to_string())
+shown
 """))
 
     cells.append(md("""
-## 6 · Decision-threshold tuning
+## 7 · Persist
 
-The shortlist is ranked, so we tune the threshold to maximise F1 on the "Promoted" class
-rather than defaulting to 0.5.
+The served object is the fitted `PromotionReadinessModel`: the inference service calls its
+`assess`, so the service and this notebook run the same code.
 """))
     cells.append(code("""
-from sklearn.metrics import precision_recall_curve
-
-prec, rec, thr = precision_recall_curve(y_test, proba)
-f1s = 2 * prec * rec / (prec + rec + 1e-12)
-best_idx = int(np.nanargmax(f1s[:-1]))
-best_thr = float(thr[best_idx])
-log.info("tuned threshold=%.3f · F1=%.3f · recall=%.3f · precision=%.3f",
-         best_thr, f1s[best_idx], rec[best_idx], prec[best_idx])
-print(classification_report(y_test, (proba >= best_thr).astype(int),
-                            target_names=["Not promoted", "Promoted"], digits=3))
-
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.plot(thr, prec[:-1], label="precision"); ax.plot(thr, rec[:-1], label="recall")
-ax.plot(thr, f1s[:-1], label="F1")
-ax.axvline(best_thr, color="k", ls="--", lw=0.8, label=f"best={best_thr:.2f}")
-ax.set_xlabel("threshold"); ax.set_title("Threshold sweep (Promoted class)"); ax.legend()
-run.save_fig(fig, "06_threshold_sweep"); plt.show()
-"""))
-
-    cells.append(md("""
-## 7 · Readiness scoring
-
-Turn probabilities into a 0–100 **readiness score** and Low / Medium / High tiers, then
-checkpoint the scored roster.
-"""))
-    cells.append(code("""
-scored = X_test.copy()
-scored["readiness_score"] = (proba * 100).round(1)
-scored["actual_promoted"] = y_test.values
-scored["readiness_tier"] = pd.cut(proba, bins=[-0.01, 0.33, 0.66, 1.01],
-                                  labels=["Low", "Medium", "High"])
-log.info("readiness tier distribution:\\n%s", scored["readiness_tier"].value_counts().sort_index().to_string())
-ready = scored.sort_values("readiness_score", ascending=False).head(10)
-log.info("top-10 promotion-ready:\\n%s",
-         ready[["readiness_score", "readiness_tier", "actual_promoted"]].to_string())
-run.checkpoint_df(scored.reset_index(names="row_id"), "scored_readiness_roster")
-ready[["readiness_score", "readiness_tier", "actual_promoted"]]
-"""))
-
-    cells.append(md("## 8 · Persist model & metrics"))
-    cells.append(code("""
+cal = comparison.loc[models.CHOSEN]
 run.save_model(model, "promotion_model")
+run.save_json(model.contract(), "feature_contract")
 run.save_metrics({
-    "algorithm": "LogisticRegression",
-    "cv_roc_auc": float(cv_auc.mean()),
-    "test_roc_auc": roc, "test_pr_auc": pr_auc,
-    "tuned_threshold": best_thr,
-    "tuned_recall_promoted": float(rec[best_idx]),
-    "tuned_precision_promoted": float(prec[best_idx]),
-    "positive_rate": float(rate),
-    "dropped_leaky_features": LEAKY,
-    "high_readiness_count": int((scored["readiness_tier"] == "High").sum()),
-    "n_train": int(len(X_train)), "n_test": int(len(X_test)),
+    "algorithm": model.algorithm,
+    "inputs": model.features,
+    "evaluation": f"{evaluation.FOLDS}-fold stratified CV, identical folds",
+    "cv_roc_auc": float(cal["roc_auc"]), "cv_pr_auc": float(cal["pr_auc"]),
+    "cv_brier": float(cal["brier"]), "cv_ece": float(cal["ece"]),
+    "cv_ece_plain_logistic": float(comparison.loc["Logistic Regression", "ece"]),
+    "cv_roc_auc_latest_only": float(patterns_table.loc["rating_latest", "roc_auc"]),
+    "comparison": comparison.round(4).to_dict("index"),
+    "mixed_history": mixed.round(4).to_dict("index"),
+    "positive_rate": rate,
+    "tiers": model.contract()["tiers"],
+    "tier_outcomes": tiers.round(4).to_dict("index"),
+    "monotonicity": mono,
+    "n_rows": int(len(y)),
 })
-run.finish(summary=f"LogisticRegression: test ROC-AUC={roc:.3f}, PR-AUC={pr_auc:.3f}, tuned thr={best_thr:.2f}")
+run.finish(summary=f"Calibrated LR (pattern submodels): CV ROC-AUC={cal['roc_auc']:.3f}, ECE={cal['ece']:.4f}, "
+                   f"one-appraisal ROC-AUC={patterns_table.loc['rating_latest', 'roc_auc']:.3f}")
 """))
 
     nb.cells = cells

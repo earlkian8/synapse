@@ -1,6 +1,6 @@
 # 0018 — Performance Forecast: the second analytics surface on the shared ML inference service
 
-- **Status:** Accepted
+- **Status:** Accepted — the performance model, its inputs, the forecast window and the meaning of confidence are superseded by [ADR 0045](./0045-performance-and-promotion-models-that-can-be-relied-on.md); the architecture stands
 - **Date:** 2026-06-27
 - **Related:** [Performance Forecast module](../modules/performance-forecast.md),
   [performance-forecast tables](../database/performance-forecast-tables.md),

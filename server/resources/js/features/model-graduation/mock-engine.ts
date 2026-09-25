@@ -117,7 +117,7 @@ function promotionRequirements(c: Counters): Requirement[] {
             unitOne: 'promotion',
             summary:
                 'Past promotions are the examples anything built from your records would learn from.',
-            basis: 'A model of this kind needs roughly 10 to 20 recorded outcomes for every piece of information it uses. The readiness score draws on 12, so 120 is the lower bound. Below that, the pattern it finds moves with whichever handful of people happen to be on record.',
+            basis: 'A model of this kind needs roughly 10 to 20 recorded outcomes for every piece of information it weighs. One built from your records would weigh the appraisal record and the dozen or so other records worth testing against it, so 120 is the lower bound. Below that, the pattern it finds moves with whichever handful of people happen to be on record.',
             source: 'Promotion records carrying an effective date and an approver.',
             outlook: promotionOutlook(c),
         },
@@ -540,8 +540,18 @@ function coreFields(): FieldCoverage[] {
     ];
 }
 
-/** Appraisal-derived fields, whose coverage follows how many cycles have closed. */
-function appraisalFields(c: Counters): FieldCoverage[] {
+/**
+ * Appraisal-derived fields, whose coverage follows how many cycles have closed.
+ * Each surface says which of them it reads and why the rest are left out.
+ */
+function appraisalFields(
+    c: Counters,
+    notes: {
+        latest: string;
+        prior: (prior: number) => string;
+        priorUsed: boolean;
+    },
+): FieldCoverage[] {
     const latest = 35;
     const prior = c.cycles >= 2 ? EMPLOYEES_WITH_HISTORY : 0;
     const older = c.cycles >= 3 ? EMPLOYEES_WITH_HISTORY : 0;
@@ -549,41 +559,55 @@ function appraisalFields(c: Counters): FieldCoverage[] {
     return [
         {
             key: 'rating_latest',
-            label: 'Latest appraisal rating',
+            label: 'Latest completed appraisal',
             source: 'Performance',
             state: 'supplied',
             covered: latest,
             total: EMPLOYEES,
-            note: `${EMPLOYEES - latest} employees have no scored appraisal yet, so their score leans on tenure and department alone.`,
+            note: notes.latest.replace('{missing}', String(EMPLOYEES - latest)),
         },
         {
             key: 'rating_prior',
-            label: 'Previous cycle’s rating',
+            label: 'Previous completed appraisal',
             source: 'Performance',
-            state: 'supplied',
+            state: notes.priorUsed ? 'supplied' : 'available',
             covered: prior,
             total: EMPLOYEES,
-            note:
-                prior === 0
-                    ? 'No second closed cycle exists yet, so nobody has a prior rating.'
-                    : `Only ${prior} employees have been appraised in two closed cycles.`,
+            note: notes.prior(prior),
         },
         {
             key: 'rating_older',
-            label: 'Rating two cycles back',
+            label: 'Appraisal two cycles back',
             source: 'Performance',
-            state: 'supplied',
+            state: 'available',
             covered: older,
             total: EMPLOYEES,
-            note:
-                older === 0
-                    ? 'Needs a third closed cycle before anybody has one.'
-                    : `${older} employees now carry three cycles of history.`,
+            note: 'Measured across a large reference workforce: it adds nothing once the more recent appraisals are known, so it is not asked for.',
         },
     ];
 }
 
-/** Attendance and training figures the system records but does not feed in yet. */
+/**
+ * Mark fields a surface holds but deliberately does not read, each with the
+ * reason — so "not used" is never mistaken for "not yet wired in".
+ */
+function notInputs(
+    fields: FieldCoverage[],
+    why: Record<string, string>,
+): FieldCoverage[] {
+    return fields.map((field) =>
+        why[field.key]
+            ? { ...field, state: 'available' as const, note: why[field.key] }
+            : field,
+    );
+}
+
+/**
+ * Attendance and training figures the system records. Across the reference
+ * workforce they have no (or a negligible) bearing on either appraisal surface's
+ * scores, so neither reads them; promotion overrides overtime's note, since there
+ * it does carry a little signal and is left out on purpose.
+ */
 function unfedOperationalFields(): FieldCoverage[] {
     return [
         {
@@ -593,7 +617,7 @@ function unfedOperationalFields(): FieldCoverage[] {
             state: 'available',
             covered: EMPLOYEES,
             total: EMPLOYEES,
-            note: 'Recorded daily and already computed for the awards board — it is simply not one of the inputs yet.',
+            note: 'Recorded daily, but across the reference workforce it has no bearing on these scores, so it is not an input. Only this organisation’s own history could earn it a place.',
         },
         {
             key: 'late_days',
@@ -602,7 +626,7 @@ function unfedOperationalFields(): FieldCoverage[] {
             state: 'available',
             covered: EMPLOYEES,
             total: EMPLOYEES,
-            note: 'Derived on every attendance record; not currently fed in.',
+            note: 'Derived on every attendance record; a negligible bearing on these scores in the reference workforce, so not an input.',
         },
         {
             key: 'overtime',
@@ -611,7 +635,7 @@ function unfedOperationalFields(): FieldCoverage[] {
             state: 'available',
             covered: EMPLOYEES,
             total: EMPLOYEES,
-            note: 'Approved overtime minutes are stored per day; not currently fed in.',
+            note: 'Approved overtime minutes are stored per day; no bearing on the next appraisal in the reference workforce, so not an input.',
         },
         {
             key: 'training',
@@ -620,34 +644,53 @@ function unfedOperationalFields(): FieldCoverage[] {
             state: 'available',
             covered: 31,
             total: EMPLOYEES,
-            note: `Enrolments and completions are tracked; ${EMPLOYEES - 31} employees have none on record.`,
+            note: `Enrolments and completions are tracked (${EMPLOYEES - 31} employees have none); training hours showed no bearing on these scores in the reference workforce, so they are not an input.`,
         },
     ];
 }
 
 function promotionFields(c: Counters): FieldCoverage[] {
     return [
-        ...coreFields(),
-        ...appraisalFields(c),
+        ...appraisalFields(c, {
+            latest: 'The readiness score starts here. The {missing} employees without a completed appraisal are listed as not assessed rather than scored from tenure or department.',
+            priorUsed: true,
+            prior: (prior) =>
+                (prior === 0
+                    ? 'No second closed cycle exists yet, so nobody has one. '
+                    : `Only ${prior} employees have been appraised in two closed cycles. `) +
+                'It gives the change since the previous appraisal — the strongest signal of promotion — so until it exists a score says it rests on one appraisal.',
+        }),
+        ...notInputs(coreFields(), {
+            date_hired:
+                'Recorded on every employee. Tenure was measured and adds nothing to readiness once the appraisals are known.',
+            employment_type:
+                'Recorded, but had no effect on promotion in the reference workforce (which has no part-time category at all).',
+            department:
+                'Deliberately not an input. It is the reference workforce’s largest effect after improvement, but those departments are not this organisation’s, and a department’s past promotion rate says nothing about one person’s readiness.',
+            salary: 'Deliberately not an input: the reference workforce’s salaries are in another currency and period.',
+        }),
         {
             key: 'promotion_history',
             label: 'Promotion history',
             source: 'Employee 201 file',
-            state: 'supplied',
+            state: 'available',
             covered: 28,
             total: EMPLOYEES,
-            note: 'Employees with no recorded promotion fall back to total tenure, which is a substitute rather than a fact.',
+            note: 'Recorded, and left out on purpose: in the reference workforce the recently promoted were promoted again more often — backwards from any real time-in-grade practice.',
         },
         {
             key: 'certifications',
             label: 'Certifications',
             source: 'Employee 201 file',
-            state: 'supplied',
+            state: 'available',
             covered: 29,
             total: EMPLOYEES,
-            note: 'A count of certification records; zero is a real answer here, not a gap.',
+            note: 'Recorded; measured across the reference workforce and adds nothing to readiness once the appraisals are known.',
         },
-        ...unfedOperationalFields(),
+        ...notInputs(unfedOperationalFields(), {
+            overtime:
+                'Recorded per day, and in the reference workforce it does lift promotion odds a little — left out on purpose: overtime depends on role and policy (exempt staff record none), and a readiness score that rises with hours worked penalises part-time staff and anyone with caring responsibilities.',
+        }),
         {
             key: 'peer_feedback',
             label: 'Peer feedback',
@@ -673,25 +716,41 @@ function performanceFields(c: Counters): FieldCoverage[] {
     const kpi = 35;
 
     return [
-        ...coreFields(),
-        ...appraisalFields(c),
+        ...appraisalFields(c, {
+            latest: 'The one input the forecast needs: the latest appraisal completed before the period being forecast. The {missing} employees without one are listed as not forecast.',
+            priorUsed: false,
+            prior: (prior) =>
+                (prior === 0
+                    ? 'No second closed cycle exists yet. '
+                    : `${prior} employees have one. `) +
+                'Measured across a large reference workforce: once the latest appraisal is known it adds nothing to the forecast, so it is shown on the trajectory but not asked for.',
+        }),
+        ...notInputs(coreFields(), {
+            date_hired:
+                'Recorded on every employee. Tenure was measured and adds nothing to the forecast once the latest appraisal is known.',
+            employment_type:
+                'Recorded; no bearing on the next appraisal in the reference workforce.',
+            department:
+                'Recorded; no bearing on the next appraisal in the reference workforce, whose departments are not this organisation’s anyway.',
+            salary: 'Not an input: the reference workforce’s salaries are in another currency and period.',
+        }),
         {
             key: 'kpi_attainment',
             label: 'KPI attainment per cycle',
             source: 'Performance',
-            state: 'supplied',
+            state: 'available',
             covered: kpi,
             total: EMPLOYEES,
-            note: 'Currently derived from the same appraisal overall as the rating, so it repeats that figure rather than adding to it.',
+            note: 'Part of the appraisal the latest rating already summarises — sending it again would count it twice, and a forecast cannot know the next cycle’s KPIs before they happen.',
         },
         {
             key: 'certifications',
             label: 'Certifications',
             source: 'Employee 201 file',
-            state: 'supplied',
+            state: 'available',
             covered: 29,
             total: EMPLOYEES,
-            note: 'A count of certification records.',
+            note: 'Recorded; measured across the reference workforce and adds nothing to the forecast.',
         },
         ...unfedOperationalFields(),
         {

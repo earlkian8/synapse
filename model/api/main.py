@@ -25,9 +25,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
-from .registry import Registry, tier_for
+from .registry import Registry
 from .schemas import (
-    Factor,
     HealthResponse,
     ModelInfo,
     PredictRequest,
@@ -48,6 +47,8 @@ _HEADLINE_METRICS = (
     # attrition is too small for a single held-out split; it reports repeated CV.
     "cv_roc_auc", "cv_pr_auc", "permutation_p_value",
     "tuned_threshold", "positive_rate",
+    # promotion: calibration and the single-appraisal case; performance: the interval.
+    "cv_ece", "cv_roc_auc_latest_only", "test_interval_coverage", "test_band_accuracy",
 )
 
 
@@ -90,20 +91,19 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
         raise HTTPException(status_code=422, detail="No instances supplied.")
 
     feature_dicts = [inst.features for inst in request.instances]
-    probabilities, scores = registry.score(model_name, feature_dicts)
-    factor_sets = registry.contributions(model_name, feature_dicts)
+    results = [
+        Result(ref=inst.ref, **result)
+        for inst, result in zip(request.instances, registry.predict(model_name, feature_dicts), strict=True)
+    ]
 
-    results: list[Result] = []
-    for inst, proba, score, factors in zip(request.instances, probabilities, scores, factor_sets, strict=True):
-        results.append(
-            Result(
-                ref=inst.ref,
-                probability=proba,
-                score=score,
-                tier=tier_for(proba) if proba is not None else None,
-                factors=[Factor(**f) for f in factors] if factors else None,
-            )
-        )
+    warnings = []
+    unknown = registry.unknown_inputs(model_name, feature_dicts)
+    if unknown:
+        # The caller and the model disagree about the contract. Scoring carries on
+        # with what the model reads; the mismatch is reported, not swallowed.
+        warnings.append(f"Ignored inputs the '{model_name}' model does not read: {', '.join(unknown)}.")
+        log.warning("'%s' request carried unknown inputs: %s", model_name, ", ".join(unknown))
 
-    log.info("scored %d instance(s) with '%s'", len(results), model_name)
-    return PredictResponse(model=model_name, model_version=model.version, results=results)
+    declined = sum(result.status != "scored" for result in results)
+    log.info("scored %d instance(s) with '%s' (%d declined)", len(results) - declined, model_name, declined)
+    return PredictResponse(model=model_name, model_version=model.version, results=results, warnings=warnings)

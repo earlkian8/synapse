@@ -8,9 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One employee's result within a {@see PromotionReadinessRun}: the raw model
- * probability, its 0–100 readiness score, the Low/Medium/High tier, the top
- * contributing factors and a snapshot of the features sent to the model.
+ * One employee's result within a {@see PromotionReadinessRun}: the calibrated
+ * probability (the share of reference employees with this record who were promoted
+ * within the year), the 0–100 readiness score (where that probability sits among
+ * the reference workforce), the Low/Medium/High tier, the history it rests on
+ * (`basis`: one appraisal or two), the factors in readiness points, and snapshots of
+ * the features sent and the appraisals they came from.
  */
 class PromotionReadinessScore extends Model
 {
@@ -26,8 +29,11 @@ class PromotionReadinessScore extends Model
         'probability',
         'score',
         'tier',
+        'basis',
         'factors',
         'features',
+        'history',
+        'warnings',
     ];
 
     protected function casts(): array
@@ -37,6 +43,8 @@ class PromotionReadinessScore extends Model
             'score' => 'decimal:2',
             'factors' => 'array',
             'features' => 'array',
+            'history' => 'array',
+            'warnings' => 'array',
         ];
     }
 

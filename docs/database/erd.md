@@ -816,11 +816,13 @@ and [ADR 0017](../decisions/0017-predictive-analytics-and-ml-inference.md).
 `performance_forecasts`, the second surface on the same service. Maps the ERD's
 `predicted_rating` / `confidence` / `features` / `target_period_id` onto the proven
 header-plus-lines shape (recording the model as a `model_version` string in place of
-`ml_model_id`, as Promotion Readiness does). The regressor's lack of factor
-contributions is covered by a Laravel-derived **band** + **confidence** (data
-coverage) and a **rating trajectory**. See
-[Performance Forecast](../modules/performance-forecast.md) and
-[ADR 0018](../decisions/0018-performance-forecasting.md).
+`ml_model_id`, as Promotion Readiness does). Since 2026-09-26 every forecast carries
+the model's **range** (`predicted_low` / `predicted_high`) and a **confidence** that is
+the chance its band is right, and both surfaces' runs record the employees the model
+declined (`unassessed`) instead of scoring them from a guess. See
+[Performance Forecast](../modules/performance-forecast.md),
+[ADR 0018](../decisions/0018-performance-forecasting.md) and
+[ADR 0045](../decisions/0045-performance-and-promotion-models-that-can-be-relied-on.md).
 
 **Built (Attrition Risk)** — `attrition_risk_runs` + `attrition_risk_scores`, the
 third surface on the same service, restored on 2026-09-24 after a spell as a
@@ -868,7 +870,9 @@ erDiagram
         bigint ml_model_id FK
         bigint target_period_id FK "evaluation_periods"
         decimal predicted_rating
-        decimal confidence
+        decimal predicted_low "range, 4 in 5"
+        decimal predicted_high
+        decimal confidence "chance the band is right"
         json features
         datetime predicted_at
     }

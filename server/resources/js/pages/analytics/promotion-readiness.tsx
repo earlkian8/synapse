@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
+import { UnassessedList } from '@/features/model-graduation/components/unassessed-list';
 import {
     deleteRun,
     runAssessment,
@@ -32,7 +33,7 @@ import { TierBadge } from '@/features/promotion-readiness/components/tier-badge'
 import {
     formatRelative,
     formatScore,
-    scoreTone,
+    tierTone,
 } from '@/features/promotion-readiness/constants';
 import type {
     PromotionReadinessPageProps,
@@ -108,10 +109,11 @@ export default function PromotionReadiness() {
                             Promotion Readiness
                         </h1>
                         <p className="max-w-2xl text-sm text-muted-foreground">
-                            An objective, model-driven readiness score for every
-                            active employee — from performance history, tenure,
-                            certifications and training — to support fair,
-                            evidence- based advancement decisions.
+                            How each active employee's appraisal record compares
+                            with the records of people who were promoted — from
+                            their latest completed appraisal and how much it
+                            improved on the one before — to support fair,
+                            evidence-based advancement conversations.
                         </p>
                     </div>
                     {can.manage && (
@@ -196,6 +198,11 @@ export default function PromotionReadiness() {
                                 )}
                             </div>
                         </div>
+
+                        <UnassessedList
+                            unassessed={run.unassessed}
+                            noun="assessed"
+                        />
 
                         {/* Filters */}
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -296,6 +303,9 @@ function ReadinessRow({
                         {score.employee?.position ??
                             score.employee?.employee_no ??
                             '—'}
+                        {score.basis === 'latest_appraisal'
+                            ? ' · one appraisal so far'
+                            : ''}
                         {topFactor ? ` · ${topFactor.label} ↑` : ''}
                     </p>
                 </div>
@@ -303,7 +313,7 @@ function ReadinessRow({
                     <span
                         className={cn(
                             'text-sm font-semibold tabular-nums',
-                            scoreTone(score.score),
+                            tierTone(score.tier),
                         )}
                     >
                         {formatScore(score.score)}

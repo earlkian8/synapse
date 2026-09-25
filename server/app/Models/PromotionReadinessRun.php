@@ -31,6 +31,7 @@ class PromotionReadinessRun extends Model
         'medium_count',
         'low_count',
         'average_score',
+        'unassessed',
         'note',
     ];
 
@@ -42,6 +43,7 @@ class PromotionReadinessRun extends Model
             'medium_count' => 'integer',
             'low_count' => 'integer',
             'average_score' => 'decimal:2',
+            'unassessed' => 'array',
         ];
     }
 

@@ -1,3 +1,5 @@
+import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
+
 export type ForecastBand = 'below' | 'on_track' | 'exceeds';
 
 /** One actual rating in an employee's history (0–100), for the trajectory. */
@@ -19,12 +21,37 @@ export type ForecastEmployee = {
 export type ForecastScore = {
     id: number;
     predicted_rating: number; // 0–100
-    confidence: number; // 0–1
+    /** The range four in five next ratings land in (null on runs from before ranges). */
+    predicted_low: number | null;
+    predicted_high: number | null;
+    /** 0–1: the chance the next rating lands in `band`. */
+    confidence: number;
     band: ForecastBand;
+    /** The completed appraisals the forecast could read, oldest first. */
     history: ForecastHistoryPoint[];
-    /** The grounded feature snapshot sent to the model (partial; rest imputed). */
-    features: Record<string, number | string>;
+    /** The inputs sent to the model. */
+    features: { rating_latest?: number };
+    /** Notes about any input held at the model's trained range. */
+    warnings: string[];
     employee: ForecastEmployee | null;
+};
+
+/**
+ * How a run did once its period's appraisals were completed: every forecast
+ * promised a range and a band, checked here against the actual result.
+ */
+export type ForecastTrackRecord = {
+    checked: number;
+    forecasts: number;
+    /** Mean absolute miss, in rating points. */
+    mean_error: number | null;
+    /** Share of actual ratings inside their forecast's range (the promise: ~0.8). */
+    within_range: number | null;
+    /** Share whose band was right, and what the forecasts' confidence expected. */
+    band_right: number | null;
+    expected_band_right: number | null;
+    /** Actual rating by employee id. */
+    actuals: Record<number, number>;
 };
 
 export type ForecastTargetPeriod = {
@@ -37,13 +64,14 @@ export type ForecastRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
-    model_version: string | null;
     employees_scored: number;
     exceeds_count: number;
     on_track_count: number;
     below_count: number;
     average_rating: number | null;
     average_confidence: number | null;
+    /** Active employees with no completed appraisal before the period, and why. */
+    unassessed: UnassessedEmployee[];
     generated_by?: string | null;
     target_period?: ForecastTargetPeriod | null;
     created_at: string | null;
@@ -73,6 +101,7 @@ export type PerformanceForecastPermissions = { manage: boolean };
 export type PerformanceForecastPageProps = {
     run: ForecastRun | null;
     runs: RunSummary[];
+    track_record: ForecastTrackRecord | null;
     service: ServiceInfo;
     can: PerformanceForecastPermissions;
 };

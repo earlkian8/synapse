@@ -152,7 +152,11 @@ export type ForecastBand = 'below' | 'on_track' | 'exceeds';
 /** The latest ML performance forecast for this employee (0–100 predicted). */
 export type PerformanceForecastSummary = {
     predicted_rating: number;
+    /** The range four in five next ratings land in (null on older runs). */
+    predicted_low: number | null;
+    predicted_high: number | null;
     band: ForecastBand;
+    /** 0–1: the chance the next rating lands in `band`. */
     confidence: number;
     generated_at: string | null;
 };

@@ -17,7 +17,11 @@ export function ForecastStatsCards({ run }: { run: ForecastRun }) {
                 icon={Users}
                 label="Forecasted"
                 value={run.employees_scored.toLocaleString()}
-                hint="active employees projected"
+                hint={
+                    run.unassessed.length > 0
+                        ? `${run.unassessed.length} more with no appraisal to forecast from`
+                        : 'every active employee projected'
+                }
             />
             <Card
                 icon={ArrowUpCircle}
@@ -41,7 +45,7 @@ export function ForecastStatsCards({ run }: { run: ForecastRun }) {
                 icon={Gauge}
                 label="Avg confidence"
                 value={formatConfidence(run.average_confidence)}
-                hint="how much rests on real history"
+                hint="average chance each band is right"
             />
         </div>
     );

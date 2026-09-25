@@ -4,9 +4,9 @@ import { cn } from '@/lib/utils';
 import type { ReadinessFactor } from '../types';
 
 /**
- * The factors behind a readiness score: each feature's signed contribution,
- * rendered as a left/right diverging bar (green pushes toward promotion, red
- * pulls away). Bar widths are normalised to the strongest factor shown.
+ * The factors behind a readiness score: how many readiness points each recorded
+ * input moves it, compared with a typical record (green pushes toward promotion,
+ * red pulls away). Bar widths are normalised to the strongest factor shown.
  */
 export function FactorList({
     factors,
@@ -54,7 +54,7 @@ export function FactorList({
                                 )}
                             >
                                 {up ? '+' : '−'}
-                                {Math.abs(factor.impact).toFixed(2)}
+                                {Math.abs(factor.impact).toFixed(0)} pts
                             </span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">

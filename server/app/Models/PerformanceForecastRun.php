@@ -34,6 +34,7 @@ class PerformanceForecastRun extends Model
         'below_count',
         'average_rating',
         'average_confidence',
+        'unassessed',
         'note',
     ];
 
@@ -46,6 +47,7 @@ class PerformanceForecastRun extends Model
             'below_count' => 'integer',
             'average_rating' => 'decimal:2',
             'average_confidence' => 'decimal:3',
+            'unassessed' => 'array',
         ];
     }
 

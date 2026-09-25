@@ -168,6 +168,8 @@ class PerformanceController extends Controller
             'history' => $this->history($evaluation),
             'forecast' => $forecast ? [
                 'predicted_rating' => (float) $forecast->predicted_rating,
+                'predicted_low' => $forecast->predicted_low === null ? null : (float) $forecast->predicted_low,
+                'predicted_high' => $forecast->predicted_high === null ? null : (float) $forecast->predicted_high,
                 'band' => $forecast->band,
                 'confidence' => (float) $forecast->confidence,
                 'generated_at' => $forecast->run?->created_at?->toIso8601String(),

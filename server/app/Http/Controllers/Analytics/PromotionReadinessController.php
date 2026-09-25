@@ -39,7 +39,8 @@ class PromotionReadinessController extends Controller
             ]);
         }
 
-        // Liveness of the inference service, for the connectivity banner.
+        // Whether the inference service can assess right now: reachable, with the
+        // promotion model loaded.
         $health = $ml->health();
 
         return Inertia::render('analytics/promotion-readiness', [
@@ -54,7 +55,7 @@ class PromotionReadinessController extends Controller
             // Liveness only. The model's version and accuracy metrics stay
             // server-side: they are for whoever tunes the model, not for the HR
             // user reading this page.
-            'service' => ['connected' => $health !== null],
+            'service' => ['connected' => isset($health['models']['promotion'])],
             'can' => ['manage' => $request->user()->can('analytics.promotion.manage')],
         ]);
     }

@@ -19,10 +19,15 @@ class PerformanceForecastScoreResource extends JsonResource
         return [
             'id' => $this->id,
             'predicted_rating' => (float) $this->predicted_rating,
+            // The range four in five next ratings land in.
+            'predicted_low' => $this->predicted_low === null ? null : (float) $this->predicted_low,
+            'predicted_high' => $this->predicted_high === null ? null : (float) $this->predicted_high,
+            // The chance the next rating lands in `band`.
             'confidence' => (float) $this->confidence,
             'band' => $this->band,
             'history' => $this->history ?? [],
             'features' => $this->features ?? [],
+            'warnings' => $this->warnings ?? [],
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

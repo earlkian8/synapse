@@ -1,11 +1,25 @@
+import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
+
 export type ReadinessTier = 'low' | 'medium' | 'high';
 
+/** How much appraisal history a score rests on. */
+export type ReadinessBasis = 'latest_appraisal' | 'two_appraisals';
+
 export type ReadinessFactor = {
-    feature: string;
+    feature: 'rating_latest' | 'rating_change';
     label: string;
-    /** Signed logit contribution; sign matches `direction`. */
+    /**
+     * Readiness points this input moves the score, compared with a typical record;
+     * sign matches `direction`.
+     */
     impact: number;
     direction: 'up' | 'down';
+};
+
+/** A completed appraisal the score rests on (attainment, 0–100). */
+export type ReadinessAppraisal = {
+    label: string | null;
+    rating: number;
 };
 
 export type ReadinessEmployee = {
@@ -20,10 +34,19 @@ export type ReadinessEmployee = {
 
 export type ReadinessScore = {
     id: number;
-    score: number; // 0–100
-    probability: number; // 0–1
+    /** 0–100: where this record's promotion odds sit among the reference workforce. */
+    score: number;
+    /** 0–1: the share of reference employees with this record who were promoted within a year. */
+    probability: number;
     tier: ReadinessTier;
+    basis: ReadinessBasis | null;
     factors: ReadinessFactor[];
+    /** The inputs sent to the model. */
+    features: { rating_latest?: number; rating_change?: number };
+    /** The completed appraisals behind them, oldest first. */
+    history: ReadinessAppraisal[];
+    /** Notes about any input held at the model's trained range. */
+    warnings: string[];
     employee: ReadinessEmployee | null;
 };
 
@@ -31,12 +54,13 @@ export type ReadinessRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
-    model_version: string | null;
     employees_scored: number;
     high_count: number;
     medium_count: number;
     low_count: number;
     average_score: number | null;
+    /** Active employees the model declined — no completed appraisal — and why. */
+    unassessed: UnassessedEmployee[];
     generated_by?: string | null;
     created_at: string | null;
     scores: ReadinessScore[];

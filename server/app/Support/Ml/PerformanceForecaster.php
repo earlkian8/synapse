@@ -4,59 +4,37 @@ namespace App\Support\Ml;
 
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
-use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceForecast;
 use App\Models\PerformanceForecastRun;
 use App\Models\User;
 use App\Support\ActivityLogger;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
- * The canonical operation behind the Performance Forecast module: project every
- * active employee's next-period performance rating through the performance model
- * and persist the result as a run.
+ * The canonical operation behind the Performance Forecast module: forecast every
+ * active employee's next appraisal through the performance model and persist the
+ * result as a run.
  *
  * It is the single source of truth for "forecast performance" — the controller
  * (and any future scheduled job or assistant tool) calls this rather than
- * re-deriving the flow. It gathers the employees, maps them to features (reusing
- * {@see PromotionFeatureMapper} — the promotion and performance models share a
- * feature space), asks the inference service ({@see MlClient}), then writes a
- * {@see PerformanceForecastRun} with one {@see PerformanceForecast} per employee.
+ * re-deriving the flow. It gathers the employees, cuts each record at the period
+ * being forecast ({@see PerformanceFeatureMapper}), asks the inference service
+ * ({@see MlClient}), then writes a {@see PerformanceForecastRun} with one
+ * {@see PerformanceForecast} per employee the model forecast.
  *
- * Unlike the promotion classifier, the performance model is a regressor: it
- * returns a predicted rating (0–100), but no probability, tier or factor
- * contributions. So the **confidence** is derived here — the share of the model's
- * key inputs grounded in the employee's own recorded HR data (vs. imputed) — and
- * the **band** is bucketed from the predicted rating.
+ * Everything the forecast says comes from the model (ADR 0045): the predicted
+ * rating, the range four in five next ratings land in, the band, and the
+ * **confidence** — the chance the next rating lands in that band. An employee with
+ * no completed appraisal before the period is declined and recorded on the run
+ * with the reason, never forecast from a guess.
  */
 class PerformanceForecaster
 {
-    /**
-     * The model inputs we can ground in real HR data. Confidence is the share of
-     * these present for an employee; the rest are imputed by the pipeline.
-     */
-    private const KEY_FEATURES = [
-        'performance_last_year',
-        'performance_two_years_ago',
-        'manager_rating',
-        'kpi_achievement_percent',
-        'years_at_company',
-        'years_since_last_promotion',
-        'certifications_count',
-        'salary',
-        'employment_type',
-        'department',
-    ];
-
-    /** Band cut-offs on the 0–100 rating scale (grounded in the dataset quartiles). */
-    private const EXCEEDS_AT = 80.0;
-
-    private const ON_TRACK_AT = 60.0;
-
     public function __construct(
         private readonly MlClient $ml,
-        private readonly PromotionFeatureMapper $mapper,
+        private readonly PerformanceFeatureMapper $mapper,
     ) {}
 
     /**
@@ -68,15 +46,7 @@ class PerformanceForecaster
     {
         $employees = Employee::query()
             ->where('employment_status', 'active')
-            ->with([
-                'department:id,name',
-                'performanceEvaluations' => fn ($query) => $query
-                    ->whereNotNull('overall_score')
-                    ->with('period:id,name')
-                    ->latest('id'),
-                'promotions' => fn ($query) => $query->orderByDesc('effective_date'),
-            ])
-            ->withCount('certifications')
+            ->with(['performanceEvaluations' => fn ($query) => $query->with('period:id,name,start_date,end_date')])
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
@@ -91,53 +61,66 @@ class PerformanceForecaster
             ->orderBy('start_date')
             ->first();
 
-        // Build the inference batch, keeping each employee's feature snapshot and
-        // rating history (for the trajectory chart).
+        // Build the inference batch from what a forecast of that period may know,
+        // keeping each employee's feature snapshot and rating history.
+        $windows = [];
         $snapshots = [];
-        $histories = [];
         $instances = [];
 
         foreach ($employees as $employee) {
-            $features = $this->mapper->features($employee);
-            $snapshots[$employee->id] = $features;
-            $histories[$employee->id] = $this->history($employee);
-            $instances[] = ['ref' => (string) $employee->id, 'features' => $features];
+            $windows[$employee->id] = $this->mapper->window($employee, $targetPeriod);
+            $snapshots[$employee->id] = $this->mapper->features($windows[$employee->id]);
+            $instances[] = ['ref' => (string) $employee->id, 'features' => $snapshots[$employee->id]];
         }
 
         $response = $this->ml->predict('performance', $instances);
 
+        if (! empty($response['warnings'])) {
+            Log::warning('Performance model reported a contract mismatch.', ['warnings' => $response['warnings']]);
+        }
+
         /** @var Collection<string, array<string, mixed>> $results */
         $results = collect($response['results'] ?? [])->keyBy('ref');
 
-        $run = DB::transaction(function () use ($employees, $results, $snapshots, $histories, $response, $targetPeriod, $actor): PerformanceForecastRun {
+        $run = DB::transaction(function () use ($employees, $results, $snapshots, $windows, $response, $targetPeriod, $actor): PerformanceForecastRun {
             $rows = [];
+            $unassessed = [];
             $bands = ['below' => 0, 'on_track' => 0, 'exceeds' => 0];
             $ratingSum = 0.0;
             $confidenceSum = 0.0;
 
             foreach ($employees as $employee) {
                 $result = $results->get((string) $employee->id);
+                $window = $windows[$employee->id];
 
-                if ($result === null) {
+                if ($result === null || ($result['status'] ?? 'scored') !== 'scored' || ! isset($result['score'])
+                    || ! in_array($result['band'] ?? null, PerformanceForecast::BANDS, true)) {
+                    $unassessed[] = [
+                        'employee_id' => $employee->id,
+                        'reason' => $window->reasonUnassessed(AppraisalHistory::of($employee)),
+                    ];
+
                     continue;
                 }
 
-                $features = $snapshots[$employee->id] ?: [];
-                $rating = max(0.0, min(100.0, round((float) ($result['score'] ?? 0), 1)));
-                $confidence = $this->confidence($features);
-                $band = $this->bandFor($rating);
+                $rating = $this->clamp((float) $result['score']);
+                $confidence = round(max(0.0, min(1.0, (float) ($result['confidence'] ?? 0))), 3);
+                $interval = $result['interval'] ?? null;
 
-                $bands[$band]++;
+                $bands[$result['band']]++;
                 $ratingSum += $rating;
                 $confidenceSum += $confidence;
 
                 $rows[] = [
                     'employee_id' => $employee->id,
                     'predicted_rating' => $rating,
+                    'predicted_low' => isset($interval['low']) ? $this->clamp((float) $interval['low']) : null,
+                    'predicted_high' => isset($interval['high']) ? $this->clamp((float) $interval['high']) : null,
                     'confidence' => $confidence,
-                    'band' => $band,
-                    'features' => $features ?: null,
-                    'history' => $histories[$employee->id] ?: null,
+                    'band' => $result['band'],
+                    'features' => $snapshots[$employee->id] ?: null,
+                    'history' => $window->trajectory() ?: null,
+                    'warnings' => ($result['warnings'] ?? []) ?: null,
                 ];
             }
 
@@ -154,6 +137,7 @@ class PerformanceForecaster
                 'below_count' => $bands['below'],
                 'average_rating' => $scored > 0 ? round($ratingSum / $scored, 2) : null,
                 'average_confidence' => $scored > 0 ? round($confidenceSum / $scored, 3) : null,
+                'unassessed' => $unassessed ?: null,
             ]);
 
             $run->forecasts()->createMany($rows);
@@ -161,9 +145,12 @@ class PerformanceForecaster
             return $run;
         });
 
+        $declined = count($run->unassessed ?? []);
+
         ActivityLogger::log(
             event: 'generated',
-            description: "Ran a performance forecast ({$run->employees_scored} employees, {$run->exceeds_count} exceeding)",
+            description: "Ran a performance forecast ({$run->employees_scored} employees, {$run->exceeds_count} exceeding"
+                .($declined > 0 ? ", {$declined} not forecast)" : ')'),
             subject: $run,
             logName: 'performance-forecast',
         );
@@ -171,55 +158,8 @@ class PerformanceForecaster
         return $run;
     }
 
-    /**
-     * Confidence (0–1): the share of the model's key inputs we could ground in
-     * this employee's real HR data. The rest are imputed by the pipeline, so a
-     * thinner record yields a less certain forecast.
-     *
-     * @param  array<string, mixed>  $features
-     */
-    private function confidence(array $features): float
+    private function clamp(float $rating): float
     {
-        $present = collect(self::KEY_FEATURES)
-            ->filter(fn (string $key): bool => array_key_exists($key, $features))
-            ->count();
-
-        return round($present / count(self::KEY_FEATURES), 3);
-    }
-
-    /**
-     * Bucket a predicted rating into a band.
-     */
-    private function bandFor(float $rating): string
-    {
-        return match (true) {
-            $rating >= self::EXCEEDS_AT => 'exceeds',
-            $rating >= self::ON_TRACK_AT => 'on_track',
-            default => 'below',
-        };
-    }
-
-    /**
-     * The employee's recent actual ratings (overall_score 1–5 → 0–100), oldest
-     * first, for the trajectory chart. Capped at the six most recent cycles.
-     *
-     * @return list<array{label: ?string, rating: float}>
-     */
-    private function history(Employee $employee): array
-    {
-        if (! $employee->relationLoaded('performanceEvaluations')) {
-            return [];
-        }
-
-        return $employee->performanceEvaluations
-            ->filter(fn (PerformanceEvaluation $e): bool => $e->overall_score !== null)
-            ->take(6)
-            ->reverse()
-            ->map(fn (PerformanceEvaluation $e): array => [
-                'label' => $e->relationLoaded('period') && $e->period ? $e->period->name : null,
-                'rating' => round((float) $e->overall_score * 20, 1),
-            ])
-            ->values()
-            ->all();
+        return max(0.0, min(100.0, round($rating, 1)));
     }
 }

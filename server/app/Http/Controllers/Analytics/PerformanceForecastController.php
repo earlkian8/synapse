@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Analytics;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformanceForecastRunResource;
 use App\Models\PerformanceForecastRun;
+use App\Support\Ml\ForecastTrackRecord;
 use App\Support\Ml\MlClient;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,7 +21,7 @@ use Inertia\Response;
  */
 class PerformanceForecastController extends Controller
 {
-    public function index(Request $request, MlClient $ml): Response
+    public function index(Request $request, MlClient $ml, ForecastTrackRecord $trackRecord): Response
     {
         // Lightweight list of every run, for the history selector.
         $runs = PerformanceForecastRun::query()->latestFirst()->get();
@@ -41,7 +42,8 @@ class PerformanceForecastController extends Controller
             ]);
         }
 
-        // Liveness of the inference service, for the connectivity banner.
+        // Whether the inference service can forecast right now: reachable, with the
+        // performance model loaded.
         $health = $ml->health();
 
         return Inertia::render('analytics/performance-forecast', [
@@ -56,7 +58,9 @@ class PerformanceForecastController extends Controller
             // Liveness only. The model's version and accuracy metrics stay
             // server-side: they are for whoever tunes the model, not for the HR
             // user reading this page.
-            'service' => ['connected' => $health !== null],
+            // How the viewed run did, once its period has completed appraisals.
+            'track_record' => $current ? $trackRecord->for($current) : null,
+            'service' => ['connected' => isset($health['models']['performance'])],
             'can' => ['manage' => $request->user()->can('analytics.performance.manage')],
         ]);
     }

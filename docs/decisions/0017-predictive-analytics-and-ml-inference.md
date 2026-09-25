@@ -1,6 +1,6 @@
 # 0017 — Predictive Workforce Analytics: an external ML inference service, starting with Promotion Readiness
 
-- **Status:** Accepted
+- **Status:** Accepted — the promotion model, its inputs and how employee records are mapped to them are superseded by [ADR 0045](./0045-performance-and-promotion-models-that-can-be-relied-on.md); the architecture stands
 - **Date:** 2026-06-23
 - **Related:** [Promotion Readiness module](../modules/promotion-readiness.md),
   [promotion-readiness tables](../database/promotion-readiness-tables.md),

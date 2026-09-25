@@ -1,3 +1,4 @@
+import { CircleAlert, Target } from 'lucide-react';
 import { PersonAvatar } from '@/components/person-avatar';
 import {
     Dialog,
@@ -8,8 +9,10 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
+    BAND_PHRASES,
     confidenceLabel,
     formatConfidence,
+    formatRange,
     formatRating,
     ratingBarTone,
     ratingTone,
@@ -19,68 +22,31 @@ import { BandBadge } from './band-badge';
 import { TrajectoryChart } from './trajectory-chart';
 
 /**
- * The features sent to the model that we ground in real HR data, with friendly
- * labels and formatters. Only the ones present in the snapshot are shown — the
- * rest were imputed by the pipeline and are deliberately not presented as fact.
+ * A drill-down on one employee's forecast: the rating, the range it is likely to
+ * land in, the chance its band is right, the trajectory behind it, and — once the
+ * period is appraised — how it turned out.
  */
-const INPUT_FIELDS: {
-    key: string;
-    label: string;
-    format: (value: number | string) => string;
-}[] = [
-    {
-        key: 'manager_rating',
-        label: 'Latest manager rating',
-        format: (v) => `${Number(v).toFixed(1)} / 5`,
-    },
-    {
-        key: 'kpi_achievement_percent',
-        label: 'KPI achievement',
-        format: (v) => `${Math.round(Number(v))}%`,
-    },
-    {
-        key: 'performance_last_year',
-        label: 'Rating last cycle',
-        format: (v) => `${Math.round(Number(v))} / 100`,
-    },
-    {
-        key: 'performance_two_years_ago',
-        label: 'Rating two cycles ago',
-        format: (v) => `${Math.round(Number(v))} / 100`,
-    },
-    {
-        key: 'years_at_company',
-        label: 'Tenure',
-        format: (v) => `${Number(v).toFixed(1)} yrs`,
-    },
-    {
-        key: 'years_since_last_promotion',
-        label: 'Since last promotion',
-        format: (v) => `${Number(v).toFixed(1)} yrs`,
-    },
-    {
-        key: 'certifications_count',
-        label: 'Certifications',
-        format: (v) => `${Math.round(Number(v))}`,
-    },
-    {
-        key: 'employment_type',
-        label: 'Employment type',
-        format: (v) => String(v),
-    },
-];
-
-/** A drill-down on one employee's forecast: rating, confidence, trajectory, inputs. */
 export function EmployeeDetailDialog({
     score,
+    actual,
+    periodName,
     onOpenChange,
 }: {
     score: ForecastScore | null;
+    /** The completed appraisal for the forecast period, when there is one. */
+    actual: number | null;
+    periodName: string | null;
     onOpenChange: (open: boolean) => void;
 }) {
+    const range =
+        score && score.predicted_low !== null && score.predicted_high !== null
+            ? { low: score.predicted_low, high: score.predicted_high }
+            : null;
+    const latest = score?.history.at(-1) ?? null;
+
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 {score && score.employee && (
                     <>
                         <DialogHeader>
@@ -123,15 +89,26 @@ export function EmployeeDetailDialog({
                                         {formatRating(score.predicted_rating)}
                                     </span>
                                     <span className="text-sm text-muted-foreground">
-                                        / 100 predicted
+                                        / 100 forecast
+                                        {range &&
+                                            ` · likely ${formatRange(range.low, range.high)}`}
                                     </span>
                                 </div>
                                 <BandBadge band={score.band} />
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-muted">
+                            <div className="relative h-2 overflow-hidden rounded-full bg-muted">
+                                {range && (
+                                    <div
+                                        className="absolute inset-y-0 rounded-full bg-foreground/10"
+                                        style={{
+                                            left: `${range.low}%`,
+                                            width: `${range.high - range.low}%`,
+                                        }}
+                                    />
+                                )}
                                 <div
                                     className={cn(
-                                        'h-full rounded-full',
+                                        'relative h-full rounded-full',
                                         ratingBarTone(score.predicted_rating),
                                     )}
                                     style={{
@@ -140,81 +117,105 @@ export function EmployeeDetailDialog({
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                {confidenceLabel(score.confidence)} ·{' '}
-                                {formatConfidence(score.confidence)} of the
-                                forecast rests on this employee's recorded
-                                history
+                                <span className="font-medium text-foreground">
+                                    {confidenceLabel(score.confidence)}
+                                </span>{' '}
+                                — a {formatConfidence(score.confidence)} chance
+                                the next appraisal lands{' '}
+                                {BAND_PHRASES[score.band]}
+                                {range
+                                    ? `, and four in five land within ${formatRange(range.low, range.high)}.`
+                                    : '.'}
                             </p>
                         </div>
+
+                        {/* How it turned out */}
+                        {actual !== null && (
+                            <div className="flex items-start gap-3 rounded-xl border border-sidebar-border/60 bg-card/40 px-4 py-3 dark:border-sidebar-border">
+                                <Target className="mt-0.5 size-4 shrink-0 text-[#0ABFBF]" />
+                                <p className="text-sm">
+                                    <span className="font-medium">
+                                        Actual: {actual.toFixed(1)}
+                                    </span>
+                                    {periodName ? ` for ${periodName}` : ''} —{' '}
+                                    {range &&
+                                    actual >= range.low &&
+                                    actual <= range.high
+                                        ? 'inside the forecast range'
+                                        : range
+                                          ? 'outside the forecast range'
+                                          : 'no range was forecast'}
+                                    ,{' '}
+                                    {Math.abs(
+                                        actual - score.predicted_rating,
+                                    ).toFixed(1)}{' '}
+                                    points from the forecast.
+                                </p>
+                            </div>
+                        )}
 
                         {/* Trajectory */}
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                                 Rating trajectory
                             </h3>
-                            {score.history.length > 0 ? (
-                                <TrajectoryChart
-                                    history={score.history}
-                                    forecast={score.predicted_rating}
-                                />
-                            ) : (
-                                <p className="rounded-lg border border-dashed border-sidebar-border/70 bg-card/40 px-3 py-4 text-center text-xs text-muted-foreground dark:border-sidebar-border">
-                                    No prior evaluations — this forecast leans
-                                    on role and tenure signals, so treat it as
-                                    indicative.
-                                </p>
-                            )}
+                            <TrajectoryChart
+                                history={score.history}
+                                forecast={score.predicted_rating}
+                                range={range}
+                                actual={actual}
+                            />
                         </div>
 
-                        {/* What we based it on */}
+                        {/* What it is based on */}
                         <div className="flex flex-col gap-2">
                             <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                                 What this is based on
                             </h3>
-                            <FeatureGrid features={score.features} />
+                            <div className="flex flex-col gap-0.5 rounded-lg border border-sidebar-border/60 bg-card/40 px-3 py-2 dark:border-sidebar-border">
+                                <span className="text-[11px] text-muted-foreground">
+                                    Latest completed appraisal before the
+                                    forecast period
+                                </span>
+                                <span className="text-sm font-medium tabular-nums">
+                                    {score.features.rating_latest !== undefined
+                                        ? `${score.features.rating_latest.toFixed(1)}%`
+                                        : '—'}
+                                    {latest?.label && (
+                                        <span className="font-normal text-muted-foreground">
+                                            {' '}
+                                            · {latest.label}
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                            {score.warnings.length > 0 && (
+                                <ul className="flex flex-col gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                                    {score.warnings.map((warning) => (
+                                        <li
+                                            key={warning}
+                                            className="flex items-start gap-1.5"
+                                        >
+                                            <CircleAlert className="mt-0.5 size-3 shrink-0" />
+                                            {warning}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Only signals grounded in real HR data are shown;
-                                anything missing is imputed by the model.
-                                Demographic attributes are never used.
+                                Across a large reference workforce, the latest
+                                appraisal is the one record that predicts the
+                                next — earlier ratings, tenure and training add
+                                nothing once it is known. The range is how far
+                                next ratings actually strayed from forecasts
+                                like this one. Drafts and the forecast period's
+                                own appraisal are never read, and no demographic
+                                attribute is used.
                             </p>
                         </div>
                     </>
                 )}
             </DialogContent>
         </Dialog>
-    );
-}
-
-function FeatureGrid({
-    features,
-}: {
-    features: Record<string, number | string>;
-}) {
-    const rows = INPUT_FIELDS.filter((f) => features[f.key] !== undefined);
-
-    if (rows.length === 0) {
-        return (
-            <p className="text-sm text-muted-foreground">
-                No recorded signals for this employee yet.
-            </p>
-        );
-    }
-
-    return (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {rows.map((field) => (
-                <div
-                    key={field.key}
-                    className="flex flex-col gap-0.5 rounded-lg border border-sidebar-border/60 bg-card/40 px-3 py-2 dark:border-sidebar-border"
-                >
-                    <dt className="text-[11px] text-muted-foreground">
-                        {field.label}
-                    </dt>
-                    <dd className="text-sm font-medium tabular-nums">
-                        {field.format(features[field.key])}
-                    </dd>
-                </div>
-            ))}
-        </dl>
     );
 }

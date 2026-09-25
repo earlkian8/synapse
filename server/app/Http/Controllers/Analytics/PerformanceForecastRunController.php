@@ -32,9 +32,12 @@ class PerformanceForecastRunController extends Controller
             return back();
         }
 
+        $declined = count($run->unassessed ?? []);
+
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => "Forecast complete — {$run->employees_scored} employees projected.",
+            'message' => "Forecast complete — {$run->employees_scored} employees projected."
+                .($declined > 0 ? " {$declined} with no appraisal to forecast from were left out." : ''),
         ]);
 
         return redirect()->route('analytics.performance-forecast.index');

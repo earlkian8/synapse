@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\PerformanceForecastRun;
+use App\Support\Ml\UnassessedEmployees;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,13 +21,14 @@ class PerformanceForecastRunResource extends JsonResource
             'id' => $this->id,
             'hashid' => $this->hashid,
             'status' => $this->status,
-            'model_version' => $this->model_version,
             'employees_scored' => (int) $this->employees_scored,
             'exceeds_count' => (int) $this->exceeds_count,
             'on_track_count' => (int) $this->on_track_count,
             'below_count' => (int) $this->below_count,
             'average_rating' => $this->average_rating === null ? null : (float) $this->average_rating,
             'average_confidence' => $this->average_confidence === null ? null : (float) $this->average_confidence,
+            // Employees with no completed appraisal before the target period, and why.
+            'unassessed' => UnassessedEmployees::resolve($this->unassessed),
             'generated_by' => $this->whenLoaded('generator', fn () => $this->generator
                 ? trim("{$this->generator->first_name} {$this->generator->last_name}")
                 : null),

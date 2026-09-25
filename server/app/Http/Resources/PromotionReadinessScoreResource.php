@@ -21,7 +21,13 @@ class PromotionReadinessScoreResource extends JsonResource
             'score' => (float) $this->score,
             'probability' => (float) $this->probability,
             'tier' => $this->tier,
+            // latest_appraisal | two_appraisals — how much history the score rests on.
+            'basis' => $this->basis,
+            // Readiness points each recorded input moves the score, strongest first.
             'factors' => $this->factors ?? [],
+            'features' => $this->features ?? [],
+            'history' => $this->history ?? [],
+            'warnings' => $this->warnings ?? [],
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

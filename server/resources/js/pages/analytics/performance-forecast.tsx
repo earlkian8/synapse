@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
+import { UnassessedList } from '@/features/model-graduation/components/unassessed-list';
 import {
     deleteRun,
     runForecast,
@@ -30,8 +31,9 @@ import { BandBadge } from '@/features/performance-forecast/components/band-badge
 import { EmployeeDetailDialog } from '@/features/performance-forecast/components/employee-detail-dialog';
 import { ForecastStatsCards } from '@/features/performance-forecast/components/forecast-stats';
 import { ServiceBanner } from '@/features/performance-forecast/components/service-banner';
+import { TrackRecordCard } from '@/features/performance-forecast/components/track-record';
 import {
-    formatConfidence,
+    formatRange,
     formatRating,
     formatRelative,
     ratingTone,
@@ -51,7 +53,7 @@ const BAND_FILTERS: { value: ForecastBand | 'all'; label: string }[] = [
 ];
 
 export default function PerformanceForecast() {
-    const { run, runs, service, can } =
+    const { run, runs, track_record, service, can } =
         usePage<PerformanceForecastPageProps>().props;
 
     const [processing, setProcessing] = useState(false);
@@ -110,10 +112,11 @@ export default function PerformanceForecast() {
                             Performance Forecast
                         </h1>
                         <p className="max-w-2xl text-sm text-muted-foreground">
-                            A model-projected next-period rating for every
-                            active employee — from their evaluation history,
-                            tenure and credentials — to plan reviews, coaching
-                            and development before the cycle begins.
+                            Where each active employee's next appraisal is
+                            likely to land — a forecast from their latest
+                            completed appraisal, with the range it could fall in
+                            and how likely its band is — to plan reviews,
+                            coaching and development before the cycle begins.
                         </p>
                     </div>
                     {can.manage && (
@@ -211,6 +214,16 @@ export default function PerformanceForecast() {
                             </div>
                         </div>
 
+                        <TrackRecordCard
+                            record={track_record}
+                            periodName={run.target_period?.name ?? null}
+                        />
+
+                        <UnassessedList
+                            unassessed={run.unassessed}
+                            noun="forecast"
+                        />
+
                         {/* Filters */}
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <div className="relative sm:max-w-xs sm:flex-1">
@@ -269,6 +282,12 @@ export default function PerformanceForecast() {
 
             <EmployeeDetailDialog
                 score={detail}
+                actual={
+                    detail?.employee
+                        ? (track_record?.actuals[detail.employee.id] ?? null)
+                        : null
+                }
+                periodName={run?.target_period?.name ?? null}
                 onOpenChange={(open) => !open && setDetail(null)}
             />
         </>
@@ -289,6 +308,7 @@ function ForecastRow({
         previous === null
             ? null
             : Math.round(score.predicted_rating - previous);
+    const range = formatRange(score.predicted_low, score.predicted_high);
 
     return (
         <li>
@@ -315,8 +335,9 @@ function ForecastRow({
                             score.employee?.employee_no ??
                             '—'}
                         {delta !== null
-                            ? ` · ${delta >= 0 ? '+' : ''}${delta} vs last cycle`
-                            : ` · ${formatConfidence(score.confidence)} confidence`}
+                            ? ` · ${delta >= 0 ? '+' : ''}${delta} vs last appraisal`
+                            : ''}
+                        {range ? ` · likely ${range}` : ''}
                     </p>
                 </div>
                 <div className="flex w-12 flex-col items-end">

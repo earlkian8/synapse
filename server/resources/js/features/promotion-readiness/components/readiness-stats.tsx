@@ -1,7 +1,7 @@
 import { Gauge, Sparkles, TrendingUp, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
-import { formatScore, scoreTone } from '../constants';
+import { formatScore } from '../constants';
 import type { ReadinessRun } from '../types';
 
 /** Headline metric cards for the latest assessment run. */
@@ -17,32 +17,31 @@ export function ReadinessStatsCards({ run }: { run: ReadinessRun }) {
                 icon={Users}
                 label="Assessed"
                 value={run.employees_scored.toLocaleString()}
-                hint="active employees scored"
+                hint={
+                    run.unassessed.length > 0
+                        ? `${run.unassessed.length} more with no completed appraisal`
+                        : 'every active employee scored'
+                }
             />
             <Card
                 icon={Sparkles}
                 label="Promotion-ready"
                 value={run.high_count.toLocaleString()}
-                hint={`${readyShare}% in the high tier`}
+                hint={`${readyShare}% · twice average odds or more`}
                 valueClassName="text-emerald-600 dark:text-emerald-400"
             />
             <Card
                 icon={TrendingUp}
                 label="Developing"
                 value={run.medium_count.toLocaleString()}
-                hint="medium tier — watch & grow"
+                hint="average odds or better"
                 valueClassName="text-amber-600 dark:text-amber-400"
             />
             <Card
                 icon={Gauge}
                 label="Average readiness"
                 value={formatScore(run.average_score)}
-                hint="mean score across cohort"
-                valueClassName={
-                    run.average_score === null
-                        ? undefined
-                        : scoreTone(run.average_score)
-                }
+                hint="50 is the reference workforce's middle"
             />
         </div>
     );

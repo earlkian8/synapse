@@ -59,10 +59,19 @@ class MlClient
             return ['model' => $model, 'model_version' => null, 'results' => []];
         }
 
+        // An employee with nothing on record has no features, and PHP encodes an
+        // empty array as a JSON list — which the service rightly rejects, failing
+        // the whole batch. Features are always encoded as an object.
+        $body = json_encode(['instances' => array_map(
+            fn (array $instance): array => [...$instance, 'features' => (object) ($instance['features'] ?? [])],
+            array_values($instances),
+        )], JSON_THROW_ON_ERROR);
+
         try {
             $response = Http::timeout($this->timeout)
-                ->asJson()
-                ->post($this->url("/predict/{$model}"), ['instances' => array_values($instances)]);
+                ->withBody($body, 'application/json')
+                ->acceptJson()
+                ->post($this->url("/predict/{$model}"));
         } catch (ConnectionException $e) {
             Log::warning('ML inference service unreachable.', [
                 'model' => $model,

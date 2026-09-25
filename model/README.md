@@ -7,8 +7,8 @@ service that serves them to Laravel. Each task uses a deliberately chosen algori
 | Notebook | Algorithm | Task | Target | Dataset (`data/raw/`) |
 |---|---|---|---|---|
 | `01_attrition_model` | **Random Forest** | Attrition-risk scoring | `left` | `attrition-survey-1.csv` + `-2.csv` |
-| `02_performance_model` | **Gradient Boosting** | Performance forecasting (40–100) | `performance_score` | `employee_promotion_prediction.csv` |
-| `03_promotion_model` | **Logistic Regression** | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
+| `02_performance_model` | **Gradient Boosting** (monotone) + conformal intervals | Next-appraisal forecast (0–100, with range and band confidence) | next `performance_score` | `employee_promotion_prediction.csv` |
+| `03_promotion_model` | **Logistic Regression** (calibrated, one submodel per history pattern) | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
 
 ## Layout
 
@@ -18,12 +18,17 @@ model/
 ├── synapse_ml/           the library shared by notebooks, tests and the service
 │   ├── paths.py          every directory, defined once
 │   ├── runs.py           logged runs + artifact persistence
-│   ├── tabular.py        generic tabular helpers
-│   └── attrition/        the attrition model
-│       ├── survey.py     load, merge and clean the surveys
-│       ├── features.py   the feature contract and shared preprocessor
-│       ├── model.py      the candidate models and the chosen one
-│       └── evaluation.py repeated grouped CV, permutation test, importance
+│   ├── attrition/        the attrition model
+│   │   ├── survey.py     load, merge and clean the surveys
+│   │   ├── features.py   the feature contract and shared preprocessor
+│   │   ├── model.py      the candidate models and the chosen one
+│   │   └── evaluation.py repeated grouped CV, permutation test, importance
+│   ├── appraisal/        what the two appraisal models share
+│   │   ├── reference.py  load and validate the reference workforce
+│   │   ├── inputs.py     read a live record against a contract (absent ≠ zero; clip + note)
+│   │   └── patterns.py   one submodel per history pattern — never a guessed input
+│   ├── promotion/        features.py · model.py · evaluation.py
+│   └── performance/      features.py · model.py · evaluation.py
 ├── notebooks/            the narrative: explore, evaluate, persist (generated)
 ├── scripts/
 │   └── build_notebooks.py  generates notebooks/ from one reviewable definition
@@ -98,13 +103,29 @@ notebook reports repeated grouped cross-validation, a permutation test and a cro
 check rather than a single split. See
 `../docs/decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md`.
 
-## Notes on the promotion dataset
+## The performance and promotion models
 
-- The **promotion** target is **imbalanced** (~10% positive). The classifier uses
-  `class_weight="balanced"` and is evaluated with ROC-AUC / PR-AUC rather than accuracy,
-  plus a decision-threshold sweep tuned for recall on the minority class.
-- **Leakage guards:** the promotion model drops `salary_increase_percent` (a raise is part
-  of a promotion). The performance model drops the `promoted` outcome and keeps historical
-  performance as legitimate predictors.
-- Gradient boosting uses scikit-learn's native `HistGradientBoostingRegressor`, so there is
-  no xgboost/lightgbm dependency and the environment installs cleanly on Python 3.14.
+Both are trained on the reference workforce (`employee_promotion_prediction.csv`, 100,000
+rows), **re-expressed in the few inputs the ERP actually records** — the previous models
+read 40 columns, most of which the ERP never has, and scored live employees on imputed
+guesses. See `../docs/decisions/0045-performance-and-promotion-models-that-can-be-relied-on.md`.
+
+- **Inputs.** Promotion: the latest completed appraisal's attainment (`overall_percent`)
+  and its change on the previous one. Performance: the latest completed appraisal before
+  the forecast period. Every other column was measured and is absent for a stated reason
+  (notebook §2–3): most add nothing; department, overtime and time since promotion add a
+  little and are excluded on purpose.
+- **No guessed inputs.** A record with one appraisal is scored by a submodel fitted
+  without the change (`appraisal/patterns.py`); a record with none is declined
+  (`status: insufficient`). Filling the gap with a median invents an improvement — the
+  strongest promotion signal — and costs calibration tenfold where the record is thin.
+- **Reliable numbers.** Promotion probabilities are calibrated (ECE 0.004) and tiered by
+  lift over the base rate; the forecast carries a conformal range (80 % held out, in every
+  region of the scale) and a confidence that is the chance its band is right.
+- **Tested guarantees.** Monotonicity (a better record never scores worse), determinism,
+  batch/single parity, calibration, coverage, and the on-disk contract matching the model
+  (`tests/test_promotion_model.py`, `tests/test_performance_model.py`,
+  `tests/test_api_served.py`).
+- **Leakage.** The forecast never reads the forecast period's own appraisal; the old
+  model's same-appraisal inputs (manager rating, KPI attainment) are gone. The promotion
+  model never saw `salary_increase_percent`.
