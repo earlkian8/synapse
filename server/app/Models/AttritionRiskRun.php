@@ -26,6 +26,7 @@ class AttritionRiskRun extends Model
         'generated_by',
         'status',
         'model_version',
+        'local_model_id',
         'employees_scored',
         'high_count',
         'medium_count',
@@ -53,6 +54,17 @@ class AttritionRiskRun extends Model
     public function scores(): HasMany
     {
         return $this->hasMany(AttritionRiskScore::class);
+    }
+
+    /**
+     * The organisation's own model that scored this run, or null for the general
+     * model (ADR 0046).
+     *
+     * @return BelongsTo<LocalModel, $this>
+     */
+    public function localModel(): BelongsTo
+    {
+        return $this->belongsTo(LocalModel::class);
     }
 
     /**

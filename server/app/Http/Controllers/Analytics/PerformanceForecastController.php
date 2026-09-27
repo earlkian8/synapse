@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PerformanceForecastRunResource;
 use App\Models\PerformanceForecastRun;
 use App\Support\Ml\ForecastTrackRecord;
+use App\Support\Ml\Graduation\ModelGraduation;
 use App\Support\Ml\MlClient;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,7 +22,7 @@ use Inertia\Response;
  */
 class PerformanceForecastController extends Controller
 {
-    public function index(Request $request, MlClient $ml, ForecastTrackRecord $trackRecord): Response
+    public function index(Request $request, MlClient $ml, ModelGraduation $graduation, ForecastTrackRecord $trackRecord): Response
     {
         // Lightweight list of every run, for the history selector.
         $runs = PerformanceForecastRun::query()->latestFirst()->get();
@@ -61,6 +62,9 @@ class PerformanceForecastController extends Controller
             // How the viewed run did, once its period has completed appraisals.
             'track_record' => $current ? $trackRecord->for($current) : null,
             'service' => ['connected' => isset($health['models']['performance'])],
+            // Model graduation (ADR 0046): where this surface stands on moving from
+            // the general model to one trained on the organisation's own records.
+            'graduation' => $graduation->check('performance', isset($health['models']['performance'])),
             'can' => ['manage' => $request->user()->can('analytics.performance.manage')],
         ]);
     }

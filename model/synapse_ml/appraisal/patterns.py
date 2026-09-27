@@ -38,14 +38,25 @@ class PatternRouter:
         self.optional = list(optional)
         self.submodels: dict[Pattern, Any] = {}
 
-    def fit(self, X: pd.DataFrame, y: Iterable) -> PatternRouter:
+    def fit(self, X: pd.DataFrame, y: Iterable, complete: bool = True) -> PatternRouter:
+        """Fit one submodel per pattern.
+
+        ``complete`` (the reference): every row carries every input, and each pattern
+        is made by dropping columns. Otherwise (an organisation's own records, where a
+        first appraisal has no change to report) each pattern is fitted on the rows
+        that actually carry its inputs — still never a guessed value.
+        """
         missing = [c for c in [*self.required, *self.optional] if c not in X.columns]
         if missing:
             raise ValueError(f"training frame lacks {missing}")
-        if X[[*self.required, *self.optional]].isna().any().any():
+        if complete and X[[*self.required, *self.optional]].isna().any().any():
             raise ValueError("training frame must be complete; patterns are made by dropping columns")
         y = np.asarray(y)
-        self.submodels = {p: clone(self.estimator).fit(X[self.columns(p)], y) for p in patterns(self.optional)}
+        self.submodels = {}
+        for p in patterns(self.optional):
+            cols = self.columns(p)
+            rows = X[cols].notna().all(axis=1).to_numpy()
+            self.submodels[p] = clone(self.estimator).fit(X.loc[rows, cols], y[rows])
         return self
 
     def columns(self, pattern: Pattern) -> list[str]:

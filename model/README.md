@@ -28,7 +28,8 @@ model/
 │   │   ├── inputs.py     read a live record against a contract (absent ≠ zero; clip + note)
 │   │   └── patterns.py   one submodel per history pattern — never a guessed input
 │   ├── promotion/        features.py · model.py · evaluation.py
-│   └── performance/      features.py · model.py · evaluation.py
+│   ├── performance/      features.py · model.py · evaluation.py
+│   └── local/            an organisation's own models: training.py (fit + check) · store.py
 ├── notebooks/            the narrative: explore, evaluate, persist (generated)
 ├── scripts/
 │   └── build_notebooks.py  generates notebooks/ from one reviewable definition
@@ -129,3 +130,15 @@ guesses. See `../docs/decisions/0045-performance-and-promotion-models-that-can-b
 - **Leakage.** The forecast never reads the forecast period's own appraisal; the old
   model's same-appraisal inputs (manager rating, KPI attainment) are gone. The promotion
   model never saw `salary_increase_percent`.
+
+## Models trained on an organisation's own records (model graduation)
+
+Each surface's model can also be fitted on one organisation's history, sent by Laravel
+through `POST /train/{model}` once its graduation checklist is met (ADR 0046).
+`synapse_ml/local/training.py` fits the **same model class and contract** as the
+reference model — so the result serves through the same pages — and offers it only if,
+out of fold on that organisation's own people, it beats both the reference model and
+knowing nothing in at least 90 % of 1,000 resamples of the people. Passing models are
+stored per organisation under `artifacts/local/`; the ERP switches to one only when
+someone decides to. Tests: `tests/test_local_training.py` (synthetic organisations with
+and without a real pattern) and `tests/test_api_local.py`.

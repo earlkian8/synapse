@@ -836,6 +836,14 @@ entity below maps onto that header-plus-lines shape as the other two do. See
 [ADR 0043](../decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md)
 (superseding [ADR 0030](../decisions/0030-attrition-risk-frontend-only.md)).
 
+**Built (Model graduation)** — `local_models`: every attempt to train one of the three
+surfaces on the organisation's own records, its check against the general model, and —
+once someone switches to it — the model scoring that surface. Each surface's runs carry
+a nullable `local_model_id`, so a run always says whose model scored it. See
+[Model graduation](../modules/model-graduation.md),
+[model-graduation tables](./model-graduation-tables.md) and
+[ADR 0046](../decisions/0046-model-graduation-trains-on-the-organisations-own-records.md).
+
 ```mermaid
 erDiagram
     EMPLOYEE ||--o{ ATTRITION_PREDICTION : scored

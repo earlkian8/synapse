@@ -17,9 +17,12 @@ const PROMISED_WITHIN = 0.8;
 export function TrackRecordCard({
     record,
     periodName,
+    scoredBy,
 }: {
     record: ForecastTrackRecord | null;
     periodName: string | null;
+    /** Whose model made the forecasts: the organisation's own, or the general one. */
+    scoredBy: 'own' | 'general';
 }) {
     if (!record || !periodName) {
         return null;
@@ -61,7 +64,9 @@ export function TrackRecordCard({
                             ? `Too few to judge yet — a fair verdict needs about ${FAIR_VERDICT_AT}.`
                             : holding
                               ? 'The ranges are holding up here.'
-                              : 'Ratings here are moving more than in the reference workforce — read the ranges as optimistic.'}
+                              : scoredBy === 'own'
+                                ? 'Ratings here are moving more than in the history your model learned from — read the ranges as optimistic.'
+                                : 'Ratings here are moving more than in the reference workforce — read the ranges as optimistic.'}
                     </span>
                 </div>
             </div>

@@ -4,6 +4,7 @@ namespace App\Support\Ml;
 
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
+use App\Models\LocalModel;
 use App\Models\PerformanceForecast;
 use App\Models\PerformanceForecastRun;
 use App\Models\User;
@@ -73,7 +74,10 @@ class PerformanceForecaster
             $instances[] = ['ref' => (string) $employee->id, 'features' => $snapshots[$employee->id]];
         }
 
-        $response = $this->ml->predict('performance', $instances);
+        // The organisation's own model when it has graduated this surface (ADR 0046),
+        // else the general one.
+        $local = LocalModel::activeFor('performance');
+        $response = $this->ml->predict('performance', $instances, $local?->variant());
 
         if (! empty($response['warnings'])) {
             Log::warning('Performance model reported a contract mismatch.', ['warnings' => $response['warnings']]);
@@ -82,7 +86,7 @@ class PerformanceForecaster
         /** @var Collection<string, array<string, mixed>> $results */
         $results = collect($response['results'] ?? [])->keyBy('ref');
 
-        $run = DB::transaction(function () use ($employees, $results, $snapshots, $windows, $response, $targetPeriod, $actor): PerformanceForecastRun {
+        $run = DB::transaction(function () use ($employees, $results, $snapshots, $windows, $response, $targetPeriod, $actor, $local): PerformanceForecastRun {
             $rows = [];
             $unassessed = [];
             $bands = ['below' => 0, 'on_track' => 0, 'exceeds' => 0];
@@ -131,6 +135,7 @@ class PerformanceForecaster
                 'target_period_id' => $targetPeriod?->id,
                 'status' => 'completed',
                 'model_version' => $response['model_version'] ?? null,
+                'local_model_id' => $local?->id,
                 'employees_scored' => $scored,
                 'exceeds_count' => $bands['exceeds'],
                 'on_track_count' => $bands['on_track'],

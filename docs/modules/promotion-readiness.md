@@ -70,47 +70,39 @@ which are logged server-side instead. This is an HR screen, not a model dashboar
 
 ## Where these scores come from (model graduation)
 
-The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
-in one line that these readiness scores come from a general workforce dataset rather than
-this organisation’s own promotion history. Expanded, it shows the
-three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
-retraining gate drawn closed, the requirement furthest from satisfied, and the
-full requirement ledger — each row opening a drill-down with the statistical
-justification for its threshold.
+The page embeds the **model graduation** panel beneath its header (see
+[Model graduation](./model-graduation.md) and
+[ADR 0046](../decisions/0046-model-graduation-trains-on-the-organisations-own-records.md)):
+one sentence on whose data is behind the scores, and — expanded — what graduation is,
+where this page is, a checklist of what is still needed and what to do about it, and the
+controls to train, check and switch to a model of the organisation's own.
 
-This surface's headline requirement is **120 promotions on record** — roughly 10
-to 20 recorded outcomes for each of the dozen or so records a model built from this
-organisation's own history would weigh.
-Its current stage is `collecting`: stored scores are matched back to who was
-actually promoted, so time spent now counts toward a future local model.
+This surface's own model would learn **who has actually been promoted here**. One
+example is a completed appraisal — its attainment, and its change on the previous one —
+and whether a promotion followed before the person's next completed appraisal (or within
+a year). Each promotion is credited once, to the latest appraisal before it; an example
+counts once its follow-up has closed; someone who left before then without a promotion
+is left out. The checklist:
 
-### What each score draws on
+- **100 promotions that followed an appraisal** — with a note for promotions on record
+  that can't count (no appraisal in the year before) or can't count *yet*, and a
+  projection at the organisation's recent pace;
+- **50 promotions with two appraisals before them** — improvement is the strongest
+  signal, and it takes two appraisals to see;
+- **100 appraisals not followed by a promotion** — fills on its own;
+- **80 % of appraisal pairs scored on an unchanged form** (ADR 0028);
+- **the prediction service is ready.**
 
-Beneath the requirement ledger, the panel lists **every input the score uses**,
-with how many employee records actually carry it — grouped by whether the value
-reaches the score at all:
+A trained model is judged by **prediction error** (Brier score) on the organisation's
+own people. Once switched to, runs record it and the page's wording follows: odds are
+stated against the organisation's own promotion rate (`base_rate` on the run), and
+"50" is the middle of its own history.
 
-| State | Meaning |
-|---|---|
-| **Used now** | Read from your records and fed into every score. |
-| **Recorded, not used** | The system already holds it; wiring it in needs no new data entry. |
-| **Not recorded anywhere** | No module produces it, so it cannot be filled in. |
-
-For this surface, two fields are used now: the *latest completed appraisal* (35 of 42
-in the simulation) and the *previous completed appraisal* (21 of 42), whose difference is
-the change the score leans on most. Everything else the system records is shown as
-**recorded, not used**, each with the reason it was measured and left out (ADR 0045 §1):
-tenure, certifications, attendance and training add nothing; department and salary do
-not transfer from the reference workforce; time since promotion and overtime carry a
-little signal but are excluded on purpose. Peer feedback and engagement are not recorded
-anywhere. [Attrition Risk](./attrition-risk.md) is the surface that does feed 90-day
-absences, lateness and overtime into its score.
-
-The panel is **frontend-only**: counts are fabricated in the browser and persisted
-to `localStorage`, and no retraining runs behind it. Only the counts are
-simulated — the thresholds and their reasoning are real. Shared implementation
-lives in `resources/js/features/model-graduation/`; see
-[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
+The field list shows the *latest* and *previous completed appraisal* as used in every
+score, and everything else the system records as recorded but not used, each with its
+reason (ADR 0045 §1): tenure, certifications, attendance and training add nothing;
+department and salary do not transfer from the reference workforce; promotion history
+and overtime are excluded on purpose. Peer feedback is not recorded anywhere.
 
 ## The model
 
@@ -142,7 +134,7 @@ improvement reads as *Low* — the factors show exactly that.
 ## Permissions
 
 `analytics.promotion.view` (the overview & detail), `analytics.promotion.manage` (run /
-delete an assessment). Built-in **HR Manager** gets both; Super Admin bypasses all gates.
+delete an assessment; train, switch to and switch back from the organisation's own model). Built-in **HR Manager** gets both; Super Admin bypasses all gates.
 
 ## Out of scope (this cut)
 

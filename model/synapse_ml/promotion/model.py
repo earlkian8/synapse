@@ -38,6 +38,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from ..appraisal import inputs as contract_inputs
+from ..appraisal.inputs import fitted_ranges
 from ..appraisal.patterns import PatternRouter
 from . import features
 
@@ -168,14 +169,25 @@ class PromotionReadinessModel:
 
     # ---- training --------------------------------------------------------------------
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> PromotionReadinessModel:
-        self.router.fit(X, y)
+    def fit(self, X: pd.DataFrame, y: pd.Series, complete: bool = True) -> PromotionReadinessModel:
+        """Fit on the reference (``complete``: every row has both appraisals) or on an
+        organisation's own records, where a first appraisal carries no change."""
+        self.router.fit(X, y, complete=complete)
         self.base_rate = float(np.mean(y))
         self.tiers = {tier: lift * self.base_rate for tier, lift in features.TIER_LIFT.items()}
         self.typical = {c: float(X[c].median()) for c in X.columns}
-        # The score scale: every reference employee as the full-history model sees them.
-        full = self.router.submodel(tuple(features.OPTIONAL))
-        self.percentile = Percentile(full.predict_proba(X[self.router.columns(tuple(features.OPTIONAL))])[:, 1])
+        # The range an input is read in is the range the model saw: the reference's
+        # own (``features.INPUTS``), or the span of the organisation's records.
+        self.local_inputs = None if complete else fitted_ranges(features.INPUTS, X)
+        if complete:
+            # The score scale: every reference employee as the full-history model sees them.
+            full = self.router.submodel(tuple(features.OPTIONAL))
+            sample = full.predict_proba(X[self.router.columns(tuple(features.OPTIONAL))])[:, 1]
+        else:
+            # Every example as the submodel for its own history sees it.
+            rows = [{c: v for c, v in row.items() if pd.notna(v)} for row in X.to_dict("records")]
+            sample = self.probabilities(rows)
+        self.percentile = Percentile(sample)
         return self
 
     # ---- serving ---------------------------------------------------------------------
@@ -183,6 +195,12 @@ class PromotionReadinessModel:
     @property
     def features(self) -> list[str]:
         return [spec.name for spec in features.INPUTS]
+
+    @property
+    def inputs(self) -> list[contract_inputs.Input]:
+        """What the model reads, each with the range it was trained on (a value beyond
+        it is held at the edge, with a note)."""
+        return getattr(self, "local_inputs", None) or features.INPUTS
 
     def tier(self, probability: float) -> str:
         if probability >= self.tiers["high"]:
@@ -196,7 +214,7 @@ class PromotionReadinessModel:
         return [None if p is None else float(p[1]) for p in out]
 
     def assess(self, records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-        read = [contract_inputs.read(record, features.INPUTS) for record in records]
+        read = [contract_inputs.read(record, self.inputs) for record in records]
         rows = [values for values, _ in read]
         probabilities = self.probabilities(rows)
         factors = self._factors(rows, probabilities)

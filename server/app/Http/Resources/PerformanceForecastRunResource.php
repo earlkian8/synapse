@@ -21,6 +21,8 @@ class PerformanceForecastRunResource extends JsonResource
             'id' => $this->id,
             'hashid' => $this->hashid,
             'status' => $this->status,
+            // Whose model scored it: the organisation's own (ADR 0046) or the general one.
+            'scored_by' => $this->local_model_id !== null ? 'own' : 'general',
             'employees_scored' => (int) $this->employees_scored,
             'exceeds_count' => (int) $this->exceeds_count,
             'on_track_count' => (int) $this->on_track_count,

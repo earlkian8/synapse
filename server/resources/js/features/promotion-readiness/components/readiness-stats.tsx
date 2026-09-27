@@ -41,7 +41,11 @@ export function ReadinessStatsCards({ run }: { run: ReadinessRun }) {
                 icon={Gauge}
                 label="Average readiness"
                 value={formatScore(run.average_score)}
-                hint="50 is the reference workforce's middle"
+                hint={
+                    run.scored_by === 'own'
+                        ? '50 is the middle of your own history'
+                        : "50 is the reference workforce's middle"
+                }
             />
         </div>
     );

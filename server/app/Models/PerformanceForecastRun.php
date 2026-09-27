@@ -28,6 +28,7 @@ class PerformanceForecastRun extends Model
         'target_period_id',
         'status',
         'model_version',
+        'local_model_id',
         'employees_scored',
         'exceeds_count',
         'on_track_count',
@@ -57,6 +58,17 @@ class PerformanceForecastRun extends Model
     public function forecasts(): HasMany
     {
         return $this->hasMany(PerformanceForecast::class);
+    }
+
+    /**
+     * The organisation's own model that scored this run, or null for the general
+     * model (ADR 0046).
+     *
+     * @return BelongsTo<LocalModel, $this>
+     */
+    public function localModel(): BelongsTo
+    {
+        return $this->belongsTo(LocalModel::class);
     }
 
     /**

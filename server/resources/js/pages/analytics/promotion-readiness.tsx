@@ -19,7 +19,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
+import { GraduationPanel } from '@/features/model-graduation/components/graduation-panel';
+import { ScoredBy } from '@/features/model-graduation/components/scored-by';
 import { UnassessedList } from '@/features/model-graduation/components/unassessed-list';
 import {
     deleteRun,
@@ -50,7 +51,7 @@ const TIER_FILTERS: { value: ReadinessTier | 'all'; label: string }[] = [
 ];
 
 export default function PromotionReadiness() {
-    const { run, runs, service, can } =
+    const { run, runs, service, can, graduation } =
         usePage<PromotionReadinessPageProps>().props;
 
     const [processing, setProcessing] = useState(false);
@@ -134,7 +135,10 @@ export default function PromotionReadiness() {
 
                 <ServiceBanner service={service} />
 
-                <ModelProvenance model="promotion" />
+                <GraduationPanel
+                    graduation={graduation}
+                    canManage={can.manage}
+                />
 
                 {!run ? (
                     <EmptyState
@@ -154,6 +158,10 @@ export default function PromotionReadiness() {
                                 {run.generated_by
                                     ? ` by ${run.generated_by}`
                                     : ''}
+                                <ScoredBy
+                                    scoredBy={run.scored_by}
+                                    stage={graduation.stage}
+                                />
                             </span>
                             <div className="flex items-center gap-2">
                                 {runs.length > 1 && (
@@ -262,6 +270,8 @@ export default function PromotionReadiness() {
 
             <EmployeeDetailDialog
                 score={detail}
+                scoredBy={run?.scored_by ?? 'general'}
+                baseRate={run?.base_rate ?? null}
                 onOpenChange={(open) => !open && setDetail(null)}
             />
         </>

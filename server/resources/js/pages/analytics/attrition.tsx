@@ -39,7 +39,8 @@ import type {
     RiskScore,
     RiskTier,
 } from '@/features/attrition-risk/types';
-import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
+import { GraduationPanel } from '@/features/model-graduation/components/graduation-panel';
+import { ScoredBy } from '@/features/model-graduation/components/scored-by';
 import { cn } from '@/lib/utils';
 
 const TIER_FILTERS: { value: RiskTier | 'all'; label: string }[] = [
@@ -50,7 +51,8 @@ const TIER_FILTERS: { value: RiskTier | 'all'; label: string }[] = [
 ];
 
 export default function AttritionRisk() {
-    const { run, runs, service, can } = usePage<AttritionRiskPageProps>().props;
+    const { run, runs, service, can, graduation } =
+        usePage<AttritionRiskPageProps>().props;
 
     const [processing, setProcessing] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -133,7 +135,10 @@ export default function AttritionRisk() {
 
                 <ServiceBanner service={service} />
 
-                <ModelProvenance model="attrition" />
+                <GraduationPanel
+                    graduation={graduation}
+                    canManage={can.manage}
+                />
 
                 {!run ? (
                     <EmptyState
@@ -153,6 +158,10 @@ export default function AttritionRisk() {
                                 {run.generated_by
                                     ? ` by ${run.generated_by}`
                                     : ''}
+                                <ScoredBy
+                                    scoredBy={run.scored_by}
+                                    stage={graduation.stage}
+                                />
                             </span>
                             <div className="flex items-center gap-2">
                                 {runs.length > 1 && (

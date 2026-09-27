@@ -5,6 +5,7 @@ namespace App\Support\Ml;
 use App\Models\AttritionRiskRun;
 use App\Models\AttritionRiskScore;
 use App\Models\Employee;
+use App\Models\LocalModel;
 use App\Models\User;
 use App\Support\ActivityLogger;
 use Illuminate\Support\Collection;
@@ -84,12 +85,15 @@ class AttritionRiskAssessor
             $instances[] = ['ref' => (string) $employee->id, 'features' => $features];
         }
 
-        $response = $this->ml->predict('attrition', $instances);
+        // The organisation's own model when it has graduated this surface (ADR 0046),
+        // else the general one.
+        $local = LocalModel::activeFor('attrition');
+        $response = $this->ml->predict('attrition', $instances, $local?->variant());
 
         /** @var Collection<string, array<string, mixed>> $results */
         $results = collect($response['results'] ?? [])->keyBy('ref');
 
-        $run = DB::transaction(function () use ($employees, $results, $snapshots, $response, $actor): AttritionRiskRun {
+        $run = DB::transaction(function () use ($employees, $results, $snapshots, $response, $actor, $local): AttritionRiskRun {
             $rows = [];
             $tiers = ['low' => 0, 'medium' => 0, 'high' => 0];
             $scoreSum = 0.0;
@@ -128,6 +132,7 @@ class AttritionRiskAssessor
                 'generated_by' => $actor?->id,
                 'status' => 'completed',
                 'model_version' => $response['model_version'] ?? null,
+                'local_model_id' => $local?->id,
                 'employees_scored' => $scored,
                 'high_count' => $tiers['high'],
                 'medium_count' => $tiers['medium'],

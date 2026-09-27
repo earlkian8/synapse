@@ -31,9 +31,10 @@ import pandas as pd
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from ..appraisal import inputs as contract_inputs
+from ..appraisal.inputs import fitted_ranges
 from . import features
 
 SEED = 42
@@ -42,16 +43,17 @@ CHOSEN = "Gradient Boosting (monotone)"
 SCALE = (0.0, 100.0)
 
 
-def gradient_boosting(seed: int = SEED) -> HistGradientBoostingRegressor:
+def gradient_boosting(seed: int = SEED, min_samples_leaf: int = 200, early_stopping: bool = True) -> HistGradientBoostingRegressor:
     """The served point forecaster: monotone in the latest rating, with leaves large
-    enough that it cannot chase noise in a 100,000-row table."""
+    enough that it cannot chase noise in a 100,000-row table (or, fitted on an
+    organisation's few hundred comparisons, in theirs)."""
     return HistGradientBoostingRegressor(
         learning_rate=0.05,
-        max_iter=400,
+        max_iter=400 if early_stopping else 150,
         max_leaf_nodes=15,
-        min_samples_leaf=200,
+        min_samples_leaf=min_samples_leaf,
         monotonic_cst=[1],
-        early_stopping=True,
+        early_stopping=early_stopping,
         random_state=seed,
     )
 
@@ -89,8 +91,9 @@ class MondrianConformal:
     ``bins`` regions are cut at quantiles of the held-out forecasts, so each holds
     about the same number of errors (thousands, on the reference)."""
 
-    def __init__(self, bins: int = 20) -> None:
+    def __init__(self, bins: int = 20, min_region: int = 100) -> None:
         self.bins = bins
+        self.min_region = min_region
 
     def fit(self, predicted, actual) -> MondrianConformal:
         predicted = np.asarray(predicted, dtype=float)
@@ -99,8 +102,8 @@ class MondrianConformal:
         self.edges = np.unique(cuts)
         region = np.digitize(predicted, self.edges)
         self.residuals = [np.sort(actual[region == r] - predicted[region == r]) for r in range(len(self.edges) + 1)]
-        if min(len(r) for r in self.residuals) < 100:
-            raise ValueError("a conformal region holds fewer than 100 held-out errors")
+        if min(len(r) for r in self.residuals) < self.min_region:
+            raise ValueError(f"a conformal region holds fewer than {self.min_region} held-out errors")
         return self
 
     def errors(self, predicted: float) -> np.ndarray:
@@ -131,23 +134,62 @@ class PerformanceForecastModel:
     kind = "regressor"
     algorithm = "HistGradientBoostingRegressor (monotone) + Mondrian conformal"
 
-    def __init__(self, seed: int = SEED, calibration_share: float = 0.25, bins: int = 20) -> None:
+    def __init__(
+        self,
+        seed: int = SEED,
+        calibration_share: float = 0.25,
+        bins: int = 20,
+        min_region: int = 100,
+        min_samples_leaf: int = 200,
+        early_stopping: bool = True,
+    ) -> None:
         self.seed = seed
         self.calibration_share = calibration_share
         self.bins = bins
+        self.min_region = min_region
+        self.min_samples_leaf = min_samples_leaf
+        self.early_stopping = early_stopping
+
+    @classmethod
+    def for_sample(cls, n: int, seed: int = SEED) -> PerformanceForecastModel:
+        """Settings for a sample of ``n`` comparisons — an organisation's own, a few
+        hundred rather than a hundred thousand. Leaves stay a tenth of the fitted
+        rows, so no step of the forecast rests on a handful of people; the
+        conformal regions shrink to what the held-back errors can fill with about 40
+        each — one region, a plain split-conformal interval, at the minimum. (People
+        are held back whole, so the held-back share can land a little under a
+        quarter; a region is refused below half its intended size.)"""
+        calibration = int(n * 0.25)
+        return cls(
+            seed=seed,
+            bins=max(1, min(20, calibration // 40)),
+            min_region=max(10, min(40, calibration) // 2),
+            min_samples_leaf=max(20, (n - calibration) // 10),
+            early_stopping=False,
+        )
 
     # ---- training --------------------------------------------------------------------
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> PerformanceForecastModel:
+    def fit(self, X: pd.DataFrame, y: pd.Series, groups=None) -> PerformanceForecastModel:
         """Fit the point forecaster on one part of ``X`` and measure its errors on the
         rest. The errors must come from rows it never saw, or the intervals would be
-        too narrow."""
-        X_fit, X_cal, y_fit, y_cal = train_test_split(
-            X[features.REQUIRED], y, test_size=self.calibration_share, random_state=self.seed
-        )
-        self.point = gradient_boosting(self.seed).fit(X_fit, y_fit)
-        self.conformal = MondrianConformal(self.bins).fit(self._predict(X_cal), y_cal)
+        too narrow — and, given ``groups`` (the employee behind each comparison), from
+        people it never saw either."""
+        if groups is None:
+            X_fit, X_cal, y_fit, y_cal = train_test_split(
+                X[features.REQUIRED], y, test_size=self.calibration_share, random_state=self.seed
+            )
+        else:
+            split = GroupShuffleSplit(n_splits=1, test_size=self.calibration_share, random_state=self.seed)
+            fit_rows, cal_rows = next(split.split(X, y, np.asarray(groups)))
+            X_fit, X_cal = X[features.REQUIRED].iloc[fit_rows], X[features.REQUIRED].iloc[cal_rows]
+            y_fit, y_cal = y.iloc[fit_rows], y.iloc[cal_rows]
+        self.point = gradient_boosting(self.seed, self.min_samples_leaf, self.early_stopping).fit(X_fit, y_fit)
+        self.conformal = MondrianConformal(self.bins, self.min_region).fit(self._predict(X_cal), y_cal)
         self.n_fit, self.n_calibration = len(X_fit), len(X_cal)
+        # Grouped (an organisation's own comparisons): inputs are read in the range
+        # its records span. Otherwise the reference's range, ``features.INPUTS``.
+        self.local_inputs = None if groups is None else fitted_ranges(features.INPUTS, X)
         return self
 
     def _predict(self, X) -> np.ndarray:
@@ -158,6 +200,11 @@ class PerformanceForecastModel:
     @property
     def features(self) -> list[str]:
         return [spec.name for spec in features.INPUTS]
+
+    @property
+    def inputs(self) -> list[contract_inputs.Input]:
+        """What the model reads, each with the range it was trained on."""
+        return getattr(self, "local_inputs", None) or features.INPUTS
 
     def forecasts(self, ratings: Sequence[float]) -> list[dict[str, Any]]:
         """Forecasts for a batch of latest ratings, each with its interval, band and
@@ -187,7 +234,7 @@ class PerformanceForecastModel:
         return self.forecasts([rating_latest])[0]
 
     def assess(self, records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-        read = [contract_inputs.read(record, features.INPUTS) for record in records]
+        read = [contract_inputs.read(record, self.inputs) for record in records]
         scorable = [i for i, (values, _) in enumerate(read) if all(c in values for c in features.REQUIRED)]
         made = dict(zip(scorable, self.forecasts([read[i][0]["rating_latest"] for i in scorable]), strict=True))
 

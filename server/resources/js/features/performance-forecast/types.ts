@@ -1,4 +1,5 @@
 import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
+import type { Graduation } from '@/features/model-graduation/types';
 
 export type ForecastBand = 'below' | 'on_track' | 'exceeds';
 
@@ -64,6 +65,8 @@ export type ForecastRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
+    /** Whose model scored it: the organisation's own (model graduation) or the general one. */
+    scored_by: 'own' | 'general';
     employees_scored: number;
     exceeds_count: number;
     on_track_count: number;
@@ -104,4 +107,6 @@ export type PerformanceForecastPageProps = {
     track_record: ForecastTrackRecord | null;
     service: ServiceInfo;
     can: PerformanceForecastPermissions;
+    /** Model graduation: moving from the general model to the organisation's own. */
+    graduation: Graduation;
 };

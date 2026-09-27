@@ -30,11 +30,19 @@ import { TierBadge } from './tier-badge';
  */
 export function EmployeeDetailDialog({
     score,
+    scoredBy,
+    baseRate,
     onOpenChange,
 }: {
     score: ReadinessScore | null;
+    /** Whose model scored the run — it decides whose "average" the odds are against. */
+    scoredBy: 'own' | 'general';
+    baseRate: number | null;
     onOpenChange: (open: boolean) => void;
 }) {
+    const own = scoredBy === 'own' && baseRate !== null;
+    const average = own ? baseRate : REFERENCE_PROMOTION_RATE;
+
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -96,15 +104,24 @@ export function EmployeeDetailDialog({
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 {TIER_DESCRIPTIONS[score.tier]}. Of people with
-                                this record in the reference workforce,{' '}
+                                this record{' '}
+                                {own
+                                    ? 'in your organisation’s own history'
+                                    : 'in the reference workforce'}
+                                ,{' '}
                                 <span className="font-medium text-foreground">
                                     {formatProbability(score.probability)}
                                 </span>{' '}
-                                were promoted within a year —{' '}
-                                {formatLift(score.probability)} the average of{' '}
-                                {formatProbability(REFERENCE_PROMOTION_RATE)}.
-                                The score places that among the whole reference
-                                workforce.
+                                {own
+                                    ? 'were promoted before their next appraisal, or within a year'
+                                    : 'were promoted within a year'}{' '}
+                                — {formatLift(score.probability, average)} the
+                                average of {formatProbability(average)}. The
+                                score places that among{' '}
+                                {own
+                                    ? 'every appraisal in that history'
+                                    : 'the whole reference workforce'}
+                                .
                             </p>
                         </div>
 
@@ -170,10 +187,14 @@ export function EmployeeDetailDialog({
                                 A readiness score is a prompt for a
                                 conversation, not a decision. It compares this
                                 appraisal record with those of people who were
-                                promoted in a general reference workforce — it
-                                cannot see skills, role openings or anything
-                                else a promotion case weighs. Department, pay
-                                and every demographic attribute are left out.
+                                promoted{' '}
+                                {own
+                                    ? 'in your organisation'
+                                    : 'in a general reference workforce'}{' '}
+                                — it cannot see skills, role openings or
+                                anything else a promotion case weighs.
+                                Department, pay and every demographic attribute
+                                are left out.
                             </p>
                         </div>
                     </>

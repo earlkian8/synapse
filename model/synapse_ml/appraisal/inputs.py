@@ -62,6 +62,15 @@ def read(record: Mapping[str, Any], inputs: Sequence[Input]) -> tuple[dict[str, 
     return values, notes
 
 
+def fitted_ranges(inputs: Sequence[Input], X) -> list[Input]:
+    """``inputs`` with each range replaced by the span of the values in ``X`` — the
+    range a model fitted on those rows has actually seen."""
+    return [
+        Input(spec.name, spec.label, spec.unit, float(X[spec.name].min()), float(X[spec.name].max()))
+        for spec in inputs
+    ]
+
+
 def unknown(record: Mapping[str, Any], inputs: Sequence[Input]) -> list[str]:
     """Keys the record carries that the contract does not know — a sign the caller and
     the model disagree about the contract."""

@@ -1,3 +1,4 @@
+import type { Graduation } from '@/features/model-graduation/types';
 export type RiskTier = 'low' | 'medium' | 'high';
 
 export type RiskFactor = {
@@ -36,6 +37,8 @@ export type RiskRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
+    /** Whose model scored it: the organisation's own (model graduation) or the general one. */
+    scored_by: 'own' | 'general';
     employees_scored: number;
     high_count: number;
     medium_count: number;
@@ -72,4 +75,6 @@ export type AttritionRiskPageProps = {
     runs: RunSummary[];
     service: ServiceInfo;
     can: AttritionRiskPermissions;
+    /** Model graduation: moving from the general model to the organisation's own. */
+    graduation: Graduation;
 };

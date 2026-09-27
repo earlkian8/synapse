@@ -30,12 +30,15 @@ export function EmployeeDetailDialog({
     score,
     actual,
     periodName,
+    scoredBy,
     onOpenChange,
 }: {
     score: ForecastScore | null;
     /** The completed appraisal for the forecast period, when there is one. */
     actual: number | null;
     periodName: string | null;
+    /** Whose model made the forecast: the organisation's own, or the general one. */
+    scoredBy: 'own' | 'general';
     onOpenChange: (open: boolean) => void;
 }) {
     const range =
@@ -203,14 +206,12 @@ export function EmployeeDetailDialog({
                                 </ul>
                             )}
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Across a large reference workforce, the latest
-                                appraisal is the one record that predicts the
-                                next — earlier ratings, tenure and training add
-                                nothing once it is known. The range is how far
-                                next ratings actually strayed from forecasts
-                                like this one. Drafts and the forecast period's
-                                own appraisal are never read, and no demographic
-                                attribute is used.
+                                {scoredBy === 'own'
+                                    ? 'Learned from how ratings in your organisation have moved from one cycle to the next: the latest appraisal is the one record it reads. The range is how far next ratings here actually strayed from forecasts like this one.'
+                                    : 'Across a large reference workforce, the latest appraisal is the one record that predicts the next — earlier ratings, tenure and training add nothing once it is known. The range is how far next ratings actually strayed from forecasts like this one.'}{' '}
+                                Drafts and the forecast period's own appraisal
+                                are never read, and no demographic attribute is
+                                used.
                             </p>
                         </div>
                     </>

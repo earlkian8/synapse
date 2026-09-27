@@ -1,4 +1,5 @@
-import { CalendarClock, Database, Ruler } from 'lucide-react';
+import { ArrowRight, Database, Hourglass, Info, Ruler } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -10,17 +11,18 @@ import { cn } from '@/lib/utils';
 import {
     completion,
     formatProgress,
+    formatShortfall,
     STATUS_BARS,
-    pluralise,
     STATUS_LABELS,
     STATUS_STYLES,
+    STATUS_TRACKS,
 } from '../constants';
 import type { Requirement } from '../types';
 
 /**
- * A drill-down on one requirement: where it stands, why the threshold is the
- * number it is, and where the count comes from. The justification is the point —
- * a threshold nobody can defend is just a number that blocks a button.
+ * One requirement in full: where it stands, what to do, why the threshold is that
+ * number, and exactly what is counted. The justification is the point — a
+ * threshold nobody can defend is just a number that blocks a button.
  */
 export function RequirementDialog({
     requirement,
@@ -31,7 +33,7 @@ export function RequirementDialog({
 }) {
     return (
         <Dialog open={requirement !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 {requirement && (
                     <>
                         <DialogHeader>
@@ -43,22 +45,40 @@ export function RequirementDialog({
                             </DialogDescription>
                         </DialogHeader>
 
-                        <Progress requirement={requirement} />
+                        <Standing requirement={requirement} />
 
+                        {requirement.status !== 'met' && (
+                            <Note
+                                icon={ArrowRight}
+                                label={
+                                    requirement.derived
+                                        ? 'This fills on its own'
+                                        : 'What you can do'
+                                }
+                                body={requirement.action}
+                            />
+                        )}
                         <Note
                             icon={Ruler}
-                            label="Why this threshold"
+                            label="Why this number"
                             body={requirement.basis}
                         />
                         <Note
                             icon={Database}
-                            label="Where the count comes from"
+                            label="What is counted"
                             body={requirement.source}
                         />
+                        {requirement.note && (
+                            <Note
+                                icon={Info}
+                                label="Not counted yet"
+                                body={requirement.note}
+                            />
+                        )}
                         {requirement.outlook && (
                             <Note
-                                icon={CalendarClock}
-                                label="What would close the gap"
+                                icon={Hourglass}
+                                label="When it might be met"
                                 body={requirement.outlook}
                             />
                         )}
@@ -69,19 +89,19 @@ export function RequirementDialog({
     );
 }
 
-function Progress({ requirement }: { requirement: Requirement }) {
+function Standing({ requirement }: { requirement: Requirement }) {
     const percent = completion(requirement.current, requirement.required);
-    const remaining = Math.max(0, requirement.required - requirement.current);
+    const shortfall = formatShortfall(requirement);
 
     return (
         <div className="rounded-xl border border-sidebar-border/70 bg-muted/40 p-4 dark:border-sidebar-border">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                    {formatProgress(requirement.current, requirement.required)}
+                <span className="text-xl font-semibold tracking-tight">
+                    {formatProgress(requirement)}
                 </span>
                 <span
                     className={cn(
-                        'rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                        'text-xs font-medium',
                         STATUS_STYLES[requirement.status],
                     )}
                 >
@@ -89,20 +109,27 @@ function Progress({ requirement }: { requirement: Requirement }) {
                 </span>
             </div>
 
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+            {requirement.format !== 'check' && (
                 <div
                     className={cn(
-                        'h-full rounded-full',
-                        STATUS_BARS[requirement.status],
+                        'mt-3 h-2 overflow-hidden rounded-full',
+                        STATUS_TRACKS[requirement.status],
                     )}
-                    style={{ width: `${Math.max(percent, 1.5)}%` }}
-                />
-            </div>
+                >
+                    <div
+                        className={cn(
+                            'h-full rounded-full',
+                            STATUS_BARS[requirement.status],
+                        )}
+                        style={{ width: `${Math.max(percent, 1.5)}%` }}
+                    />
+                </div>
+            )}
 
             <p className="mt-2.5 text-xs text-muted-foreground">
-                {requirement.status === 'met'
-                    ? 'Satisfied — this requirement no longer blocks retraining.'
-                    : `${remaining.toLocaleString()} more ${pluralise(remaining, requirement.unit, requirement.unitOne)} needed.`}
+                {shortfall
+                    ? `Still needed: ${shortfall}.`
+                    : 'Met — this no longer holds training back.'}
             </p>
         </div>
     );
@@ -113,20 +140,20 @@ function Note({
     label,
     body,
 }: {
-    icon: typeof Ruler;
+    icon: LucideIcon;
     label: string;
     body: string;
 }) {
     return (
         <div className="flex gap-3">
-            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
+            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-teal-700 dark:text-[#0ABFBF]">
                 <Icon className="size-3.5" />
             </span>
             <div className="min-w-0">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    {label}
+                <p className="text-sm font-medium">{label}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                    {body}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">{body}</p>
             </div>
         </div>
     );

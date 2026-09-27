@@ -63,7 +63,8 @@ def band_of(feature: str, value: float) -> int:
 def preprocessor(scale: bool = False):
     """The preprocessing every candidate model shares.
 
-    Numeric: impute the median (only salary is ever missing — "prefer not to say"),
+    Numeric: impute the median (in the survey only salary is ever missing — "prefer not
+    to say"; in an organisation's own records, attendance that was never tracked),
     band each column with its own edges, optionally standardise for linear models.
     Categorical: one-hot, ignoring values not seen in training. Built from stock
     scikit-learn/NumPy callables only, so a fitted pipeline unpickles anywhere without
@@ -81,12 +82,15 @@ def preprocessor(scale: bool = False):
         ],
         verbose_feature_names_out=False,
     )
-    numeric_steps = [("impute", SimpleImputer(strategy="median")), ("band", banding)]
+    # ``keep_empty_features``: a column nobody recorded (an organisation that tracks no
+    # attendance) stays in place as a constant rather than being dropped, which would
+    # shift every column after it out from under its band edges.
+    numeric_steps = [("impute", SimpleImputer(strategy="median", keep_empty_features=True)), ("band", banding)]
     if scale:
         numeric_steps.append(("scale", StandardScaler()))
 
     categorical_steps = [
-        ("impute", SimpleImputer(strategy="most_frequent")),
+        ("impute", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
         ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
     ]
     return ColumnTransformer(

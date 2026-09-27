@@ -29,7 +29,12 @@ final class AppraisalHistory
     public const NONE_BEFORE_PERIOD = 'none_before_period';
 
     /**
-     * @param  list<array{percent: float, label: ?string, ends: ?CarbonInterface}>  $completed  oldest first
+     * `period` is the review period's id; `form` fingerprints the appraisal framework
+     * the result was scored on (its sections and bands, as snapshotted on the
+     * appraisal), so two results can be told apart when the form changed between
+     * them (ADR 0028) — which model graduation asks (ADR 0046).
+     *
+     * @param  list<array{percent: float, label: ?string, ends: ?CarbonInterface, period: ?int, form: string}>  $completed  oldest first
      */
     private function __construct(
         public readonly array $completed,
@@ -49,11 +54,14 @@ final class AppraisalHistory
                 'percent' => round((float) $e->overall_percent, 2),
                 'label' => $e->relationLoaded('period') ? $e->period?->name : null,
                 'ends' => self::endOf($e),
+                'period' => $e->evaluation_period_id,
+                'form' => md5(json_encode([$e->template_sections, $e->template_bands])),
                 'id' => $e->id,
             ])
             ->sort(fn (array $a, array $b): int => [$a['ends']?->getTimestamp() ?? PHP_INT_MAX, $a['id']]
                 <=> [$b['ends']?->getTimestamp() ?? PHP_INT_MAX, $b['id']])
-            ->map(fn (array $row): array => ['percent' => $row['percent'], 'label' => $row['label'], 'ends' => $row['ends']])
+            ->map(fn (array $row): array => ['percent' => $row['percent'], 'label' => $row['label'], 'ends' => $row['ends'],
+                'period' => $row['period'], 'form' => $row['form']])
             ->values()
             ->all();
 
@@ -78,13 +86,13 @@ final class AppraisalHistory
         );
     }
 
-    /** @return array{percent: float, label: ?string, ends: ?CarbonInterface}|null */
+    /** @return array{percent: float, label: ?string, ends: ?CarbonInterface, period: ?int, form: string}|null */
     public function latest(): ?array
     {
         return $this->completed === [] ? null : $this->completed[array_key_last($this->completed)];
     }
 
-    /** @return array{percent: float, label: ?string, ends: ?CarbonInterface}|null */
+    /** @return array{percent: float, label: ?string, ends: ?CarbonInterface, period: ?int, form: string}|null */
     public function previous(): ?array
     {
         return count($this->completed) < 2 ? null : $this->completed[count($this->completed) - 2];

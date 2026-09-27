@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Analytics;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AttritionRiskRunResource;
 use App\Models\AttritionRiskRun;
+use App\Support\Ml\Graduation\ModelGraduation;
 use App\Support\Ml\MlClient;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,7 @@ use Inertia\Response;
  */
 class AttritionRiskController extends Controller
 {
-    public function index(Request $request, MlClient $ml): Response
+    public function index(Request $request, MlClient $ml, ModelGraduation $graduation): Response
     {
         // Lightweight list of every run, for the history selector.
         $runs = AttritionRiskRun::query()->latestFirst()->get();
@@ -57,6 +58,9 @@ class AttritionRiskController extends Controller
             // server-side: they are for whoever tunes the model, not for the HR
             // user reading this page.
             'service' => ['connected' => isset($health['models']['attrition'])],
+            // Model graduation (ADR 0046): where this surface stands on moving from
+            // the general model to one trained on the organisation's own records.
+            'graduation' => $graduation->check('attrition', isset($health['models']['attrition'])),
             'can' => ['manage' => $request->user()->can('analytics.attrition.manage')],
         ]);
     }

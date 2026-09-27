@@ -77,9 +77,15 @@ export function formatProbability(probability: number): string {
     return `${(probability * 100).toFixed(probability < 0.1 ? 1 : 0)}%`;
 }
 
-/** Promotion odds as a multiple of the reference average, e.g. "1.2×". */
-export function formatLift(probability: number): string {
-    const lift = probability / REFERENCE_PROMOTION_RATE;
+/**
+ * Promotion odds as a multiple of the average — the reference's, or the promotion
+ * rate of the organisation's own history when its own model scored — e.g. "1.2×".
+ */
+export function formatLift(
+    probability: number,
+    baseRate: number = REFERENCE_PROMOTION_RATE,
+): string {
+    const lift = probability / baseRate;
 
     return lift < 0.1 ? 'under 0.1×' : `${lift.toFixed(1)}×`;
 }

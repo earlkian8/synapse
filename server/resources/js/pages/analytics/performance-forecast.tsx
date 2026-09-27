@@ -20,7 +20,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { ModelProvenance } from '@/features/model-graduation/components/model-provenance';
+import { GraduationPanel } from '@/features/model-graduation/components/graduation-panel';
+import { ScoredBy } from '@/features/model-graduation/components/scored-by';
 import { UnassessedList } from '@/features/model-graduation/components/unassessed-list';
 import {
     deleteRun,
@@ -53,7 +54,7 @@ const BAND_FILTERS: { value: ForecastBand | 'all'; label: string }[] = [
 ];
 
 export default function PerformanceForecast() {
-    const { run, runs, track_record, service, can } =
+    const { run, runs, track_record, service, can, graduation } =
         usePage<PerformanceForecastPageProps>().props;
 
     const [processing, setProcessing] = useState(false);
@@ -137,7 +138,10 @@ export default function PerformanceForecast() {
 
                 <ServiceBanner service={service} />
 
-                <ModelProvenance model="performance" />
+                <GraduationPanel
+                    graduation={graduation}
+                    canManage={can.manage}
+                />
 
                 {!run ? (
                     <EmptyState
@@ -158,6 +162,10 @@ export default function PerformanceForecast() {
                                     {run.generated_by
                                         ? ` by ${run.generated_by}`
                                         : ''}
+                                    <ScoredBy
+                                        scoredBy={run.scored_by}
+                                        stage={graduation.stage}
+                                    />
                                 </span>
                                 {run.target_period && (
                                     <span className="flex items-center gap-1">
@@ -217,6 +225,7 @@ export default function PerformanceForecast() {
                         <TrackRecordCard
                             record={track_record}
                             periodName={run.target_period?.name ?? null}
+                            scoredBy={run.scored_by}
                         />
 
                         <UnassessedList
@@ -288,6 +297,7 @@ export default function PerformanceForecast() {
                         : null
                 }
                 periodName={run?.target_period?.name ?? null}
+                scoredBy={run?.scored_by ?? 'general'}
                 onOpenChange={(open) => !open && setDetail(null)}
             />
         </>

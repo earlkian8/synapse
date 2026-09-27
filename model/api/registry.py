@@ -12,6 +12,11 @@ of artifact are served:
   whatever features they have; a full-width frame is built in the pipeline's column
   order and its own imputers fill the rest. Explanations are logit contributions for
   a linear model and what-if-typical deltas for any other classifier.
+
+Beside these **reference** models, an organisation that has graduated a surface has
+its own model of the same class, fitted on its records (``synapse_ml.local``). It is
+loaded on first use from ``artifacts/local/<tenant>/…`` and served through exactly the
+same code path, only ever for the organisation that names it.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ import numpy as np
 import pandas as pd
 
 from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
+from synapse_ml.local import store as local_store
 from synapse_ml.paths import ARTIFACTS_DIR
 
 # Which artifacts to serve, and how each is scored.
@@ -81,9 +87,13 @@ class LoadedModel:
     metrics: dict[str, Any] = field(default_factory=dict)
     # A synapse_ml served model (has ``assess``), or None for a plain pipeline.
     served: Any = None
+    # The organisation whose records it was fitted on; None for the reference model.
+    tenant: str | None = None
 
     @property
     def version(self) -> str | None:
+        if self.tenant is not None:
+            return f"local:{self.metrics.get('version')}"
         algo = self.metrics.get("algorithm")
         saved = self.metrics.get("saved_at")
         if algo and saved:
@@ -104,52 +114,70 @@ class LoadedModel:
         return df
 
 
+def _loaded(name: str, artifact: Any, metrics: dict[str, Any], tenant: str | None = None) -> LoadedModel:
+    """Wrap a fitted artifact — served object or pipeline — for serving."""
+    if hasattr(artifact, "assess"):
+        return LoadedModel(
+            name=name,
+            kind=artifact.kind,
+            pipeline=None,
+            numeric=list(artifact.features),
+            categorical=[],
+            features=list(artifact.features),
+            metrics=metrics,
+            served=artifact,
+            tenant=tenant,
+        )
+
+    prep = artifact.named_steps["prep"]
+    return LoadedModel(
+        name=name,
+        kind=_SPECS[name],
+        pipeline=artifact,
+        numeric=list(prep.transformers_[0][2]),
+        categorical=list(prep.transformers_[1][2]),
+        features=list(prep.feature_names_in_),
+        metrics=metrics,
+        tenant=tenant,
+    )
+
+
 class Registry:
-    def __init__(self) -> None:
+    def __init__(self, local_root=None) -> None:
         self.models: dict[str, LoadedModel] = {}
+        # Organisation models, loaded on first use: (tenant, name, version) → model.
+        self.local_models: dict[tuple[str, str, str], LoadedModel] = {}
+        self.local_root = local_root
 
     def load(self) -> None:
-        for name, kind in _SPECS.items():
+        for name in _SPECS:
             path = ARTIFACTS_DIR / name / f"{name}_model.joblib"
             if not path.exists():
                 continue
 
-            artifact = joblib.load(path)
             metrics_path = ARTIFACTS_DIR / name / "metrics.json"
             metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
+            self.models[name] = _loaded(name, joblib.load(path), metrics)
 
-            if hasattr(artifact, "assess"):
-                self.models[name] = LoadedModel(
-                    name=name,
-                    kind=artifact.kind,
-                    pipeline=None,
-                    numeric=list(artifact.features),
-                    categorical=[],
-                    features=list(artifact.features),
-                    metrics=metrics,
-                    served=artifact,
-                )
-                continue
-
-            prep = artifact.named_steps["prep"]
-            self.models[name] = LoadedModel(
-                name=name,
-                kind=kind,
-                pipeline=artifact,
-                numeric=list(prep.transformers_[0][2]),
-                categorical=list(prep.transformers_[1][2]),
-                features=list(prep.feature_names_in_),
-                metrics=metrics,
-            )
+    def local(self, name: str, tenant: str, version: str) -> LoadedModel:
+        """An organisation's own model for ``name``; raises ``UnknownLocalModel``."""
+        key = (tenant, name, version)
+        if key not in self.local_models:
+            artifact, metrics = local_store.load(tenant, name, version, self.local_root)
+            self.local_models[key] = _loaded(name, artifact, metrics, tenant=tenant)
+        return self.local_models[key]
 
     def predict(self, name: str, feature_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One result dict per instance from the reference model ``name``."""
+        return self.predict_with(self.get(name), feature_dicts)
+
+    def predict_with(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """One result dict per instance, whatever the kind of artifact."""
-        model = self.get(name)
         if model.served is not None:
             return model.served.assess(feature_dicts)
 
-        probabilities, scores = self.score(name, feature_dicts)
-        factor_sets = self.contributions(name, feature_dicts)
+        probabilities, scores = self.score(model, feature_dicts)
+        factor_sets = self.contributions(model, feature_dicts)
         return [
             {
                 "status": "scored",
@@ -161,9 +189,9 @@ class Registry:
             for proba, score, factors in zip(probabilities, scores, factor_sets, strict=True)
         ]
 
-    def unknown_inputs(self, name: str, feature_dicts: list[dict[str, Any]]) -> list[str]:
+    def unknown_inputs(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[str]:
         """Input names the callers sent that the model does not read."""
-        known = set(self.get(name).features)
+        known = set(model.features)
         return sorted({key for feats in feature_dicts for key in feats} - known)
 
     def get(self, name: str) -> LoadedModel:
@@ -171,10 +199,9 @@ class Registry:
             raise KeyError(name)
         return self.models[name]
 
-    def score(self, name: str, feature_dicts: list[dict[str, Any]]) -> tuple[list[float | None], list[float]]:
+    def score(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> tuple[list[float | None], list[float]]:
         """Return (probabilities, scores). For regressors probability is None and
         score is the predicted value; for classifiers score is probability×100."""
-        model = self.get(name)
         df = model.frame(feature_dicts)
 
         if model.kind == "classifier":
@@ -184,10 +211,9 @@ class Registry:
         pred = model.pipeline.predict(df)
         return [None] * len(pred), [round(float(v), 1) for v in pred]
 
-    def contributions(self, name: str, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
+    def contributions(self, model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
         """Per-instance explanations: logit contributions for a linear model, what-if-
         typical deltas for any other classifier, None for the regressor."""
-        model = self.get(name)
         # The final estimator, whatever its step is named ("clf" / "reg").
         estimator = model.pipeline.steps[-1][1]
         if hasattr(estimator, "coef_"):

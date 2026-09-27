@@ -1,4 +1,5 @@
 import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
+import type { Graduation } from '@/features/model-graduation/types';
 
 export type ReadinessTier = 'low' | 'medium' | 'high';
 
@@ -54,6 +55,13 @@ export type ReadinessRun = {
     id: number;
     hashid: string;
     status: 'completed' | 'failed';
+    /** Whose model scored it: the organisation's own (model graduation) or the general one. */
+    scored_by: 'own' | 'general';
+    /**
+     * The promotion rate of the history its model learned from, when that was the
+     * organisation's own; null for the general model (`REFERENCE_PROMOTION_RATE`).
+     */
+    base_rate: number | null;
     employees_scored: number;
     high_count: number;
     medium_count: number;
@@ -91,4 +99,6 @@ export type PromotionReadinessPageProps = {
     runs: RunSummary[];
     service: ServiceInfo;
     can: PromotionReadinessPermissions;
+    /** Model graduation: moving from the general model to the organisation's own. */
+    graduation: Graduation;
 };

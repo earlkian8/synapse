@@ -20,6 +20,8 @@ class AttritionRiskRunResource extends JsonResource
             'id' => $this->id,
             'hashid' => $this->hashid,
             'status' => $this->status,
+            // Whose model scored it: the organisation's own (ADR 0046) or the general one.
+            'scored_by' => $this->local_model_id !== null ? 'own' : 'general',
             'employees_scored' => (int) $this->employees_scored,
             'high_count' => (int) $this->high_count,
             'medium_count' => (int) $this->medium_count,

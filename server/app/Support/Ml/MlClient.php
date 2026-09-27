@@ -26,6 +26,7 @@ class MlClient
     public function __construct(
         private readonly string $baseUrl,
         private readonly int $timeout = 30,
+        private readonly int $trainTimeout = 300,
     ) {}
 
     /**
@@ -45,15 +46,17 @@ class MlClient
     }
 
     /**
-     * Score a batch of instances against a model.
+     * Score a batch of instances against a model — the general one, or, given a
+     * `$variant`, the organisation's own (ADR 0046).
      *
      * @param  'promotion'|'performance'|'attrition'  $model
      * @param  list<array{ref: string, features: array<string, mixed>}>  $instances
+     * @param  array{tenant: string, version: string}|null  $variant
      * @return array{model: string, model_version: ?string, results: list<array<string, mixed>>}
      *
      * @throws MlException
      */
-    public function predict(string $model, array $instances): array
+    public function predict(string $model, array $instances, ?array $variant = null): array
     {
         if ($instances === []) {
             return ['model' => $model, 'model_version' => null, 'results' => []];
@@ -62,10 +65,16 @@ class MlClient
         // An employee with nothing on record has no features, and PHP encodes an
         // empty array as a JSON list — which the service rightly rejects, failing
         // the whole batch. Features are always encoded as an object.
-        $body = json_encode(['instances' => array_map(
+        $payload = ['instances' => array_map(
             fn (array $instance): array => [...$instance, 'features' => (object) ($instance['features'] ?? [])],
             array_values($instances),
-        )], JSON_THROW_ON_ERROR);
+        )];
+
+        if ($variant !== null) {
+            $payload['variant'] = $variant;
+        }
+
+        $body = json_encode($payload, JSON_THROW_ON_ERROR);
 
         try {
             $response = Http::timeout($this->timeout)
@@ -88,14 +97,73 @@ class MlClient
         if ($response->failed()) {
             Log::warning('ML inference service returned an error.', [
                 'model' => $model,
+                'variant' => $variant,
                 'status' => $response->status(),
                 'detail' => $response->json('detail', $response->body()),
             ]);
+
+            // The organisation's own model is not on the service (it was redeployed
+            // without its stored models). Scoring with the general model instead
+            // would misreport whose model spoke, so say what happened.
+            if ($variant !== null && $response->status() === 404) {
+                throw new MlException(
+                    'Your organisation’s own model isn’t available on the prediction service right now. '
+                    .'Switch back to the general model to keep scoring, or ask your system administrator to restore it.'
+                );
+            }
 
             throw new MlException("Couldn't complete the prediction just now. Please try again shortly.");
         }
 
         return $response->json() ?? ['model' => $model, 'model_version' => null, 'results' => []];
+    }
+
+    /**
+     * Fit `$model` on an organisation's own labelled examples and check it against
+     * the general model on those same records (ADR 0046). The service stores the
+     * model only when it passes.
+     *
+     * @param  'promotion'|'performance'|'attrition'  $model
+     * @param  list<array{group: string, features: array<string, mixed>, outcome: float|int, cycle?: ?string}>  $rows
+     * @return array{verdict: string, version: ?string, findings: list<string>, comparison: array<string, mixed>, counts: array<string, int>}
+     *
+     * @throws MlException
+     */
+    public function train(string $model, string $tenant, array $rows): array
+    {
+        $body = json_encode(['tenant' => $tenant, 'rows' => array_map(
+            fn (array $row): array => [...$row, 'features' => (object) ($row['features'] ?? [])],
+            array_values($rows),
+        )], JSON_THROW_ON_ERROR);
+
+        try {
+            $response = Http::timeout($this->trainTimeout)
+                ->withBody($body, 'application/json')
+                ->acceptJson()
+                ->post($this->url("/train/{$model}"));
+        } catch (ConnectionException $e) {
+            Log::warning('ML inference service unreachable for training.', [
+                'model' => $model,
+                'reason' => $e->getMessage(),
+            ]);
+
+            throw new MlException(
+                'Training is temporarily unavailable. Please try again shortly.',
+                unreachable: true,
+            );
+        }
+
+        if ($response->failed()) {
+            Log::warning('ML inference service refused to train.', [
+                'model' => $model,
+                'status' => $response->status(),
+                'detail' => $response->json('detail', $response->body()),
+            ]);
+
+            throw new MlException("Couldn't train on your records just now. Please try again shortly.");
+        }
+
+        return $response->json();
     }
 
     private function url(string $path): string

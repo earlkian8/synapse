@@ -3,6 +3,7 @@
 namespace App\Support\Ml;
 
 use App\Models\Employee;
+use App\Models\LocalModel;
 use App\Models\PromotionReadinessRun;
 use App\Models\PromotionReadinessScore;
 use App\Models\User;
@@ -65,7 +66,10 @@ class PromotionReadinessAssessor
             $instances[] = ['ref' => (string) $employee->id, 'features' => $snapshots[$employee->id]];
         }
 
-        $response = $this->ml->predict('promotion', $instances);
+        // The organisation's own model when it has graduated this surface (ADR 0046),
+        // else the general one.
+        $local = LocalModel::activeFor('promotion');
+        $response = $this->ml->predict('promotion', $instances, $local?->variant());
 
         if (! empty($response['warnings'])) {
             Log::warning('Promotion model reported a contract mismatch.', ['warnings' => $response['warnings']]);
@@ -74,7 +78,7 @@ class PromotionReadinessAssessor
         /** @var Collection<string, array<string, mixed>> $results */
         $results = collect($response['results'] ?? [])->keyBy('ref');
 
-        $run = DB::transaction(function () use ($employees, $results, $snapshots, $histories, $response, $actor): PromotionReadinessRun {
+        $run = DB::transaction(function () use ($employees, $results, $snapshots, $histories, $response, $actor, $local): PromotionReadinessRun {
             $rows = [];
             $unassessed = [];
             $tiers = ['low' => 0, 'medium' => 0, 'high' => 0];
@@ -116,6 +120,7 @@ class PromotionReadinessAssessor
                 'generated_by' => $actor?->id,
                 'status' => 'completed',
                 'model_version' => $response['model_version'] ?? null,
+                'local_model_id' => $local?->id,
                 'employees_scored' => $scored,
                 'high_count' => $tiers['high'],
                 'medium_count' => $tiers['medium'],

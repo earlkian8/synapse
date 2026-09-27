@@ -84,24 +84,39 @@ survey data lives in the git-ignored `model/data/` (see `model/data/README.md`).
 
 ## Where these scores come from (model graduation)
 
-The page embeds the **`ModelProvenance`** panel beneath its header: these scores come
-from a survey of workers at other employers, not this organisation's own departure
-history. Because every score is now **stored**, it can be matched to who later leaves —
-the `outcome_linkage` requirement is met and the surface reads `collecting`, like the
-other two. Its headline requirement is **80 recorded departures** (10 to 20 outcomes for
-each of the 8 inputs), which a stable organisation accrues slowest of the three.
+The page embeds the **model graduation** panel beneath its header (see
+[Model graduation](./model-graduation.md) and
+[ADR 0046](../decisions/0046-model-graduation-trains-on-the-organisations-own-records.md)):
+these scores come from a survey of workers at other employers until the organisation's
+own history can replace it.
 
-The field-coverage list shows **Used now**: hire date, employment type, salary, time
-since last promotion, and the three 90-day attendance counts. **Recorded, not used**:
-department (the survey's free-text answers could not be matched to a department list)
-and training completions (the survey did not ask). **Not recorded anywhere**: exit
-interviews, engagement, pay against market. The panel's counts are simulated (ADR 0031);
-its thresholds and reasoning are real.
+This surface's own model would learn **who has actually resigned here**, from the
+**stored risk scores** — each the record exactly as it was scored, since tenure, salary
+and last quarter's attendance can't be rebuilt afterwards. Per person, scores are taken
+at least a year apart; each counts once its year has passed; only a *resignation* is
+leaving, and other exits (and departures with no offboarding record) are left out. The
+surface stays *General model* until the first assessment stores scores. The checklist:
+
+- **100 resignations within a year of a risk score** — with a projection at the
+  organisation's recent pace, and notes on scores still inside their year;
+- **100 risk scores followed by a year of staying** — fills on its own;
+- **90 % of departures with a recorded type** — process every departure through
+  Offboarding;
+- **the prediction service is ready.**
+
+A trained model is judged by how often it ranks someone who resigned above someone who
+stayed (ROC-AUC), against the general model and a coin flip.
+
+The field list shows **used in every score**: employment type, hire date, salary, time
+since last promotion, and the three 90-day attendance counts. **Recorded, but not
+used**: department, training completions, and departure type (counted against the
+people who left — it is what the organisation's own model learns from). **Not recorded
+anywhere**: engagement, pay against market.
 
 ## Permissions
 
 `analytics.attrition.view` (the overview & detail), `analytics.attrition.manage` (run /
-delete an assessment). **HR Manager** gets both; **Department Head** gets view; Super
+delete an assessment; train, switch to and switch back from the organisation's own model). **HR Manager** gets both; **Department Head** gets view; Super
 Admin bypasses all gates. Reports show the latest run as an *Attrition risk* signal chip
 on the Workforce and Attendance groups.
 

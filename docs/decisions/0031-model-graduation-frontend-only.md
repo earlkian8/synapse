@@ -1,6 +1,7 @@
 # 0031 — Model graduation panels, embedded per surface
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0046](./0046-model-graduation-trains-on-the-organisations-own-records.md) —
+  the counts are now real, and a surface can train, check and switch to its own model.
 - **Date:** 2026-09-02
 - **Related:** [Promotion Readiness](../modules/promotion-readiness.md),
   [Performance Forecast](../modules/performance-forecast.md),

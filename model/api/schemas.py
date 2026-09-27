@@ -15,8 +15,16 @@ class Instance(BaseModel):
     features: dict[str, FeatureValue] = Field(default_factory=dict)
 
 
+class Variant(BaseModel):
+    """Score with an organisation's own model instead of the reference one."""
+
+    tenant: str = Field(..., description="The organisation's key, e.g. 'org-12'.")
+    version: str = Field(..., description="The version /train returned for it.")
+
+
 class PredictRequest(BaseModel):
     instances: list[Instance]
+    variant: Variant | None = None
 
 
 class Factor(BaseModel):
@@ -71,3 +79,34 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     models: dict[str, ModelInfo]
+
+
+class TrainRow(BaseModel):
+    """One labelled example from the organisation's own records."""
+
+    group: str = Field(..., description="The employee the example belongs to; never split across a test.")
+    features: dict[str, FeatureValue] = Field(default_factory=dict)
+    # 1/0 for promotion (promoted before the next appraisal) and attrition (resigned
+    # within the year); the next rating, 0–100, for performance.
+    outcome: float
+    # Performance: the review cycle of the rating being predicted.
+    cycle: str | None = None
+
+
+class TrainRequest(BaseModel):
+    tenant: str
+    rows: list[TrainRow]
+
+
+class TrainResponse(BaseModel):
+    model: str
+    tenant: str
+    # "passed": a model was fitted and stored under ``version``; "failed": nothing stored.
+    verdict: str
+    version: str | None = None
+    # Plain-language sentences, one per check, written for the HR reader.
+    findings: list[str]
+    # The measure it was judged on, for the local model, the reference and knowing
+    # nothing, and how often it came out ahead across resamples of the people.
+    comparison: dict[str, float | int | str | None]
+    counts: dict[str, int]

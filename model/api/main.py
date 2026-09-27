@@ -15,7 +15,12 @@ or simply::
 
 Endpoints:
     GET  /health                 — liveness + which models are loaded
-    POST /predict/{model_name}   — score a batch of instances (promotion|performance|attrition)
+    POST /predict/{model_name}   — score a batch of instances (promotion|performance|attrition),
+                                   with the reference model or — given a ``variant`` — an
+                                   organisation's own
+    POST /train/{model_name}     — fit a model on an organisation's own examples, judge it
+                                   against the reference on those records, and store it
+                                   when it passes (``synapse_ml.local``)
 """
 
 from __future__ import annotations
@@ -25,6 +30,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
+import numpy as np
+
+from synapse_ml.local import store as local_store
+from synapse_ml.local import training as local_training
+
 from .registry import Registry
 from .schemas import (
     HealthResponse,
@@ -32,6 +42,8 @@ from .schemas import (
     PredictRequest,
     PredictResponse,
     Result,
+    TrainRequest,
+    TrainResponse,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -87,17 +99,25 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown model '{model_name}'.") from None
 
+    if request.variant is not None:
+        try:
+            model = registry.local(model_name, request.variant.tenant, request.variant.version)
+        except local_store.UnknownLocalModel as exc:
+            # Never fall back to the reference silently: the organisation chose its own
+            # model, and scoring it with another would misreport whose model spoke.
+            raise HTTPException(status_code=404, detail=f"Unknown local model: {exc}.") from None
+
     if not request.instances:
         raise HTTPException(status_code=422, detail="No instances supplied.")
 
     feature_dicts = [inst.features for inst in request.instances]
     results = [
         Result(ref=inst.ref, **result)
-        for inst, result in zip(request.instances, registry.predict(model_name, feature_dicts), strict=True)
+        for inst, result in zip(request.instances, registry.predict_with(model, feature_dicts), strict=True)
     ]
 
     warnings = []
-    unknown = registry.unknown_inputs(model_name, feature_dicts)
+    unknown = registry.unknown_inputs(model, feature_dicts)
     if unknown:
         # The caller and the model disagree about the contract. Scoring carries on
         # with what the model reads; the mismatch is reported, not swallowed.
@@ -107,3 +127,46 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
     declined = sum(result.status != "scored" for result in results)
     log.info("scored %d instance(s) with '%s' (%d declined)", len(results) - declined, model_name, declined)
     return PredictResponse(model=model_name, model_version=model.version, results=results, warnings=warnings)
+
+
+@app.post("/train/{model_name}", response_model=TrainResponse)
+def train(model_name: str, request: TrainRequest) -> TrainResponse:
+    """Fit ``model_name`` on one organisation's examples and judge it against the
+    reference model on those same records. Stored only when it passes."""
+    try:
+        reference = registry.get(model_name)
+    except KeyError:
+        # The check needs the reference model to compare against.
+        raise HTTPException(status_code=404, detail=f"Unknown model '{model_name}'.") from None
+    if not local_store.TENANT.fullmatch(request.tenant):
+        raise HTTPException(status_code=422, detail="Malformed tenant key.")
+
+    def today(records: list[dict]) -> np.ndarray:
+        results = registry.predict_with(reference, records)
+        key = "score" if reference.kind == "regressor" else "probability"
+        return np.array([np.nan if r[key] is None else r[key] for r in results], dtype=float)
+
+    try:
+        outcome = local_training.train(model_name, [row.model_dump() for row in request.rows], today)
+    except local_training.TrainingRefused as exc:
+        raise HTTPException(status_code=422, detail=f"Cannot train: {exc}.") from None
+
+    version = None
+    if outcome.verdict == "passed":
+        version = local_store.save(
+            request.tenant,
+            model_name,
+            outcome.fitted,
+            {"algorithm": reference.metrics.get("algorithm"), "comparison": outcome.comparison,
+             "counts": outcome.counts, "findings": outcome.findings},
+        )
+    log.info("trained '%s' for %s: %s (%s)", model_name, request.tenant, outcome.verdict, outcome.comparison)
+    return TrainResponse(
+        model=model_name,
+        tenant=request.tenant,
+        verdict=outcome.verdict,
+        version=version,
+        findings=outcome.findings,
+        comparison=outcome.comparison,
+        counts=outcome.counts,
+    )

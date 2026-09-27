@@ -76,46 +76,33 @@ which are logged server-side instead. This is an HR screen, not a model dashboar
 
 ## Where these scores come from (model graduation)
 
-The page embeds a **`ModelProvenance`** panel directly beneath its header, stating
-in one line that these forecasts come from a general workforce dataset rather than this
-organisation’s own appraisal history. Expanded, it shows the
-three-stage lifecycle (`provisional` → `collecting` → `graduated`) with the
-retraining gate drawn closed, the requirement furthest from satisfied, and the
-full requirement ledger — each row opening a drill-down with the statistical
-justification for its threshold.
+The page embeds the **model graduation** panel beneath its header (see
+[Model graduation](./model-graduation.md) and
+[ADR 0046](../decisions/0046-model-graduation-trains-on-the-organisations-own-records.md)).
 
-This surface learns from **cycle-to-cycle comparisons** rather than from people,
-so its headline requirement is 200 of them. Its distinctive requirement is **30
-people with three or more appraisals**: a trajectory needs three points, and with
-two every forecast is really last cycle restated. Its current stage is
-`collecting`.
+This surface's own model would learn **how ratings here actually move from one cycle to
+the next**. One example is a completed appraisal and the same person's next one, in
+consecutive cycles (different periods, at most 400 days apart); every later rating is
+known the day it is completed, so nothing waits. The checklist:
 
-### What each score draws on
+- **235 ratings compared with the one before** — 234 + one per input pins the spread
+  the forecast's range is built from within 10 % (Riley et al., 2019); pairs over
+  13 months apart are noted as not counting;
+- **2 review cycles with the one before to compare** — three cycles in a row, so no
+  single year's mood is all it learns;
+- **80 % of comparisons scored on an unchanged form** (ADR 0028);
+- **the prediction service is ready.**
 
-Beneath the requirement ledger, the panel lists **every input the score uses**,
-with how many employee records actually carry it — grouped by whether the value
-reaches the score at all:
+A trained model is judged by **average miss** (points) against the general model and
+against simply repeating each person's last rating, and its likely ranges must hold
+70–90 % of the ratings that followed. Once switched to, runs record it, and the
+forecast detail and track record speak of the organisation's own history rather than
+the reference workforce.
 
-| State | Meaning |
-|---|---|
-| **Used now** | Read from your records and fed into every score. |
-| **Recorded, not used** | The system already holds it; wiring it in needs no new data entry. |
-| **Not recorded anywhere** | No module produces it, so it cannot be filled in. |
-
-For this surface one field is used now: the *latest completed appraisal* before the
-period being forecast. Everything else is **recorded, not used**, each with its reason:
-across the reference workforce nothing else the system records — earlier ratings,
-tenure, certifications, attendance, lateness, overtime, training, department, employment
-type — changes the forecast at all once the latest appraisal is known, and *KPI
-attainment* is part of the appraisal it summarises. Deadline adherence and peer
-feedback are not recorded anywhere. [Attrition Risk](./attrition-risk.md) is the
-surface that does feed 90-day absences, lateness and overtime into its score.
-
-The panel is **frontend-only**: counts are fabricated in the browser and persisted
-to `localStorage`, and no retraining runs behind it. Only the counts are
-simulated — the thresholds and their reasoning are real. Shared implementation
-lives in `resources/js/features/model-graduation/`; see
-[ADR 0031](../decisions/0031-model-graduation-frontend-only.md).
+The field list shows the *latest completed appraisal* before the forecast period as
+used in every forecast; earlier ratings, tenure, certifications, attendance, training,
+department and employment type are recorded but add nothing once it is known. Deadline
+adherence and peer feedback are not recorded anywhere.
 
 ## The model
 
@@ -140,7 +127,8 @@ forecasts do too. The track record is how an organisation sees whether that hold
 ## Permissions
 
 `analytics.performance.view` (the overview & detail), `analytics.performance.manage`
-(run / delete a forecast). Built-in **HR Manager** gets both; Super Admin bypasses
+(run / delete a forecast; train, switch to and switch back from the organisation's own
+model). Built-in **HR Manager** gets both; Super Admin bypasses
 all gates.
 
 ## Out of scope (this cut)

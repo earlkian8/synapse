@@ -49,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(MlClient::class, fn (): MlClient => new MlClient(
             baseUrl: config('services.ml.url'),
             timeout: config('services.ml.timeout'),
+            trainTimeout: config('services.ml.train_timeout'),
         ));
 
         // The agentic assistant and the HR modules it can act on. Each module is
