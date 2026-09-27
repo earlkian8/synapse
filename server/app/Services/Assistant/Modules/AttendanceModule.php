@@ -340,14 +340,19 @@ class AttendanceModule extends Module implements ContributesContext
      */
     private function findAttendance(User $user, array $args): ToolResult
     {
-        $employee = $this->locateEmployee($args);
+        // Without attendance.view, only the asker's own record exists as far as
+        // this tool is concerned — a colleague and a made-up name get the same
+        // answer, so the tool cannot be used to find out who works here.
+        $employee = $user->can('attendance.view')
+            ? $this->locateEmployee($args)
+            : $this->ownRecordNamed($user, $args);
+
+        if ($employee === false) {
+            return $this->denied("view other people's attendance");
+        }
 
         if (! $employee) {
             return ToolResult::error('Looked up the employee', 'No matching employee found.');
-        }
-
-        if ($employee->id !== $user->employee?->id && $user->cannot('attendance.view')) {
-            return $this->denied("view other people's attendance");
         }
 
         $date = $this->date($args['date'] ?? null);
@@ -417,11 +422,16 @@ class AttendanceModule extends Module implements ContributesContext
      */
     private function findShifts(User $user, array $args): ToolResult
     {
-        $employee = $this->locateEmployee($args);
-        $isSelf = $employee !== null && $employee->id === $user->employee?->id;
+        // The same rule as attendance: without the roster permission, only the
+        // asker's own shifts exist here, and nobody else's name is looked up.
+        if ($user->cannot('setup.roster.view')) {
+            $employee = $this->ownRecordNamed($user, $args);
 
-        if (! $isSelf && $user->cannot('setup.roster.view')) {
-            return $this->denied('view the shift roster');
+            if (! $employee) {
+                return $this->denied('view the shift roster');
+            }
+        } else {
+            $employee = $this->locateEmployee($args);
         }
 
         $from = $this->date($args['from'] ?? $args['date'] ?? null) ?? OrganizationClock::today();
@@ -644,6 +654,31 @@ class AttendanceModule extends Module implements ContributesContext
     /**
      * @param  array<string, mixed>  $args
      */
+    /**
+     * The asker's own roster line, when the arguments name them (or name nobody).
+     * False when they name anybody else — decided by matching the name against
+     * the asker's row only, so the directory is never searched on behalf of
+     * someone who may not see it.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function ownRecordNamed(User $user, array $args): Employee|false|null
+    {
+        $own = $user->employee;
+
+        if (! $own instanceof Employee) {
+            return false;
+        }
+
+        $needle = $this->firstFilled($args, ['employee']);
+
+        if ($needle === null) {
+            return $own;
+        }
+
+        return $this->matchByTokens(Employee::query()->whereKey($own->id), $needle)->exists() ? $own : false;
+    }
+
     private function locateEmployee(array $args): ?Employee
     {
         $needle = $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']);

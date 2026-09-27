@@ -2,11 +2,13 @@ import { ArrowDown, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ChatMessage } from '../types';
+import type { AnswerAction } from './agent-activity';
 import { MessageItem } from './message-item';
 
 const SUGGESTIONS = [
+    'How are we doing today?',
+    'How is the review cycle going?',
     'Add a new employee',
-    'Onboard the attached CV',
     'File sick leave for someone tomorrow',
     'Move a candidate to the interview stage',
     'Who is on leave this week?',
@@ -21,6 +23,7 @@ export function MessageList({
     onRegenerate,
     onEdit,
     onRetry,
+    onAnswer,
     onPickSuggestion,
 }: {
     messages: ChatMessage[];
@@ -31,6 +34,7 @@ export function MessageList({
     onRegenerate: () => void;
     onEdit: (id: number | string, text: string) => void;
     onRetry: () => void;
+    onAnswer: AnswerAction;
     onPickSuggestion: (prompt: string) => void;
 }) {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -114,6 +118,7 @@ export function MessageList({
                                 onRegenerate={onRegenerate}
                                 onEdit={onEdit}
                                 onRetry={onRetry}
+                                onAnswer={onAnswer}
                             />
                         ))
                     )}

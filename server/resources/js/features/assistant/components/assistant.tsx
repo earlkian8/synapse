@@ -18,11 +18,23 @@ import { ConversationList } from './conversation-list';
 import { MessageList } from './message-list';
 
 /** Permissions that make at least part of the assistant useful. */
+/**
+ * Who sees the assistant: anyone with a module it can read for them — the
+ * directory, leave, attendance, onboarding, recruitment, performance, or any
+ * block of the dashboard. (Self-service alone does not open it: every turn
+ * spends model quota.)
+ */
 const ASSISTANT_PERMISSIONS = [
     'employees.view',
     'leave.view',
+    'leave.manage',
+    'attendance.view',
     'onboarding.view',
+    'offboarding.view',
     'recruitment.view',
+    'performance.view',
+    'events.view',
+    'activity-logs.view',
 ] as const;
 
 const draftKey = (id: number | null) =>
@@ -160,6 +172,7 @@ export function Assistant() {
                                 void assistant.editMessage(id, text)
                             }
                             onRetry={() => void assistant.regenerate()}
+                            onAnswer={assistant.answerAction}
                             onPickSuggestion={setInput}
                         />
 
@@ -279,7 +292,12 @@ function HeaderButton({
 
 /** Toast each executed action and refresh the current page so it shows live. */
 function applyEffects(cards: AgentCard[]) {
-    const mutated = cards.filter((card) => card.kind !== 'find');
+    // Only what actually changed: a lookup, a read-out or an action still
+    // waiting for the user's OK changed nothing, so it neither toasts nor
+    // reloads the page.
+    const mutated = cards.filter(
+        (card) => !['find', 'insight', 'confirm'].includes(card.kind),
+    );
 
     for (const card of mutated) {
         const message = `${card.badge} · ${card.title}`;

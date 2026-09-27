@@ -94,7 +94,9 @@ from the framework that covers them unless one is pinned for the launch. It is
 to re-run as people join. The toast reports what was opened *and* who was left
 out and why. Both this and the single-open action go through
 `App\Support\Performance\EvaluationOpener`, so a scorecard is built the same way
-however it was started.
+however it was started. Every change to an appraisal (open, rate, submit, sign off,
+discard, launch) is `App\Support\Performance\AppraisalWorkflow`, shared by the
+screens and the assistant, so both refuse for the same reasons in the same words.
 
 ## Configuration (`/setup/kpi`)
 
@@ -138,8 +140,42 @@ cycle, score, submit, sign off, delete drafts); `setup.kpi.view` /
 `setup.kpi.manage` (the configuration surface). Built-in **HR Manager** gets all
 of them.
 
+## The assistant
+
+`App\Services\Assistant\Modules\PerformanceModule` puts appraisals in the chat
+assistant ([ADR 0049](../decisions/0049-assistant-prompt-injection-defences.md)).
+
+- **Reads** (`performance.view`):
+  - `find_appraisals` — by person, cycle and status;
+  - `get_appraisal` — one scorecard in full: result, band, every criterion's rating,
+    the evaluator and remarks. Reading a named person's appraisal is written to the
+    audit trail as `viewed`;
+  - `performance_summary` — a cycle as the overview reads it (coverage, statuses,
+    average, the band spread, and the departments rating furthest from the cycle
+    average), through `PerformanceCalibration`;
+  - `list_review_cycles`.
+- **Writes** (`performance.manage`), all through `AppraisalWorkflow`, the class the
+  screens now use too:
+  - `open_appraisal`;
+  - `rate_appraisal` — a rating is given by criterion name, as a number on that
+    criterion's own scale or one of its level names ("Proficient"). Off-scale ratings
+    are refused before anything is written;
+  - `submit_appraisal`, `acknowledge_appraisal`, `delete_draft_appraisal` and
+    `launch_review_cycle` always wait for the user's **Confirm** in the chat.
+- **Names resolve to exactly one person** (or an employee number) before any write.
+  "Maria", when there are two, is refused rather than guessed.
+- **Retrieval:**
+  - a question about a person carries their last four appraisals and how their
+    attainment moved;
+  - their latest ML forecast is added only for someone with
+    `analytics.performance.view`;
+  - a question about the cycle that names nobody ("how is the review cycle going?")
+    carries the cycle summary.
+- **No self-service.** As on the screens, there is no "my appraisal" view: an
+  appraisal, including one's own, needs `performance.view`.
+
 ## Out of scope (this cut)
 
 Self / peer / 360 reviews, employee self-service acknowledgement, goal libraries
 with mid-cycle check-ins, forced distribution, calibration *sessions* (as opposed
-to the calibration view), feeding results into pay, and an assistant capability.
+to the calibration view), and feeding results into pay.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AssistantActionController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
@@ -56,6 +57,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('assistant/conversations/{conversation}', [AssistantConversationController::class, 'show'])->name('assistant.conversations.show');
     Route::patch('assistant/conversations/{conversation}', [AssistantConversationController::class, 'update'])->name('assistant.conversations.update');
     Route::delete('assistant/conversations/{conversation}', [AssistantConversationController::class, 'destroy'])->name('assistant.conversations.destroy');
+    // Answering an action the assistant held for confirmation (ADR 0049). No
+    // model call is made, so these sit outside the Gemini quota limiter — but
+    // they are still limited, because a token is a capability worth guessing at.
+    Route::post('assistant/actions/confirm', [AssistantActionController::class, 'confirm'])->middleware('throttle:assistant-actions')->name('assistant.actions.confirm');
+    Route::post('assistant/actions/cancel', [AssistantActionController::class, 'cancel'])->middleware('throttle:assistant-actions')->name('assistant.actions.cancel');
 });
 
 require __DIR__.'/settings.php';

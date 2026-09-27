@@ -57,3 +57,29 @@ Add a block by giving `DashboardOverview` a new permission-gated key (reuse the 
 `*Statistics` class if one exists), then render a panel for it and push it into the
 `panels` array in priority order. Keep the masonry happy: panels are self-contained and
 make no assumptions about their neighbours.
+
+## The assistant
+
+`App\Services\Assistant\Modules\DashboardModule` puts the dashboard in the chat
+assistant. It is read-only ([ADR 0049](../decisions/0049-assistant-prompt-injection-defences.md)).
+
+- **Every figure comes from `DashboardOverview`**, so a number in chat is the number on
+  the screen, and each block is gated by the same permission the dashboard uses. The
+  module is offered only to someone the dashboard shows at least one block to, so a
+  regular employee does not get an empty capability.
+- **Retrieval:** a question about the workspace that names nobody ("how are we doing
+  today?", "what needs my attention?", "catch me up") reads the dashboard before the
+  model is called. That brief carries:
+  - the visible blocks;
+  - the action queue;
+  - the next events;
+  - for those with `activity-logs.view`, the latest audit entries.
+
+  The trigger words are matched as whole words in the user's own message.
+- **Tools:**
+  - `get_workspace_overview` — one block, or all;
+  - `get_attention_queue`;
+  - `list_upcoming_events` (`events.view`) — within 1–60 days;
+  - `get_recent_activity` (`activity-logs.view`) — filtered by area, capped at 15;
+  - `get_attendance_trend` (`attendance.view`).
+

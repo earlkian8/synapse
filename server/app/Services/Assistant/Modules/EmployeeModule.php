@@ -56,6 +56,14 @@ class EmployeeModule extends Module implements ContributesContext
         return $user->can('employees.view') || $user->employee()->exists();
     }
 
+    protected function confirmTools(): array
+    {
+        // Archiving takes someone off the active roster.
+        return [
+            'archive_employee',
+        ];
+    }
+
     protected function toolMap(): array
     {
         return [

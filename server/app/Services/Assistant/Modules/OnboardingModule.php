@@ -120,6 +120,17 @@ class OnboardingModule extends Module implements ContributesContext
         ]);
     }
 
+    protected function confirmTools(): array
+    {
+        // Deleting, or ending a case early, is not something to do on a misread.
+        return [
+            'delete_onboarding_case',
+            'remove_onboarding_task',
+            'delete_onboarding_program',
+            'set_onboarding_status',
+        ];
+    }
+
     protected function toolMap(): array
     {
         return [

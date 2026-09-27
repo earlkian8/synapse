@@ -70,14 +70,20 @@ class EvaluationOpener
         $sections = collect($template->sectionList())->keyBy('key');
         $items = $template->items()->with(['ratingScale', 'criterion.ratingScale'])->get();
 
+        // Section by section in the framework's own order, then by position
+        // within the section. One comparator over the whole key — `sortBy()`
+        // with a list calls each entry as a two-argument comparator, so a list
+        // of one-argument key closures would not sort by them at all.
+        $position = fn (ReviewTemplateItem $item): array => [
+            $sections->keys()->search($item->section_key) === false
+                ? PHP_INT_MAX
+                : (int) $sections->keys()->search($item->section_key),
+            (int) $item->sort_order,
+            (int) $item->id,
+        ];
+
         return $items
-            ->sortBy([
-                fn (ReviewTemplateItem $item): int => $sections->keys()->search($item->section_key) === false
-                    ? PHP_INT_MAX
-                    : (int) $sections->keys()->search($item->section_key),
-                fn (ReviewTemplateItem $item): int => $item->sort_order,
-                fn (ReviewTemplateItem $item): int => $item->id,
-            ])
+            ->sort(fn (ReviewTemplateItem $a, ReviewTemplateItem $b): int => $position($a) <=> $position($b))
             ->values()
             ->map(function (ReviewTemplateItem $item, int $index) use ($sections, $template): array {
                 $section = $sections->get($item->section_key) ?? ReviewTemplate::fallbackSection();

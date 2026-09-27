@@ -107,6 +107,14 @@ class LeaveModule extends Module implements ContributesContext
         ]);
     }
 
+    protected function confirmTools(): array
+    {
+        // Cancelling withdraws leave somebody is counting on.
+        return [
+            'cancel_leave_request',
+        ];
+    }
+
     protected function toolMap(): array
     {
         return [

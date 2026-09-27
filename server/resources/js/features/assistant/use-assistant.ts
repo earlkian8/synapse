@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import { serverMessageToChat } from './api';
-import type { ChatMessage, Conversation, TurnResponse } from './types';
+import type {
+    ChatMessage,
+    ConfirmationState,
+    Conversation,
+    TurnResponse,
+} from './types';
 
 let seq = 0;
 const tempId = () => `tmp-${Date.now()}-${seq++}`;
@@ -246,6 +251,68 @@ export function useAssistant() {
         );
     }, [activeId, runRequest, sending]);
 
+    /**
+     * Answer an action the assistant held for confirmation (ADR 0049). The card
+     * is updated in place — and its spent token dropped — and confirming adds
+     * the turn that reports what was done. Resolves to an error message for the
+     * card to show, or null.
+     */
+    const answerAction = useCallback(
+        async (
+            token: string,
+            decision: 'confirm' | 'cancel',
+        ): Promise<string | null> => {
+            const mark = (state: ConfirmationState) =>
+                setMessages((current) =>
+                    current.map((m) =>
+                        m.actions?.some((a) => a.confirmation?.token === token)
+                            ? {
+                                  ...m,
+                                  actions: m.actions.map((a) =>
+                                      a.confirmation?.token === token
+                                          ? {
+                                                ...a,
+                                                confirmation: {
+                                                    ...a.confirmation,
+                                                    state,
+                                                    token: null,
+                                                },
+                                            }
+                                          : a,
+                                  ),
+                              }
+                            : m,
+                    ),
+                );
+
+            try {
+                const answer = await api.answerAction(token, decision);
+                mark(answer.state);
+
+                if (answer.message) {
+                    const reply = serverMessageToChat(answer.message);
+
+                    setMessages((current) => [
+                        ...current,
+                        { ...reply, streaming: true },
+                    ]);
+                    setStreamingId(reply.id);
+                }
+
+                return null;
+            } catch (error) {
+                if (error instanceof api.ActionGoneError) {
+                    mark('expired');
+                }
+
+                return error instanceof Error
+                    ? error.message
+                    : 'Something went wrong. Please try again.';
+            }
+        },
+        [],
+    );
+
     const stopStreaming = useCallback(() => {
         abortRef.current?.abort();
         setStreamingId(null);
@@ -331,6 +398,7 @@ export function useAssistant() {
         sendMessage,
         editMessage,
         regenerate,
+        answerAction,
         stopStreaming,
         endStreaming,
         rename,

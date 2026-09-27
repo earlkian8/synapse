@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useClipboard } from '@/hooks/use-clipboard';
 import type { ChatMessage } from '../types';
 import { AgentActivity } from './agent-activity';
+import type { AnswerAction } from './agent-activity';
 import { Markdown } from './markdown';
 
 function formatTime(iso?: string | null): string {
@@ -37,6 +38,7 @@ export function MessageItem({
     onRegenerate,
     onEdit,
     onRetry,
+    onAnswer,
 }: {
     message: ChatMessage;
     isLast: boolean;
@@ -46,6 +48,7 @@ export function MessageItem({
     onRegenerate: () => void;
     onEdit: (id: number | string, text: string) => void;
     onRetry: () => void;
+    onAnswer: AnswerAction;
 }) {
     if (message.role === 'user') {
         return (
@@ -66,6 +69,7 @@ export function MessageItem({
             onStreamDone={onStreamDone}
             onRegenerate={onRegenerate}
             onRetry={onRetry}
+            onAnswer={onAnswer}
         />
     );
 }
@@ -174,6 +178,7 @@ function AssistantMessage({
     onStreamDone,
     onRegenerate,
     onRetry,
+    onAnswer,
 }: {
     message: ChatMessage;
     isLast: boolean;
@@ -182,6 +187,7 @@ function AssistantMessage({
     onStreamDone: (id: number | string) => void;
     onRegenerate: () => void;
     onRetry: () => void;
+    onAnswer: AnswerAction;
 }) {
     const hasActivity =
         (message.steps?.length ?? 0) + (message.actions?.length ?? 0) > 0;
@@ -199,6 +205,7 @@ function AssistantMessage({
                         steps={message.steps ?? []}
                         actions={message.actions ?? []}
                         onRevealed={() => setActivityDone(true)}
+                        onAnswer={onAnswer}
                     />
                 )}
 

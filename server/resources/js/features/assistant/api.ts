@@ -1,4 +1,5 @@
 import type {
+    ActionAnswer,
     Conversation,
     ConversationDetail,
     ServerMessage,
@@ -175,6 +176,40 @@ export async function regenerateTurn(
     );
 
     return parse<TurnResponse>(response);
+}
+
+// ── Held actions ─────────────────────────────────────────────────────────────
+
+/** Thrown when a held action was already answered or has expired. */
+export class ActionGoneError extends Error {}
+
+/**
+ * Answer an action the assistant held for confirmation. The token travels in
+ * the body, never the URL, so it stays out of access logs.
+ */
+export async function answerAction(
+    token: string,
+    decision: 'confirm' | 'cancel',
+): Promise<ActionAnswer> {
+    const response = await fetch(`/assistant/actions/${decision}`, {
+        method: 'POST',
+        headers: headers(),
+        credentials: 'same-origin',
+        body: JSON.stringify({ token }),
+    });
+
+    if (response.status === 410) {
+        const data = (await response.json().catch(() => null)) as {
+            error?: string;
+        } | null;
+
+        throw new ActionGoneError(
+            data?.error ??
+                'This confirmation has expired or has already been answered.',
+        );
+    }
+
+    return parse<ActionAnswer>(response);
 }
 
 // ── Mapping ──────────────────────────────────────────────────────────────────

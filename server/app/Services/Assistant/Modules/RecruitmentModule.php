@@ -164,6 +164,25 @@ class RecruitmentModule extends Module implements ContributesContext
         ]);
     }
 
+    protected function readTools(): array
+    {
+        // Read-outs whose names do not say so.
+        return ['rank_candidates', 'candidate_profile', 'candidate_insights'];
+    }
+
+    protected function confirmTools(): array
+    {
+        // Hiring creates an employee; deleting and rejecting cannot be taken back by the candidate.
+        return [
+            'delete_job_posting',
+            'delete_applicant',
+            'reject_application',
+            'withdraw_application',
+            'hire_applicant',
+            'cancel_interview',
+        ];
+    }
+
     protected function toolMap(): array
     {
         return [

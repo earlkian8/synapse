@@ -355,6 +355,9 @@ test('a question answered by a lookup is written by the model; an action is not'
 
         public string $tool = 'find_employees';
 
+        /** The call's arguments — each tool's own declared parameter, since undeclared ones are dropped. */
+        public array $args = ['query' => 'Maria'];
+
         public function configured(): bool
         {
             return true;
@@ -366,7 +369,7 @@ test('a question answered by a lookup is written by the model; an action is not'
 
             // First turn: call the tool. Second: write the answer up.
             $parts = $this->calls === 1
-                ? [['functionCall' => ['name' => $this->tool, 'args' => ['query' => 'Maria']]]]
+                ? [['functionCall' => ['name' => $this->tool, 'args' => $this->args]]]
                 : [['text' => 'Maria Santos is the only match, and she is a Barista.']];
 
             return ['candidates' => [['content' => ['parts' => $parts]]]];
@@ -386,6 +389,7 @@ test('a question answered by a lookup is written by the model; an action is not'
     // An instruction: the confirmation is composed locally, for one call.
     $gemini->calls = 0;
     $gemini->tool = 'archive_employee';
+    $gemini->args = ['match' => 'Maria Santos'];
 
     $turn = $assistant->handle(auth()->user(), 'archive maria santos');
 

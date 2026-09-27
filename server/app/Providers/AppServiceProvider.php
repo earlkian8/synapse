@@ -5,12 +5,15 @@ namespace App\Providers;
 use App\Models\User;
 use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Modules\AttendanceModule;
+use App\Services\Assistant\Modules\DashboardModule;
 use App\Services\Assistant\Modules\EmployeeModule;
 use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\OnboardingModule;
+use App\Services\Assistant\Modules\PerformanceModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
+use App\Services\Assistant\Security\PendingActions;
 use App\Support\Ai\GeminiClient;
 use App\Support\Attendance\AttendanceInputs;
 use App\Support\Ml\MlClient;
@@ -62,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
             $app->make(AttendanceModule::class),
             $app->make(OnboardingModule::class),
             $app->make(RecruitmentModule::class),
+            $app->make(PerformanceModule::class),
+            $app->make(DashboardModule::class),
         ]);
 
         $this->app->singleton(Retriever::class, fn ($app): Retriever => new Retriever(
@@ -73,6 +78,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(GeminiClient::class),
             $app->make('assistant.modules'),
             $app->make(Retriever::class),
+            $app->make(PendingActions::class),
         ));
     }
 
@@ -107,6 +113,11 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(12)->by('assistant-min:'.$request->user()?->id),
             Limit::perDay(240)->by('assistant-day:'.$request->user()?->id),
         ]);
+
+        // Confirming or cancelling a held assistant action (ADR 0049) spends no
+        // quota, but its token is a capability: limit the guessing.
+        RateLimiter::for('assistant-actions', fn (Request $request) => Limit::perMinute(30)
+            ->by('assistant-actions:'.$request->user()?->id));
 
         // A device sends punches in batches; a kiosk once per person at the
         // counter. Keyed per device key, so one misbehaving scanner cannot

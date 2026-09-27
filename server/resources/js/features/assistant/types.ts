@@ -1,11 +1,16 @@
 /**
  * Types for the Synapse assistant — a persistent, multi-conversation agentic chat
- * that acts across the HR modules (employees, leave, onboarding, recruitment).
+ * that acts across the HR modules (employees, leave, attendance, onboarding,
+ * recruitment, performance, and the dashboard).
  */
 
 export type AssistantRole = 'user' | 'assistant';
 
-export type AgentStepStatus = 'done' | 'error';
+/**
+ * `held` is an action the assistant proposed but did not take: it waits for the
+ * user to confirm it (ADR 0049).
+ */
+export type AgentStepStatus = 'done' | 'error' | 'held';
 
 /**
  * What kind of work a step was. `read` is the assistant consulting the record
@@ -40,7 +45,9 @@ export type AgentCardKind =
     /** Someone was chased about outstanding work. */
     | 'remind'
     /** A read-out rather than a change: a summary, a ranking, an AI read. */
-    | 'insight';
+    | 'insight'
+    /** An action held until the user confirms or cancels it. */
+    | 'confirm';
 
 /** Colour intent of a result card. */
 export type AgentCardTone =
@@ -50,6 +57,20 @@ export type AgentCardAvatar = {
     name: string;
     initials: string;
     photo: string | null;
+};
+
+/** Where a held action stands. */
+export type ConfirmationState =
+    'pending' | 'confirmed' | 'cancelled' | 'expired';
+
+/**
+ * The answer a held action is waiting for. The token is a single-use capability
+ * the server issued for this user; it is null once the action is answered.
+ */
+export type AgentConfirmation = {
+    token: string | null;
+    state: ConfirmationState;
+    expires_at: string | null;
 };
 
 /** A rich, module-agnostic result the chat animates in after an action. */
@@ -63,6 +84,8 @@ export type AgentCard = {
     meta: string[];
     avatar: AgentCardAvatar | null;
     id: number | string | null;
+    /** Present on a `confirm` card only. */
+    confirmation?: AgentConfirmation;
 };
 
 /** A turn in the chat (client view). `id` is the server id, or a temp string. */
@@ -109,6 +132,12 @@ export type TurnResponse = {
     title: string;
     user_message_id: number;
     message: ServerMessage;
+};
+
+export type ActionAnswer = {
+    state: 'confirmed' | 'cancelled';
+    /** What confirming did, as a new assistant turn (confirm only). */
+    message?: ServerMessage;
 };
 
 export type ConversationDetail = {

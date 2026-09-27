@@ -7,11 +7,15 @@ namespace App\Services\Assistant;
  * zero or more *cards* (rich record results the chat UI animates in). Every tool
  * returns one of these so the orchestrator can build a uniform transcript across
  * all modules.
+ *
+ * A third outcome sits between done and failed: **held** — the call was not run,
+ * because it waits for the user to confirm it in the chat (ADR 0049). Only the
+ * orchestrator produces it; a module never has to know.
  */
 final class ToolResult
 {
     /**
-     * @param  'done'|'error'  $status
+     * @param  'done'|'error'|'held'  $status
      * @param  array<int, array<string, mixed>>  $cards
      */
     public function __construct(
@@ -49,8 +53,23 @@ final class ToolResult
         return new self($label, 'error', $detail);
     }
 
+    /**
+     * A call parked until the user confirms it, carrying the card that asks.
+     *
+     * @param  array<string, mixed>  $card
+     */
+    public static function held(string $label, string $detail, array $card): self
+    {
+        return new self($label, 'held', $detail, [$card]);
+    }
+
     public function failed(): bool
     {
         return $this->status === 'error';
+    }
+
+    public function isHeld(): bool
+    {
+        return $this->status === 'held';
     }
 }

@@ -4,6 +4,7 @@ namespace App\Support\Employees;
 
 use App\Models\Employee;
 use App\Services\Assistant\Modules\EmployeeModule;
+use App\Services\Assistant\Security\UntrustedText;
 use Illuminate\Support\Carbon;
 
 /**
@@ -143,16 +144,9 @@ final class EmployeeDisclosure
             return null;
         }
 
-        // Strip C0/C1 control characters (newlines included), then collapse runs
-        // of whitespace so nothing can lay out a fake prompt turn.
-        $clean = preg_replace('/[\p{Cc}\p{Cf}]+/u', ' ', $value) ?? '';
-        $clean = trim((string) preg_replace('/\s+/u', ' ', $clean));
-
-        if ($clean === '') {
-            return null;
-        }
-
-        return mb_strimwidth($clean, 0, self::MAX_TEXT, '…');
+        // The assistant's one cleaning rule (control and invisible characters,
+        // fence markers, length), at this projection's tighter cap.
+        return UntrustedText::clean($value, self::MAX_TEXT);
     }
 
     /**

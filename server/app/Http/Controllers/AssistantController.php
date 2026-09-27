@@ -102,7 +102,7 @@ class AssistantController extends Controller
         $prompt = (string) $userMessage->body;
 
         try {
-            $result = $assistant->handle($user, $prompt, $history, $fileParts);
+            $result = $assistant->handle($user, $prompt, $history, $fileParts, $conversation->id);
         } catch (GeminiException $e) {
             if (! $e->isBusy()) {
                 report($e);

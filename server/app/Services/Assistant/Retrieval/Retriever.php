@@ -5,7 +5,9 @@ namespace App\Services\Assistant\Retrieval;
 use App\Models\User;
 use App\Services\Assistant\Contracts\AssistantModule;
 use App\Services\Assistant\Contracts\ContributesContext;
+use App\Services\Assistant\Contracts\ContributesTopicContext;
 use App\Support\Tenancy;
+use Illuminate\Support\Str;
 
 /**
  * Reads the workspace before the model is asked anything.
@@ -34,9 +36,9 @@ class Retriever
     ) {}
 
     /**
-     * What this turn should be answered from, or null when it is not about
-     * anybody we can find — in which case the model works from its tools alone,
-     * exactly as before.
+     * What this turn should be answered from: a person's brief when the turn is
+     * about somebody we can find, a workspace brief when it raises a topic a
+     * module owns, or null — in which case the model works from its tools alone.
      *
      * @param  array<int, array{role?: string, text?: string}>  $history
      */
@@ -51,8 +53,10 @@ class Retriever
 
         $matches = $this->resolver->match($user, $message, $history);
 
+        // Not about anybody: it may still be about the workspace — "how are we
+        // doing today?", "how is the review cycle going?".
         if ($matches === []) {
-            return null;
+            return $this->topical($user, $message);
         }
 
         if (count($matches) > 1) {
@@ -92,6 +96,53 @@ class Retriever
         // shows: announcing "read X's record" when every module declined would
         // tell somebody without directory permission that X exists.
         return $sections === [] ? null : new ContextBrief($subject, $sections);
+    }
+
+    /**
+     * The workspace-level brief for a turn that named nobody: every module whose
+     * topic the user's own words raised, and that this user may use, says what it
+     * can. Null when no topic was raised or nobody had anything to say.
+     */
+    private function topical(User $user, string $message): ?ContextBrief
+    {
+        $text = ' '.Str::lower(trim((string) preg_replace('/[^\p{L}\p{N}\'’ -]+/u', ' ', $message))).' ';
+        $text = (string) preg_replace('/\s+/u', ' ', $text);
+        $sections = [];
+
+        foreach ($this->modules as $module) {
+            if (! $module instanceof ContributesTopicContext || ! $module->isAvailable($user)) {
+                continue;
+            }
+
+            if (! $this->raises($text, $module->topicTriggers())) {
+                continue;
+            }
+
+            $section = $module->topicContext($user);
+
+            if ($section !== null && ! $section->isEmpty()) {
+                $sections[] = $section;
+            }
+        }
+
+        return $sections === [] ? null : ContextBrief::workspace($sections);
+    }
+
+    /**
+     * Whether the message raises one of the triggers, as a whole word or phrase —
+     * "rating" raises performance, "narrating" does not.
+     *
+     * @param  list<string>  $triggers
+     */
+    private function raises(string $text, array $triggers): bool
+    {
+        foreach ($triggers as $trigger) {
+            if (str_contains($text, ' '.Str::lower(trim($trigger)).' ')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

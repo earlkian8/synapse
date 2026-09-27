@@ -46,6 +46,19 @@ interface AssistantModule
     public function guidance(User $user): string;
 
     /**
+     * Whether a tool only reads. Anything that is not a read is a write, and a
+     * write is what the orchestrator guards: it can be held for confirmation, and
+     * it counts against the per-turn write budget (ADR 0049).
+     */
+    public function isReadOnly(string $tool): bool;
+
+    /**
+     * Whether a tool is consequential enough that it never runs without the user
+     * pressing Confirm — deleting, archiving, hiring, rejecting, launching.
+     */
+    public function requiresConfirmation(string $tool): bool;
+
+    /**
      * Execute one tool call for this module.
      *
      * @param  array<string, mixed>  $args

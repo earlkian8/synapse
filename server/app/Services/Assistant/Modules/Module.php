@@ -28,6 +28,40 @@ abstract class Module implements AssistantModule
     abstract protected function toolMap(): array;
 
     /**
+     * Tools that only read although their name does not say so (a ranking, a
+     * profile read-out). Everything named `find_`, `get_`, `list_`, `count_` or
+     * `…_summary` is a read already.
+     *
+     * @return list<string>
+     */
+    protected function readTools(): array
+    {
+        return [];
+    }
+
+    /**
+     * Tools that never run without the user pressing Confirm in the chat.
+     *
+     * @return list<string>
+     */
+    protected function confirmTools(): array
+    {
+        return [];
+    }
+
+    public function isReadOnly(string $tool): bool
+    {
+        return Str::startsWith($tool, ['find_', 'get_', 'list_', 'count_'])
+            || Str::endsWith($tool, '_summary')
+            || in_array($tool, $this->readTools(), true);
+    }
+
+    public function requiresConfirmation(string $tool): bool
+    {
+        return in_array($tool, $this->confirmTools(), true);
+    }
+
+    /**
      * Map of tool name => the permission required to run it. Tools absent from
      * the map need nothing beyond the module's own {@see isAvailable()} check.
      *

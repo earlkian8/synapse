@@ -8,11 +8,13 @@ import {
     CalendarClock,
     Check,
     CheckCircle2,
+    Hourglass,
     Loader2,
     Megaphone,
     PencilLine,
     PlayCircle,
     Search,
+    ShieldCheck,
     Sparkles,
     UserPlus,
     X,
@@ -21,6 +23,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import type {
     AgentCard,
@@ -45,6 +49,7 @@ const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
     post: Megaphone,
     remind: BellRing,
     insight: Sparkles,
+    confirm: ShieldCheck,
 };
 
 /** Badge colour per tone. */
@@ -60,14 +65,22 @@ const TONE_CLASS: Record<AgentCardTone, string> = {
  * Reveals the agent's steps and result cards one at a time so a finished
  * server response still *feels* like live, deliberate work.
  */
+/** Answer a held action; resolves to an error to show, or null. */
+export type AnswerAction = (
+    token: string,
+    decision: 'confirm' | 'cancel',
+) => Promise<string | null>;
+
 export function AgentActivity({
     steps,
     actions,
     onRevealed,
+    onAnswer,
 }: {
     steps: AgentStep[];
     actions: AgentCard[];
     onRevealed?: () => void;
+    onAnswer?: AnswerAction;
 }) {
     const total = steps.length + actions.length;
     const [revealed, setRevealed] = useState(0);
@@ -128,9 +141,19 @@ export function AgentActivity({
                 </ol>
             )}
 
-            {actions.slice(0, visibleActions).map((card, index) => (
-                <ResultCard key={index} card={card} />
-            ))}
+            {actions
+                .slice(0, visibleActions)
+                .map((card, index) =>
+                    card.kind === 'confirm' && card.confirmation ? (
+                        <ConfirmCard
+                            key={index}
+                            card={card}
+                            onAnswer={onAnswer}
+                        />
+                    ) : (
+                        <ResultCard key={index} card={card} />
+                    ),
+                )}
         </div>
     );
 }
@@ -147,6 +170,15 @@ function StepIcon({
     if (isLast && status === 'done') {
         return (
             <Loader2 className="mt-px size-3.5 shrink-0 animate-spin text-[#0ABFBF]" />
+        );
+    }
+
+    // Proposed, not done: waiting on the user's answer.
+    if (status === 'held') {
+        return (
+            <span className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
+                <Hourglass className="size-2.5 text-amber-600 dark:text-amber-400" />
+            </span>
         );
     }
 
@@ -243,5 +275,149 @@ function ResultCard({ card }: { card: AgentCard }) {
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * An action the assistant proposed but may not take on its own (ADR 0049): it
+ * says exactly what would run — the tool and the arguments it would run with —
+ * and waits for Confirm or Cancel. Nothing has changed until Confirm is pressed,
+ * and the server runs precisely what is shown here.
+ */
+function ConfirmCard({
+    card,
+    onAnswer,
+}: {
+    card: AgentCard;
+    onAnswer?: AnswerAction;
+}) {
+    const confirmation = card.confirmation!;
+    const [working, setWorking] = useState<'confirm' | 'cancel' | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [lapsed, setLapsed] = useState(false);
+
+    // A held action expires on the server; stop offering it when it does.
+    useEffect(() => {
+        if (confirmation.state !== 'pending' || !confirmation.expires_at) {
+            return;
+        }
+
+        const remaining =
+            new Date(confirmation.expires_at).getTime() - Date.now();
+        const timer = setTimeout(() => setLapsed(true), Math.max(0, remaining));
+
+        return () => clearTimeout(timer);
+    }, [confirmation.state, confirmation.expires_at]);
+
+    const state =
+        confirmation.state === 'pending' && lapsed
+            ? 'expired'
+            : confirmation.state;
+    const open = state === 'pending' && confirmation.token !== null;
+
+    const answer = async (decision: 'confirm' | 'cancel') => {
+        if (!confirmation.token || !onAnswer) {
+            return;
+        }
+
+        setWorking(decision);
+        setError(null);
+        const problem = await onAnswer(confirmation.token, decision);
+        setWorking(null);
+        setError(problem);
+    };
+
+    const reason = card.meta[0];
+
+    return (
+        <section
+            aria-label={`Waiting for your OK: ${card.title}`}
+            className={cn(
+                'animate-in rounded-xl border p-3 shadow-sm duration-500 fade-in slide-in-from-bottom-1',
+                open
+                    ? 'border-amber-500/40 bg-amber-500/5'
+                    : 'border-border bg-card',
+            )}
+        >
+            <div className="flex items-start gap-3">
+                <span
+                    className={cn(
+                        'flex size-9 shrink-0 items-center justify-center rounded-full',
+                        open
+                            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                            : 'bg-muted text-muted-foreground',
+                    )}
+                >
+                    <ShieldCheck className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{card.title}</p>
+                    {card.subtitle && (
+                        <p className="mt-0.5 text-xs break-words text-muted-foreground">
+                            {card.subtitle}
+                        </p>
+                    )}
+                    {open && reason && (
+                        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+                            {reason}
+                        </p>
+                    )}
+                </div>
+                <StateBadge state={state} />
+            </div>
+
+            {open && (
+                <div className="mt-3 flex items-center justify-end gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={working !== null || !onAnswer}
+                        onClick={() => void answer('cancel')}
+                    >
+                        {working === 'cancel' ? <Spinner /> : <X />}
+                        Cancel
+                    </Button>
+                    <Button
+                        size="sm"
+                        disabled={working !== null || !onAnswer}
+                        onClick={() => void answer('confirm')}
+                    >
+                        {working === 'confirm' ? <Spinner /> : <Check />}
+                        Confirm
+                    </Button>
+                </div>
+            )}
+
+            {error && (
+                <p
+                    role="alert"
+                    className="mt-2 text-xs text-rose-600 dark:text-rose-400"
+                >
+                    {error}
+                </p>
+            )}
+        </section>
+    );
+}
+
+function StateBadge({ state }: { state: string }) {
+    const [label, className] =
+        state === 'confirmed'
+            ? ['Confirmed', TONE_CLASS.positive]
+            : state === 'cancelled'
+              ? ['Cancelled', TONE_CLASS.neutral]
+              : state === 'expired'
+                ? ['Expired', TONE_CLASS.neutral]
+                : ['Needs your OK', TONE_CLASS.warning];
+
+    return (
+        <span
+            className={cn(
+                'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                className,
+            )}
+        >
+            {label}
+        </span>
     );
 }
