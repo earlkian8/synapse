@@ -7,8 +7,15 @@ import {
     Sparkles,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { DataTable, TableCard } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { COMPARISON_COPY, formatDate, MODEL_COPY } from '../constants';
 import type { Comparison, Graduation, LocalModelSummary } from '../types';
@@ -16,21 +23,17 @@ import type { Comparison, Graduation, LocalModelSummary } from '../types';
 /**
  * What can be done with the surface's own model, and what came of it: the model in
  * use (with the way back), a model that passed its check and awaits a decision, a
- * check that did not pass and why, and the button that starts training — locked
- * until every requirement is met.
+ * check that did not pass and why, and whether training is unlocked. The button
+ * that starts training sits in the modal's footer, so it is in view on every tab.
  */
 export function TrainingPanel({
     graduation,
     canManage,
-    training,
-    onTrain,
     onActivate,
     onRevert,
 }: {
     graduation: Graduation;
     canManage: boolean;
-    training: boolean;
-    onTrain: () => void;
     onActivate: (hashid: string) => void;
     onRevert: () => void;
 }) {
@@ -40,6 +43,14 @@ export function TrainingPanel({
 
     return (
         <div className="flex flex-col gap-3">
+            {!active && !latest && (
+                <p className="text-sm text-muted-foreground">
+                    No model has been trained on your records yet — every{' '}
+                    {scores.replace(/s$/, '')} on this page comes from the
+                    general model.
+                </p>
+            )}
+
             {active && (
                 <ResultCard
                     tone="active"
@@ -89,65 +100,45 @@ export function TrainingPanel({
 
             <div
                 className={cn(
-                    'flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between',
+                    'flex items-start gap-3 rounded-xl border px-4 py-3',
                     gate_open
-                        ? 'border-[#0ABFBF]/40 bg-[#0ABFBF]/[0.06]'
+                        ? 'border-[#0ABFBF]/40 bg-[#0ABFBF]/6'
                         : 'border-dashed border-sidebar-border/70 dark:border-sidebar-border',
                 )}
             >
-                <div className="flex items-start gap-3">
-                    <span
-                        className={cn(
-                            'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
-                            gate_open
-                                ? 'bg-[#0ABFBF]/15 text-teal-700 dark:text-[#0ABFBF]'
-                                : 'bg-muted text-muted-foreground',
-                        )}
-                    >
-                        {gate_open ? (
-                            <FlaskConical className="size-4" />
-                        ) : (
-                            <Lock className="size-4" />
-                        )}
-                    </span>
-                    <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                            {gate_open
-                                ? active
-                                    ? 'You can train a newer model on your records'
-                                    : 'Your records are ready — you can train your own model'
-                                : `Training unlocks when every requirement is met — ${remaining} still to go`}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                            {gate_open
-                                ? `The system builds a model from your records, then tests it against the general model on your own people. It is offered only if it is clearly more accurate — and even then, your ${scores} don’t change until someone switches to it.`
-                                : 'Until then the general model keeps scoring, and a model trained on too little history would only look confident.'}
-                            {!canManage &&
-                                ' Someone who can manage this page can train and switch models.'}
-                        </p>
-                    </div>
+                <span
+                    className={cn(
+                        'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
+                        gate_open
+                            ? 'bg-[#0ABFBF]/15 text-teal-700 dark:text-[#0ABFBF]'
+                            : 'bg-muted text-muted-foreground',
+                    )}
+                >
+                    {gate_open ? (
+                        <FlaskConical className="size-4" />
+                    ) : (
+                        <Lock className="size-4" />
+                    )}
+                </span>
+                <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                        {gate_open
+                            ? active
+                                ? 'You can train a newer model on your records'
+                                : 'Your records are ready — you can train your own model'
+                            : `Training unlocks when every requirement is met — ${remaining} still to go`}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                        {gate_open
+                            ? `The system builds a model from your records, then tests it against the general model on your own people. It is offered only if it is clearly more accurate — and even then, your ${scores} don’t change until someone switches to it.`
+                            : 'Until then the general model keeps scoring, and a model trained on too little history would only look confident.'}
+                        {canManage
+                            ? gate_open
+                                ? ' Start it with “Train on our records” below.'
+                                : ''
+                            : ' Someone who can manage this page can train and switch models.'}
+                    </p>
                 </div>
-
-                {canManage && (
-                    <Button
-                        size="sm"
-                        className="shrink-0"
-                        onClick={onTrain}
-                        disabled={!gate_open || training}
-                        variant={gate_open ? 'default' : 'outline'}
-                    >
-                        {training ? (
-                            <Spinner />
-                        ) : gate_open ? (
-                            <FlaskConical className="size-3.5" />
-                        ) : (
-                            <Lock className="size-3.5" />
-                        )}
-                        {training
-                            ? 'Training and checking…'
-                            : 'Train on our records'}
-                    </Button>
-                )}
             </div>
         </div>
     );
@@ -155,15 +146,15 @@ export function TrainingPanel({
 
 const TONES = {
     active: {
-        box: 'border-emerald-500/30 bg-emerald-500/[0.06]',
+        box: 'border-emerald-500/30 bg-emerald-500/6',
         icon: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
     },
     ready: {
-        box: 'border-[#0ABFBF]/40 bg-[#0ABFBF]/[0.06]',
+        box: 'border-[#0ABFBF]/40 bg-[#0ABFBF]/6',
         icon: 'bg-[#0ABFBF]/15 text-teal-700 dark:text-[#0ABFBF]',
     },
     failed: {
-        box: 'border-amber-500/30 bg-amber-500/[0.06]',
+        box: 'border-amber-500/30 bg-amber-500/6',
         icon: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
     },
 } as const;
@@ -203,7 +194,7 @@ function ResultCard({
             </div>
 
             {model.comparison && (
-                <ComparisonTiles comparison={model.comparison} />
+                <ComparisonTable comparison={model.comparison} />
             )}
 
             {model.findings.length > 0 && (
@@ -229,17 +220,17 @@ function ResultCard({
 
 /**
  * The check in three numbers, on the organisation's own people: its model, the
- * general one, and knowing nothing about the person. One measure, stated in words
- * with which way is better, so no one has to know what it is called.
+ * general one, and knowing nothing about the person — one measure, stated in
+ * words with which way is better, so no one has to know what it is called.
  */
-function ComparisonTiles({ comparison }: { comparison: Comparison }) {
+function ComparisonTable({ comparison }: { comparison: Comparison }) {
     const copy = COMPARISON_COPY[comparison.metric];
 
     if (comparison.local === undefined || comparison.reference === undefined) {
         return null;
     }
 
-    const tiles = [
+    const rows = [
         { label: 'Your model', value: comparison.local, emphasis: true },
         {
             label: 'General model',
@@ -258,35 +249,54 @@ function ComparisonTiles({ comparison }: { comparison: Comparison }) {
     ];
 
     return (
-        <div className="mt-4">
-            <p className="text-xs font-medium">{copy.label}</p>
-            <p className="text-xs text-muted-foreground">{copy.explain}</p>
-
-            <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {tiles.map((tile) => (
-                    <div
-                        key={tile.label}
-                        className={cn(
-                            'rounded-lg border bg-card px-3 py-2.5',
-                            tile.emphasis
-                                ? 'border-[#0ABFBF]/40'
-                                : 'border-sidebar-border/70 dark:border-sidebar-border',
-                        )}
-                    >
-                        <dt className="text-xs text-muted-foreground">
-                            {tile.label}
-                        </dt>
-                        <dd className="mt-0.5 text-lg font-semibold tracking-tight">
-                            {copy.format(tile.value)}
-                        </dd>
-                    </div>
-                ))}
-            </dl>
+        <div className="mt-3">
+            <TableCard className="bg-card">
+                <DataTable>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Compared on your people</TableHead>
+                            <TableHead className="text-right">
+                                {copy.label}
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rows.map((row) => (
+                            <TableRow key={row.label}>
+                                <TableCell
+                                    className={cn(
+                                        'text-sm whitespace-normal',
+                                        row.emphasis
+                                            ? 'font-medium'
+                                            : 'text-muted-foreground',
+                                    )}
+                                >
+                                    {row.emphasis && (
+                                        <span
+                                            className="mr-2 inline-block size-2 rounded-full bg-[#0ABFBF]"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                    {row.label}
+                                </TableCell>
+                                <TableCell
+                                    className={cn(
+                                        'text-right text-sm tabular-nums',
+                                        row.emphasis && 'font-semibold',
+                                    )}
+                                >
+                                    {copy.format(row.value)}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </DataTable>
+            </TableCard>
 
             <p className="mt-2 text-xs text-muted-foreground">
-                Checked on {comparison.examples.toLocaleString()} examples from{' '}
-                {comparison.people.toLocaleString()} of your people, each scored
-                by a model that never saw them.
+                {copy.explain} Checked on {comparison.examples.toLocaleString()}{' '}
+                examples from {comparison.people.toLocaleString()} of your
+                people, each scored by a model that never saw them.
                 {comparison.wins_over_reference !== undefined &&
                     ` Your model came out ahead of the general one in ${Math.round(comparison.wins_over_reference * 100)}% of re-checks (${Math.round(comparison.required_share * 100)}% needed).`}
                 {comparison.coverage !== undefined &&

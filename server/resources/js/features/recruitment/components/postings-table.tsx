@@ -1,19 +1,22 @@
+import { Link } from '@inertiajs/react';
+import { BriefcaseBusiness, Plus } from 'lucide-react';
 import {
-    ArrowDown,
-    ArrowUp,
-    BriefcaseBusiness,
-    ChevronsUpDown,
-} from 'lucide-react';
+    DataTable,
+    EmptyTableRow,
+    rowOpens,
+    SortableHead,
+    TableCard,
+} from '@/components/data-table';
+import { Button } from '@/components/ui/button';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
 import { TYPE_LABELS } from '../constants';
+import { recruitmentRoutes } from '../routes';
 import type {
     ManagedPosting,
     PostingsFilters,
@@ -35,175 +38,153 @@ type Props = RowHandlers & {
     postings: ManagedPosting[];
     filters: PostingsFilters;
     can: RecruitmentPermissions;
+    filtered: boolean;
     onToggleSort: (column: string) => void;
+    onCreate: () => void;
 };
 
+/**
+ * Every job posting: where it is recruiting, how many seats are filled, and how
+ * busy its pipeline is. A row opens that posting's pipeline; the menu has its
+ * details, the public link, editing and status.
+ */
 export function PostingsTable({
     postings,
     filters,
     can,
+    filtered,
     onToggleSort,
+    onCreate,
     ...handlers
 }: Props) {
+    const sortable = (column: string) => ({
+        active: filters.sort === column,
+        direction: filters.direction,
+        onSort: () => onToggleSort(column),
+    });
+
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <Table>
-                <TableHeader className="bg-muted/40">
-                    <TableRow className="hover:bg-transparent">
-                        <SortHeader
-                            column="title"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <SortableHead {...sortable('title')}>
                             Posting
-                        </SortHeader>
+                        </SortableHead>
                         <TableHead>Department</TableHead>
                         <TableHead>Type</TableHead>
-                        <SortHeader
-                            column="openings"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+                        <SortableHead {...sortable('openings')} align="right">
                             Openings
-                        </SortHeader>
+                        </SortableHead>
                         <TableHead>Pipeline</TableHead>
-                        <SortHeader
-                            column="status"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+                        <SortableHead {...sortable('status')}>
                             Status
-                        </SortHeader>
-                        <SortHeader
-                            column="closing_date"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+                        </SortableHead>
+                        <SortableHead {...sortable('closing_date')}>
                             Closing
-                        </SortHeader>
-                        <TableHead className="w-10 pr-4" />
+                        </SortableHead>
+                        <TableHead className="w-10" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {postings.length === 0 && (
-                        <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="py-16">
-                                <div className="flex flex-col items-center justify-center gap-2 text-center">
-                                    <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                                        <BriefcaseBusiness className="size-6 text-muted-foreground" />
-                                    </span>
-                                    <p className="text-sm font-medium">
-                                        No job postings found
-                                    </p>
-                                    <p className="max-w-xs text-sm text-muted-foreground">
-                                        Create a posting to start collecting
-                                        applications.
-                                    </p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
+                        <EmptyTableRow
+                            colSpan={8}
+                            icon={BriefcaseBusiness}
+                            title={
+                                filtered
+                                    ? 'No postings match'
+                                    : 'No job postings yet'
+                            }
+                            description={
+                                filtered
+                                    ? 'Try adjusting the search or filters.'
+                                    : 'Create a posting to start collecting applications.'
+                            }
+                            action={
+                                !filtered &&
+                                can.create && (
+                                    <Button size="sm" onClick={onCreate}>
+                                        <Plus className="size-4" />
+                                        New posting
+                                    </Button>
+                                )
+                            }
+                        />
                     )}
 
                     {postings.map((posting) => (
-                        <TableRow key={posting.id}>
-                            <TableCell>
-                                <button
-                                    type="button"
-                                    onClick={() => handlers.onView(posting)}
-                                    className="flex flex-col text-left"
-                                >
-                                    <span className="font-medium hover:underline">
-                                        {posting.title}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                        {posting.position?.title ??
-                                            'No linked position'}
-                                    </span>
-                                </button>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                                {posting.department?.name ?? (
-                                    <span className="text-muted-foreground">
-                                        —
-                                    </span>
-                                )}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {TYPE_LABELS[posting.employment_type]}
-                            </TableCell>
-                            <TableCell className="text-sm tabular-nums">
-                                {posting.hired_count ?? 0}/{posting.openings}
-                            </TableCell>
-                            <TableCell>
-                                <button
-                                    type="button"
-                                    onClick={() => handlers.onOpen(posting)}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium tabular-nums hover:bg-muted"
-                                >
-                                    <span className="text-[#0ABFBF]">
-                                        {posting.open_count ?? 0}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                        active ·
-                                    </span>
-                                    {posting.applications_count ?? 0} total
-                                </button>
-                            </TableCell>
-                            <TableCell>
-                                <PostingStatusBadge status={posting.status} />
-                            </TableCell>
-                            <TableCell className="text-sm">
-                                <PostingDeadline posting={posting} />
-                            </TableCell>
-                            <TableCell className="pr-4 text-right">
-                                <PostingRowActions
-                                    posting={posting}
-                                    can={can}
-                                    {...handlers}
-                                />
-                            </TableCell>
-                        </TableRow>
+                        <PostingRow
+                            key={posting.id}
+                            posting={posting}
+                            can={can}
+                            {...handlers}
+                        />
                     ))}
                 </TableBody>
-            </Table>
-        </div>
+            </DataTable>
+        </TableCard>
     );
 }
 
-function SortHeader({
-    column,
-    filters,
-    onSort,
-    children,
-}: {
-    column: string;
-    filters: PostingsFilters;
-    onSort: (column: string) => void;
-    children: React.ReactNode;
+function PostingRow({
+    posting,
+    can,
+    ...handlers
+}: RowHandlers & {
+    posting: ManagedPosting;
+    can: RecruitmentPermissions;
 }) {
-    const active = filters.sort === column;
+    const href = recruitmentRoutes.show(posting.hashid);
 
     return (
-        <TableHead>
-            <button
-                type="button"
-                onClick={() => onSort(column)}
-                className={cn(
-                    'inline-flex items-center gap-1 transition-colors hover:text-foreground',
-                    active && 'text-foreground',
+        <TableRow {...rowOpens(href)}>
+            <TableCell>
+                <Link
+                    href={href}
+                    className="block truncate text-sm font-medium hover:text-[#0ABFBF]"
+                >
+                    {posting.title}
+                </Link>
+                <span className="block truncate text-xs text-muted-foreground">
+                    {posting.position?.title ?? 'No linked position'}
+                </span>
+            </TableCell>
+            <TableCell className="text-sm">
+                {posting.department?.name ?? (
+                    <span className="text-muted-foreground">—</span>
                 )}
+            </TableCell>
+            <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                {TYPE_LABELS[posting.employment_type]}
+            </TableCell>
+            <TableCell
+                className="text-right text-sm tabular-nums"
+                title={`${posting.hired_count ?? 0} of ${posting.openings} filled`}
             >
-                {children}
-                {active ? (
-                    filters.direction === 'asc' ? (
-                        <ArrowUp className="size-3.5" />
-                    ) : (
-                        <ArrowDown className="size-3.5" />
-                    )
-                ) : (
-                    <ChevronsUpDown className="size-3.5 opacity-40" />
-                )}
-            </button>
-        </TableHead>
+                {posting.hired_count ?? 0}
+                <span className="text-muted-foreground">
+                    /{posting.openings}
+                </span>
+            </TableCell>
+            <TableCell className="text-sm whitespace-nowrap tabular-nums">
+                <span className="font-medium text-[#0ABFBF]">
+                    {posting.open_count ?? 0}
+                </span>
+                <span className="text-muted-foreground">
+                    {' '}
+                    active · {posting.applications_count ?? 0} total
+                </span>
+            </TableCell>
+            <TableCell>
+                <PostingStatusBadge status={posting.status} />
+            </TableCell>
+            <TableCell className="text-sm whitespace-nowrap">
+                <PostingDeadline posting={posting} />
+            </TableCell>
+            <TableCell className="text-right">
+                <PostingRowActions posting={posting} can={can} {...handlers} />
+            </TableCell>
+        </TableRow>
     );
 }

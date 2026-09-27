@@ -38,6 +38,8 @@ export const STAGE_COPY: Record<Stage, { label: string; description: string }> =
 export const MODEL_COPY: Record<
     ModelKey,
     {
+        /** The page the surface lives on. */
+        page: string;
         /** "readiness scores" — what the page shows. */
         scores: string;
         /** Where the general model's data came from. */
@@ -49,6 +51,7 @@ export const MODEL_COPY: Record<
     }
 > = {
     promotion: {
+        page: 'Promotion Readiness',
         scores: 'readiness scores',
         general:
             'a general workforce dataset of employees at other organisations',
@@ -56,6 +59,7 @@ export const MODEL_COPY: Record<
         outcome: 'promoted',
     },
     performance: {
+        page: 'Performance Forecast',
         scores: 'forecasts',
         general:
             'a general workforce dataset of employees at other organisations',
@@ -64,6 +68,7 @@ export const MODEL_COPY: Record<
         outcome: 'next rating',
     },
     attrition: {
+        page: 'Attrition Risk',
         scores: 'risk scores',
         general:
             'a survey of workers at other employers about why they stayed or left',

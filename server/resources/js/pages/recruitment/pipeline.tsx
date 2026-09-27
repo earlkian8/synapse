@@ -1,17 +1,28 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, KanbanSquare, List, Plus, Users2 } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import {
+    ArrowUpDown,
+    BriefcaseBusiness,
+    Download,
+    KanbanSquare,
+    Plus,
+    Table2,
+    Users2,
+} from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import {
+    FilterSelect,
+    HeaderIcon,
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AddCandidateDialog } from '@/features/recruitment/components/add-candidate-dialog';
 import { ApplicationDetailDialog } from '@/features/recruitment/components/application-detail-dialog';
@@ -19,7 +30,6 @@ import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog'
 import { PipelineBoard } from '@/features/recruitment/components/pipeline-board';
 import { PipelineInsights } from '@/features/recruitment/components/pipeline-insights';
 import { PipelineTable } from '@/features/recruitment/components/pipeline-table';
-import { PipelineToolbar } from '@/features/recruitment/components/pipeline-toolbar';
 import { PostingDeadline } from '@/features/recruitment/components/posting-deadline';
 import { PostingStatusBadge } from '@/features/recruitment/components/posting-status-badge';
 import { TYPE_LABELS } from '@/features/recruitment/constants';
@@ -33,6 +43,15 @@ import type {
     PipelineView,
 } from '@/features/recruitment/types';
 
+const SORT_OPTIONS: { value: PipelineSort; label: string }[] = [
+    { value: 'default', label: 'Best match' },
+    { value: 'fit', label: 'Highest fit' },
+    { value: 'rating', label: 'Highest rating' },
+    { value: 'recent', label: 'Newest first' },
+    { value: 'oldest', label: 'Oldest first' },
+    { value: 'name', label: 'Name (A–Z)' },
+];
+
 type ConfirmConfig = {
     title: string;
     description: ReactNode;
@@ -43,6 +62,11 @@ type ConfirmConfig = {
     run: () => void;
 };
 
+/**
+ * Recruitment, second level: one posting's candidates — as a table by default,
+ * or as the Kanban board — with decision support for the stage in focus. A
+ * candidate opens their application.
+ */
 export default function RecruitmentPipeline() {
     const { posting, applications, insights, options, can } =
         usePage<PipelinePageProps>().props;
@@ -90,7 +114,7 @@ export default function RecruitmentPipeline() {
     const visibleApplications = useMemo(() => {
         const term = search.trim().toLowerCase();
 
-        const filtered = term
+        const matched = term
             ? scope.filter((a) => {
                   const applicant = a.applicant;
 
@@ -105,13 +129,13 @@ export default function RecruitmentPipeline() {
             : scope;
 
         if (sort === 'default') {
-            return filtered;
+            return matched;
         }
 
         const time = (value: string | null) =>
             value ? new Date(value).getTime() : 0;
 
-        return [...filtered].sort((a, b) => {
+        return [...matched].sort((a, b) => {
             switch (sort) {
                 case 'fit':
                     return (b.fit?.value ?? -1) - (a.fit?.value ?? -1);
@@ -130,6 +154,30 @@ export default function RecruitmentPipeline() {
             }
         });
     }, [scope, search, sort]);
+
+    // Candidates per stage, for the stage filter's counts.
+    const stageCounts = useMemo(() => {
+        const counts = new Map<number, number>();
+
+        for (const application of applications) {
+            counts.set(
+                application.stage_id,
+                (counts.get(application.stage_id) ?? 0) + 1,
+            );
+        }
+
+        return counts;
+    }, [applications]);
+
+    // Rows narrowed by search or stage — and, for Reset, a sort chosen too.
+    const narrowed = search.trim() !== '' || focus !== 'all';
+    const filtered = narrowed || sort !== 'default';
+
+    const page = useClientPagination(
+        visibleApplications,
+        [search, focus === 'all' ? 'all' : focus.id, sort, view].join('|'),
+        25,
+    );
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);
@@ -178,7 +226,7 @@ export default function RecruitmentPipeline() {
         askConfirm({
             title: `Reject ${application.applicant?.full_name}?`,
             description:
-                "The candidate will be moved to the pipeline's rejected stage. You can add a reason from the candidate drawer instead.",
+                "The candidate will be moved to the pipeline's rejected stage. To record a reason, reject them from their application instead.",
             confirmLabel: 'Reject',
             destructive: true,
             run: () =>
@@ -193,50 +241,34 @@ export default function RecruitmentPipeline() {
         <>
             <Head title={`${posting.title} — Pipeline`} />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-3">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="size-9 shrink-0"
-                            asChild
-                        >
-                            <Link
-                                href={recruitmentRoutes.index}
-                                aria-label="Back to postings"
-                            >
-                                <ArrowLeft className="size-4" />
-                            </Link>
-                        </Button>
-                        <div>
-                            <p className="text-xs text-muted-foreground">
-                                <Link
-                                    href={recruitmentRoutes.index}
-                                    className="hover:text-foreground hover:underline"
-                                >
-                                    Recruitment
-                                </Link>
-                                {' / '}
-                                <span>{posting.title}</span>
-                            </p>
-                            <div className="mt-0.5 flex items-center gap-2">
-                                <h1 className="text-xl font-semibold tracking-tight">
-                                    {posting.title}
-                                </h1>
-                                <PostingStatusBadge status={posting.status} />
-                            </div>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: recruitmentRoutes.index,
+                        label: 'Back to postings',
+                    }}
+                    leading={
+                        <HeaderIcon>
+                            <BriefcaseBusiness />
+                        </HeaderIcon>
+                    }
+                    title={posting.title}
+                    badges={<PostingStatusBadge status={posting.status} />}
+                    description={
+                        <>
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <span>
-                                    {posting.department?.name ??
-                                        'No department'}{' '}
-                                    · {TYPE_LABELS[posting.employment_type]}
-                                    {posting.pipeline
-                                        ? ` · ${posting.pipeline.name}`
-                                        : ''}
+                                    {[
+                                        posting.department?.name ??
+                                            'No department',
+                                        TYPE_LABELS[posting.employment_type],
+                                        posting.pipeline?.name,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' · ')}
                                 </span>
                                 <span aria-hidden>·</span>
-                                <span className="inline-flex items-center gap-1">
+                                <span className="inline-flex items-center gap-1 tabular-nums">
                                     <Users2 className="size-3.5" />
                                     {posting.hired_count ?? 0}/
                                     {posting.openings} hired
@@ -247,9 +279,10 @@ export default function RecruitmentPipeline() {
                                         <PostingDeadline posting={posting} />
                                     </>
                                 )}
-                            </p>
-                            {posting.skills.length > 0 && (
-                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            </span>
+                            {(posting.skills.length > 0 ||
+                                posting.min_years_experience != null) && (
+                                <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                     {posting.min_years_experience != null && (
                                         <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                                             {posting.min_years_experience}+ yrs
@@ -263,50 +296,95 @@ export default function RecruitmentPipeline() {
                                             {skill}
                                         </span>
                                     ))}
-                                </div>
+                                </span>
                             )}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <ToggleGroup
-                            type="single"
-                            value={view}
-                            onValueChange={(value) =>
-                                value && changeView(value as PipelineView)
-                            }
-                            variant="outline"
-                            size="sm"
-                            aria-label="Switch layout"
-                        >
-                            <ToggleGroupItem
-                                value="board"
-                                aria-label="Board view"
-                            >
-                                <KanbanSquare className="size-4" />
-                            </ToggleGroupItem>
-                            <ToggleGroupItem
-                                value="table"
-                                aria-label="Table view"
-                            >
-                                <List className="size-4" />
-                            </ToggleGroupItem>
-                        </ToggleGroup>
-
-                        {can.create && (
+                        </>
+                    }
+                    actions={
+                        can.create && (
                             <Button size="sm" onClick={() => setAddOpen(true)}>
                                 <Plus className="size-4" />
                                 Add candidate
                             </Button>
-                        )}
-                    </div>
-                </div>
+                        )
+                    }
+                />
 
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <Select
+                <PipelineInsights insights={insights} stage={focus} />
+
+                <div className="flex flex-col gap-3">
+                    <ListToolbar
+                        filtered={filtered}
+                        onReset={() => {
+                            setSearch('');
+                            setFocus('all');
+                            setSort('default');
+                        }}
+                        summary={
+                            search.trim() !== ''
+                                ? `${visibleApplications.length} of ${scope.length} candidates`
+                                : `${scope.length} candidate${scope.length === 1 ? '' : 's'}`
+                        }
+                        actions={
+                            <>
+                                <ToggleGroup
+                                    type="single"
+                                    value={view}
+                                    onValueChange={(value) =>
+                                        value &&
+                                        changeView(value as PipelineView)
+                                    }
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label="Layout"
+                                >
+                                    <ToggleGroupItem
+                                        value="table"
+                                        aria-label="Table view"
+                                        className="gap-1.5 px-2.5"
+                                    >
+                                        <Table2 className="size-4" />
+                                        Table
+                                    </ToggleGroupItem>
+                                    <ToggleGroupItem
+                                        value="board"
+                                        aria-label="Board view"
+                                        className="gap-1.5 px-2.5"
+                                    >
+                                        <KanbanSquare className="size-4" />
+                                        Board
+                                    </ToggleGroupItem>
+                                </ToggleGroup>
+                                {can.export && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={recruitmentRoutes.pipelineExport(
+                                                posting.hashid,
+                                            )}
+                                        >
+                                            <Download className="size-4" />
+                                            Export
+                                        </a>
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    >
+                        <SearchInput
+                            value={search}
+                            onSearch={setSearch}
+                            delay={0}
+                            placeholder="Search candidates…"
+                            label="Search candidates"
+                        />
+                        <FilterSelect
+                            label={
+                                view === 'table'
+                                    ? 'Filter by stage'
+                                    : 'Focus a stage'
+                            }
                             value={focus === 'all' ? 'all' : String(focus.id)}
-                            onValueChange={(value) =>
+                            onChange={(value) =>
                                 setFocus(
                                     value === 'all'
                                         ? 'all'
@@ -315,38 +393,34 @@ export default function RecruitmentPipeline() {
                                           ) ?? 'all'),
                                 )
                             }
-                        >
-                            <SelectTrigger
-                                className="w-[190px]"
-                                aria-label="Focus a stage"
-                            >
-                                <SelectValue placeholder="All stages" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All stages</SelectItem>
-                                {stages.map((s) => (
-                                    <SelectItem key={s.id} value={String(s.id)}>
-                                        {s.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <PipelineInsights insights={insights} stage={focus} />
-
-                    <PipelineToolbar
-                        search={search}
-                        sort={sort}
-                        shown={visibleApplications.length}
-                        total={scope.length}
-                        canExport={can.export}
-                        exportUrl={recruitmentRoutes.pipelineExport(
-                            posting.hashid,
-                        )}
-                        onSearch={setSearch}
-                        onSort={setSort}
-                    />
+                            options={[
+                                {
+                                    value: 'all',
+                                    label: `All stages (${applications.length})`,
+                                },
+                                ...stages.map((s) => ({
+                                    value: String(s.id),
+                                    label: `${s.name} (${stageCounts.get(s.id) ?? 0})`,
+                                })),
+                            ]}
+                            className="w-48"
+                        />
+                        <div className="relative">
+                            <ArrowUpDown
+                                className="pointer-events-none absolute top-1/2 left-3 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                aria-hidden="true"
+                            />
+                            <FilterSelect
+                                label="Sort candidates"
+                                value={sort}
+                                onChange={(value) =>
+                                    setSort(value as PipelineSort)
+                                }
+                                options={SORT_OPTIONS}
+                                className="pl-8"
+                            />
+                        </div>
+                    </ListToolbar>
 
                     {view === 'board' ? (
                         <PipelineBoard
@@ -359,18 +433,28 @@ export default function RecruitmentPipeline() {
                             onReject={reject}
                         />
                     ) : (
-                        <PipelineTable
-                            applications={visibleApplications}
-                            openStages={openStages}
-                            can={can}
-                            onOpen={openDetail}
-                            onMove={move}
-                            onHire={hire}
-                            onReject={reject}
-                        />
+                        <>
+                            <PipelineTable
+                                applications={page.rows}
+                                openStages={openStages}
+                                can={can}
+                                filtered={narrowed}
+                                onOpen={openDetail}
+                                onMove={move}
+                                onHire={hire}
+                                onReject={reject}
+                                onAdd={() => setAddOpen(true)}
+                            />
+                            <TablePagination
+                                meta={page.meta}
+                                perPage={page.perPage}
+                                onPage={page.setPage}
+                                onPerPage={page.setPerPage}
+                            />
+                        </>
                     )}
                 </div>
-            </div>
+            </PageBody>
 
             <AddCandidateDialog
                 postingId={posting.hashid}

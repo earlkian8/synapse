@@ -25,26 +25,38 @@ migration, bypass hires), not the default path.
 
 ## Surfaces
 
-- **`/recruitment`** — the job-postings board: stats, search/status/department
-  filters, a **table ⇄ card-grid** view switch in the toolbar (the choice is
-  remembered per browser), create/edit modal, status lifecycle, CSV export.
-  Selecting a posting opens a **read-only details modal** (overview, public
-  application link, description/requirements, pipeline summary, a **status progress**
-  indicator) with **Open pipeline** and **Edit** actions; the pipeline-count chip and
-  the row menu's "Open pipeline" jump straight to the board.
-- **`/recruitment/{posting}`** — the **pipeline**, as a **Kanban board** (the default
-  view) or a dense **table**, remembered per browser. The board is one column per the
-  posting's own pipeline stage, left to right in the order HR defined them — the
-  hiring process reads as a sequence at a glance instead of hiding behind a
-  stage-filter tab. A stage-focus selector above the board narrows the decision-support
-  panel (and, in table view, the row list) to one stage without hiding the board's
-  other columns. Candidates are **automatically ranked by a fit score** by default (see
-  below) — the strongest still-in-the-running candidates lead, each showing its score
-  and rank; a posting can turn this off. Cards expose a one-click **Advance** button
-  (to the pipeline's next open stage) plus a **Move to…** menu for any other stage,
-  Hire and Reject. Add candidates, move them, schedule interviews, reject, and hire.
-  The header shows the posting's **closing-date countdown**, its pipeline name, and its
-  screening criteria.
+Both levels are laid out like the Workforce modules (header · compact stat tiles ·
+toolbar · table · pagination), from the shared table kit
+([ADR 0048](../decisions/0048-talent-acquisition-and-offboarding-join-the-table-kit.md)).
+
+- **`/recruitment`**: every job posting as **one table**.
+  - Six stat tiles; search, department and status filters with Reset; *Export* (with
+    the current filters) and *New posting*.
+  - Columns: posting and linked position, department, type, openings (hired / seats),
+    pipeline (active · total), status and closing date.
+  - It sorts by title, openings, status and closing date, and is paged on the server.
+  - A row opens the posting's **pipeline**. The row menu has *View details* (a read-only
+    modal with the overview, public application link, description and requirements,
+    pipeline summary and a **status progress** indicator, plus *Open pipeline* and
+    *Edit*), *Open pipeline*, *Copy public link*, *Edit*, *Set status* and *Delete*.
+- **`/recruitment/{posting}`**: the **pipeline**.
+  - The header shows the posting, its status, department, type, pipeline name, hired /
+    openings, its **closing-date countdown** and its screening criteria, with *Add
+    candidate*.
+  - **Decision support** comes next: the focused stage's counts as stat tiles, and one
+    line on what to do next.
+  - The toolbar has candidate search, a **stage** filter with a count per stage, a sort
+    (*Best match* keeps the fit ranking), Reset, a **Table / Board** switch
+    (remembered per browser; **the table is the default**) and *Export*.
+  - The **table** lists candidates with fit, stage, rating, interviews and days since
+    applying, paged 25 at a time. A row opens the application, and the menu has
+    *Move to…*, *Hire* and *Reject*.
+  - The **board** (the Kanban view) has one column per stage, in the order HR defined
+    them. It always shows every column, and the stage filter only focuses the decision
+    support. Cards have a one-click **Advance** and the same menu.
+  - Candidates are **automatically ranked by a fit score** by default (see below), and a
+    posting can turn this off. You can add candidates, move them, schedule interviews,
+    reject and hire.
 - **`/setup/recruitment-pipelines`** (Company Setup, gated
   `recruitment.configure-pipelines`) — define the hiring processes postings can run on:
   a name, a default flag, and an ordered stage list (chevron up/down reorder, same
@@ -286,33 +298,50 @@ is only ever produced by this action.
 
 ## Frontend
 
-`features/recruitment/` — types, routes, constants, the postings filter hook, and
-two layout-preference hooks built on a shared `use-stored-view` (localStorage-backed):
-`use-postings-view` (table/grid) and `use-pipeline-view` (**board**/table — board is
-the default). Components: stats (including "In final stage," the generic equivalent
-of the old "Offers out"), postings toolbar (search/status/department filters + the
-table/card-grid view switch), **table** and **card grid**, row-actions, posting status
-badge **and a status-progress indicator** (draft → open → closed/filled, shown on the
-card grid and the detail modal), **posting detail modal** (read-only overview + public
-link), posting form modal, pagination; and the pipeline pieces — **`pipeline-board.tsx`**
-(the Kanban board: one column per pipeline stage, in position order — the default view
-and the direct answer to "the process should read as a sequence"), **`pipeline-table.tsx`**
-(the secondary dense list view), a stage-focus selector, the shared **application
-actions menu** (Move to… / Hire / Reject, used by the card and the table), the card's
-own one-click **Advance** button, the **fit score** badge + meter (`fit-score.tsx`,
-hidden when a posting turns ranking off), the **posting deadline** countdown
-(`posting-deadline.tsx`), **application detail modal** (the full candidate profile + a
-**decision panel** with the recommended next step, a pipeline-driven **stage stepper**,
-the fit breakdown, the **AI Insights** panel (`applicant-insights.tsx`, calls the
-insights endpoint via `features/recruitment/api.ts`), interviews, other applications,
-hire, reject), **add candidate modal**, a `kind`-driven stage badge (open/won/lost
-colour, the stage's own name as the label), rating stars. The **posting form** has a
-**pipeline picker**, **"Require a résumé"** and **"Rank candidates automatically"**
-toggles, a *Screening criteria* section (minimum experience, a skills tag input, and a
-chevron-reorderable **screening-questions** builder — the same click-based pattern as
-Onboarding's checklist), and a required-when-open closing date. Pages:
-`pages/recruitment/index.tsx` and `pages/recruitment/pipeline.tsx`. The detail modal
-lazy-loads the full application (`GET /recruitment/applications/{id}` JSON). The
+`features/recruitment/` holds the types, routes, constants, the postings filter hook and
+`use-pipeline-view`. That hook is a localStorage-backed layout preference built on
+`use-stored-view`: **table** (the default) or board.
+
+The page header, stat tiles, toolbar, search, filters, tables and pagination come from
+the shared table kit (`components/data-table/`). The components are:
+
+- **Postings:**
+  - stats (including "In final stage", the generic equivalent of the old "Offers out");
+  - the **postings table** and its row actions;
+  - the posting status badge **and a status-progress indicator** (draft → open →
+    closed/filled, shown in the detail modal);
+  - the **posting detail modal** (a read-only overview with the public link) and the
+    posting form modal.
+- **Pipeline:**
+  - **`pipeline-table.tsx`**, the default view;
+  - **`pipeline-board.tsx`**, the Kanban board: one column per pipeline stage, in
+    position order;
+  - **`pipeline-insights.tsx`**, the decision support as stat tiles and a
+    recommendation line;
+  - the shared **application actions menu** (Move to… / Hire / Reject, used by the card
+    and the table), and the card's own one-click **Advance** button.
+- **Shared pieces:**
+  - the **fit score** badge and meter (`fit-score.tsx`, hidden when a posting turns
+    ranking off);
+  - the **posting deadline** countdown (`posting-deadline.tsx`);
+  - a `kind`-driven stage badge (open/won/lost colour, with the stage's own name as the
+    label), and rating stars.
+- **Application detail modal:** the full candidate profile and a **decision panel**
+  with the recommended next step. It also has a pipeline-driven **stage stepper**, the
+  fit breakdown, the **AI Insights** panel (`applicant-insights.tsx`, which calls the
+  insights endpoint via `features/recruitment/api.ts`), interviews, other
+  applications, hire and reject. It lazy-loads the full application
+  (`GET /recruitment/applications/{id}` JSON).
+- **Add candidate modal.**
+- **Posting form:**
+  - a **pipeline picker**;
+  - **"Require a résumé"** and **"Rank candidates automatically"** toggles;
+  - a *Screening criteria* section: minimum experience, a skills tag input, and a
+    chevron-reorderable **screening-questions** builder (the same click-based pattern
+    as Onboarding's checklist);
+  - a closing date, required when the posting is open.
+
+Pages are `pages/recruitment/index.tsx` and `pages/recruitment/pipeline.tsx`. The
 sidebar **Talent Acquisition → Recruitment** link is gated on `recruitment.view`.
 
 `features/recruitment-pipelines/` — the Company Setup surface's own feature folder

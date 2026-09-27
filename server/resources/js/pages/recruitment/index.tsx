@@ -1,16 +1,26 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import {
+    FilterSelect,
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TablePagination,
+} from '@/components/data-table';
+import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog';
 import { PostingDetailDialog } from '@/features/recruitment/components/posting-detail-dialog';
 import { PostingFormDialog } from '@/features/recruitment/components/posting-form-dialog';
-import { PostingsGrid } from '@/features/recruitment/components/postings-grid';
-import { PostingsPagination } from '@/features/recruitment/components/postings-pagination';
 import { PostingsTable } from '@/features/recruitment/components/postings-table';
-import { PostingsToolbar } from '@/features/recruitment/components/postings-toolbar';
 import { RecruitmentStatsCards } from '@/features/recruitment/components/recruitment-stats';
+import {
+    DEFAULT_FILTERS,
+    STATUS_FILTERS,
+} from '@/features/recruitment/constants';
 import { usePostingsFilters } from '@/features/recruitment/hooks/use-postings-filters';
-import { usePostingsView } from '@/features/recruitment/hooks/use-postings-view';
 import { recruitmentRoutes } from '@/features/recruitment/routes';
 import type {
     ManagedPosting,
@@ -24,19 +34,14 @@ type ConfirmConfig = {
     run: () => void;
 };
 
+/**
+ * Recruitment, first level: every job posting as one table. A row opens that
+ * posting's pipeline of candidates.
+ */
 export default function RecruitmentIndex() {
     const { postings, stats, options, can, filters } =
         usePage<PostingsPageProps>().props;
-    const {
-        setSearch,
-        setStatus,
-        setDepartment,
-        setPerPage,
-        setPage,
-        toggleSort,
-        reset,
-    } = usePostingsFilters(filters);
-    const { view, changeView } = usePostingsView();
+    const table = usePostingsFilters(filters);
 
     const [formPosting, setFormPosting] = useState<ManagedPosting | null>(null);
     const [formOpen, setFormOpen] = useState(false);
@@ -47,6 +52,16 @@ export default function RecruitmentIndex() {
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    const filtered =
+        filters.search !== '' ||
+        filters.status !== DEFAULT_FILTERS.status ||
+        filters.department !== null;
+
+    // The export carries the table's current filters, so CSV = what you see.
+    const exportUrl = `${recruitmentRoutes.export}${
+        typeof window !== 'undefined' ? window.location.search : ''
+    }`;
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);
@@ -99,66 +114,95 @@ export default function RecruitmentIndex() {
         <>
             <Head title="Recruitment" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-xl font-semibold tracking-tight">
-                        Recruitment
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Post vacancies, track applicants through the hiring
-                        pipeline, and hire.
-                    </p>
-                </div>
+            <PageBody>
+                <PageHeader
+                    title="Recruitment"
+                    description="Post vacancies, track applicants through the hiring pipeline, and hire."
+                />
 
                 <RecruitmentStatsCards stats={stats} />
 
-                <div className="flex flex-col gap-4">
-                    <PostingsToolbar
+                <div className="flex flex-col gap-3">
+                    <ListToolbar
+                        filtered={filtered}
+                        onReset={table.reset}
+                        actions={
+                            <>
+                                {can.export && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href={exportUrl}>
+                                            <Download className="size-4" />
+                                            Export
+                                        </a>
+                                    </Button>
+                                )}
+                                {can.create && (
+                                    <Button size="sm" onClick={openCreate}>
+                                        <Plus className="size-4" />
+                                        New posting
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    >
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={table.setSearch}
+                            placeholder="Search postings…"
+                            label="Search postings"
+                        />
+                        <FilterSelect
+                            label="Filter by department"
+                            value={
+                                filters.department
+                                    ? String(filters.department)
+                                    : 'all'
+                            }
+                            onChange={(value) =>
+                                table.setDepartment(
+                                    value === 'all' ? null : Number(value),
+                                )
+                            }
+                            options={[
+                                { value: 'all', label: 'All departments' },
+                                ...options.departments.map((department) => ({
+                                    value: String(department.id),
+                                    label: department.name,
+                                })),
+                            ]}
+                            className="w-44"
+                        />
+                        <FilterSelect
+                            label="Filter by status"
+                            value={filters.status}
+                            onChange={table.setStatus}
+                            options={STATUS_FILTERS}
+                            className="w-36"
+                        />
+                    </ListToolbar>
+
+                    <PostingsTable
+                        postings={postings.data}
                         filters={filters}
-                        departments={options.departments}
-                        canCreate={can.create}
-                        canExport={can.export}
-                        view={view}
-                        onSearch={setSearch}
-                        onStatus={setStatus}
-                        onDepartment={setDepartment}
-                        onView={changeView}
-                        onReset={reset}
+                        can={can}
+                        filtered={filtered}
+                        onToggleSort={table.toggleSort}
                         onCreate={openCreate}
+                        onView={openDetail}
+                        onOpen={openPipeline}
+                        onEdit={openEdit}
+                        onStatus={setStatusFor}
+                        onDelete={remove}
                     />
 
-                    {view === 'table' ? (
-                        <PostingsTable
-                            postings={postings.data}
-                            filters={filters}
-                            can={can}
-                            onToggleSort={toggleSort}
-                            onView={openDetail}
-                            onOpen={openPipeline}
-                            onEdit={openEdit}
-                            onStatus={setStatusFor}
-                            onDelete={remove}
-                        />
-                    ) : (
-                        <PostingsGrid
-                            postings={postings.data}
-                            can={can}
-                            onView={openDetail}
-                            onOpen={openPipeline}
-                            onEdit={openEdit}
-                            onStatus={setStatusFor}
-                            onDelete={remove}
-                        />
-                    )}
-
-                    <PostingsPagination
+                    <TablePagination
                         meta={postings.meta}
                         perPage={filters.per_page}
-                        onPage={setPage}
-                        onPerPage={setPerPage}
+                        onPage={table.setPage}
+                        onPerPage={table.setPerPage}
                     />
                 </div>
-            </div>
+            </PageBody>
 
             <PostingDetailDialog
                 posting={detailPosting}
@@ -193,10 +237,5 @@ export default function RecruitmentIndex() {
 }
 
 RecruitmentIndex.layout = {
-    breadcrumbs: [
-        {
-            title: 'Recruitment',
-            href: '/recruitment',
-        },
-    ],
+    breadcrumbs: [{ title: 'Recruitment', href: recruitmentRoutes.index }],
 };

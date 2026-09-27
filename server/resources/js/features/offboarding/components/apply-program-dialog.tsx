@@ -1,22 +1,17 @@
 import { router } from '@inertiajs/react';
+import { ListPlus } from 'lucide-react';
 import { useState } from 'react';
+import { FormField } from '@/components/form-field';
+import { FormSelect } from '@/components/form-select';
+import {
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalIcon,
+} from '@/components/modal';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { offboardingRoutes } from '../routes';
 import type { ProgramOption } from '../types';
@@ -63,38 +58,33 @@ export function ApplyProgramDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Add items from a template</DialogTitle>
-                    <DialogDescription>
-                        Every item in the template is appended to this
-                        checklist. Items already on it are skipped.
-                    </DialogDescription>
-                </DialogHeader>
+        <Modal open={open} onOpenChange={onOpenChange}>
+            <ModalContent size="sm">
+                <ModalHeader
+                    icon={
+                        <ModalIcon>
+                            <ListPlus />
+                        </ModalIcon>
+                    }
+                    title="Add items from a template"
+                    description="Every item in the template is appended to this checklist. Items already on it are skipped."
+                />
 
-                <div>
-                    <Label className="mb-1.5 block">Clearance template</Label>
-                    <Select value={programId} onValueChange={setProgramId}>
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a template…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {programs.map((p) => (
-                                <SelectItem key={p.id} value={String(p.id)}>
-                                    {p.name}
-                                    <span className="text-muted-foreground">
-                                        {' '}
-                                        · {p.items_count} item
-                                        {p.items_count === 1 ? '' : 's'}
-                                    </span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                <ModalBody>
+                    <FormField label="Clearance template" required>
+                        <FormSelect
+                            value={programId}
+                            onChange={setProgramId}
+                            placeholder="Select a template…"
+                            options={programs.map((p) => ({
+                                value: String(p.id),
+                                label: `${p.name} · ${p.items_count} item${p.items_count === 1 ? '' : 's'}`,
+                            }))}
+                        />
+                    </FormField>
+                </ModalBody>
 
-                <DialogFooter>
+                <ModalFooter>
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
@@ -106,8 +96,8 @@ export function ApplyProgramDialog({
                         {processing && <Spinner />}
                         Add items
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
     );
 }

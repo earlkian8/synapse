@@ -10,7 +10,9 @@ import {
     UserCheck,
     Users,
 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { StatTiles } from '@/components/data-table';
+import type { StatTile } from '@/components/data-table';
 import { cn } from '@/lib/utils';
 import { RECOMMENDATION_STYLES } from '../constants';
 import type {
@@ -22,17 +24,11 @@ import type {
 
 type Tone = 'positive' | 'neutral' | 'caution';
 
-type Tile = {
-    label: string;
-    value: string | number;
-    icon: ComponentType<{ className?: string }>;
-    accent: string;
-    hint?: string;
-};
+type Tile = Omit<StatTile, 'key' | 'value'> & { value: string | number };
 
 type Signal = {
     tone: Tone;
-    icon: ComponentType<{ className?: string }>;
+    icon: LucideIcon;
     title: string;
     detail: string;
 };
@@ -42,16 +38,6 @@ type View = {
     tiles: Tile[];
     signal: Signal;
 };
-
-const ACCENTS = {
-    teal: 'text-[#0ABFBF] bg-[#0ABFBF]/10',
-    sky: 'text-sky-600 bg-sky-500/10',
-    emerald: 'text-emerald-600 bg-emerald-500/10',
-    violet: 'text-violet-600 bg-violet-500/10',
-    amber: 'text-amber-600 bg-amber-500/10',
-    rose: 'text-rose-600 bg-rose-500/10',
-    slate: 'text-slate-600 bg-slate-500/10',
-} as const;
 
 const SIGNAL_ICON_STYLES: Record<Tone, string> = {
     positive: 'text-emerald-600 dark:text-emerald-400',
@@ -64,37 +50,36 @@ const fitValue = (value: number | null) => (value === null ? '—' : `${value}`)
 /** Build the tiles + decision signal for the whole-pipeline (All) view. */
 function overallView(o: OverallInsight): View {
     const tiles: Tile[] = [
-        { label: 'Active', value: o.active, icon: Users, accent: ACCENTS.teal },
+        { label: 'Active', value: o.active, icon: Users, accent: 'teal' },
         {
             label: 'Avg fit',
             value: fitValue(o.avg_fit),
             icon: TrendingUp,
-            accent: ACCENTS.sky,
+            accent: 'sky',
         },
         {
             label: 'Strong fits',
             value: o.strong,
             icon: Star,
-            accent: ACCENTS.emerald,
+            accent: 'emerald',
         },
         {
             label: 'Ready to advance',
             value: o.ready,
             icon: CheckCircle2,
-            accent: ACCENTS.violet,
+            accent: 'violet',
         },
         {
             label: 'Stalled 14d+',
             value: o.stalled,
             icon: Clock,
-            accent: ACCENTS.amber,
+            accent: 'amber',
         },
         {
             label: 'Hire rate',
             value: o.conversion === null ? '—' : `${o.conversion}%`,
             icon: UserCheck,
-            accent: ACCENTS.rose,
-            hint: 'Hired vs. decided candidates',
+            accent: 'rose',
         },
     ];
 
@@ -145,19 +130,19 @@ function stageView(stage: PipelineStage, s: StageInsight): View {
             label: `In ${label}`,
             value: s.count,
             icon: Users,
-            accent: ACCENTS.teal,
+            accent: 'teal',
         },
         {
             label: 'Avg fit',
             value: fitValue(s.avg_fit),
             icon: TrendingUp,
-            accent: ACCENTS.sky,
+            accent: 'sky',
         },
         {
             label: 'Strong fits',
             value: s.strong,
             icon: Star,
-            accent: ACCENTS.emerald,
+            accent: 'emerald',
         },
     ];
 
@@ -167,13 +152,13 @@ function stageView(stage: PipelineStage, s: StageInsight): View {
                 label: s.next_stage ? `Ready → ${s.next_stage}` : 'Ready',
                 value: s.ready,
                 icon: CheckCircle2,
-                accent: ACCENTS.violet,
+                accent: 'violet',
             },
             {
                 label: 'Stalled 14d+',
                 value: s.stalled,
                 icon: Clock,
-                accent: ACCENTS.amber,
+                accent: 'amber',
             },
         );
     } else if (s.top) {
@@ -181,7 +166,7 @@ function stageView(stage: PipelineStage, s: StageInsight): View {
             label: 'Top fit',
             value: `${s.top.fit}`,
             icon: Trophy,
-            accent: stage.kind === 'won' ? ACCENTS.emerald : ACCENTS.slate,
+            accent: stage.kind === 'won' ? 'emerald' : 'slate',
         });
     }
 
@@ -239,16 +224,16 @@ function stageView(stage: PipelineStage, s: StageInsight): View {
 }
 
 /**
- * The decision-support panel above the pipeline board — a compact strip of
- * contextual stats plus an ML-driven "what to do next" signal that re-derives
- * itself from the fit scores whenever the recruiter switches stage.
+ * The pipeline's decision support: the focused stage's counts as the page's
+ * stat tiles, then one line on what to do next — re-derived from the fit
+ * scores whenever the recruiter focuses another stage.
  */
 export function PipelineInsights({
     insights,
     stage,
 }: {
     insights: PipelineInsightsData;
-    /** The selected stage, or 'all' for the whole-pipeline view. */
+    /** The focused stage, or 'all' for the whole pipeline. */
     stage: PipelineStage | 'all';
 }) {
     const view =
@@ -260,78 +245,51 @@ export function PipelineInsights({
 
     return (
         <section
-            aria-label="Pipeline decision support"
-            className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border"
+            aria-label={`Decision support: ${view.heading}`}
+            className="flex flex-col gap-2.5"
         >
-            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
-                <span className="flex size-6 items-center justify-center rounded-md bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                    <Sparkles className="size-3.5" />
-                </span>
-                <span className="text-xs font-semibold tracking-tight">
-                    Decision support
-                </span>
-                <span className="text-xs text-muted-foreground">
-                    · {view.heading}
-                </span>
-            </div>
+            <StatTiles
+                tiles={view.tiles.map((tile) => ({
+                    ...tile,
+                    key: tile.label,
+                    value:
+                        typeof tile.value === 'number'
+                            ? tile.value.toLocaleString()
+                            : tile.value,
+                }))}
+            />
 
-            <div className="grid gap-4 p-4 lg:grid-cols-[1fr_minmax(0,20rem)]">
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {view.tiles.map((tile) => {
-                        const Icon = tile.icon;
-
-                        return (
-                            <div
-                                key={tile.label}
-                                className="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                title={tile.hint}
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="truncate text-[11px] font-medium text-muted-foreground">
-                                        {tile.label}
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            'flex size-6 shrink-0 items-center justify-center rounded-md',
-                                            tile.accent,
-                                        )}
-                                    >
-                                        <Icon className="size-3.5" />
-                                    </span>
-                                </div>
-                                <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums">
-                                    {tile.value}
-                                </p>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div
-                    className={cn(
-                        'flex flex-col justify-center gap-1 rounded-lg border p-3.5',
-                        RECOMMENDATION_STYLES[view.signal.tone],
-                    )}
-                >
-                    <span className="flex items-center gap-1.5 text-sm font-semibold">
-                        <SignalIcon
-                            className={cn(
-                                'size-4 shrink-0',
-                                SIGNAL_ICON_STYLES[view.signal.tone],
-                            )}
-                        />
-                        {view.signal.title}
-                    </span>
-                    <span className="text-xs leading-relaxed text-muted-foreground">
-                        {view.signal.detail}
-                    </span>
+            <div
+                className={cn(
+                    'flex flex-col gap-1 rounded-xl border px-4 py-2.5 sm:flex-row sm:items-center sm:gap-3',
+                    RECOMMENDATION_STYLES[view.signal.tone],
+                )}
+            >
+                <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+                    <SignalIcon
+                        className={cn(
+                            'size-4 shrink-0',
+                            SIGNAL_ICON_STYLES[view.signal.tone],
+                        )}
+                    />
+                    {view.signal.title}
+                </span>
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                    {view.signal.detail}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted-foreground sm:ml-auto">
+                    <Sparkles className="size-3" />
+                    {view.heading}
                     {view.signal.tone === 'positive' && (
-                        <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                            Recommended action
-                            <ArrowRight className="size-3" />
-                        </span>
+                        <>
+                            {' · '}
+                            <span className="text-emerald-700 dark:text-emerald-300">
+                                Recommended action
+                            </span>
+                            <ArrowRight className="size-3 text-emerald-700 dark:text-emerald-300" />
+                        </>
                     )}
-                </div>
+                </span>
             </div>
         </section>
     );

@@ -8,31 +8,53 @@ model**, trained on this organisation's records. See
 
 ## What a reader sees
 
-A **Model graduation** panel sits beneath each surface's header. Collapsed, it says in
-one sentence whose data is behind the scores ("These readiness scores come from a
-general model, built on a general workforce dataset of employees at other
-organisations…"), with a pill (*Using the general model* / *Using your own model*) and
-one dot per requirement. It opens by itself when there is a decision waiting (the gate
-is open, or a trained model awaits a switch). Expanded, top to bottom:
+**On the page**, a one-line **Model graduation** strip sits beneath each surface's
+header. It carries a pill (*Using the general model* / *Using your own model*), one dash
+per requirement with "3 of 5 requirements met", and one sentence: whose model is scoring
+the page and, while the general model is, the single thing furthest from ready ("Furthest
+to go: promotions on record — 86 more promotions."). When only a requirement that fills on
+its own is left, such as the prediction service being down, it says "Still needed" and
+names that one instead. The strip is tinted, and its button
+turns primary, only when a decision is waiting (the gate is open, or a trained model
+awaits a switch). The button opens the modal on the tab that decision needs, and the
+requirement count opens it on *Requirements*.
 
-1. **What is model graduation?** — four short points: every score comes from a model;
-   graduating means learning from your own records; it only replaces the general model
-   if it proves better; nothing changes until someone switches.
-2. **Where this page is** — *General model* → *Collecting your history* → *Your own
-   model*, with "You are here". The step into the last carries a lock until graduation.
-3. **What's needed** — the requirement checklist, grouped into *Enough history*,
-   *History that can be trusted* and *The system*. Each row: a status icon and label
-   (never colour alone), progress ("14 of 100") and a meter, **Still needed** in words
-   ("86 more promotions"), **What you can do** (or *This fills on its own* for counts
-   that follow from others), a note on records that exist but can't count yet, and
-   **Why this number?** — a dialog with the threshold's justification and exactly what
-   is counted. The actionable requirement furthest from met is marked *Furthest to go*
-   and carries a projection at the organisation's recent pace.
-4. **Your own model** — the train button (locked until every requirement is met), the
-   latest result, the model in use, and switch / switch back.
-5. **What the scores are based on** (collapsed) — every field a score draws on or could,
-   with how many active employees' records carry it: *Used in every score*, *Recorded,
-   but not used* (each says why), *Not recorded anywhere*.
+**The modal** is the whole story, one question per tab. The header names the page and
+repeats whose model is scoring, the requirement count and the examples on record. The footer is pinned and
+holds **Train on our records**, so the action is in view on every tab. The button is
+locked until every requirement is met, and secondary while a model that already passed
+is waiting to be switched to.
+
+1. **Overview**:
+   - **Next step**: the one thing to do now, with a button to the tab that does it. That
+     is reviewing a model that passed, training once the gate opens, or the requirement
+     furthest to go, with its shortfall, what to do and the projection at the
+     organisation's recent pace.
+   - **Where this page is**: *General model* → *Collecting your history* → *Your own
+     model*, with "You are here". The step into the last carries a lock until graduation.
+   - **What is model graduation?**, in four short points: every score comes from a model;
+     graduating means learning from your own records; it only replaces the general model
+     if it proves better; nothing changes until someone switches.
+2. **Requirements**: one table.
+   - A header row per group (*Enough history*, *History that can be trusted*, *The
+     system*), then a row per requirement.
+   - Each row has a status icon and label (never colour alone), its one-line summary,
+     progress ("14 of 100") with a meter, and **Still needed** in words ("86 more
+     promotions").
+   - The actionable requirement furthest from met is marked *Furthest to go*.
+   - A row opens the requirement in place, with a way back: its standing, **What you can
+     do** (or *This fills on its own* for counts that follow from others), when it might
+     be met, **Why this number**, **What is counted**, and records that exist but can't
+     count yet.
+3. **Your own model**: the model in use (with *Switch back*), a model that passed its
+   check (with *Switch to this model*), or the last check that failed and why. Each check
+   is shown as a small table of your model, the general model and knowing nothing, with
+   the findings in plain words. Below that is whether training is unlocked.
+4. **Data used**: one table of every field a score draws on or could, with how many
+   active employees' records carry it. It is grouped into *Used in every score*,
+   *Recorded, but not used* (each says why) and *Not recorded anywhere*.
+
+Switching either way asks for a confirmation first.
 
 Every number is counted from the organisation's records each time the page loads.
 
@@ -64,7 +86,7 @@ Every number is counted from the organisation's records each time the page loads
    a new one.
 
 All three routes need the surface's `analytics.<surface>.manage` permission; everyone
-who can view the page sees the panel. Training, switching and switching back are
+who can view the page sees the strip and the modal. Training, switching and switching back are
 activity-logged under the surface's log name.
 
 If the organisation's model is missing from the inference service, a run fails with a
@@ -149,7 +171,11 @@ invented promotion is never given to someone with an appraisal history.
 - **Inference service** — `model/synapse_ml/local/` (`training.py`: examples, minimums,
   out-of-fold check, verdict and wording; `store.py`: per-organisation storage);
   `model/api`: `POST /train/{model}`, and `variant` on `POST /predict/{model}`.
-- **Frontend** — `resources/js/features/model-graduation/`: `GraduationPanel`,
-  `StageRail`, `RequirementChecklist`, `RequirementDialog`, `TrainingPanel`,
-  `FieldCoverageTable`, `ScoredBy`; `use-graduation.ts`, `api.ts`, `routes.ts`.
+- **Frontend** — `resources/js/features/model-graduation/`:
+  - `GraduationPanel`: the strip on the page, and the switch confirmations.
+  - `GraduationDialog`: the modal, its tabs and the footer's train button.
+  - `graduation-summary`: the pill, the one-line and full headlines, and the dashes.
+  - `RequirementsTable`, `RequirementDetail`, `TrainingPanel` (with the check as a
+    table), `FieldCoverageTable`, `StageRail` and `ScoredBy`.
+  - Plumbing: `use-graduation.ts`, `api.ts`, `routes.ts`.
 - **Tables** — [model-graduation tables](../database/model-graduation-tables.md).

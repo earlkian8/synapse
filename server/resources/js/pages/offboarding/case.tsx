@@ -1,6 +1,5 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
-    ArrowLeft,
     CalendarClock,
     CalendarX2,
     CheckCheck,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { PageBody, PageHeader } from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,10 +28,10 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ApplyProgramDialog } from '@/features/offboarding/components/apply-program-dialog';
-import { CaseSettingsSheet } from '@/features/offboarding/components/case-settings-sheet';
+import { CaseSettingsDialog } from '@/features/offboarding/components/case-settings-dialog';
 import { CaseStatusBadge } from '@/features/offboarding/components/case-status-badge';
-import { ClearanceChecklist } from '@/features/offboarding/components/clearance-checklist';
-import { ClearanceItemFormSheet } from '@/features/offboarding/components/clearance-item-form-sheet';
+import { ClearanceItemFormDialog } from '@/features/offboarding/components/clearance-item-form-dialog';
+import { ClearanceTable } from '@/features/offboarding/components/clearance-table';
 import { ConfirmDialog } from '@/features/offboarding/components/confirm-dialog';
 import { ProgressBar } from '@/features/offboarding/components/progress-bar';
 import { TypeBadge } from '@/features/offboarding/components/type-badge';
@@ -66,7 +66,7 @@ export default function OffboardingCasePage() {
     const employee = c.employee;
     const items = c.items ?? [];
 
-    const [itemSheetOpen, setItemSheetOpen] = useState(false);
+    const [itemFormOpen, setItemFormOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<ClearanceItem | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [applyOpen, setApplyOpen] = useState(false);
@@ -90,12 +90,12 @@ export default function OffboardingCasePage() {
 
     const openAddItem = () => {
         setEditingItem(null);
-        setItemSheetOpen(true);
+        setItemFormOpen(true);
     };
 
     const openEditItem = (item: ClearanceItem) => {
         setEditingItem(item);
-        setItemSheetOpen(true);
+        setItemFormOpen(true);
     };
 
     const toggleItem = (item: ClearanceItem, status: ClearanceStatus) =>
@@ -219,23 +219,13 @@ export default function OffboardingCasePage() {
                 title={`${employee?.full_name ?? 'Offboarding'} — Offboarding`}
             />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-3">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="size-9 shrink-0"
-                            asChild
-                        >
-                            <Link
-                                href={offboardingRoutes.index}
-                                aria-label="Back to offboarding"
-                            >
-                                <ArrowLeft className="size-4" />
-                            </Link>
-                        </Button>
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: offboardingRoutes.index,
+                        label: 'Back to offboarding',
+                    }}
+                    leading={
                         <PersonAvatar
                             name={employee?.full_name ?? 'Unknown employee'}
                             initials={employee?.initials ?? '?'}
@@ -243,127 +233,128 @@ export default function OffboardingCasePage() {
                             className="size-11"
                             fallbackClassName="text-sm"
                         />
-                        <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h1 className="text-xl font-semibold tracking-tight">
-                                    {employee?.full_name ?? 'Unknown employee'}
-                                </h1>
-                                <CaseStatusBadge status={c.status} />
-                                <TypeBadge type={c.type} />
-                            </div>
-                            <p className="mt-0.5 text-sm text-muted-foreground">
-                                {employee?.position?.title ?? 'No position'}
-                                {employee?.department
-                                    ? ` · ${employee.department.name}`
-                                    : ''}
-                                {employee?.employment_type
-                                    ? ` · ${EMPLOYMENT_TYPE_LABELS[employee.employment_type]}`
-                                    : ''}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                            <a
-                                href={offboardingRoutes.clearanceExport(
-                                    c.hashid,
-                                )}
-                            >
-                                <Download className="size-4" />
-                                Export sheet
-                            </a>
-                        </Button>
-                        {can.manage && (
-                            <>
-                                <Button size="sm" onClick={openAddItem}>
-                                    <Plus className="size-4" />
-                                    Add item
-                                </Button>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="size-9"
-                                            aria-label="Offboarding actions"
+                    }
+                    title={employee?.full_name ?? 'Unknown employee'}
+                    badges={
+                        <>
+                            <CaseStatusBadge status={c.status} />
+                            <TypeBadge type={c.type} />
+                        </>
+                    }
+                    description={[
+                        employee?.position?.title ?? 'No position',
+                        employee?.department?.name,
+                        employee?.employment_type
+                            ? EMPLOYMENT_TYPE_LABELS[employee.employment_type]
+                            : null,
+                    ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    actions={
+                        <>
+                            <Button variant="outline" size="sm" asChild>
+                                <a
+                                    href={offboardingRoutes.clearanceExport(
+                                        c.hashid,
+                                    )}
+                                >
+                                    <Download className="size-4" />
+                                    Export sheet
+                                </a>
+                            </Button>
+                            {can.manage && (
+                                <>
+                                    <Button size="sm" onClick={openAddItem}>
+                                        <Plus className="size-4" />
+                                        Add item
+                                    </Button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="size-9"
+                                                aria-label="Offboarding actions"
+                                            >
+                                                <MoreHorizontal className="size-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent
+                                            align="end"
+                                            className="w-48"
                                         >
-                                            <MoreHorizontal className="size-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                        align="end"
-                                        className="w-48"
-                                    >
-                                        {c.is_active && (
-                                            <DropdownMenuItem
-                                                onSelect={completeCase}
-                                            >
-                                                <CheckCircle2 className="size-4" />
-                                                Complete exit
-                                            </DropdownMenuItem>
-                                        )}
-                                        {!c.is_active && (
-                                            <DropdownMenuItem
-                                                onSelect={reopenCase}
-                                            >
-                                                <RotateCcw className="size-4" />
-                                                Reopen
-                                            </DropdownMenuItem>
-                                        )}
-                                        {c.is_active &&
-                                            options.programs.length > 0 && (
+                                            {c.is_active && (
                                                 <DropdownMenuItem
-                                                    onSelect={() =>
-                                                        setApplyOpen(true)
-                                                    }
+                                                    onSelect={completeCase}
                                                 >
-                                                    <ListPlus className="size-4" />
-                                                    Add from template
+                                                    <CheckCircle2 className="size-4" />
+                                                    Complete exit
                                                 </DropdownMenuItem>
                                             )}
-                                        {c.is_active &&
-                                            c.clearance.pending > 0 && (
+                                            {!c.is_active && (
                                                 <DropdownMenuItem
-                                                    onSelect={clearAllPending}
+                                                    onSelect={reopenCase}
                                                 >
-                                                    <CheckCheck className="size-4" />
-                                                    Clear all pending
+                                                    <RotateCcw className="size-4" />
+                                                    Reopen
                                                 </DropdownMenuItem>
                                             )}
-                                        <DropdownMenuItem
-                                            onSelect={() =>
-                                                setSettingsOpen(true)
-                                            }
-                                        >
-                                            <Settings2 className="size-4" />
-                                            Edit details
-                                        </DropdownMenuItem>
-                                        {c.is_active && (
+                                            {c.is_active &&
+                                                options.programs.length > 0 && (
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            setApplyOpen(true)
+                                                        }
+                                                    >
+                                                        <ListPlus className="size-4" />
+                                                        Add from template
+                                                    </DropdownMenuItem>
+                                                )}
+                                            {c.is_active &&
+                                                c.clearance.pending > 0 && (
+                                                    <DropdownMenuItem
+                                                        onSelect={
+                                                            clearAllPending
+                                                        }
+                                                    >
+                                                        <CheckCheck className="size-4" />
+                                                        Clear all pending
+                                                    </DropdownMenuItem>
+                                                )}
                                             <DropdownMenuItem
-                                                onSelect={cancelCase}
+                                                onSelect={() =>
+                                                    setSettingsOpen(true)
+                                                }
                                             >
-                                                <XCircle className="size-4" />
-                                                Cancel offboarding
+                                                <Settings2 className="size-4" />
+                                                Edit details
                                             </DropdownMenuItem>
-                                        )}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            variant="destructive"
-                                            onSelect={removeCase}
-                                        >
-                                            <Trash2 className="size-4" />
-                                            Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </>
-                        )}
-                    </div>
-                </div>
+                                            {c.is_active && (
+                                                <DropdownMenuItem
+                                                    onSelect={cancelCase}
+                                                >
+                                                    <XCircle className="size-4" />
+                                                    Cancel offboarding
+                                                </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                variant="destructive"
+                                                onSelect={removeCase}
+                                            >
+                                                <Trash2 className="size-4" />
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </>
+                            )}
+                        </>
+                    }
+                />
 
                 {/* Summary band */}
-                <div className="rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm dark:border-sidebar-border">
+                <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-3 shadow-sm dark:border-sidebar-border">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-medium">
                             {c.clearance.cleared} of {c.clearance.total}{' '}
@@ -384,7 +375,7 @@ export default function OffboardingCasePage() {
                         muted={c.status === 'cancelled'}
                         className="mt-2"
                     />
-                    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
                         <Meta
                             icon={<CalendarClock className="size-3.5" />}
                             label="Notice"
@@ -414,29 +405,29 @@ export default function OffboardingCasePage() {
                         )}
                     </div>
                     {c.reason && (
-                        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                        <p className="mt-2.5 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                             {c.reason}
                         </p>
                     )}
                 </div>
 
-                {/* Clearance checklist */}
-                <ClearanceChecklist
+                <ClearanceTable
                     items={items}
                     canManage={can.manage}
                     onToggle={toggleItem}
                     onEdit={openEditItem}
                     onDelete={deleteItem}
+                    onAdd={openAddItem}
                     onClearGroup={clearGroup}
                 />
-            </div>
+            </PageBody>
 
-            <ClearanceItemFormSheet
+            <ClearanceItemFormDialog
                 item={editingItem}
                 caseHashid={c.hashid}
                 departments={options.departments}
-                open={itemSheetOpen}
-                onOpenChange={setItemSheetOpen}
+                open={itemFormOpen}
+                onOpenChange={setItemFormOpen}
             />
 
             <ApplyProgramDialog
@@ -446,7 +437,7 @@ export default function OffboardingCasePage() {
                 onOpenChange={setApplyOpen}
             />
 
-            <CaseSettingsSheet
+            <CaseSettingsDialog
                 case={c}
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}

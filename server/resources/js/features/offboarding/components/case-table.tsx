@@ -1,13 +1,15 @@
-import { router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
+import { Plus, TriangleAlert, UserRoundMinus } from 'lucide-react';
 import {
-    ArrowDown,
-    ArrowUp,
-    ChevronsUpDown,
-    TriangleAlert,
-} from 'lucide-react';
+    DataTable,
+    EmptyTableRow,
+    rowOpens,
+    SortableHead,
+    TableCard,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
+import { Button } from '@/components/ui/button';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -15,185 +17,242 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { formatDate, TYPE_LABELS } from '../constants';
+import { formatDate } from '../constants';
 import { offboardingRoutes } from '../routes';
 import type { OffboardingCase } from '../types';
+import { CaseRowActions } from './case-row-actions';
+import type { CaseRowHandlers } from './case-row-actions';
 import { CaseStatusBadge } from './case-status-badge';
 import { ProgressBar } from './progress-bar';
+import { TypeBadge } from './type-badge';
 
 export type CaseSort =
     'employee' | 'type' | 'last_day' | 'clearance' | 'status';
 
-type Props = {
+type Props = CaseRowHandlers & {
     cases: OffboardingCase[];
     sort: CaseSort;
     direction: 'asc' | 'desc';
     onSort: (key: CaseSort) => void;
+    canManage: boolean;
+    filtered: boolean;
+    /** Offered in the empty state when nothing is filtered. */
+    onStart?: () => void;
 };
 
-/** Offboarding cases as a dense, sortable table — the default layout. */
-export function CaseTable({ cases, sort, direction, onSort }: Props) {
-    return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <div className="overflow-x-auto">
-                <Table>
-                    <TableHeader className="bg-muted/40">
-                        <TableRow className="hover:bg-transparent">
-                            <SortHead
-                                label="Employee"
-                                sortKey="employee"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Exit type"
-                                sortKey="type"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Last day"
-                                sortKey="last_day"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Clearance"
-                                sortKey="clearance"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Status"
-                                sortKey="status"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {cases.map((c) => (
-                            <TableRow
-                                key={c.id}
-                                onClick={() =>
-                                    router.get(offboardingRoutes.show(c.hashid))
-                                }
-                                className="cursor-pointer"
-                            >
-                                <TableCell>
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                        <PersonAvatar
-                                            name={
-                                                c.employee?.full_name ??
-                                                'Unknown employee'
-                                            }
-                                            initials={
-                                                c.employee?.initials ?? '?'
-                                            }
-                                            photo={c.employee?.photo}
-                                            className="size-8"
-                                            fallbackClassName="text-[10px]"
-                                        />
-                                        <div className="flex min-w-0 flex-col">
-                                            <span className="truncate text-sm font-medium">
-                                                {c.employee?.full_name ??
-                                                    'Unknown employee'}
-                                            </span>
-                                            <span className="truncate text-xs text-muted-foreground">
-                                                {c.employee?.position?.title ??
-                                                    'No position'}
-                                                {c.employee?.department
-                                                    ? ` · ${c.employee.department.name}`
-                                                    : ''}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                                    {TYPE_LABELS[c.type]}
-                                </TableCell>
-                                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                                    {formatDate(c.last_working_day)}
-                                </TableCell>
-                                <TableCell className="min-w-[10rem]">
-                                    <div className="flex items-center gap-2">
-                                        <ProgressBar
-                                            percent={c.clearance.percent}
-                                            muted={c.status === 'cancelled'}
-                                            className="w-20"
-                                        />
-                                        <span className="text-xs text-muted-foreground tabular-nums">
-                                            {c.clearance.cleared}/
-                                            {c.clearance.total}
-                                        </span>
-                                        {c.clearance.flagged > 0 &&
-                                            c.status !== 'cancelled' && (
-                                                <span
-                                                    className="inline-flex items-center gap-0.5 text-xs font-medium text-rose-600 tabular-nums dark:text-rose-400"
-                                                    title={`${c.clearance.flagged} flagged`}
-                                                >
-                                                    <TriangleAlert className="size-3.5" />
-                                                    {c.clearance.flagged}
-                                                </span>
-                                            )}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <CaseStatusBadge status={c.status} />
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-        </div>
-    );
-}
-
-function SortHead({
-    label,
-    sortKey,
+/**
+ * Everyone leaving: the kind of exit, how far their clearance has come, what
+ * is flagged, and their last day. A row opens that person's clearance.
+ */
+export function CaseTable({
+    cases,
     sort,
     direction,
     onSort,
-    align = 'left',
-}: {
-    label: string;
-    sortKey: CaseSort;
-    sort: CaseSort;
-    direction: 'asc' | 'desc';
-    onSort: (key: CaseSort) => void;
-    align?: 'left' | 'right';
-}) {
-    const active = sort === sortKey;
+    canManage,
+    filtered,
+    onStart,
+    ...handlers
+}: Props) {
+    const sortable = (key: CaseSort) => ({
+        active: sort === key,
+        direction,
+        onSort: () => onSort(key),
+    });
 
     return (
-        <TableHead className={cn(align === 'right' && 'text-right')}>
-            <button
-                type="button"
-                onClick={() => onSort(sortKey)}
-                className={cn(
-                    'inline-flex items-center gap-1 transition-colors hover:text-foreground',
-                    align === 'right' && 'flex-row-reverse',
-                    active && 'text-foreground',
-                )}
-            >
-                {label}
-                {active ? (
-                    direction === 'asc' ? (
-                        <ArrowUp className="size-3.5" />
-                    ) : (
-                        <ArrowDown className="size-3.5" />
-                    )
-                ) : (
-                    <ChevronsUpDown className="size-3.5 opacity-50" />
-                )}
-            </button>
-        </TableHead>
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <SortableHead {...sortable('employee')}>
+                            Employee
+                        </SortableHead>
+                        <TableHead>Department</TableHead>
+                        <SortableHead {...sortable('type')}>
+                            Exit type
+                        </SortableHead>
+                        <SortableHead {...sortable('status')}>
+                            Status
+                        </SortableHead>
+                        <SortableHead
+                            {...sortable('clearance')}
+                            className="w-52"
+                        >
+                            Clearance
+                        </SortableHead>
+                        <SortableHead {...sortable('last_day')}>
+                            Last day
+                        </SortableHead>
+                        <TableHead className="w-10" />
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {cases.length === 0 && (
+                        <EmptyTableRow
+                            colSpan={7}
+                            icon={UserRoundMinus}
+                            title={
+                                filtered
+                                    ? 'No exits match'
+                                    : 'Nobody is leaving right now'
+                            }
+                            description={
+                                filtered
+                                    ? 'Try adjusting the search or filters.'
+                                    : 'When an employee is leaving, start their offboarding to generate a clearance checklist and track them to a clean exit.'
+                            }
+                            action={
+                                !filtered &&
+                                onStart && (
+                                    <Button size="sm" onClick={onStart}>
+                                        <Plus className="size-4" />
+                                        Start offboarding
+                                    </Button>
+                                )
+                            }
+                        />
+                    )}
+
+                    {cases.map((item) => (
+                        <CaseRow
+                            key={item.id}
+                            item={item}
+                            canManage={canManage}
+                            {...handlers}
+                        />
+                    ))}
+                </TableBody>
+            </DataTable>
+        </TableCard>
     );
+}
+
+function CaseRow({
+    item,
+    canManage,
+    ...handlers
+}: CaseRowHandlers & { item: OffboardingCase; canManage: boolean }) {
+    const href = offboardingRoutes.show(item.hashid);
+    const employee = item.employee;
+    const { clearance } = item;
+    const cancelled = item.status === 'cancelled';
+
+    return (
+        <TableRow {...rowOpens(href)}>
+            <TableCell>
+                <div className="flex min-w-0 items-center gap-2.5">
+                    <PersonAvatar
+                        name={employee?.full_name ?? 'Unknown employee'}
+                        initials={employee?.initials ?? '?'}
+                        photo={employee?.photo}
+                        className="size-8"
+                        fallbackClassName="text-[11px]"
+                    />
+                    <div className="min-w-0">
+                        <Link
+                            href={href}
+                            className="block truncate text-sm font-medium hover:text-[#0ABFBF]"
+                        >
+                            {employee?.full_name ?? 'Unknown employee'}
+                        </Link>
+                        <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                            {employee?.employee_no ?? '—'}
+                        </span>
+                    </div>
+                </div>
+            </TableCell>
+            <TableCell>
+                <span className="block truncate text-sm">
+                    {employee?.department?.name ?? (
+                        <span className="text-muted-foreground">—</span>
+                    )}
+                </span>
+                {employee?.position && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                        {employee.position.title}
+                    </span>
+                )}
+            </TableCell>
+            <TableCell>
+                <TypeBadge type={item.type} />
+            </TableCell>
+            <TableCell>
+                <CaseStatusBadge status={item.status} />
+            </TableCell>
+            <TableCell>
+                <div className="flex items-center gap-2">
+                    <ProgressBar
+                        percent={clearance.percent}
+                        muted={cancelled}
+                        className="w-20"
+                    />
+                    <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                        {clearance.cleared}/{clearance.total}
+                    </span>
+                    {clearance.flagged > 0 && !cancelled && (
+                        <span
+                            className="inline-flex items-center gap-0.5 text-xs font-medium text-rose-600 tabular-nums dark:text-rose-400"
+                            title={`${clearance.flagged} flagged`}
+                        >
+                            <TriangleAlert className="size-3.5" />
+                            {clearance.flagged}
+                            <span className="sr-only"> flagged</span>
+                        </span>
+                    )}
+                </div>
+            </TableCell>
+            <TableCell className="text-sm whitespace-nowrap">
+                <LastDay item={item} />
+            </TableCell>
+            <TableCell className="text-right">
+                <CaseRowActions
+                    item={item}
+                    canManage={canManage}
+                    {...handlers}
+                />
+            </TableCell>
+        </TableRow>
+    );
+}
+
+/** The last working day, flagged when an exit still in flight has gone past it. */
+function LastDay({ item }: { item: OffboardingCase }) {
+    if (item.status === 'completed') {
+        return (
+            <span className="text-muted-foreground">
+                Done {formatDate(item.completed_at)}
+            </span>
+        );
+    }
+
+    if (!item.last_working_day) {
+        return <span className="text-muted-foreground">Not set</span>;
+    }
+
+    const late = item.is_active && item.last_working_day < localToday();
+
+    return (
+        <span
+            className={cn(
+                late
+                    ? 'font-medium text-rose-600 dark:text-rose-400'
+                    : 'text-muted-foreground',
+            )}
+            title={late ? 'Past the last working day' : undefined}
+        >
+            {formatDate(item.last_working_day)}
+        </span>
+    );
+}
+
+/** Today as YYYY-MM-DD on the viewer's own calendar (not UTC's). */
+function localToday(): string {
+    const now = new Date();
+
+    return [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+    ].join('-');
 }

@@ -56,6 +56,16 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
     skipped: 'Skipped',
 };
 
+/** A task status as a badge — the checklist table's Status column. */
+export const TASK_STATUS_STYLES: Record<TaskStatus, string> = {
+    pending:
+        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+    in_progress:
+        'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    skipped: 'border-border bg-muted text-muted-foreground',
+};
+
 /** The category presentation: label, icon and accent — used to group the checklist. */
 export const CATEGORY_META: Record<
     TaskCategory,

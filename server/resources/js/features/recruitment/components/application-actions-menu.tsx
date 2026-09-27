@@ -1,9 +1,5 @@
-import {
-    MoreHorizontal,
-    MoveRight,
-    UserRoundCheck,
-    XCircle,
-} from 'lucide-react';
+import { MoveRight, UserRoundCheck, XCircle } from 'lucide-react';
+import { RowMenuTrigger } from '@/components/data-table';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -14,7 +10,6 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
 import type {
     Application,
     PipelineStage,
@@ -54,16 +49,10 @@ export function ApplicationActionsMenu({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className={cn(
-                        'rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted data-[state=open]:bg-muted',
-                        triggerClassName,
-                    )}
-                    aria-label="Application actions"
-                >
-                    <MoreHorizontal className="size-4" />
-                </button>
+                <RowMenuTrigger
+                    label={`Actions for ${application.applicant?.full_name ?? 'this application'}`}
+                    className={triggerClassName}
+                />
             </DropdownMenuTrigger>
             <DropdownMenuContent align={align} className="w-48">
                 {can.managePipeline && (

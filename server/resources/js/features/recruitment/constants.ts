@@ -16,8 +16,6 @@ export const STATUS_FILTERS = [
     { value: 'filled', label: 'Filled' },
 ] as const;
 
-export const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100] as const;
-
 export const DEFAULT_FILTERS = {
     search: '',
     status: 'all',

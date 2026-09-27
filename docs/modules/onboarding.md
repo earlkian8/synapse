@@ -34,11 +34,16 @@ Employees module (header · compact stat tiles · toolbar · table · pagination
    start or target date, paging. Each row's menu opens the checklist, marks it
    complete / reopens it, cancels it (confirmed) or deletes it (confirmed — and you stay
    on the program). *Start onboarding* here starts on this program. A row opens level 3.
-3. **`/onboarding/{case}`** — the **case**: the employee header, a progress summary, and
-   the **checklist grouped by category** (Paperwork · Equipment · Access · Orientation ·
-   Training · Compliance · Other), two groups abreast on wide screens. Tick tasks done,
-   assign them, set due dates, add ad-hoc tasks, edit notes/target, and complete /
-   cancel / reopen the onboarding. Breadcrumbs read *Onboarding › program › person*,
+3. **`/onboarding/{case}`**: the **case**, with the employee header, a progress
+   summary, and the **checklist as a table**.
+   - Each category (Paperwork · Equipment · Access · Orientation · Training ·
+     Compliance · Other) has a header row with its done count.
+   - Each task row has a tick-box, the task and its description, a status badge, the
+     owner, the due date (red when overdue) and who completed it and when.
+   - The row menu marks a task in progress, skips or un-skips it, edits it or deletes
+     it, and for managers the row opens the task to edit.
+   - You can also add ad-hoc tasks, edit the notes and target, and complete, cancel or
+     reopen the onboarding. Breadcrumbs read *Onboarding › program › person*,
    and the back arrow (and the program name in the summary) return to level 2.
 - **`/setup/onboarding`** — manage **programs** (templates) and their blueprint tasks.
   They live under **Company Setup** (routes `setup.onboarding.*`), with the other
@@ -153,8 +158,8 @@ reopen are deliberate actions (`PATCH …/status`). The stage toggle stamps `com
 (`use-case-filters` for a program's table, `use-program-search` for the overview), and
 components: stat tiles, **programs overview table**, **cases table** + **case row
 actions**, progress bar, status badge,
-**start-onboarding modal** (optionally pre-set to a program), **task checklist**
-(grouped) + **task row** + **task form modal**, **case settings modal**, **program
+**start-onboarding modal** (optionally pre-set to a program), **task table**
+(grouped by category) + **task form modal**, **case settings modal**, **program
 card** + **program form modal** (with an inline blueprint-task editor), and a confirm
 dialog. Pages: `pages/onboarding/index.tsx` (programs), `program.tsx` (a program's
 people) and `case.tsx`; the programs setup screen is `pages/setup/onboarding.tsx`. The sidebar

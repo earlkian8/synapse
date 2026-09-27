@@ -2,13 +2,12 @@ import {
     Eye,
     KanbanSquare,
     Link2,
-    MoreHorizontal,
     Pencil,
     SlidersHorizontal,
     Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { RowMenuTrigger } from '@/components/data-table';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -56,14 +55,7 @@ export function PostingRowActions({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground data-[state=open]:bg-muted"
-                    aria-label={`Actions for ${posting.title}`}
-                >
-                    <MoreHorizontal className="size-4" />
-                </Button>
+                <RowMenuTrigger label={`Actions for ${posting.title}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel className="text-xs text-muted-foreground">

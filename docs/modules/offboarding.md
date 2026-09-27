@@ -21,18 +21,37 @@ employee `resigned` / `terminated` — the canonical way they leave `active`.
 
 ## Surfaces
 
-- **`/offboarding`** — the overview **board**: a KPI bar (in offboarding, flagged
-  clearances, leaving in 14 days, completed this month), search / type / department /
-  status filters, and a card per exit with the exit type, clearance progress, last
-  working day and flag count. A card opens the case. (A board of people-cards, like
-  Onboarding — the unit of work is *a person being offboarded*.)
-- **`/offboarding/{case}`** — the **case**: the employee header (status + type badges),
-  a clearance summary (signed-off count, derived clearance status, last working day,
-  flags) and the **clearance checklist grouped by department**. HR can clear / flag
-  items, edit/assign them, add ad-hoc items, edit the exit details, and
-  complete / cancel / reopen the exit.
-- **Employee detail → Offboarding tab** — a read-only summary of the employee's exit
-  (type, status, clearance progress, last day) linking to the case.
+Laid out like the Workforce modules and Onboarding (header · compact stat tiles ·
+toolbar · table · pagination), from the shared table kit
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md),
+[ADR 0048](../decisions/0048-talent-acquisition-and-offboarding-join-the-table-kit.md)):
+
+- **`/offboarding`**: everyone leaving, as **one table**.
+  - Four stat tiles: in offboarding, flagged clearances, leaving in 14 days, completed
+    this month.
+  - The toolbar has search, exit type, department and status filters (*Active* by
+    default), Reset, *Export* (with the current filters) and *Start offboarding*.
+  - Each row shows the employee, department and position, exit type, status, clearance
+    progress (cleared / total, with the flag count) and last working day. A last day an
+    exit still in flight has passed shows in red, and a completed exit shows *Done …*.
+  - Columns sort by employee, type, status, clearance and last day, and the table is
+    paged in the browser.
+  - A row opens the case. Its menu opens the clearance, exports its sheet, completes the
+    exit (confirmed, naming any outstanding items), reopens it, cancels it (confirmed)
+    or deletes it (confirmed).
+- **`/offboarding/{case}`**: the **case**.
+  - The employee header has status and type badges, *Export sheet*, *Add item* and the
+    lifecycle menu (complete, reopen, add from template, clear all pending, edit
+    details, cancel, delete).
+  - A clearance summary shows the signed-off count, the derived clearance status, the
+    notice and last day, the template and flags.
+  - The **clearance checklist is a table**. Each department that signs items off has a
+    header row with its cleared count and *Clear all (n)*, and Unassigned comes last.
+    Each item row has a tick-box, its status, who signed it off and when, and remarks
+    (red when flagged). Its menu flags or unflags the item, edits it or deletes it, and
+    for managers the row opens the item to edit.
+- **Employee detail → Offboarding tab**: a read-only summary of the employee's exit
+  (type, status, clearance progress, last day), linking to the case.
 
 ## Data model
 
@@ -81,11 +100,20 @@ employee `resigned` / `terminated` — the canonical way they leave `active`.
 
 ## Frontend
 
-`features/offboarding/` — types, routes, constants (status / type / clearance meta),
-the board filter hook, and components: stats, toolbar, **case card**, status & type
-badges, progress bar, **initiate-offboarding sheet**, **clearance checklist** (grouped
-by department) + **item row** + **item form sheet**, **case settings sheet**, and a
-confirm dialog. Pages: `pages/offboarding/index.tsx`, `case.tsx`. The sidebar
+`features/offboarding/` holds the types, routes, constants (status, type and clearance
+meta) and the filter hook, and these components:
+
+- `offboarding-stats` (stat tiles);
+- `case-table` and `case-row-actions`;
+- status and type badges, and the progress bar;
+- `clearance-table`, grouped by department;
+- a confirm dialog;
+- four forms, all **centred modals** on the shared `components/modal.tsx` shell with
+  `FormField` / `FormSelect`, the same as Onboarding: `initiate-offboarding-dialog`,
+  `clearance-item-form-dialog`, `case-settings-dialog` and `apply-program-dialog`.
+
+Pages are `pages/offboarding/index.tsx` and `case.tsx`. The clearance templates'
+screen (`programs-manager`, `program-form-sheet`) belongs to Company Setup. The sidebar
 **Offboarding** link is gated on `offboarding.view`.
 
 ## Permissions

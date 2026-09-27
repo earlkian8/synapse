@@ -34,11 +34,8 @@ export type ApplicantSource =
 
 export type SortDirection = 'asc' | 'desc';
 
-/** How the postings index is laid out: a dense table or a card grid. */
-export type PostingsView = 'table' | 'grid';
-
-/** How the pipeline is laid out: the sequential board, or a dense table. */
-export type PipelineView = 'board' | 'table';
+/** How the pipeline is laid out: the table (the default), or the Kanban board. */
+export type PipelineView = 'table' | 'board';
 
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };

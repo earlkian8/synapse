@@ -19,7 +19,7 @@ export const STATUS_FILTERS = [
     { value: 'clearance', label: 'In clearance' },
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
-    { value: 'all', label: 'All' },
+    { value: 'all', label: 'All statuses' },
 ] as const;
 
 export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {

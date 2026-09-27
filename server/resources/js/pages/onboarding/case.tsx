@@ -26,8 +26,9 @@ import { CaseSettingsDialog } from '@/features/onboarding/components/case-settin
 import { CaseStatusBadge } from '@/features/onboarding/components/case-status-badge';
 import { ConfirmDialog } from '@/features/onboarding/components/confirm-dialog';
 import { ProgressBar } from '@/features/onboarding/components/progress-bar';
-import { TaskChecklist } from '@/features/onboarding/components/task-checklist';
+
 import { TaskFormDialog } from '@/features/onboarding/components/task-form-dialog';
+import { TaskTable } from '@/features/onboarding/components/task-table';
 import { EMPLOYMENT_TYPE_LABELS } from '@/features/onboarding/constants';
 import { onboardingRoutes } from '@/features/onboarding/routes';
 import type {
@@ -288,13 +289,13 @@ export default function OnboardingCasePage() {
                     )}
                 </div>
 
-                {/* Checklist */}
-                <TaskChecklist
+                <TaskTable
                     tasks={tasks}
                     canManage={can.manage}
                     onToggle={toggleTask}
                     onEdit={openEditTask}
                     onDelete={deleteTask}
+                    onAdd={openAddTask}
                 />
             </PageBody>
 

@@ -22,7 +22,7 @@ function positionFor(stage: Stage, active: Stage): Position {
  * one — so the steps are numbered.
  *
  * The step into "your own model" carries a lock until the surface has graduated:
- * that lock is the requirement list below, and the rail says so.
+ * that lock is the requirements tab, and the rail says so.
  */
 export function StageRail({ stage }: { stage: Stage }) {
     const lastIndex = STAGE_ORDER.length - 1;
@@ -110,11 +110,11 @@ function Connector({ done, gated }: { done: boolean; gated: boolean }) {
             {gated && (
                 <span
                     className="absolute top-1/2 left-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-sidebar-border/70 bg-card text-muted-foreground dark:border-sidebar-border"
-                    title="Unlocks when every requirement below is met"
+                    title="Unlocks when every requirement is met"
                 >
                     <Lock className="size-2.5" />
                     <span className="sr-only">
-                        Unlocks when every requirement below is met
+                        Unlocks when every requirement is met
                     </span>
                 </span>
             )}
