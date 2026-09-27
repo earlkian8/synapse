@@ -22,8 +22,6 @@ export const DEFAULT_FILTERS = {
     per_page: 15,
 } as const;
 
-export const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100] as const;
-
 export const STATUS_FILTERS = [
     { value: 'all', label: 'All statuses' },
     { value: 'active', label: 'Active' },

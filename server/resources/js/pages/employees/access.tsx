@@ -1,14 +1,24 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    DoorOpen,
-    Inbox,
-    MailX,
-    Send,
-    ShieldCheck,
-} from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { Inbox, MailX, Send, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+    DataTable,
+    EmptyTableRow,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TableCard,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeAvatar } from '@/features/employees/components/employee-avatar';
 import { JoinCodeCard } from '@/features/employees/components/join-code-card';
@@ -45,6 +55,21 @@ export default function EmployeeAccess() {
         () => unlinked.filter((employee) => employee.app_access === 'none'),
         [unlinked],
     );
+
+    // The backlog can be the whole workforce, so it is searched and paged.
+    const [search, setSearch] = useState('');
+    const matching = useMemo(() => {
+        const needle = search.trim().toLowerCase();
+
+        return needle === ''
+            ? uninvited
+            : uninvited.filter((employee) =>
+                  [employee.full_name, employee.employee_no, employee.email]
+                      .filter(Boolean)
+                      .some((field) => field!.toLowerCase().includes(needle)),
+              );
+    }, [uninvited, search]);
+    const backlog = useClientPagination(matching, search);
 
     const busy = {
         preserveScroll: true,
@@ -130,31 +155,15 @@ export default function EmployeeAccess() {
         <>
             <Head title="App access" />
 
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-                <div className="flex flex-col gap-3">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="-ml-2 w-fit text-muted-foreground"
-                    >
-                        <Link href={employeeRoutes.index}>
-                            <ArrowLeft className="size-4" />
-                            Employees
-                        </Link>
-                    </Button>
-
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            App access
-                        </h1>
-                        <p className="max-w-2xl text-sm text-muted-foreground">
-                            People create their own SYNAPSE accounts and connect
-                            to your company from the app. You decide who gets
-                            linked to which employee record.
-                        </p>
-                    </div>
-                </div>
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: employeeRoutes.index,
+                        label: 'Back to employees',
+                    }}
+                    title="App access"
+                    description="People create their own SYNAPSE accounts and connect to your company from the app. You decide who gets linked to which employee record."
+                />
 
                 <JoinCodeCard
                     code={joinCode.code}
@@ -164,217 +173,293 @@ export default function EmployeeAccess() {
 
                 {/* ── Waiting on you ─────────────────────────────────────── */}
                 {requests.length > 0 && (
-                    <Section
-                        icon={DoorOpen}
+                    <TableCard
                         title="Waiting to join"
                         count={requests.length}
-                        description="They used your join code but we couldn't match them to a record automatically. Link them to the right employee, or turn them away."
-                        emphasised
+                        description="They used your join code but couldn't be matched to a record automatically. Link them to the right employee, or turn them away."
+                        className="border-[#0ABFBF]/40 shadow-sm dark:border-[#0ABFBF]/40"
                     >
-                        <ul className="divide-y divide-border">
-                            {requests.map((request) => (
-                                <li
-                                    key={request.id}
-                                    className="flex flex-wrap items-center gap-3 px-4 py-3"
-                                >
-                                    <EmployeeAvatar
-                                        name={request.user?.full_name ?? '—'}
-                                        initials={(
-                                            request.user?.full_name ?? '—'
-                                        )
-                                            .slice(0, 2)
-                                            .toUpperCase()}
-                                        photo={request.user?.avatar ?? null}
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {request.user?.full_name}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {request.user?.email} · asked{' '}
-                                            {request.requested_human}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-muted-foreground"
-                                            onClick={() =>
-                                                setDeclining(request)
-                                            }
-                                        >
-                                            Decline
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            onClick={() => {
-                                                setLinking(request);
-                                                setLinkOpen(true);
-                                            }}
-                                        >
-                                            Review
-                                        </Button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </Section>
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Person</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Asked</TableHead>
+                                    <TableHead className="text-right">
+                                        Decision
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {requests.map((request) => (
+                                    <TableRow key={request.id}>
+                                        <TableCell>
+                                            <Person
+                                                name={
+                                                    request.user?.full_name ??
+                                                    '—'
+                                                }
+                                                initials={(
+                                                    request.user?.full_name ??
+                                                    '—'
+                                                )
+                                                    .slice(0, 2)
+                                                    .toUpperCase()}
+                                                photo={
+                                                    request.user?.avatar ?? null
+                                                }
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {request.user?.email ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {request.requested_human ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 text-muted-foreground"
+                                                    onClick={() =>
+                                                        setDeclining(request)
+                                                    }
+                                                >
+                                                    Decline
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8"
+                                                    onClick={() => {
+                                                        setLinking(request);
+                                                        setLinkOpen(true);
+                                                    }}
+                                                >
+                                                    Review
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
                 )}
 
                 {/* ── Waiting on them ────────────────────────────────────── */}
                 {invitations.length > 0 && (
-                    <Section
-                        icon={Send}
+                    <TableCard
                         title="Invitations sent"
                         count={invitations.length}
                         description="Waiting for these people to accept. Sending again issues a new code and retires the old one."
                     >
-                        <ul className="divide-y divide-border">
-                            {invitations.map((invitation) => (
-                                <li
-                                    key={invitation.id}
-                                    className="flex flex-wrap items-center gap-3 px-4 py-3"
-                                >
-                                    <EmployeeAvatar
-                                        name={
-                                            invitation.employee?.full_name ??
-                                            '—'
-                                        }
-                                        initials={
-                                            invitation.employee?.initials ?? '—'
-                                        }
-                                        photo={
-                                            invitation.employee?.photo ?? null
-                                        }
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {invitation.employee?.full_name}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            Sent to {invitation.email} · expires{' '}
-                                            {invitation.expires_human}
-                                        </p>
-                                    </div>
-                                    <code className="rounded-md border border-sidebar-border/70 bg-muted/60 px-2 py-1 font-mono text-xs tracking-[0.16em] dark:border-sidebar-border">
-                                        {invitation.code}
-                                    </code>
-                                    <div className="flex items-center gap-1">
-                                        {invitation.employee && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                    router.post(
-                                                        employeeRoutes.invite(
-                                                            invitation.employee!
-                                                                .id,
-                                                        ),
-                                                        {},
-                                                        {
-                                                            preserveScroll: true,
-                                                        },
-                                                    )
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Employee</TableHead>
+                                    <TableHead>Sent to</TableHead>
+                                    <TableHead>Expires</TableHead>
+                                    <TableHead>Code</TableHead>
+                                    <TableHead className="text-right">
+                                        Actions
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {invitations.map((invitation) => (
+                                    <TableRow key={invitation.id}>
+                                        <TableCell>
+                                            <Person
+                                                name={
+                                                    invitation.employee
+                                                        ?.full_name ?? '—'
                                                 }
-                                            >
-                                                Resend
-                                            </Button>
-                                        )}
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="size-8 text-muted-foreground"
-                                            aria-label={`Revoke the invitation for ${invitation.employee?.full_name}`}
-                                            onClick={() =>
-                                                setRevoking(invitation)
-                                            }
-                                        >
-                                            <MailX className="size-4" />
-                                        </Button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </Section>
+                                                initials={
+                                                    invitation.employee
+                                                        ?.initials ?? '—'
+                                                }
+                                                photo={
+                                                    invitation.employee
+                                                        ?.photo ?? null
+                                                }
+                                                detail={
+                                                    invitation.employee
+                                                        ?.employee_no
+                                                }
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {invitation.email}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {invitation.expires_human ?? '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <code className="rounded-md border border-sidebar-border/70 bg-muted/60 px-2 py-0.5 font-mono text-xs tracking-[0.16em] dark:border-sidebar-border">
+                                                {invitation.code}
+                                            </code>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="inline-flex items-center gap-1">
+                                                {invitation.employee && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8"
+                                                        onClick={() =>
+                                                            router.post(
+                                                                employeeRoutes.invite(
+                                                                    invitation
+                                                                        .employee!
+                                                                        .id,
+                                                                ),
+                                                                {},
+                                                                {
+                                                                    preserveScroll: true,
+                                                                },
+                                                            )
+                                                        }
+                                                    >
+                                                        Resend
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="size-8 text-muted-foreground"
+                                                    aria-label={`Revoke the invitation for ${invitation.employee?.full_name}`}
+                                                    onClick={() =>
+                                                        setRevoking(invitation)
+                                                    }
+                                                >
+                                                    <MailX className="size-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
                 )}
 
                 {/* ── Waiting on nobody ──────────────────────────────────── */}
-                <Section
-                    icon={Inbox}
-                    title="Not invited yet"
-                    count={uninvited.length}
-                    description="Employee records that nobody has been invited to claim."
-                    action={
-                        can.invite && invitableCount > 0 ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={inviteEveryone}
-                            >
-                                <Send className="size-4" />
-                                Invite all {invitableCount}
-                            </Button>
-                        ) : null
-                    }
-                >
-                    {uninvited.length === 0 ? (
-                        <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-                            <span className="flex size-12 items-center justify-center rounded-full bg-[#0ABFBF]/10">
-                                <ShieldCheck className="size-6 text-[#0ABFBF]" />
-                            </span>
-                            <p className="text-sm font-medium">
-                                Everyone has been invited
-                            </p>
-                            <p className="max-w-xs text-sm text-muted-foreground">
-                                Every employee record either has app access or
-                                an invitation on its way.
-                            </p>
-                        </div>
-                    ) : (
-                        <ul className="divide-y divide-border">
-                            {uninvited.map((employee) => (
-                                <li
-                                    key={employee.id}
-                                    className="flex flex-wrap items-center gap-3 px-4 py-3"
-                                >
-                                    <EmployeeAvatar
-                                        name={employee.full_name}
-                                        initials={employee.initials}
-                                        photo={employee.photo}
+                <div className="flex flex-col gap-3">
+                    <TableCard
+                        title="Not invited yet"
+                        count={uninvited.length}
+                        description="Employee records that nobody has been invited to claim."
+                        actions={
+                            <>
+                                {uninvited.length > 0 && (
+                                    <SearchInput
+                                        value={search}
+                                        onSearch={setSearch}
+                                        delay={0}
+                                        placeholder="Search name, no., email…"
+                                        label="Search employees not invited yet"
+                                        className="sm:w-56"
                                     />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {employee.full_name}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {employee.employee_no}
-                                            {employee.position
-                                                ? ` · ${employee.position}`
-                                                : ''}
-                                        </p>
-                                    </div>
-                                    {employee.email ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={!can.invite}
-                                            onClick={() => invite(employee)}
-                                        >
-                                            <Send className="size-4" />
-                                            Invite
-                                        </Button>
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">
-                                            No email address on file
-                                        </span>
+                                )}
+                                {can.invite && invitableCount > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={inviteEveryone}
+                                    >
+                                        <Send className="size-4" />
+                                        Invite all {invitableCount}
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    >
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Employee</TableHead>
+                                    <TableHead>Position</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead className="text-right">
+                                        Invitation
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {uninvited.length === 0 && (
+                                    <EmptyTableRow
+                                        colSpan={4}
+                                        icon={ShieldCheck}
+                                        title="Everyone has been invited"
+                                        description="Every employee record either has app access or an invitation on its way."
+                                    />
+                                )}
+                                {uninvited.length > 0 &&
+                                    matching.length === 0 && (
+                                        <EmptyTableRow
+                                            colSpan={4}
+                                            icon={Inbox}
+                                            title="Nobody matches"
+                                            description="Try another name, number or email."
+                                        />
                                     )}
-                                </li>
-                            ))}
-                        </ul>
+                                {backlog.rows.map((employee) => (
+                                    <TableRow key={employee.id}>
+                                        <TableCell>
+                                            <Person
+                                                name={employee.full_name}
+                                                initials={employee.initials}
+                                                photo={employee.photo}
+                                                detail={employee.employee_no}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {employee.position ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {employee.email ?? (
+                                                <span className="text-xs">
+                                                    No email address on file
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {employee.email ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8"
+                                                    disabled={!can.invite}
+                                                    onClick={() =>
+                                                        invite(employee)
+                                                    }
+                                                >
+                                                    <Send className="size-4" />
+                                                    Invite
+                                                </Button>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">
+                                                    Needs an email
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
+
+                    {matching.length > 0 && (
+                        <TablePagination
+                            meta={backlog.meta}
+                            perPage={backlog.perPage}
+                            onPage={backlog.setPage}
+                            onPerPage={backlog.setPerPage}
+                        />
                     )}
-                </Section>
-            </div>
+                </div>
+            </PageBody>
 
             <LinkEmployeeDialog
                 request={linking}
@@ -410,47 +495,30 @@ export default function EmployeeAccess() {
     );
 }
 
-function Section({
-    icon: Icon,
-    title,
-    count,
-    description,
-    action,
-    emphasised = false,
-    children,
+/** A person in a row: avatar, name, and a detail line. */
+function Person({
+    name,
+    initials,
+    photo,
+    detail,
 }: {
-    icon: typeof Inbox;
-    title: string;
-    count: number;
-    description: string;
-    action?: React.ReactNode;
-    emphasised?: boolean;
-    children: React.ReactNode;
+    name: string;
+    initials: string;
+    photo: string | null;
+    detail?: string | null;
 }) {
     return (
-        <section
-            className={`overflow-hidden rounded-xl border bg-card ${
-                emphasised
-                    ? 'border-[#0ABFBF]/40 shadow-sm'
-                    : 'border-sidebar-border/70 dark:border-sidebar-border'
-            }`}
-        >
-            <header className="flex flex-wrap items-center gap-3 border-b border-border bg-muted/30 px-4 py-3">
-                <Icon
-                    className={`size-4 ${emphasised ? 'text-[#0ABFBF]' : 'text-muted-foreground'}`}
-                    aria-hidden
-                />
-                <h2 className="text-sm font-semibold">{title}</h2>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
-                    {count}
-                </span>
-                <p className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1">
-                    {description}
-                </p>
-                {action}
-            </header>
-            {children}
-        </section>
+        <div className="flex min-w-0 items-center gap-2.5">
+            <EmployeeAvatar name={name} initials={initials} photo={photo} />
+            <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{name}</p>
+                {detail && (
+                    <p className="truncate font-mono text-[11px] text-muted-foreground">
+                        {detail}
+                    </p>
+                )}
+            </div>
+        </div>
     );
 }
 

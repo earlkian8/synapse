@@ -12,13 +12,20 @@ Company Setup; recognitions are given in the module. Data model is ERD §9 (with
 
 ## Surfaces
 
-- **`/awards`** — the **recognition feed**: a KPI bar (recognitions all-time, this
-  month, people recognised, active award types) and a chronological list of awards,
-  each showing the recipient, a colour-tinted award-type badge, the date, the reason
-  and who granted it. Filter by award type or search by employee. HR can **give
-  recognition**, and **edit** or **remove** an award inline.
+- **`/awards`** — the **recognition feed**: stat tiles (recognitions all-time, this
+  month, people recognised, active award types) and a table of awards (recipient, a
+  colour-tinted award-type badge, reason, date awarded, who gave it). Filter by award
+  type or search by employee. HR can **give recognition**, **export**, and **edit** or
+  **remove** an award from its row menu.
+- **`/awards/nominations`** — the **nomination board**, in two levels. First, a table
+  of award types (what each weighs, nominees, the front-runner and their score).
+  Opening one (`?type=`) shows that award's **ranked shortlist**. Each row expands
+  into the breakdown of its score, and the front-runner opens by default.
 - **Employee detail → Awards tab** — a read-only summary of an employee's
   recognitions (given from this module, not the employee record).
+
+Both pages use the shared Workforce table kit
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)).
 
 ## Configuration (`/setup/award-types`)
 

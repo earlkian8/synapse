@@ -1,12 +1,13 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CalendarCheck, CheckCheck, RefreshCw, UserRound } from 'lucide-react';
+import { CheckCheck, RefreshCw, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { PageBody, PageHeader } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
 import { AttendanceViewTabs } from '@/features/attendance/components/attendance-view-tabs';
-import { ExceptionsPanel } from '@/features/attendance/components/exceptions-panel';
+import { ExceptionsTable } from '@/features/attendance/components/exceptions-table';
 import { ManualEntryDialog } from '@/features/attendance/components/manual-entry-dialog';
 import { MonthlyReportTable } from '@/features/attendance/components/monthly-report-table';
 import { RecordDetailDialog } from '@/features/attendance/components/record-detail-dialog';
@@ -23,8 +24,15 @@ import type {
 export default function AttendanceIndex() {
     const { records, week, report, stats, options, can, filters } =
         usePage<AttendanceIndexPageProps>().props;
-    const { setTab, setDate, goToDay, setSearch, setStatus, setDepartment } =
-        useAttendanceFilters(filters);
+    const {
+        setTab,
+        setDate,
+        goToDay,
+        setSearch,
+        setStatus,
+        setDepartment,
+        reset,
+    } = useAttendanceFilters(filters);
 
     const [detail, setDetail] = useState<AttendanceRecord | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -178,56 +186,51 @@ export default function AttendanceIndex() {
         <>
             <Head title="Attendance" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Attendance
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            The team's daily time records — who's in, who's
-                            late, and who's out.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {can.manage && stats.pending > 0 && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setApproveOpen(true)}
-                            >
-                                <CheckCheck className="size-4" />
-                                Sign off{' '}
-                                <span className="tabular-nums">
-                                    {stats.pending}
-                                </span>{' '}
-                                {stats.pending === 1 ? 'day' : 'days'}
+            <PageBody>
+                <PageHeader
+                    title="Attendance"
+                    description="The team's daily time records — who's in, who's late, and who's out."
+                    actions={
+                        <>
+                            {can.manage && stats.pending > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setApproveOpen(true)}
+                                >
+                                    <CheckCheck className="size-4" />
+                                    Sign off{' '}
+                                    <span className="tabular-nums">
+                                        {stats.pending}
+                                    </span>{' '}
+                                    {stats.pending === 1 ? 'day' : 'days'}
+                                </Button>
+                            )}
+                            {can.manage && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setReapplyOpen(true)}
+                                >
+                                    <RefreshCw className="size-4" />
+                                    Re-apply rules
+                                </Button>
+                            )}
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href={attendanceRoutes.me}>
+                                    <UserRound className="size-4" />
+                                    My attendance
+                                </Link>
                             </Button>
-                        )}
-                        {can.manage && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setReapplyOpen(true)}
-                            >
-                                <RefreshCw className="size-4" />
-                                Re-apply rules
-                            </Button>
-                        )}
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={attendanceRoutes.me}>
-                                <UserRound className="size-4" />
-                                My attendance
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
+                        </>
+                    }
+                />
 
                 <AttendanceStatsCards stats={stats} />
 
-                <AttendanceViewTabs value={filters.tab} onChange={setTab} />
+                <div className="flex flex-col gap-3">
+                    <AttendanceViewTabs value={filters.tab} onChange={setTab} />
 
-                <div className="flex flex-col gap-4">
                     <AttendanceToolbar
                         filters={filters}
                         departments={options.departments}
@@ -242,33 +245,52 @@ export default function AttendanceIndex() {
                         onSearch={setSearch}
                         onStatus={setStatus}
                         onDepartment={setDepartment}
+                        onReset={reset}
                         onManualEntry={() => openManual(null)}
                     />
 
                     {filters.tab === 'today' && (
-                        <TodayTab
-                            records={records}
-                            canManage={can.manage}
-                            onOpen={openDetail}
-                            onResolve={openManual}
-                        />
+                        <>
+                            {records.length > 0 && (
+                                <ExceptionsTable
+                                    records={records}
+                                    canManage={can.manage}
+                                    onResolve={openManual}
+                                    onOpen={openDetail}
+                                />
+                            )}
+                            <TodayLogTable
+                                resetKey={`${filters.date}|${filters.search}|${filters.status}|${filters.department}`}
+                                records={records}
+                                canManage={can.manage}
+                                onOpen={openDetail}
+                                onEdit={openManual}
+                            />
+                        </>
                     )}
 
                     {filters.tab === 'weekly' &&
                         (week ? (
-                            <WeeklyGrid week={week} onPickDay={goToDay} />
+                            <WeeklyGrid
+                                week={week}
+                                onPickDay={goToDay}
+                                resetKey={`${filters.date}|${filters.search}|${filters.department}`}
+                            />
                         ) : (
                             <Loading />
                         ))}
 
                     {filters.tab === 'monthly' &&
                         (report ? (
-                            <MonthlyReportTable report={report} />
+                            <MonthlyReportTable
+                                resetKey={`${filters.date}|${filters.search}|${filters.department}`}
+                                report={report}
+                            />
                         ) : (
                             <Loading />
                         ))}
                 </div>
-            </div>
+            </PageBody>
 
             <RecordDetailDialog
                 record={detail}
@@ -345,52 +367,10 @@ function periodText(from: string, to: string): string {
     return from === to ? format(from) : `${format(from)} – ${format(to)}`;
 }
 
-function TodayTab({
-    records,
-    canManage,
-    onOpen,
-    onResolve,
-}: {
-    records: AttendanceRecord[];
-    canManage: boolean;
-    onOpen: (record: AttendanceRecord) => void;
-    onResolve: (record: AttendanceRecord) => void;
-}) {
-    if (records.length === 0) {
-        return <EmptyState />;
-    }
-
-    return (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <TodayLogTable records={records} onOpen={onOpen} />
-            <ExceptionsPanel
-                records={records}
-                canManage={canManage}
-                onResolve={onResolve}
-                onOpen={onOpen}
-            />
-        </div>
-    );
-}
-
 function Loading() {
     return (
-        <div className="flex items-center justify-center rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 dark:border-sidebar-border">
+        <div className="flex items-center justify-center rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-10 dark:border-sidebar-border">
             <span className="text-sm text-muted-foreground">Loading…</span>
-        </div>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <CalendarCheck className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No employees match this view</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                Try a different date, status, or department filter.
-            </p>
         </div>
     );
 }

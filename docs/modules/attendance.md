@@ -26,27 +26,33 @@ Everything is tenant-scoped (ADR 0005).
 
 ## Surfaces
 
-- **`/attendance`** — the **HR attendance workspace**: stat cards (present / late /
+- **`/attendance`** — the **HR attendance workspace**. It is laid out with the shared
+  Workforce table kit ([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)),
+  so every view below is a table paged in the browser. It has stat tiles (present / late /
   absent / on-leave / avg hours), a **period-aware stepper** (prev / today / next +
   picker, stepping by day / week / month — "today" is the organisation's), search +
   department filters, and tabs over the same roster (which is built from *every*
   employee, so people with no punches still appear as **Absent** / **Holiday** /
   **Day off** / **On leave**):
-  - **Today's Log** — a sortable table: avatar + name, time in / out, computed hours, a
-    **status pill** and an **anomaly flag** (late by N, missing time-out, left early,
-    unscheduled absence, a half day, a break that ran over), beside an **exceptions
-    panel** (the day's problems grouped by kind — including **half days** — each
-    actionable — also **punched away from the site**, **closed automatically**, **device
-    punches out of order** and **clock was off**). A **status filter** narrows it
+  - **Today's Log** — an **exceptions table** above a sortable **daily log**. The
+    exceptions table has one row per problem: the person, the kind of exception and
+    the detail. The kinds are missing time-out, badly late, unscheduled absence, **half
+    day**, **punched away from the site**, **closed automatically**, **device punches
+    out of order** and **clock was off**. Each row has **Resolve** (or **View**). When
+    there are none, it collapses to an "All clear" line. The daily log shows avatar +
+    name, time in / out, computed hours, a **status pill** and an **anomaly flag** (late
+    by N, missing time-out, left early, unscheduled absence, a half day, a break that
+    ran over). A row opens the day, and its menu can also edit or add punches. A **status filter** narrows it
     (present / late / half day / … / holiday), and on today's date offers **Not clocked
     in yet**: people due at work whose shift has started and who have not clocked in,
     leaving out leave and holidays.
-  - **Weekly View** — a matrix: employees down, Mon–Sun across, each cell a status tile
-    (a holiday tile names the holiday); clicking a cell jumps to that day's log.
+  - **Weekly View** — a table: employees down, Mon–Sun across, each cell a status tile
+    (a holiday tile names the holiday), with the legend in the card's footer. Clicking a
+    cell or a weekday header jumps to that day's log.
   - **Monthly Report** — one summary row per employee (present days, late count, **half
     days**, absences, holidays, overtime — with how much of it **awaits approval** — a
     **night** column when any policy counts night work, attendance-rate %) with an inline
-    worked-hours **sparkline**. A holiday is neither attendance nor absence, so it stays
+    worked-hours **sparkline**. Every count column sorts. A holiday is neither attendance nor absence, so it stays
     out of the rate; a half day counts as attended. **Payroll summary** downloads the
     month as the [period summary](./attendance-policies.md#payroll-period-summary).
   Opening any record reveals the **day-detail modal** — centred, like every other detail
@@ -87,7 +93,7 @@ Everything is tenant-scoped (ADR 0005).
   organisation's time and date) whose primary button flips with the day's state
   (Clock in → Start break → End break → Clock out), capturing geolocation (and an optional
   selfie) on each punch; plus today's punch timeline, a this-month summary, and recent DTR
-  history. A missed or wrong punch is fixed by HR's manual entry. The card shows the
+  history. The summary is four stat tiles and the history is a paged table. A missed or wrong punch is fixed by HR's manual entry. The card shows the
   **current shift**: a night-shift worker at 02:00 sees the shift they started last
   night, not an empty new date.
 - **The assistant** reads attendance two ways (see *Assistant*): `find_attendance`
@@ -112,7 +118,7 @@ Everything is tenant-scoped (ADR 0005).
   lives in Company Setup: see [Shift Roster](#shift-roster) below.
 
 The daily log stays a per-person table — the right tool for "what happened today" — while
-the weekly/monthly tabs give the depth and the exceptions panel gives the utility (so it
+the weekly/monthly tabs give the depth and the exceptions table gives the utility (so it
 reads as an ERP module, not a spreadsheet with a stylesheet). Self-service is a **single
 big clock**, the way a punch clock should feel.
 

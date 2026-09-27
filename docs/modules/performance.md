@@ -33,14 +33,21 @@ breaking ties. A resolved framework is a suggestion — HR can always pick anoth
   (`?period=`, defaulting to the open one). Coverage against active headcount,
   in-progress and awaiting-sign-off counts, average attainment; the **result
   spread** across the tenant's own bands; **per-department calibration** as a
-  deviation from the cycle average; then the appraisal list, each row carrying
-  its rating and a miniature of the ladder it sits on. HR can **open one**
+  deviation from the cycle average (both as compact tables); then the appraisals
+  table (searchable, filterable by status, sortable by employee, framework, result
+  and status, and paged), each row carrying its rating and a miniature of the ladder
+  it sits on. The review-cycle picker sits in the page header. The page uses the
+  shared Workforce table kit
+  ([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)). HR can **open one**
   appraisal or **launch the cycle**.
 - **`/performance/{evaluation}`** — the **scorecard**: who, which cycle, which
   framework, then the result — led with in whatever way the framework asks for —
   above the **rating ladder** showing the whole model with the result standing on
-  it. Below: ML decision support, then one card per weighted section (its weight,
-  its running attainment, how much of it is rated) holding the criteria. While a
+  it. The header carries the cycle, the framework and the evaluator in one line.
+  Below: ML decision support, then the **scorecard table**. Each weighted section
+  is a header row (its weight, its running attainment, how much of it is rated),
+  followed by a row per criterion: its weight within the section, the rating, and
+  the evidence. While a
   draft, each criterion is rated on its own scale — named levels show their
   anchor, goal attainment gets a slider — and the result moves live. **Submit**
   locks the card once every criterion is rated; a submitted appraisal can be

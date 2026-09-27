@@ -1,6 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
-    ArrowLeft,
     CalendarClock,
     CheckCircle2,
     ClipboardList,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { PageBody, PageHeader } from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -137,23 +137,13 @@ export default function OnboardingCasePage() {
                 title={`${employee?.full_name ?? 'Onboarding'} — Onboarding`}
             />
 
-            <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-3">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="size-9 shrink-0"
-                            asChild
-                        >
-                            <Link
-                                href={programUrl}
-                                aria-label={`Back to ${c.program?.name ?? 'unassigned onboarding'}`}
-                            >
-                                <ArrowLeft className="size-4" />
-                            </Link>
-                        </Button>
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: programUrl,
+                        label: `Back to ${c.program?.name ?? 'unassigned onboarding'}`,
+                    }}
+                    leading={
                         <PersonAvatar
                             name={employee?.full_name ?? 'Unknown employee'}
                             initials={employee?.initials ?? '?'}
@@ -161,89 +151,90 @@ export default function OnboardingCasePage() {
                             className="size-11"
                             fallbackClassName="text-sm"
                         />
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-semibold tracking-tight">
-                                    {employee?.full_name ?? 'Unknown employee'}
-                                </h1>
-                                <CaseStatusBadge status={c.status} />
-                            </div>
-                            <p className="mt-0.5 text-sm text-muted-foreground">
-                                {employee?.position?.title ?? 'No position'}
-                                {employee?.department
-                                    ? ` · ${employee.department.name}`
-                                    : ''}
-                                {employee?.employment_type
-                                    ? ` · ${EMPLOYMENT_TYPE_LABELS[employee.employment_type]}`
-                                    : ''}
-                            </p>
-                        </div>
-                    </div>
-
-                    {can.manage && (
-                        <div className="flex items-center gap-2">
-                            <Button size="sm" onClick={openAddTask}>
-                                <Plus className="size-4" />
-                                Add task
-                            </Button>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="size-9"
-                                        aria-label="Onboarding actions"
+                    }
+                    title={employee?.full_name ?? 'Unknown employee'}
+                    badges={<CaseStatusBadge status={c.status} />}
+                    description={[
+                        employee?.position?.title ?? 'No position',
+                        employee?.department?.name,
+                        employee?.employment_type
+                            ? EMPLOYMENT_TYPE_LABELS[employee.employment_type]
+                            : null,
+                    ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    actions={
+                        can.manage && (
+                            <>
+                                <Button size="sm" onClick={openAddTask}>
+                                    <Plus className="size-4" />
+                                    Add task
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="size-9"
+                                            aria-label="Onboarding actions"
+                                        >
+                                            <MoreHorizontal className="size-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align="end"
+                                        className="w-48"
                                     >
-                                        <MoreHorizontal className="size-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="end"
-                                    className="w-48"
-                                >
-                                    {c.is_active && (
+                                        {c.is_active && (
+                                            <DropdownMenuItem
+                                                onSelect={() =>
+                                                    setStatus('complete')
+                                                }
+                                            >
+                                                <CheckCircle2 className="size-4" />
+                                                Mark complete
+                                            </DropdownMenuItem>
+                                        )}
+                                        {!c.is_active && (
+                                            <DropdownMenuItem
+                                                onSelect={() =>
+                                                    setStatus('reopen')
+                                                }
+                                            >
+                                                <RotateCcw className="size-4" />
+                                                Reopen
+                                            </DropdownMenuItem>
+                                        )}
                                         <DropdownMenuItem
                                             onSelect={() =>
-                                                setStatus('complete')
+                                                setSettingsOpen(true)
                                             }
                                         >
-                                            <CheckCircle2 className="size-4" />
-                                            Mark complete
+                                            <Settings2 className="size-4" />
+                                            Edit details
                                         </DropdownMenuItem>
-                                    )}
-                                    {!c.is_active && (
+                                        {c.is_active && (
+                                            <DropdownMenuItem
+                                                onSelect={cancelCase}
+                                            >
+                                                <XCircle className="size-4" />
+                                                Cancel onboarding
+                                            </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem
-                                            onSelect={() => setStatus('reopen')}
+                                            variant="destructive"
+                                            onSelect={removeCase}
                                         >
-                                            <RotateCcw className="size-4" />
-                                            Reopen
+                                            <Trash2 className="size-4" />
+                                            Delete
                                         </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem
-                                        onSelect={() => setSettingsOpen(true)}
-                                    >
-                                        <Settings2 className="size-4" />
-                                        Edit details
-                                    </DropdownMenuItem>
-                                    {c.is_active && (
-                                        <DropdownMenuItem onSelect={cancelCase}>
-                                            <XCircle className="size-4" />
-                                            Cancel onboarding
-                                        </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        onSelect={removeCase}
-                                    >
-                                        <Trash2 className="size-4" />
-                                        Delete
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-                    )}
-                </div>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </>
+                        )
+                    }
+                />
 
                 {/* Summary band */}
                 <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-3 shadow-sm dark:border-sidebar-border">
@@ -305,7 +296,7 @@ export default function OnboardingCasePage() {
                     onEdit={openEditTask}
                     onDelete={deleteTask}
                 />
-            </div>
+            </PageBody>
 
             <TaskFormDialog
                 task={editingTask}

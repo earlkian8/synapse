@@ -1,10 +1,15 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ListChecks, Plus } from 'lucide-react';
 import { useState } from 'react';
+import {
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { OnboardingStatsCards } from '@/features/onboarding/components/onboarding-stats';
 import { ProgramsOverviewTable } from '@/features/onboarding/components/programs-overview-table';
-import { SearchInput } from '@/features/onboarding/components/search-input';
 import { StartOnboardingDialog } from '@/features/onboarding/components/start-onboarding-dialog';
 import { useProgramSearch } from '@/features/onboarding/hooks/use-program-search';
 import { onboardingRoutes } from '@/features/onboarding/routes';
@@ -32,29 +37,17 @@ export default function OnboardingIndex() {
         <>
             <Head title="Onboarding" />
 
-            <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-                <div className="flex flex-col gap-0.5">
-                    <h1 className="text-xl font-semibold tracking-tight">
-                        Onboarding
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Every program and the new hires going through it. Open a
-                        program to see its people.
-                    </p>
-                </div>
+            <PageBody>
+                <PageHeader
+                    title="Onboarding"
+                    description="Every program and the new hires going through it. Open a program to see its people."
+                />
 
                 <OnboardingStatsCards stats={stats} />
 
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <SearchInput
-                            value={filters.search}
-                            onSearch={search}
-                            placeholder="Search programs…"
-                            label="Search programs"
-                        />
-
-                        <div className="flex items-center gap-2">
+                <ListToolbar
+                    actions={
+                        <>
                             {can.managePrograms && (
                                 <Button variant="outline" size="sm" asChild>
                                     <Link href={onboardingRoutes.programs}>
@@ -72,17 +65,24 @@ export default function OnboardingIndex() {
                                     Start onboarding
                                 </Button>
                             )}
-                        </div>
-                    </div>
-
-                    <ProgramsOverviewTable
-                        programs={programs}
-                        can={can}
-                        searching={filters.search !== ''}
-                        onStart={openStart}
+                        </>
+                    }
+                >
+                    <SearchInput
+                        value={filters.search}
+                        onSearch={search}
+                        placeholder="Search programs…"
+                        label="Search programs"
                     />
-                </div>
-            </div>
+                </ListToolbar>
+
+                <ProgramsOverviewTable
+                    programs={programs}
+                    can={can}
+                    searching={filters.search !== ''}
+                    onStart={openStart}
+                />
+            </PageBody>
 
             <StartOnboardingDialog
                 employees={options.employees}

@@ -1,13 +1,28 @@
-import { router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import {
-    ArrowDown,
-    ArrowUp,
-    ChevronsUpDown,
+    ArchiveRestore,
+    Eye,
+    GraduationCap,
+    Trash2,
     Trophy,
     Users,
 } from 'lucide-react';
 import {
-    Table,
+    DataTable,
+    EmptyTableRow,
+    RowMenuTrigger,
+    rowOpens,
+    SortableHead,
+    TableCard,
+} from '@/components/data-table';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     TableBody,
     TableCell,
     TableHead,
@@ -28,74 +43,125 @@ type Props = {
     sort: ProgramSort;
     direction: 'asc' | 'desc';
     onSort: (key: ProgramSort) => void;
+    canManage: boolean;
+    /** The list is the archive: rows restore or delete rather than open. */
+    archived: boolean;
+    filtered: boolean;
+    onRestore: (program: TrainingProgram) => void;
+    onForceDelete: (program: TrainingProgram) => void;
 };
 
-/** Training programs as a dense, sortable table — the default layout. */
-export function ProgramTable({ programs, sort, direction, onSort }: Props) {
+/**
+ * Training programs: who runs them, when, how full they are, how many finished,
+ * and where each stands. A row opens the program; archived ones are restored or
+ * deleted from their menu.
+ */
+export function ProgramTable({
+    programs,
+    sort,
+    direction,
+    onSort,
+    canManage,
+    archived,
+    filtered,
+    onRestore,
+    onForceDelete,
+}: Props) {
+    const sortable = (key: ProgramSort) => ({
+        active: sort === key,
+        direction,
+        onSort: () => onSort(key),
+    });
+
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <div className="overflow-x-auto">
-                <Table>
-                    <TableHeader className="bg-muted/40">
-                        <TableRow className="hover:bg-transparent">
-                            <SortHead
-                                label="Program"
-                                sortKey="name"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Schedule"
-                                sortKey="schedule"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                            <SortHead
-                                label="Seats"
-                                sortKey="seats"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                                align="right"
-                            />
-                            <SortHead
-                                label="Completed"
-                                sortKey="completed"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                                align="right"
-                            />
-                            <SortHead
-                                label="Status"
-                                sortKey="status"
-                                sort={sort}
-                                direction={direction}
-                                onSort={onSort}
-                            />
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {programs.map((program) => (
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <SortableHead {...sortable('name')}>
+                            Program
+                        </SortableHead>
+                        <SortableHead {...sortable('schedule')}>
+                            Schedule
+                        </SortableHead>
+                        <SortableHead {...sortable('seats')} align="right">
+                            Seats
+                        </SortableHead>
+                        <SortableHead {...sortable('completed')} align="right">
+                            Completed
+                        </SortableHead>
+                        <SortableHead {...sortable('status')}>
+                            Status
+                        </SortableHead>
+                        <TableHead className="w-10" />
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {programs.length === 0 && (
+                        <EmptyTableRow
+                            colSpan={6}
+                            icon={GraduationCap}
+                            title={
+                                archived
+                                    ? 'Nothing archived'
+                                    : filtered
+                                      ? 'No programs match'
+                                      : 'No training programs yet'
+                            }
+                            description={
+                                archived
+                                    ? 'Archived programs appear here.'
+                                    : filtered
+                                      ? 'Try another status, or clear the search.'
+                                      : canManage
+                                        ? 'Create one with "New program", then enroll employees in it.'
+                                        : 'No training programs have been set up yet.'
+                            }
+                        />
+                    )}
+
+                    {programs.map((program) => {
+                        const href = trainingRoutes.show(program.hashid);
+                        const opens = rowOpens(href);
+
+                        return (
                             <TableRow
                                 key={program.id}
-                                onClick={() =>
-                                    router.get(
-                                        trainingRoutes.show(program.hashid),
-                                    )
-                                }
-                                className="cursor-pointer"
+                                {...(archived ? {} : opens)}
+                                className={cn(
+                                    !archived && opens.className,
+                                    archived && 'text-muted-foreground',
+                                )}
                             >
                                 <TableCell>
-                                    <div className="flex min-w-0 flex-col">
-                                        <span className="text-sm font-medium">
-                                            {program.name}
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                        <span
+                                            className={cn(
+                                                'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                                                archived
+                                                    ? 'bg-muted text-muted-foreground'
+                                                    : 'bg-[#0ABFBF]/10 text-[#0ABFBF]',
+                                            )}
+                                        >
+                                            <GraduationCap className="size-4" />
                                         </span>
-                                        <span className="truncate text-xs text-muted-foreground">
-                                            {program.provider ?? 'In-house'}
-                                        </span>
+                                        <div className="min-w-0">
+                                            {archived ? (
+                                                <p className="max-w-64 truncate text-sm font-medium">
+                                                    {program.name}
+                                                </p>
+                                            ) : (
+                                                <Link
+                                                    href={href}
+                                                    className="block max-w-64 truncate text-sm font-medium hover:text-[#0ABFBF]"
+                                                >
+                                                    {program.name}
+                                                </Link>
+                                            )}
+                                            <p className="max-w-64 truncate text-xs text-muted-foreground">
+                                                {program.provider ?? 'In-house'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
@@ -119,58 +185,70 @@ export function ProgramTable({ programs, sort, direction, onSort }: Props) {
                                     </span>
                                 </TableCell>
                                 <TableCell>
-                                    <ProgramStatusBadge
-                                        status={program.status}
-                                    />
+                                    {archived ? (
+                                        <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                            Archived
+                                        </span>
+                                    ) : (
+                                        <ProgramStatusBadge
+                                            status={program.status}
+                                        />
+                                    )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {(!archived || canManage) && (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <RowMenuTrigger
+                                                    label={`Actions for ${program.name}`}
+                                                />
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="end"
+                                                className="w-48"
+                                            >
+                                                {archived ? (
+                                                    <>
+                                                        <DropdownMenuItem
+                                                            onSelect={() =>
+                                                                onRestore(
+                                                                    program,
+                                                                )
+                                                            }
+                                                        >
+                                                            <ArchiveRestore className="size-4" />
+                                                            Restore
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            variant="destructive"
+                                                            onSelect={() =>
+                                                                onForceDelete(
+                                                                    program,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                            Delete permanently
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                ) : (
+                                                    <DropdownMenuItem asChild>
+                                                        <Link href={href}>
+                                                            <Eye className="size-4" />
+                                                            Open program
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    )}
                                 </TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-        </div>
-    );
-}
-
-function SortHead({
-    label,
-    sortKey,
-    sort,
-    direction,
-    onSort,
-    align = 'left',
-}: {
-    label: string;
-    sortKey: ProgramSort;
-    sort: ProgramSort;
-    direction: 'asc' | 'desc';
-    onSort: (key: ProgramSort) => void;
-    align?: 'left' | 'right';
-}) {
-    const active = sort === sortKey;
-
-    return (
-        <TableHead className={cn(align === 'right' && 'text-right')}>
-            <button
-                type="button"
-                onClick={() => onSort(sortKey)}
-                className={cn(
-                    'inline-flex items-center gap-1 transition-colors hover:text-foreground',
-                    align === 'right' && 'flex-row-reverse',
-                    active && 'text-foreground',
-                )}
-            >
-                {label}
-                {active ? (
-                    direction === 'asc' ? (
-                        <ArrowUp className="size-3.5" />
-                    ) : (
-                        <ArrowDown className="size-3.5" />
-                    )
-                ) : (
-                    <ChevronsUpDown className="size-3.5 opacity-50" />
-                )}
-            </button>
-        </TableHead>
+                        );
+                    })}
+                </TableBody>
+            </DataTable>
+        </TableCard>
     );
 }

@@ -1,5 +1,19 @@
 import { CalendarRange } from 'lucide-react';
+import {
+    DataTable,
+    EmptyTableRow,
+    TableCard,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import {
     Tooltip,
     TooltipContent,
@@ -15,8 +29,6 @@ import {
     STATUS_TILE,
 } from '../constants';
 import type { WeekCell, WeeklyView } from '../types';
-
-const GRID_COLUMNS = 'minmax(180px, 1.4fr) repeat(7, minmax(0, 1fr))';
 
 /** The legend statuses, in a stable order. */
 const LEGEND: (keyof typeof STATUS_LABELS)[] = [
@@ -39,110 +51,132 @@ const LEGEND: (keyof typeof STATUS_LABELS)[] = [
 export function WeeklyGrid({
     week,
     onPickDay,
+    resetKey,
 }: {
     week: WeeklyView;
+    /** The server filters on screen — changing them returns to page one. */
+    resetKey: string;
     onPickDay: (date: string) => void;
 }) {
-    if (week.rows.length === 0) {
-        return <EmptyState />;
-    }
+    const page = useClientPagination(week.rows, resetKey, 25);
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-                <div className="min-w-[640px]">
-                    {/* Header */}
-                    <div
-                        className="grid border-b border-border bg-muted/30"
-                        style={{ gridTemplateColumns: GRID_COLUMNS }}
-                    >
-                        <div className="sticky left-0 z-10 bg-muted/30 px-4 py-2.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase backdrop-blur">
-                            Employee
-                        </div>
-                        {week.days.map((day) => (
-                            <div
-                                key={day.date}
-                                className={cn(
-                                    'flex flex-col items-center justify-center py-2 text-center',
-                                    day.is_today && 'bg-[#0ABFBF]/10',
-                                )}
-                            >
-                                <span
+            <TableCard
+                title="Week at a glance"
+                count={week.rows.length}
+                description="Pick a day to open its log."
+            >
+                <DataTable className="min-w-[44rem] table-fixed">
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-56">Employee</TableHead>
+                            {week.days.map((day) => (
+                                <TableHead
+                                    key={day.date}
                                     className={cn(
-                                        'text-[11px] font-semibold tracking-wide uppercase',
-                                        day.is_today
-                                            ? 'text-[#0a8b91] dark:text-[#0ABFBF]'
-                                            : 'text-muted-foreground',
+                                        'px-1 text-center',
+                                        day.is_today && 'bg-[#0ABFBF]/10',
                                     )}
                                 >
-                                    {day.weekday}
-                                </span>
-                                <span
-                                    className={cn(
-                                        'text-sm tabular-nums',
-                                        day.is_today &&
-                                            'font-bold text-[#0a8b91] dark:text-[#0ABFBF]',
-                                    )}
-                                >
-                                    {day.day}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Rows */}
-                    {week.rows.map((row) => (
-                        <div
-                            key={row.employee.id}
-                            className="grid border-b border-border/60 last:border-0 hover:bg-muted/20"
-                            style={{ gridTemplateColumns: GRID_COLUMNS }}
-                        >
-                            <div className="sticky left-0 z-10 flex items-center gap-2.5 bg-card px-4 py-2">
-                                <PersonAvatar
-                                    name={row.employee.full_name}
-                                    initials={row.employee.initials}
-                                    photo={row.employee.photo}
-                                    className="size-8"
-                                />
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium">
-                                        {row.employee.full_name}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                        {row.employee.department?.name ?? '—'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {row.cells.map((cell) => (
-                                <WeekTile
-                                    key={cell.date}
-                                    cell={cell}
-                                    onPick={onPickDay}
-                                />
+                                    <button
+                                        type="button"
+                                        onClick={() => onPickDay(day.date)}
+                                        className={cn(
+                                            'inline-flex items-baseline gap-1 text-[11px] font-semibold tracking-wide uppercase hover:text-foreground',
+                                            day.is_today
+                                                ? 'text-[#0a8b91] dark:text-[#0ABFBF]'
+                                                : 'text-muted-foreground',
+                                        )}
+                                        aria-label={`Open the log for ${day.weekday} ${day.day}`}
+                                    >
+                                        {day.weekday}
+                                        <span className="text-sm tabular-nums">
+                                            {day.day}
+                                        </span>
+                                    </button>
+                                </TableHead>
                             ))}
-                        </div>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {week.rows.length === 0 && (
+                            <EmptyTableRow
+                                colSpan={8}
+                                icon={CalendarRange}
+                                title="No employees match this view"
+                                description="Try a different department or search."
+                            />
+                        )}
+
+                        {page.rows.map((row) => (
+                            <TableRow key={row.employee.id}>
+                                <TableCell>
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                        <PersonAvatar
+                                            name={row.employee.full_name}
+                                            initials={row.employee.initials}
+                                            photo={row.employee.photo}
+                                            className="size-8"
+                                            fallbackClassName="text-[11px]"
+                                        />
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium">
+                                                {row.employee.full_name}
+                                            </p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                {row.employee.department
+                                                    ?.name ?? '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </TableCell>
+
+                                {row.cells.map((cell, index) => (
+                                    <TableCell
+                                        key={cell.date}
+                                        className={cn(
+                                            'px-1 py-1',
+                                            week.days[index]?.is_today &&
+                                                'bg-[#0ABFBF]/5',
+                                        )}
+                                    >
+                                        <WeekTile
+                                            cell={cell}
+                                            onPick={onPickDay}
+                                        />
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </DataTable>
+
+                {/* Legend */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2">
+                    {LEGEND.map((status) => (
+                        <span
+                            key={status}
+                            className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                        >
+                            <span
+                                className={cn(
+                                    'size-2.5 rounded-[3px]',
+                                    STATUS_DOT[status],
+                                )}
+                            />
+                            {STATUS_LABELS[status]}
+                        </span>
                     ))}
                 </div>
-            </div>
+            </TableCard>
 
-            {/* Legend */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
-                {LEGEND.map((status) => (
-                    <span
-                        key={status}
-                        className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
-                    >
-                        <span
-                            className={cn(
-                                'size-2.5 rounded-[3px]',
-                                STATUS_DOT[status],
-                            )}
-                        />
-                        {STATUS_LABELS[status]}
-                    </span>
-                ))}
-            </div>
+            <TablePagination
+                meta={page.meta}
+                perPage={page.perPage}
+                onPage={page.setPage}
+                onPerPage={page.setPerPage}
+            />
         </div>
     );
 }
@@ -158,9 +192,7 @@ function WeekTile({
 
     if (!cell.status) {
         return (
-            <div className="p-1">
-                <div className="h-11 rounded-md border border-dashed border-border/50" />
-            </div>
+            <div className="h-10 rounded-md border border-dashed border-border/50" />
         );
     }
 
@@ -176,62 +208,46 @@ function WeekTile({
               : '';
 
     return (
-        <div className="p-1">
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        onClick={() => onPick(cell.date)}
-                        className={cn(
-                            'flex h-11 w-full flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium ring-1 ring-transparent transition-all hover:ring-2',
-                            STATUS_TILE[cell.status],
-                        )}
-                    >
-                        <span className="truncate tabular-nums">{label}</span>
-                        {cell.late_minutes > 0 && (
-                            <span className="text-[9px] font-semibold opacity-80">
-                                +{formatDuration(cell.late_minutes)}
-                            </span>
-                        )}
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent className="flex flex-col gap-0.5">
-                    <span className="font-medium">
-                        {STATUS_LABELS[cell.status]}
-                    </span>
-                    {cell.holiday && (
-                        <span className="text-primary-foreground/80">
-                            {cell.holiday}
-                        </span>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    onClick={() => onPick(cell.date)}
+                    className={cn(
+                        'flex h-10 w-full flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium ring-1 ring-transparent transition-all hover:ring-2',
+                        STATUS_TILE[cell.status],
                     )}
-                    {worked && (
-                        <span className="text-primary-foreground/80 tabular-nums">
-                            {formatTime(cell.first_in_at, timeZone)} →{' '}
-                            {formatTime(cell.last_out_at, timeZone)} ·{' '}
-                            {formatDuration(cell.worked_minutes)}
-                        </span>
-                    )}
+                >
+                    <span className="truncate tabular-nums">{label}</span>
                     {cell.late_minutes > 0 && (
-                        <span className="text-primary-foreground/80">
-                            Late by {formatDuration(cell.late_minutes)}
+                        <span className="text-[9px] font-semibold opacity-80">
+                            +{formatDuration(cell.late_minutes)}
                         </span>
                     )}
-                </TooltipContent>
-            </Tooltip>
-        </div>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <CalendarRange className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No employees match this view</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                Try a different department or search.
-            </p>
-        </div>
+                </button>
+            </TooltipTrigger>
+            <TooltipContent className="flex flex-col gap-0.5">
+                <span className="font-medium">
+                    {STATUS_LABELS[cell.status]}
+                </span>
+                {cell.holiday && (
+                    <span className="text-primary-foreground/80">
+                        {cell.holiday}
+                    </span>
+                )}
+                {worked && (
+                    <span className="text-primary-foreground/80 tabular-nums">
+                        {formatTime(cell.first_in_at, timeZone)} →{' '}
+                        {formatTime(cell.last_out_at, timeZone)} ·{' '}
+                        {formatDuration(cell.worked_minutes)}
+                    </span>
+                )}
+                {cell.late_minutes > 0 && (
+                    <span className="text-primary-foreground/80">
+                        Late by {formatDuration(cell.late_minutes)}
+                    </span>
+                )}
+            </TooltipContent>
+        </Tooltip>
     );
 }

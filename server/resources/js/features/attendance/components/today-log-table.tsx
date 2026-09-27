@@ -1,13 +1,23 @@
-import {
-    ArrowDown,
-    ArrowUp,
-    ChevronsUpDown,
-    TriangleAlert,
-} from 'lucide-react';
+import { CalendarCheck, Eye, Pencil, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+    DataTable,
+    EmptyTableRow,
+    RowMenuTrigger,
+    rowOpens,
+    SortableHead,
+    TableCard,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import {
-    Table,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     TableBody,
     TableCell,
     TableHead,
@@ -26,7 +36,6 @@ import type { AttendanceRecord } from '../types';
 import { AttendanceStatusBadge } from './attendance-status-badge';
 
 type SortKey = 'name' | 'in' | 'out' | 'hours' | 'status';
-type SortDir = 'asc' | 'desc';
 
 const STATUS_ORDER: Record<string, number> = {
     incomplete: 0,
@@ -62,233 +71,248 @@ function sortValue(record: AttendanceRecord, key: SortKey): string | number {
 
 /**
  * The daily log — one sortable row per employee with their in / out times,
- * computed hours, a status pill and an anomaly flag. The premium, dense answer
- * to "what happened today, per person".
+ * computed hours, a status pill and an anomaly flag. A row opens that
+ * person's day.
  */
 export function TodayLogTable({
     records,
+    canManage,
     onOpen,
+    onEdit,
+    resetKey,
 }: {
     records: AttendanceRecord[];
+    /** The server filters on screen — changing them returns to page one. */
+    resetKey: string;
+    canManage: boolean;
     onOpen: (record: AttendanceRecord) => void;
-}) {
-    const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
-        key: 'name',
-        dir: 'asc',
-    });
-
-    const sorted = useMemo(() => {
-        const rows = [...records];
-        rows.sort((a, b) => {
-            const av = sortValue(a, sort.key);
-            const bv = sortValue(b, sort.key);
-            const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-
-            return sort.dir === 'asc' ? cmp : -cmp;
-        });
-
-        return rows;
-    }, [records, sort]);
-
-    const toggle = (key: SortKey) =>
-        setSort((prev) =>
-            prev.key === key
-                ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-                : { key, dir: key === 'name' ? 'asc' : 'desc' },
-        );
-
-    return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-            <Table>
-                <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                        <SortHeader
-                            label="Employee"
-                            active={sort}
-                            col="name"
-                            onSort={toggle}
-                        />
-                        <SortHeader
-                            label="Time in"
-                            active={sort}
-                            col="in"
-                            onSort={toggle}
-                            align="right"
-                            className="hidden sm:table-cell"
-                        />
-                        <SortHeader
-                            label="Time out"
-                            active={sort}
-                            col="out"
-                            onSort={toggle}
-                            align="right"
-                            className="hidden sm:table-cell"
-                        />
-                        <SortHeader
-                            label="Hours"
-                            active={sort}
-                            col="hours"
-                            onSort={toggle}
-                            align="right"
-                        />
-                        <SortHeader
-                            label="Status"
-                            active={sort}
-                            col="status"
-                            onSort={toggle}
-                        />
-                        <TableHead className="w-10 text-center">
-                            <span className="sr-only">Flags</span>
-                        </TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {sorted.map((record) => (
-                        <Row
-                            key={record.employee?.id ?? record.id}
-                            record={record}
-                            onOpen={onOpen}
-                        />
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
-}
-
-function Row({
-    record,
-    onOpen,
-}: {
-    record: AttendanceRecord;
-    onOpen: (record: AttendanceRecord) => void;
+    onEdit: (record: AttendanceRecord) => void;
 }) {
     const timeZone = useOrganizationTimeZone();
-    const employee = record.employee;
-    const anomalies = recordAnomalies(record);
-    const worked = record.worked_minutes > 0;
+    const [sort, setSort] = useState<SortKey>('name');
+    const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
 
-    return (
-        <TableRow
-            className="cursor-pointer"
-            onClick={() => onOpen(record)}
-            tabIndex={0}
-            onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onOpen(record);
-                }
-            }}
-        >
-            <TableCell className="py-2.5">
-                <div className="flex items-center gap-3">
-                    <PersonAvatar
-                        name={employee?.full_name ?? 'Unknown'}
-                        initials={employee?.initials ?? '?'}
-                        photo={employee?.photo}
-                        className="size-9"
-                    />
-                    <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                            {employee?.full_name ?? 'Unknown employee'}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                            {employee?.department?.name ?? '—'}
-                        </p>
-                    </div>
-                </div>
-            </TableCell>
+    const sorted = useMemo(() => {
+        const dir = direction === 'asc' ? 1 : -1;
 
-            <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
-                {formatTime(record.first_in_at, timeZone)}
-            </TableCell>
-            <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
-                {formatTime(record.last_out_at, timeZone)}
-            </TableCell>
+        return [...records].sort((a, b) => {
+            const av = sortValue(a, sort);
+            const bv = sortValue(b, sort);
 
-            <TableCell className="text-right text-sm font-medium tabular-nums">
-                {worked ? formatDuration(record.worked_minutes) : '—'}
-                {record.overtime_minutes > 0 && (
-                    <span className="ml-1 text-xs font-normal text-indigo-600 dark:text-indigo-400">
-                        +{formatDuration(record.overtime_minutes)}
-                    </span>
-                )}
-            </TableCell>
+            return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+        });
+    }, [records, sort, direction]);
 
-            <TableCell>
-                <AttendanceStatusBadge status={record.status} />
-            </TableCell>
-
-            <TableCell className="text-center">
-                {anomalies.length > 0 && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span
-                                className={cn(
-                                    'inline-flex size-6 items-center justify-center rounded-md',
-                                    anomalies.some((a) => a.tone === 'danger')
-                                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-                                )}
-                            >
-                                <TriangleAlert className="size-3.5" />
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                            <ul className="space-y-0.5">
-                                {anomalies.map((a) => (
-                                    <li key={a.label}>{a.label}</li>
-                                ))}
-                            </ul>
-                        </TooltipContent>
-                    </Tooltip>
-                )}
-            </TableCell>
-        </TableRow>
+    const page = useClientPagination(
+        sorted,
+        `${resetKey}|${sort}|${direction}`,
+        25,
     );
-}
 
-function SortHeader({
-    label,
-    col,
-    active,
-    onSort,
-    align = 'left',
-    className,
-}: {
-    label: string;
-    col: SortKey;
-    active: { key: SortKey; dir: SortDir };
-    onSort: (key: SortKey) => void;
-    align?: 'left' | 'right';
-    className?: string;
-}) {
-    const isActive = active.key === col;
-    const Icon = !isActive
-        ? ChevronsUpDown
-        : active.dir === 'asc'
-          ? ArrowUp
-          : ArrowDown;
+    const sortable = (key: SortKey) => ({
+        active: sort === key,
+        direction,
+        onSort: () => {
+            if (key === sort) {
+                setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+            } else {
+                setSort(key);
+                setDirection(key === 'name' ? 'asc' : 'desc');
+            }
+        },
+    });
 
     return (
-        <TableHead className={className}>
-            <button
-                type="button"
-                onClick={() => onSort(col)}
-                className={cn(
-                    'inline-flex items-center gap-1 transition-colors hover:text-foreground',
-                    align === 'right' && 'flex-row-reverse',
-                    isActive && 'text-foreground',
-                )}
-            >
-                {label}
-                <Icon
-                    className={cn(
-                        'size-3',
-                        isActive ? 'opacity-100' : 'opacity-40',
-                    )}
-                />
-            </button>
-        </TableHead>
+        <div className="flex flex-col gap-3">
+            <TableCard title="Daily log" count={records.length}>
+                <DataTable>
+                    <TableHeader>
+                        <TableRow>
+                            <SortableHead {...sortable('name')}>
+                                Employee
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('in')}
+                                align="right"
+                                className="hidden sm:table-cell"
+                            >
+                                Time in
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('out')}
+                                align="right"
+                                className="hidden sm:table-cell"
+                            >
+                                Time out
+                            </SortableHead>
+                            <SortableHead {...sortable('hours')} align="right">
+                                Hours
+                            </SortableHead>
+                            <SortableHead {...sortable('status')}>
+                                Status
+                            </SortableHead>
+                            <TableHead className="w-10 text-center">
+                                <span className="sr-only">Flags</span>
+                            </TableHead>
+                            <TableHead className="w-10" />
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {records.length === 0 && (
+                            <EmptyTableRow
+                                colSpan={7}
+                                icon={CalendarCheck}
+                                title="No employees match this view"
+                                description="Try a different date, status, or department filter."
+                            />
+                        )}
+
+                        {page.rows.map((record) => {
+                            const employee = record.employee;
+                            const name = employee?.full_name ?? 'Unknown';
+                            const anomalies = recordAnomalies(record);
+                            const opens = rowOpens(() => onOpen(record));
+
+                            return (
+                                <TableRow
+                                    key={employee?.id ?? record.id}
+                                    {...opens}
+                                >
+                                    <TableCell>
+                                        <div className="flex min-w-0 items-center gap-2.5">
+                                            <PersonAvatar
+                                                name={name}
+                                                initials={
+                                                    employee?.initials ?? '?'
+                                                }
+                                                photo={employee?.photo}
+                                                className="size-8"
+                                                fallbackClassName="text-[11px]"
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="max-w-60 truncate text-sm font-medium">
+                                                    {name}
+                                                </p>
+                                                <p className="max-w-60 truncate text-xs text-muted-foreground">
+                                                    {employee?.department
+                                                        ?.name ?? '—'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
+                                        {formatTime(
+                                            record.first_in_at,
+                                            timeZone,
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
+                                        {formatTime(
+                                            record.last_out_at,
+                                            timeZone,
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm font-medium tabular-nums">
+                                        {record.worked_minutes > 0
+                                            ? formatDuration(
+                                                  record.worked_minutes,
+                                              )
+                                            : '—'}
+                                        {record.overtime_minutes > 0 && (
+                                            <span className="ml-1 text-xs font-normal text-indigo-600 dark:text-indigo-400">
+                                                +
+                                                {formatDuration(
+                                                    record.overtime_minutes,
+                                                )}
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <AttendanceStatusBadge
+                                            status={record.status}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        {anomalies.length > 0 && (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span
+                                                        className={cn(
+                                                            'inline-flex size-6 items-center justify-center rounded-md',
+                                                            anomalies.some(
+                                                                (a) =>
+                                                                    a.tone ===
+                                                                    'danger',
+                                                            )
+                                                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                                                        )}
+                                                        aria-label={anomalies
+                                                            .map((a) => a.label)
+                                                            .join(', ')}
+                                                    >
+                                                        <TriangleAlert className="size-3.5" />
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="left">
+                                                    <ul className="space-y-0.5">
+                                                        {anomalies.map((a) => (
+                                                            <li key={a.label}>
+                                                                {a.label}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <RowMenuTrigger
+                                                    label={`Actions for ${name}`}
+                                                />
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="end"
+                                                className="w-44"
+                                            >
+                                                <DropdownMenuItem
+                                                    onSelect={() =>
+                                                        onOpen(record)
+                                                    }
+                                                >
+                                                    <Eye className="size-4" />
+                                                    Open the day
+                                                </DropdownMenuItem>
+                                                {canManage && (
+                                                    <DropdownMenuItem
+                                                        onSelect={() =>
+                                                            onEdit(record)
+                                                        }
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                        {record.hashid
+                                                            ? 'Edit punches'
+                                                            : 'Add punches'}
+                                                    </DropdownMenuItem>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </DataTable>
+            </TableCard>
+
+            <TablePagination
+                meta={page.meta}
+                perPage={page.perPage}
+                onPage={page.setPage}
+                onPerPage={page.setPerPage}
+            />
+        </div>
     );
 }

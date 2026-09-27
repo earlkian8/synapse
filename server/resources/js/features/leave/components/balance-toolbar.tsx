@@ -1,13 +1,8 @@
-import { Search, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    FilterSelect,
+    ListToolbar,
+    SearchInput,
+} from '@/components/data-table';
 import type { DepartmentRef } from '../types';
 
 type Props = {
@@ -19,6 +14,7 @@ type Props = {
     onSearch: (value: string) => void;
     onYear: (value: number) => void;
     onDepartment: (value: number | null) => void;
+    onReset: () => void;
 };
 
 export function BalanceToolbar({
@@ -30,86 +26,44 @@ export function BalanceToolbar({
     onSearch,
     onYear,
     onDepartment,
+    onReset,
 }: Props) {
-    const [term, setTerm] = useState(search);
-    const [synced, setSynced] = useState(search);
-
-    if (search !== synced) {
-        setSynced(search);
-        setTerm(search);
-    }
-
-    useEffect(() => {
-        const handle = window.setTimeout(() => {
-            if (term !== search) {
-                onSearch(term);
-            }
-        }, 350);
-
-        return () => window.clearTimeout(handle);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [term]);
-
     return (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:w-64">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    value={term}
-                    onChange={(event) => setTerm(event.target.value)}
-                    placeholder="Search employees…"
-                    className="pl-9"
-                    aria-label="Search employees"
-                />
-                {term && (
-                    <button
-                        type="button"
-                        onClick={() => setTerm('')}
-                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-                        aria-label="Clear search"
-                    >
-                        <X className="size-4" />
-                    </button>
-                )}
-            </div>
-
-            <Select
+        <ListToolbar
+            filtered={search !== '' || department !== null}
+            onReset={onReset}
+        >
+            <SearchInput
+                value={search}
+                onSearch={onSearch}
+                placeholder="Search employees…"
+                label="Search employees"
+            />
+            <FilterSelect
+                label="Filter by department"
                 value={department ? String(department) : 'all'}
-                onValueChange={(value) =>
+                onChange={(value) =>
                     onDepartment(value === 'all' ? null : Number(value))
                 }
-            >
-                <SelectTrigger
-                    className="w-[160px]"
-                    aria-label="Filter by department"
-                >
-                    <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All departments</SelectItem>
-                    {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={String(dept.id)}>
-                            {dept.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-
-            <Select
+                options={[
+                    { value: 'all', label: 'All departments' },
+                    ...departments.map((d) => ({
+                        value: String(d.id),
+                        label: d.name,
+                    })),
+                ]}
+                className="w-44"
+            />
+            <FilterSelect
+                label="Select year"
                 value={String(year)}
-                onValueChange={(value) => onYear(Number(value))}
-            >
-                <SelectTrigger className="w-[110px]" aria-label="Select year">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    {years.map((y) => (
-                        <SelectItem key={y} value={String(y)}>
-                            {y}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
+                onChange={(value) => onYear(Number(value))}
+                options={years.map((y) => ({
+                    value: String(y),
+                    label: String(y),
+                }))}
+                className="w-28"
+            />
+        </ListToolbar>
     );
 }

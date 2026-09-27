@@ -10,21 +10,23 @@ tenant-scoped (ADR 0005).
 
 ## Surfaces
 
-- **`/leave`** — the **approvals inbox**: stats, a status-tabbed queue (Pending /
-  Approved / Upcoming / Rejected / Cancelled / All), and filters (search, type,
-  department). Each row shows the employee, type, dates and day count; pending rows have
-  inline **Approve / Reject**. Opening a row reveals a **review drawer** with the full
+- **`/leave`** — the **approvals inbox**: stat tiles and a table of requests (employee,
+  leave type, dates, days, status, filed). A **status filter** (Pending by default, then
+  Approved / Upcoming / Rejected / Cancelled / All statuses) sits beside search, type and
+  department. Pending rows have inline **Approve / Reject**. Opening a row reveals a
+  **review modal** with the full
   request, the **balance impact** for that type/year, and the actions
   (approve/reject with a note, edit, cancel, delete).
-- **`/leave/balances`** — per-employee balances for a chosen **year**: each employee's
-  entitlement, used and remaining days per type, with an **adjust drawer** to set
-  entitlements.
+- **`/leave/balances`** — per-employee balances for a chosen **year**, as a table: one
+  column per leave type showing remaining of entitled days with a meter, and an
+  **Adjust** button per row that opens the entitlement modal.
 - **`/setup/leave-types`** — Company Setup: the kinds of leave (a card grid), each with a
   colour, default annual entitlement and policy flags (paid, half-day, requires-approval,
   active). Archive / restore / permanent-delete.
 
-The inbox is a **queue**, not a data table: leave is action-oriented (clear the pending
-list). Balances are a **list with chips**, not a wide employee×type matrix.
+Both pages use the shared Workforce table kit
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)). The inbox
+is still a queue: it opens on Pending, and approving stays one click on the row.
 
 ## Data model
 
@@ -66,9 +68,9 @@ list). Balances are a **list with chips**, not a wide employee×type matrix.
 ## Frontend
 
 - `features/leave/` — the inbox and balances: types, routes, constants, the filters hook,
-  and components (stats, the status-tabbed toolbar, request row, the **file-leave**,
-  **review-request** and **adjust-balance modals**, balances toolbar/cards, and a shared
-  Requests/Balances nav). Pages: `pages/leave/{index,balances}`.
+  and components (stats, the toolbar, `leave-requests-table`, the **file-leave**,
+  **review-request** and **adjust-balance modals**, balances toolbar and
+  `balances-table`, and a shared Requests/Balances nav). Pages: `pages/leave/{index,balances}`.
 - All three open **centred**, on the shared `components/modal.tsx` shell the rest of the
   app uses, and the module reuses the shared `components/confirm-dialog.tsx` rather than
   carrying its own copy.

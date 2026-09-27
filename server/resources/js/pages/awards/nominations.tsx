@@ -1,9 +1,10 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, Trophy } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import { PageBody, PageHeader } from '@/components/data-table';
 import { GiveAwardDialog } from '@/features/awards/components/give-award-dialog';
-import { NominationCard } from '@/features/awards/components/nomination-card';
-import { SIGNAL_COLORS } from '@/features/awards/constants';
+import { NominationTypesTable } from '@/features/awards/components/nomination-types-table';
+import { NomineesTable } from '@/features/awards/components/nominees-table';
+import { awardColorStyle, SIGNAL_COLORS } from '@/features/awards/constants';
 import { awardsRoutes } from '@/features/awards/routes';
 import type {
     AwardNominationsPageProps,
@@ -21,9 +22,30 @@ const LEGEND: { key: NominationSignalKey; label: string }[] = [
     { key: 'forecast', label: 'ML forecast' },
 ];
 
+/** The award type the URL names (`?type=`), if any. */
+function typeFromUrl(url: string): number | null {
+    const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
+    const value = Number(new URLSearchParams(query).get('type'));
+
+    return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+/**
+ * The nomination board in two levels, like the rest of the workforce modules:
+ * every award type and who leads it, then — `?type=` — one award's ranked
+ * shortlist with the transparent breakdown behind each score.
+ */
 export default function AwardNominations() {
-    const { board, employees, ai_available, can } =
-        usePage<AwardNominationsPageProps>().props;
+    const { props, url } = usePage<AwardNominationsPageProps>();
+    const { board, employees, ai_available, can } = props;
+    const typeId = typeFromUrl(url);
+    const selected = board.find((entry) => entry.type.id === typeId) ?? null;
+
+    const openType = (id: number | null) =>
+        router.get(awardsRoutes.nominations, id === null ? {} : { type: id }, {
+            preserveState: true,
+            preserveScroll: false,
+        });
 
     const [preset, setPreset] = useState<AwardPreset | null>(null);
     const [giveOpen, setGiveOpen] = useState(false);
@@ -48,28 +70,40 @@ export default function AwardNominations() {
         <>
             <Head title="Awards — Nomination Board" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <Link
-                    href={awardsRoutes.index}
-                    className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="size-4" />
-                    All recognitions
-                </Link>
+            <PageBody>
+                {selected ? (
+                    <PageHeader
+                        back={{
+                            href: awardsRoutes.nominations,
+                            label: 'Back to every award',
+                        }}
+                        title={selected.type.name}
+                        badges={
+                            <span
+                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                                style={awardColorStyle(selected.type.color)}
+                                title={selected.profile.hint}
+                            >
+                                {selected.profile.label}
+                            </span>
+                        }
+                        description={
+                            selected.type.description ??
+                            'Who deserves this award right now, ranked from the signals the ERP tracks.'
+                        }
+                    />
+                ) : (
+                    <PageHeader
+                        back={{
+                            href: awardsRoutes.index,
+                            label: 'Back to all recognitions',
+                        }}
+                        title="Nomination board"
+                        description="Who deserves each award right now — ranked from the signals the ERP already tracks. Open an award to see its shortlist and why each person ranks."
+                    />
+                )}
 
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-xl font-semibold tracking-tight">
-                        Nomination board
-                    </h1>
-                    <p className="max-w-2xl text-sm text-muted-foreground">
-                        Who deserves each award right now — ranked from the
-                        signals the ERP already tracks. Each award weighs the
-                        signals that match what it celebrates; expand a nominee
-                        to see exactly why they rank.
-                    </p>
-                </div>
-
-                {/* Signal legend — the same hues every breakdown uses */}
+                {/* Signal legend — the same hues every bar uses */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                     {LEGEND.map((signal) => (
                         <span
@@ -87,21 +121,22 @@ export default function AwardNominations() {
                     ))}
                 </div>
 
-                {board.length === 0 ? (
-                    <EmptyState />
+                {selected ? (
+                    <NomineesTable
+                        key={selected.type.id}
+                        nomination={selected}
+                        canManage={can.manage}
+                        onGive={openGive}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        {board.map((nomination) => (
-                            <NominationCard
-                                key={nomination.type.id}
-                                nomination={nomination}
-                                canManage={can.manage}
-                                onGive={openGive}
-                            />
-                        ))}
-                    </div>
+                    <NominationTypesTable
+                        board={board}
+                        canManage={can.manage}
+                        onOpen={openType}
+                        onGive={openGive}
+                    />
                 )}
-            </div>
+            </PageBody>
 
             <GiveAwardDialog
                 open={giveOpen}
@@ -113,21 +148,6 @@ export default function AwardNominations() {
                 aiAvailable={ai_available}
             />
         </>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <Trophy className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No active award types</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                Add award types under Company Setup → Award Types and the board
-                will rank who deserves each one.
-            </p>
-        </div>
     );
 }
 

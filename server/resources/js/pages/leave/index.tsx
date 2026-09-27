@@ -1,14 +1,20 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import {
+    PageBody,
+    PageHeader,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { FileLeaveDialog } from '@/features/leave/components/file-leave-dialog';
 import { LeaveNav } from '@/features/leave/components/leave-nav';
-import { LeaveRequestRow } from '@/features/leave/components/leave-request-row';
+import { LeaveRequestsTable } from '@/features/leave/components/leave-requests-table';
 import { LeaveStatsCards } from '@/features/leave/components/leave-stats';
 import { LeaveToolbar } from '@/features/leave/components/leave-toolbar';
 import { ReviewRequestDialog } from '@/features/leave/components/review-request-dialog';
+import { DEFAULT_FILTERS } from '@/features/leave/constants';
 import { useLeaveFilters } from '@/features/leave/hooks/use-leave-filters';
 import { leaveRoutes } from '@/features/leave/routes';
 import type { LeaveIndexPageProps, LeaveRequest } from '@/features/leave/types';
@@ -26,6 +32,18 @@ export default function LeaveIndex() {
         usePage<LeaveIndexPageProps>().props;
     const { setSearch, setStatus, setType, setDepartment, reset } =
         useLeaveFilters(filters);
+
+    const filtered =
+        filters.search !== '' ||
+        filters.type !== null ||
+        filters.department !== null ||
+        filters.status !== DEFAULT_FILTERS.status;
+    const page = useClientPagination(
+        requests,
+        [filters.search, filters.status, filters.type, filters.department].join(
+            '|',
+        ),
+    );
 
     const [fileOpen, setFileOpen] = useState(false);
     const [fileRequest, setFileRequest] = useState<LeaveRequest | null>(null);
@@ -111,23 +129,16 @@ export default function LeaveIndex() {
         <>
             <Head title="Leave Management" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Leave Management
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Review time-off requests, track who's out, and keep
-                            balances in check.
-                        </p>
-                    </div>
-                    <LeaveNav active="requests" />
-                </div>
+            <PageBody>
+                <PageHeader
+                    title="Leave Management"
+                    description="Review time-off requests, track who's out, and keep balances in check."
+                    actions={<LeaveNav active="requests" />}
+                />
 
                 <LeaveStatsCards stats={stats} />
 
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     <LeaveToolbar
                         filters={filters}
                         types={options.types}
@@ -141,24 +152,23 @@ export default function LeaveIndex() {
                         onFile={() => openFile(null)}
                     />
 
-                    {requests.length === 0 ? (
-                        <EmptyState />
-                    ) : (
-                        <div className="divide-y divide-border overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-                            {requests.map((request) => (
-                                <LeaveRequestRow
-                                    key={request.id}
-                                    request={request}
-                                    canManage={can.manage}
-                                    onOpen={openReview}
-                                    onApprove={(r) => quickReview(r, 'approve')}
-                                    onReject={(r) => quickReview(r, 'reject')}
-                                />
-                            ))}
-                        </div>
-                    )}
+                    <LeaveRequestsTable
+                        requests={page.rows}
+                        canManage={can.manage}
+                        filtered={filtered}
+                        onOpen={openReview}
+                        onApprove={(r) => quickReview(r, 'approve')}
+                        onReject={(r) => quickReview(r, 'reject')}
+                    />
+
+                    <TablePagination
+                        meta={page.meta}
+                        perPage={page.perPage}
+                        onPage={page.setPage}
+                        onPerPage={page.setPerPage}
+                    />
                 </div>
-            </div>
+            </PageBody>
 
             <FileLeaveDialog
                 request={fileRequest}
@@ -192,21 +202,6 @@ export default function LeaveIndex() {
                 />
             )}
         </>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <CalendarDays className="size-5" />
-            </span>
-            <p className="text-sm font-medium">Nothing here</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                No leave requests match this view. File one for an employee to
-                get started.
-            </p>
-        </div>
     );
 }
 

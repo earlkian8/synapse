@@ -13,7 +13,7 @@ export const DEFAULT_STATUS = 'all';
 
 /** The tabs across the top of the board. */
 export const STATUS_FILTERS = [
-    { value: 'all', label: 'All' },
+    { value: 'all', label: 'All statuses' },
     // Live, and only for today (ADR 0041): the shift has started, no clock-in.
     { value: 'not_clocked_in', label: 'Not clocked in yet' },
     { value: 'present', label: 'Present' },

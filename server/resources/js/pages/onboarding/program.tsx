@@ -1,20 +1,19 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, ListChecks, Plus, RotateCcw } from 'lucide-react';
+import { ListChecks, Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    FilterSelect,
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TablePagination,
+} from '@/components/data-table';
+import { Button } from '@/components/ui/button';
 import { CasesTable } from '@/features/onboarding/components/cases-table';
 import { ConfirmDialog } from '@/features/onboarding/components/confirm-dialog';
-import { OnboardingPagination } from '@/features/onboarding/components/onboarding-pagination';
 import { OnboardingStatsCards } from '@/features/onboarding/components/onboarding-stats';
-import { SearchInput } from '@/features/onboarding/components/search-input';
 import { StartOnboardingDialog } from '@/features/onboarding/components/start-onboarding-dialog';
 import {
     DEFAULT_FILTERS,
@@ -120,176 +119,123 @@ export default function OnboardingProgramPage() {
         <>
             <Head title={`${name} — Onboarding`} />
 
-            <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-                {/* Header */}
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 items-start gap-3">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="size-9 shrink-0"
-                            asChild
-                        >
-                            <Link
-                                href={onboardingRoutes.index}
-                                aria-label="Back to all programs"
-                            >
-                                <ArrowLeft className="size-4" />
-                            </Link>
-                        </Button>
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h1 className="truncate text-xl font-semibold tracking-tight">
-                                    {name}
-                                </h1>
-                                {program?.is_default && (
-                                    <span className="rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2 py-0.5 text-[11px] font-medium text-[#0ABFBF]">
-                                        Default
-                                    </span>
-                                )}
-                                {program && !program.is_active && (
-                                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                        Inactive
-                                    </span>
-                                )}
-                            </div>
-                            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-                                {program
-                                    ? [
-                                          targeting.length > 0
-                                              ? `For ${targeting.join(' · ')}`
-                                              : 'For all new hires',
-                                          `${program.tasks_count} task${program.tasks_count === 1 ? '' : 's'} per checklist`,
-                                          program.description,
-                                      ]
-                                          .filter(Boolean)
-                                          .join(' · ')
-                                    : 'Onboarding started without a program, or whose program was deleted.'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                        {can.managePrograms && program && (
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href={onboardingRoutes.programs}>
-                                    <ListChecks className="size-4" />
-                                    Edit program
-                                </Link>
-                            </Button>
-                        )}
-                        {can.manage && program?.is_active && (
-                            <Button
-                                size="sm"
-                                onClick={() => setStartOpen(true)}
-                            >
-                                <Plus className="size-4" />
-                                Start onboarding
-                            </Button>
-                        )}
-                    </div>
-                </div>
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: onboardingRoutes.index,
+                        label: 'Back to all programs',
+                    }}
+                    title={name}
+                    badges={
+                        <>
+                            {program?.is_default && (
+                                <span className="rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-2 py-0.5 text-[11px] font-medium text-[#0ABFBF]">
+                                    Default
+                                </span>
+                            )}
+                            {program && !program.is_active && (
+                                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                    Inactive
+                                </span>
+                            )}
+                        </>
+                    }
+                    description={
+                        <span className="line-clamp-2">
+                            {program
+                                ? [
+                                      targeting.length > 0
+                                          ? `For ${targeting.join(' · ')}`
+                                          : 'For all new hires',
+                                      `${program.tasks_count} task${program.tasks_count === 1 ? '' : 's'} per checklist`,
+                                      program.description,
+                                  ]
+                                      .filter(Boolean)
+                                      .join(' · ')
+                                : 'Onboarding started without a program, or whose program was deleted.'}
+                        </span>
+                    }
+                    actions={
+                        <>
+                            {can.managePrograms && program && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href={onboardingRoutes.programs}>
+                                        <ListChecks className="size-4" />
+                                        Edit program
+                                    </Link>
+                                </Button>
+                            )}
+                            {can.manage && program?.is_active && (
+                                <Button
+                                    size="sm"
+                                    onClick={() => setStartOpen(true)}
+                                >
+                                    <Plus className="size-4" />
+                                    Start onboarding
+                                </Button>
+                            )}
+                        </>
+                    }
+                />
 
                 <OnboardingStatsCards stats={stats} />
 
-                <div className="flex flex-col gap-3">
-                    {/* Filters */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        <SearchInput
-                            value={filters.search}
-                            onSearch={table.setSearch}
-                            placeholder="Search by name or no.…"
-                            label="Search employees"
-                        />
-
-                        <Select
-                            value={
-                                filters.department
-                                    ? String(filters.department)
-                                    : 'all'
-                            }
-                            onValueChange={(value) =>
-                                table.setDepartment(
-                                    value === 'all' ? null : Number(value),
-                                )
-                            }
-                        >
-                            <SelectTrigger
-                                className="h-9 w-[170px]"
-                                aria-label="Filter by department"
-                            >
-                                <SelectValue placeholder="Department" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">
-                                    All departments
-                                </SelectItem>
-                                {options.departments.map((department) => (
-                                    <SelectItem
-                                        key={department.id}
-                                        value={String(department.id)}
-                                    >
-                                        {department.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <Select
-                            value={filters.status}
-                            onValueChange={table.setStatus}
-                        >
-                            <SelectTrigger
-                                className="h-9 w-[150px]"
-                                aria-label="Filter by status"
-                            >
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {STATUS_FILTERS.map((option) => (
-                                    <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        {filtered && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={table.reset}
-                                className="text-muted-foreground"
-                            >
-                                <RotateCcw className="size-4" />
-                                Reset
-                            </Button>
-                        )}
-                    </div>
-
-                    <CasesTable
-                        cases={cases.data}
-                        filters={filters}
-                        canManage={can.manage}
-                        filtered={filtered}
-                        onSort={table.toggleSort}
-                        onComplete={(item) => lifecycle(item, 'complete')}
-                        onReopen={(item) => lifecycle(item, 'reopen')}
-                        onCancel={cancel}
-                        onDelete={remove}
+                <ListToolbar filtered={filtered} onReset={table.reset}>
+                    <SearchInput
+                        value={filters.search}
+                        onSearch={table.setSearch}
+                        placeholder="Search by name or no.…"
+                        label="Search employees"
                     />
-
-                    <OnboardingPagination
-                        meta={cases.meta}
-                        perPage={filters.per_page}
-                        onPage={table.setPage}
-                        onPerPage={table.setPerPage}
+                    <FilterSelect
+                        label="Filter by department"
+                        value={
+                            filters.department
+                                ? String(filters.department)
+                                : 'all'
+                        }
+                        onChange={(value) =>
+                            table.setDepartment(
+                                value === 'all' ? null : Number(value),
+                            )
+                        }
+                        options={[
+                            { value: 'all', label: 'All departments' },
+                            ...options.departments.map((department) => ({
+                                value: String(department.id),
+                                label: department.name,
+                            })),
+                        ]}
+                        className="w-44"
                     />
-                </div>
-            </div>
+                    <FilterSelect
+                        label="Filter by status"
+                        value={filters.status}
+                        onChange={table.setStatus}
+                        options={STATUS_FILTERS}
+                        className="w-36"
+                    />
+                </ListToolbar>
+
+                <CasesTable
+                    cases={cases.data}
+                    filters={filters}
+                    canManage={can.manage}
+                    filtered={filtered}
+                    onSort={table.toggleSort}
+                    onComplete={(item) => lifecycle(item, 'complete')}
+                    onReopen={(item) => lifecycle(item, 'reopen')}
+                    onCancel={cancel}
+                    onDelete={remove}
+                />
+
+                <TablePagination
+                    meta={cases.meta}
+                    perPage={filters.per_page}
+                    onPage={table.setPage}
+                    onPerPage={table.setPerPage}
+                />
+            </PageBody>
 
             <StartOnboardingDialog
                 employees={options.employees}

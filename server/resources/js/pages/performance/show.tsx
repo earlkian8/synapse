@@ -1,14 +1,16 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import {
-    ArrowLeft,
     BadgeCheck,
+    CalendarRange,
     CheckCircle2,
     Layers,
     Send,
     Trash2,
+    UserPen,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { PageBody, PageHeader } from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -21,7 +23,7 @@ import {
 import { DecisionSupport } from '@/features/performance/components/decision-support';
 import { PerformanceInsights } from '@/features/performance/components/performance-insights';
 import { ResultSummary } from '@/features/performance/components/result-summary';
-import { SectionCard } from '@/features/performance/components/section-card';
+import { ScorecardTable } from '@/features/performance/components/scorecard-table';
 import { EvaluationStatusBadge } from '@/features/performance/components/status-badge';
 import { computeResult, formatDate } from '@/features/performance/constants';
 import { performanceRoutes } from '@/features/performance/routes';
@@ -116,118 +118,95 @@ export default function PerformanceShow() {
                 title={`Appraisal — ${employee?.full_name ?? 'Performance'}`}
             />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <Link
-                    href={performanceRoutes.forPeriod(
-                        evaluation.period?.id ?? null,
-                    )}
-                    className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="size-4" />
-                    Back to the cycle
-                </Link>
-
-                {/* Who, which cycle, under which framework — then the result. */}
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-                    <div className="rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
-                        <div className="flex min-w-0 items-start gap-3.5">
-                            <PersonAvatar
-                                name={employee?.full_name ?? 'Unknown'}
-                                initials={employee?.initials ?? '?'}
-                                photo={employee?.photo}
-                                className="size-12"
-                            />
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-xl font-semibold tracking-tight">
-                                        {employee?.full_name ??
-                                            'Unknown employee'}
-                                    </h1>
-                                    <EvaluationStatusBadge
-                                        status={evaluation.status}
-                                    />
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {employee?.position ?? '—'}
-                                    {employee?.department
-                                        ? ` · ${employee.department}`
-                                        : ''}
-                                </p>
-                            </div>
-                        </div>
-
-                        <dl className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-3">
-                            <Fact label="Review cycle">
-                                {evaluation.period?.name ?? '—'}
-                                {evaluation.period && (
-                                    <span className="block text-xs text-muted-foreground tabular-nums">
-                                        {formatDate(
-                                            evaluation.period.start_date,
-                                        )}{' '}
-                                        –{' '}
-                                        {formatDate(evaluation.period.end_date)}
-                                    </span>
-                                )}
-                            </Fact>
-                            <Fact label="Framework">
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: performanceRoutes.forPeriod(
+                            evaluation.period?.id ?? null,
+                        ),
+                        label: 'Back to the cycle',
+                    }}
+                    leading={
+                        <PersonAvatar
+                            name={employee?.full_name ?? 'Unknown'}
+                            initials={employee?.initials ?? '?'}
+                            photo={employee?.photo}
+                            className="size-11"
+                        />
+                    }
+                    title={employee?.full_name ?? 'Unknown employee'}
+                    badges={
+                        <EvaluationStatusBadge status={evaluation.status} />
+                    }
+                    description={
+                        <>
+                            {[employee?.position, employee?.department]
+                                .filter(Boolean)
+                                .join(' · ') || '—'}
+                            <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                                 <span className="inline-flex items-center gap-1.5">
-                                    <Layers className="size-3.5 shrink-0 text-muted-foreground" />
-                                    {evaluation.template_name ?? 'Standard'}
+                                    <CalendarRange className="size-3.5" />
+                                    <span className="font-medium text-foreground">
+                                        {evaluation.period?.name ?? '—'}
+                                    </span>
+                                    {evaluation.period && (
+                                        <span className="tabular-nums">
+                                            {formatDate(
+                                                evaluation.period.start_date,
+                                            )}{' '}
+                                            –{' '}
+                                            {formatDate(
+                                                evaluation.period.end_date,
+                                            )}
+                                        </span>
+                                    )}
                                 </span>
-                                <span className="block text-xs text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Layers className="size-3.5" />
+                                    <span className="font-medium text-foreground">
+                                        {evaluation.template_name ?? 'Standard'}
+                                    </span>
                                     {evaluation.bands.length} rating bands
                                 </span>
-                            </Fact>
-                            <Fact label="Evaluator">
-                                {evaluation.evaluator?.name ?? 'Not recorded'}
-                                {evaluation.submitted_at && (
-                                    <span className="block text-xs text-muted-foreground">
-                                        Submitted{' '}
-                                        {formatTimestamp(
-                                            evaluation.submitted_at,
-                                        )}
+                                <span className="inline-flex items-center gap-1.5">
+                                    <UserPen className="size-3.5" />
+                                    <span className="font-medium text-foreground">
+                                        {evaluation.evaluator?.name ??
+                                            'Evaluator not recorded'}
                                     </span>
-                                )}
-                                {evaluation.acknowledged_at && (
-                                    <span className="block text-xs text-muted-foreground">
-                                        Signed off{' '}
-                                        {formatTimestamp(
-                                            evaluation.acknowledged_at,
-                                        )}
-                                    </span>
-                                )}
-                            </Fact>
-                        </dl>
-                    </div>
+                                    {evaluation.acknowledged_at
+                                        ? `Signed off ${formatTimestamp(evaluation.acknowledged_at)}`
+                                        : evaluation.submitted_at
+                                          ? `Submitted ${formatTimestamp(evaluation.submitted_at)}`
+                                          : null}
+                                </span>
+                            </span>
+                        </>
+                    }
+                />
 
-                    <ResultSummary
-                        result={result}
-                        bands={evaluation.bands}
-                        display={evaluation.result_display}
-                        live={editable}
-                    />
-                </div>
+                <ResultSummary
+                    result={result}
+                    bands={evaluation.bands}
+                    display={evaluation.result_display}
+                    live={editable}
+                />
 
                 {/* Decision support: ML forecast, trajectory, strengths & gaps */}
                 <DecisionSupport support={support} scores={lines} />
 
                 {/* The scorecard, section by weighted section. */}
-                {sections.map(
-                    ({ section, description, lines: sectionLines }) => (
-                        <SectionCard
-                            key={section.key}
-                            section={section}
-                            description={description}
-                            lines={sectionLines}
-                            editable={editable}
-                            onScoreChange={setScore}
-                            onRemarksChange={setRemark}
-                        />
-                    ),
-                )}
+                <ScorecardTable
+                    sections={sections}
+                    editable={editable}
+                    scored={result.scored}
+                    total={result.total}
+                    onScoreChange={setScore}
+                    onRemarksChange={setRemark}
+                />
 
                 {/* Overall remarks */}
-                <div className="rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
+                <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-3 dark:border-sidebar-border">
                     <label
                         htmlFor="overall-remarks"
                         className="mb-2 block text-sm font-semibold"
@@ -324,7 +303,7 @@ export default function PerformanceShow() {
                         Signed off. This appraisal is final.
                     </div>
                 )}
-            </div>
+            </PageBody>
 
             <ConfirmDialog
                 open={confirm === 'submit'}
@@ -354,23 +333,6 @@ export default function PerformanceShow() {
     );
 }
 
-function Fact({
-    label,
-    children,
-}: {
-    label: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="min-w-0">
-            <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                {label}
-            </dt>
-            <dd className="mt-0.5 text-sm font-medium">{children}</dd>
-        </div>
-    );
-}
-
 /** Format an ISO timestamp as "Jun 16, 2026". */
 function formatTimestamp(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -380,6 +342,12 @@ function formatTimestamp(iso: string): string {
     });
 }
 
-PerformanceShow.layout = {
-    breadcrumbs: [{ title: 'Performance', href: '/performance' }],
-};
+PerformanceShow.layout = (props: PerformanceShowPageProps) => ({
+    breadcrumbs: [
+        { title: 'Performance', href: '/performance' },
+        {
+            title: props.evaluation.employee?.full_name ?? 'Appraisal',
+            href: performanceRoutes.show(props.evaluation.hashid),
+        },
+    ],
+});

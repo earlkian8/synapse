@@ -70,5 +70,18 @@ export function useAttendanceFilters(filters: AttendanceFilters) {
         [apply],
     );
 
-    return { setTab, setDate, goToDay, setSearch, setStatus, setDepartment };
+    const reset = useCallback(
+        () => apply({ search: '', status: DEFAULT_STATUS, department: null }),
+        [apply],
+    );
+
+    return {
+        setTab,
+        setDate,
+        goToDay,
+        setSearch,
+        setStatus,
+        setDepartment,
+        reset,
+    };
 }

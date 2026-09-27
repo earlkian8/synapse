@@ -1,7 +1,13 @@
-import { ArrowDown, ArrowUp, ChevronsUpDown, Users2 } from 'lucide-react';
+import { Users2 } from 'lucide-react';
+import {
+    DataTable,
+    EmptyTableRow,
+    rowOpens,
+    SortableHead,
+    TableCard,
+} from '@/components/data-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -41,6 +47,10 @@ type Props = RowHandlers & {
     onToggleRow: (id: number, checked: boolean) => void;
 };
 
+/**
+ * The workforce directory. A row opens the employee's record; the checkbox
+ * selects it for bulk actions and the menu carries the rest.
+ */
 export function EmployeesTable({
     employees,
     filters,
@@ -56,12 +66,18 @@ export function EmployeesTable({
         employees.length > 0 && selected.length === employees.length;
     const someSelected = selected.length > 0 && !allSelected;
 
+    const sortable = (column: string) => ({
+        active: filters.sort === column,
+        direction: filters.direction,
+        onSort: () => onToggleSort(column),
+    });
+
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <Table>
-                <TableHeader className="bg-muted/40">
-                    <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-10 pl-4">
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-10">
                             <Checkbox
                                 checked={
                                     allSelected
@@ -76,68 +92,48 @@ export function EmployeesTable({
                                 aria-label="Select all"
                             />
                         </TableHead>
-                        <SortHeader
-                            column="first_name"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+                        <SortableHead {...sortable('first_name')}>
                             Employee
-                        </SortHeader>
-                        <SortHeader
-                            column="employee_no"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
-                            Employee No.
-                        </SortHeader>
+                        </SortableHead>
+                        <SortableHead {...sortable('employee_no')}>
+                            Employee no.
+                        </SortableHead>
                         <TableHead>Department</TableHead>
-                        <TableHead>Position</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>App access</TableHead>
-                        <SortHeader
-                            column="date_hired"
-                            filters={filters}
-                            onSort={onToggleSort}
-                        >
+                        <SortableHead {...sortable('date_hired')}>
                             Hired
-                        </SortHeader>
-                        <TableHead className="w-10 pr-4" />
+                        </SortableHead>
+                        <TableHead className="w-10" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {employees.length === 0 && (
-                        <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={10} className="py-16">
-                                <div className="flex flex-col items-center justify-center gap-2 text-center">
-                                    <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                                        <Users2 className="size-6 text-muted-foreground" />
-                                    </span>
-                                    <p className="text-sm font-medium">
-                                        No employees found
-                                    </p>
-                                    <p className="max-w-xs text-sm text-muted-foreground">
-                                        Try adjusting your search or filters, or
-                                        add a new employee to get started.
-                                    </p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
+                        <EmptyTableRow
+                            colSpan={9}
+                            icon={Users2}
+                            title="No employees found"
+                            description="Try adjusting your search or filters, or add a new employee to get started."
+                        />
                     )}
 
                     {employees.map((employee) => {
                         const isSelected = selected.includes(employee.id);
+                        const opens = rowOpens(() => handlers.onView(employee));
 
                         return (
                             <TableRow
                                 key={employee.id}
+                                {...opens}
                                 data-state={isSelected ? 'selected' : undefined}
                                 className={cn(
+                                    opens.className,
                                     employee.id === highlightId &&
                                         'synapse-row-flash',
                                 )}
                             >
-                                <TableCell className="pl-4">
+                                <TableCell>
                                     <Checkbox
                                         checked={isSelected}
                                         onCheckedChange={(value) =>
@@ -155,7 +151,7 @@ export function EmployeesTable({
                                         onClick={() =>
                                             handlers.onView(employee)
                                         }
-                                        className="flex items-center gap-3 text-left"
+                                        className="flex max-w-64 items-center gap-2.5 text-left"
                                     >
                                         <EmployeeAvatar
                                             name={employee.full_name}
@@ -163,7 +159,7 @@ export function EmployeesTable({
                                             photo={employee.photo}
                                         />
                                         <span className="min-w-0">
-                                            <span className="block truncate font-medium">
+                                            <span className="block truncate text-sm font-medium hover:text-[#0ABFBF]">
                                                 {employee.full_name}
                                             </span>
                                             <span className="block truncate text-xs text-muted-foreground">
@@ -177,17 +173,17 @@ export function EmployeesTable({
                                         {employee.employee_no}
                                     </span>
                                 </TableCell>
-                                <TableCell className="text-sm">
-                                    {employee.department?.name ?? (
-                                        <span className="text-muted-foreground">
-                                            —
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-sm">
-                                    {employee.position?.title ?? (
-                                        <span className="text-muted-foreground">
-                                            —
+                                <TableCell>
+                                    <span className="block max-w-48 truncate text-sm">
+                                        {employee.department?.name ?? (
+                                            <span className="text-muted-foreground">
+                                                —
+                                            </span>
+                                        )}
+                                    </span>
+                                    {employee.position && (
+                                        <span className="block max-w-48 truncate text-xs text-muted-foreground">
+                                            {employee.position.title}
                                         </span>
                                     )}
                                 </TableCell>
@@ -207,7 +203,7 @@ export function EmployeesTable({
                                 <TableCell className="text-sm text-muted-foreground">
                                     {employee.date_hired ?? '—'}
                                 </TableCell>
-                                <TableCell className="pr-4 text-right">
+                                <TableCell className="text-right">
                                     <EmployeeRowActions
                                         employee={employee}
                                         can={can}
@@ -218,45 +214,7 @@ export function EmployeesTable({
                         );
                     })}
                 </TableBody>
-            </Table>
-        </div>
-    );
-}
-
-function SortHeader({
-    column,
-    filters,
-    onSort,
-    children,
-}: {
-    column: string;
-    filters: EmployeesFilters;
-    onSort: (column: string) => void;
-    children: React.ReactNode;
-}) {
-    const active = filters.sort === column;
-
-    return (
-        <TableHead>
-            <button
-                type="button"
-                onClick={() => onSort(column)}
-                className={cn(
-                    'inline-flex items-center gap-1 transition-colors hover:text-foreground',
-                    active && 'text-foreground',
-                )}
-            >
-                {children}
-                {active ? (
-                    filters.direction === 'asc' ? (
-                        <ArrowUp className="size-3.5" />
-                    ) : (
-                        <ArrowDown className="size-3.5" />
-                    )
-                ) : (
-                    <ChevronsUpDown className="size-3.5 opacity-40" />
-                )}
-            </button>
-        </TableHead>
+            </DataTable>
+        </TableCard>
     );
 }

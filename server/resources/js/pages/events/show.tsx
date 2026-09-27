@@ -1,22 +1,34 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     Archive,
-    ArrowLeft,
     BellRing,
     CalendarClock,
     CalendarPlus,
+    CircleHelp,
     Copy,
     Download,
-    MapPin,
+    MailQuestion,
     Pencil,
+    ThumbsUp,
     Trash2,
     UserPlus,
     Users,
     Video,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import {
+    DataTable,
+    EmptyTableRow,
+    HeaderIcon,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    StatTiles,
+    TableCard,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +38,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { removeAttendee, updateAttendeeResponse } from '@/features/events/api';
 import { EventFormSheet } from '@/features/events/components/event-form-sheet';
 import {
@@ -45,11 +64,10 @@ import type {
     EventAttendee,
     EventShowPageProps,
 } from '@/features/events/types';
-import { cn } from '@/lib/utils';
 
 export default function EventShow() {
     const { event, invitable, can } = usePage<EventShowPageProps>().props;
-    const attendees = event.attendees ?? [];
+    const attendees = useMemo(() => event.attendees ?? [], [event.attendees]);
     const TypeIcon = event.type === 'meeting' ? Video : CalendarClock;
 
     const [inviteOpen, setInviteOpen] = useState(false);
@@ -68,12 +86,27 @@ export default function EventShow() {
             tentative: 0,
         };
 
-        for (const a of event.attendees ?? []) {
+        for (const a of attendees) {
             base[a.response] += 1;
         }
 
         return base;
-    }, [event.attendees]);
+    }, [attendees]);
+
+    // The roster can be long: searched and paged like every other table.
+    const [search, setSearch] = useState('');
+    const matching = useMemo(() => {
+        const needle = search.trim().toLowerCase();
+
+        return needle === ''
+            ? attendees
+            : attendees.filter((a) =>
+                  [a.employee?.full_name, a.employee?.employee_no]
+                      .filter(Boolean)
+                      .some((field) => field!.toLowerCase().includes(needle)),
+              );
+    }, [attendees, search]);
+    const roster = useClientPagination(matching, search);
 
     const confirmRemove = () => {
         if (!remove) {
@@ -126,45 +159,43 @@ export default function EventShow() {
         <>
             <Head title={`Events — ${event.title}`} />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <Link
-                    href={eventRoutes.index}
-                    className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="size-4" />
-                    All events
-                </Link>
-
-                {/* Event header */}
-                <div className="flex flex-col gap-5 rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 items-start gap-3">
-                            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                                <TypeIcon className="size-6" />
-                            </span>
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-xl font-semibold tracking-tight">
-                                        {event.title}
-                                    </h1>
-                                    <EventStatusBadge status={event.status} />
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {TYPE_LABELS[event.type]} ·{' '}
-                                    {formatDateTimeRange(
-                                        event.starts_at,
-                                        event.ends_at,
-                                    )}
-                                </p>
-                                {event.description && (
-                                    <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                                        {event.description}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: eventRoutes.index,
+                        label: 'Back to all events',
+                    }}
+                    leading={
+                        <HeaderIcon>
+                            <TypeIcon />
+                        </HeaderIcon>
+                    }
+                    title={event.title}
+                    badges={<EventStatusBadge status={event.status} />}
+                    description={
+                        <>
+                            {[
+                                TYPE_LABELS[event.type],
+                                formatDateTimeRange(
+                                    event.starts_at,
+                                    event.ends_at,
+                                ),
+                                event.location ?? 'Location TBD',
+                                event.organizer
+                                    ? `Organised by ${event.organizer.name}`
+                                    : null,
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            {event.description && (
+                                <span className="mt-1 line-clamp-2 block max-w-3xl">
+                                    {event.description}
+                                </span>
+                            )}
+                        </>
+                    }
+                    actions={
+                        <>
                             <Button variant="outline" size="sm" asChild>
                                 <a href={eventRoutes.ics(event.hashid)}>
                                     <CalendarPlus className="size-4" />
@@ -201,78 +232,75 @@ export default function EventShow() {
                                     </Button>
                                 </>
                             )}
-                        </div>
-                    </div>
+                        </>
+                    }
+                />
 
-                    {/* Stat strip */}
-                    <div className="grid grid-cols-2 gap-3 border-t border-sidebar-border/60 pt-4 sm:grid-cols-4 dark:border-sidebar-border">
-                        <Stat
-                            label="Location"
-                            value={
-                                <span className="inline-flex items-center gap-1">
-                                    <MapPin className="size-3.5 text-muted-foreground" />
-                                    {event.location ?? 'TBD'}
-                                </span>
-                            }
-                        />
-                        <Stat label="Invited" value={event.attendees_count} />
-                        <Stat
-                            label="Accepted"
-                            value={counts.accepted}
-                            highlight
-                        />
-                        <Stat
-                            label="Organizer"
-                            value={event.organizer?.name ?? '—'}
-                        />
-                    </div>
-                </div>
+                <StatTiles
+                    tiles={[
+                        {
+                            key: 'invited',
+                            label: 'Invited',
+                            value: event.attendees_count.toLocaleString(),
+                            icon: Users,
+                            accent: 'teal',
+                        },
+                        {
+                            key: 'accepted',
+                            label: 'Accepted',
+                            value: counts.accepted.toLocaleString(),
+                            icon: ThumbsUp,
+                            accent: 'emerald',
+                        },
+                        {
+                            key: 'tentative',
+                            label: 'Tentative',
+                            value: counts.tentative.toLocaleString(),
+                            icon: CircleHelp,
+                            accent: 'amber',
+                        },
+                        {
+                            key: 'pending',
+                            label: 'Not replied',
+                            value: counts.invited.toLocaleString(),
+                            icon: MailQuestion,
+                            accent: 'slate',
+                            hint:
+                                counts.declined > 0
+                                    ? `· ${counts.declined} declined`
+                                    : undefined,
+                        },
+                    ]}
+                />
 
-                {/* Roster */}
-                {attendees.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-14 text-center dark:border-sidebar-border">
-                        <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                            <Users className="size-5 text-muted-foreground" />
-                        </span>
-                        <p className="text-sm font-medium">
-                            No one invited yet
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                            {can.manage
-                                ? 'Use "Invite attendees" to add people to this event.'
-                                : 'No employees are invited to this event.'}
-                        </p>
-                        {can.manage && (
-                            <Button
-                                size="sm"
-                                className="mt-1"
-                                onClick={() => setInviteOpen(true)}
-                            >
-                                <UserPlus className="size-4" />
-                                Invite attendees
-                            </Button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-                        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                            <p className="text-sm font-semibold">
-                                Attendees
-                                <span className="ml-1 text-muted-foreground tabular-nums">
-                                    ({attendees.length})
-                                </span>
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Button variant="outline" size="sm" asChild>
-                                    <a
-                                        href={eventRoutes.rosterExport(
-                                            event.hashid,
-                                        )}
-                                    >
-                                        <Download className="size-4" />
-                                        Export
-                                    </a>
-                                </Button>
+                <div className="flex flex-col gap-3">
+                    <TableCard
+                        title="Attendees"
+                        count={attendees.length}
+                        actions={
+                            <>
+                                {attendees.length > 0 && (
+                                    <SearchInput
+                                        value={search}
+                                        onSearch={setSearch}
+                                        delay={0}
+                                        placeholder="Search attendees…"
+                                        label="Search attendees"
+                                        className="sm:w-56"
+                                    />
+                                )}
+                                {attendees.length > 0 && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={eventRoutes.rosterExport(
+                                                event.hashid,
+                                            )}
+                                        >
+                                            <Download className="size-4" />
+                                            Export
+                                        </a>
+                                    </Button>
+                                )}
                                 {can.manage &&
                                     counts.invited > 0 &&
                                     event.status !== 'past' && (
@@ -290,7 +318,6 @@ export default function EventShow() {
                                     )}
                                 {can.manage && (
                                     <Button
-                                        variant="outline"
                                         size="sm"
                                         onClick={() => setInviteOpen(true)}
                                     >
@@ -298,83 +325,163 @@ export default function EventShow() {
                                         Invite
                                     </Button>
                                 )}
-                            </div>
-                        </div>
-                        <ul className="divide-y divide-border">
-                            {attendees.map((attendee) => (
-                                <li
-                                    key={attendee.id}
-                                    className="flex items-center gap-3 px-4 py-3"
-                                >
-                                    <PersonAvatar
-                                        name={
-                                            attendee.employee?.full_name ??
-                                            'Unknown'
+                            </>
+                        }
+                    >
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Employee</TableHead>
+                                    <TableHead>Position</TableHead>
+                                    <TableHead>Response</TableHead>
+                                    {can.manage && (
+                                        <TableHead className="w-10" />
+                                    )}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {attendees.length === 0 && (
+                                    <EmptyTableRow
+                                        colSpan={can.manage ? 4 : 3}
+                                        icon={Users}
+                                        title="No one invited yet"
+                                        description={
+                                            can.manage
+                                                ? 'Invite people to this event and their replies land here.'
+                                                : 'No employees are invited to this event.'
                                         }
-                                        initials={
-                                            attendee.employee?.initials ?? '?'
+                                        action={
+                                            can.manage && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setInviteOpen(true)
+                                                    }
+                                                >
+                                                    <UserPlus className="size-4" />
+                                                    Invite attendees
+                                                </Button>
+                                            )
                                         }
-                                        photo={attendee.employee?.photo}
-                                        className="size-9"
                                     />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {attendee.employee?.full_name ??
-                                                'Unknown employee'}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {attendee.employee?.position ??
-                                                attendee.employee
-                                                    ?.employee_no ??
-                                                '—'}
-                                        </p>
-                                    </div>
-                                    {can.manage ? (
-                                        <Select
-                                            value={attendee.response}
-                                            onValueChange={(v) =>
-                                                updateAttendeeResponse(
-                                                    attendee.id,
-                                                    v as AttendeeResponse,
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger className="h-8 w-[7.5rem]">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {RESPONSE_ORDER.map((r) => (
-                                                    <SelectItem
-                                                        key={r}
-                                                        value={r}
-                                                    >
-                                                        {RESPONSE_LABELS[r]}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    ) : (
-                                        <ResponseBadge
-                                            response={attendee.response}
+                                )}
+                                {attendees.length > 0 &&
+                                    matching.length === 0 && (
+                                        <EmptyTableRow
+                                            colSpan={can.manage ? 4 : 3}
+                                            icon={Users}
+                                            title="Nobody matches"
+                                            description="Try another name or number."
                                         />
                                     )}
-                                    {can.manage && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="size-8 text-muted-foreground hover:text-destructive"
-                                            onClick={() => setRemove(attendee)}
-                                            aria-label="Remove attendee"
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </Button>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </div>
+                                {roster.rows.map((attendee) => (
+                                    <TableRow key={attendee.id}>
+                                        <TableCell>
+                                            <div className="flex min-w-0 items-center gap-2.5">
+                                                <PersonAvatar
+                                                    name={
+                                                        attendee.employee
+                                                            ?.full_name ??
+                                                        'Unknown'
+                                                    }
+                                                    initials={
+                                                        attendee.employee
+                                                            ?.initials ?? '?'
+                                                    }
+                                                    photo={
+                                                        attendee.employee?.photo
+                                                    }
+                                                    className="size-8"
+                                                    fallbackClassName="text-[11px]"
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="max-w-60 truncate text-sm font-medium">
+                                                        {attendee.employee
+                                                            ?.full_name ??
+                                                            'Unknown employee'}
+                                                    </p>
+                                                    <p className="font-mono text-[11px] text-muted-foreground">
+                                                        {attendee.employee
+                                                            ?.employee_no ??
+                                                            '—'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {attendee.employee?.position ?? '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {can.manage ? (
+                                                <Select
+                                                    value={attendee.response}
+                                                    onValueChange={(v) =>
+                                                        updateAttendeeResponse(
+                                                            attendee.id,
+                                                            v as AttendeeResponse,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className="h-8 w-32"
+                                                        aria-label={`Response for ${attendee.employee?.full_name ?? 'this attendee'}`}
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {RESPONSE_ORDER.map(
+                                                            (r) => (
+                                                                <SelectItem
+                                                                    key={r}
+                                                                    value={r}
+                                                                >
+                                                                    {
+                                                                        RESPONSE_LABELS[
+                                                                            r
+                                                                        ]
+                                                                    }
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <ResponseBadge
+                                                    response={attendee.response}
+                                                />
+                                            )}
+                                        </TableCell>
+                                        {can.manage && (
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="size-8 text-muted-foreground hover:text-destructive"
+                                                    onClick={() =>
+                                                        setRemove(attendee)
+                                                    }
+                                                    aria-label={`Remove ${attendee.employee?.full_name ?? 'attendee'}`}
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </Button>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
+
+                    {matching.length > 0 && (
+                        <TablePagination
+                            meta={roster.meta}
+                            perPage={roster.perPage}
+                            onPage={roster.setPage}
+                            onPerPage={roster.setPerPage}
+                        />
+                    )}
+                </div>
+            </PageBody>
 
             <InviteDialog
                 open={inviteOpen}
@@ -424,32 +531,12 @@ export default function EventShow() {
     );
 }
 
-function Stat({
-    label,
-    value,
-    highlight = false,
-}: {
-    label: string;
-    value: ReactNode;
-    highlight?: boolean;
-}) {
-    return (
-        <div className="flex flex-col">
-            <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                {label}
-            </span>
-            <span
-                className={cn(
-                    'truncate text-sm font-semibold tracking-tight tabular-nums',
-                    highlight && 'text-[#0a8b91] dark:text-[#0ABFBF]',
-                )}
-            >
-                {value}
-            </span>
-        </div>
-    );
-}
-
-EventShow.layout = {
-    breadcrumbs: [{ title: 'Events & Meetings', href: '/events' }],
-};
+EventShow.layout = (props: EventShowPageProps) => ({
+    breadcrumbs: [
+        { title: 'Events & Meetings', href: eventRoutes.index },
+        {
+            title: props.event.title,
+            href: eventRoutes.show(props.event.hashid),
+        },
+    ],
+});

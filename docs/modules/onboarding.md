@@ -151,14 +151,16 @@ reopen are deliberate actions (`PATCH …/status`). The stage toggle stamps `com
 
 `features/onboarding/` — types, routes, constants (status & category meta), hooks
 (`use-case-filters` for a program's table, `use-program-search` for the overview), and
-components: compact stat tiles, `search-input` (debounced), **programs overview table**,
-**cases table** + **case row actions**, pagination, progress bar, status badge,
+components: stat tiles, **programs overview table**, **cases table** + **case row
+actions**, progress bar, status badge,
 **start-onboarding modal** (optionally pre-set to a program), **task checklist**
 (grouped) + **task row** + **task form modal**, **case settings modal**, **program
 card** + **program form modal** (with an inline blueprint-task editor), and a confirm
 dialog. Pages: `pages/onboarding/index.tsx` (programs), `program.tsx` (a program's
 people) and `case.tsx`; the programs setup screen is `pages/setup/onboarding.tsx`. The sidebar
-**Talent Acquisition → Onboarding** link is gated on `onboarding.view`.
+**Talent Acquisition → Onboarding** link is gated on `onboarding.view`. The header,
+tiles, toolbar, search, tables and pagination come from the shared Workforce table kit
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)).
 
 All four open as **centred modals** built from the shared shell in
 `components/modal.tsx` (`Modal` / `ModalContent` / `ModalHeader` / `ModalBody` /

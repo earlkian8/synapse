@@ -2,11 +2,11 @@ import { Link } from '@inertiajs/react';
 import {
     CheckCircle2,
     ListChecks,
-    MoreHorizontal,
     RotateCcw,
     Trash2,
     XCircle,
 } from 'lucide-react';
+import { RowMenuTrigger } from '@/components/data-table';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -41,13 +41,7 @@ export function CaseRowActions({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted data-[state=open]:bg-muted"
-                    aria-label={`Actions for ${name}`}
-                >
-                    <MoreHorizontal className="size-4" />
-                </button>
+                <RowMenuTrigger label={`Actions for ${name}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>

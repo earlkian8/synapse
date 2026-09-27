@@ -1,31 +1,36 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     Archive,
-    ArrowLeft,
+    CircleCheckBig,
     GraduationCap,
     Pencil,
-    UserPlus,
+    TrendingUp,
+    TriangleAlert,
     Users,
+    UserX,
 } from 'lucide-react';
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import {
+    HeaderIcon,
+    PageBody,
+    PageHeader,
+    StatTiles,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { removeEnrollment } from '@/features/training/api';
 import { BulkEnrollDialog } from '@/features/training/components/bulk-enroll-dialog';
 import { EditEnrollmentDialog } from '@/features/training/components/edit-enrollment-dialog';
 import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
-import { RosterAnalytics } from '@/features/training/components/roster-analytics';
 import { RosterTable } from '@/features/training/components/roster-table';
 import { TrainingInsightsPanel } from '@/features/training/components/training-insights';
 import { ProgramStatusBadge } from '@/features/training/components/training-status-badge';
-import { formatDateRange } from '@/features/training/constants';
+import { formatDateRange, scoreTone } from '@/features/training/constants';
 import { trainingRoutes } from '@/features/training/routes';
 import type {
     TrainingEnrollment,
     TrainingShowPageProps,
 } from '@/features/training/types';
-import { cn } from '@/lib/utils';
 
 export default function TrainingShow() {
     const { program, enrollable, analytics, ai_available, can } =
@@ -62,52 +67,42 @@ export default function TrainingShow() {
             },
         });
 
+    const rate = analytics.completion_rate;
+
     return (
         <>
             <Head title={`Training — ${program.name}`} />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <Link
-                    href={trainingRoutes.index}
-                    className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="size-4" />
-                    All programs
-                </Link>
-
-                {/* Program header */}
-                <div className="flex flex-col gap-5 rounded-xl border border-sidebar-border/70 bg-card p-5 shadow-sm dark:border-sidebar-border">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 items-start gap-3">
-                            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                                <GraduationCap className="size-6" />
-                            </span>
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-xl font-semibold tracking-tight">
-                                        {program.name}
-                                    </h1>
-                                    <ProgramStatusBadge
-                                        status={program.status}
-                                    />
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {program.provider ?? 'In-house'} ·{' '}
-                                    {formatDateRange(
-                                        program.start_date,
-                                        program.end_date,
-                                    )}
-                                </p>
-                                {program.description && (
-                                    <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                                        {program.description}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        {can.manage && (
-                            <div className="flex items-center gap-2">
+            <PageBody>
+                <PageHeader
+                    back={{
+                        href: trainingRoutes.index,
+                        label: 'Back to all programs',
+                    }}
+                    leading={
+                        <HeaderIcon>
+                            <GraduationCap />
+                        </HeaderIcon>
+                    }
+                    title={program.name}
+                    badges={<ProgramStatusBadge status={program.status} />}
+                    description={
+                        <>
+                            {program.provider ?? 'In-house'} ·{' '}
+                            {formatDateRange(
+                                program.start_date,
+                                program.end_date,
+                            )}
+                            {program.description && (
+                                <span className="mt-1 line-clamp-2 block max-w-3xl">
+                                    {program.description}
+                                </span>
+                            )}
+                        </>
+                    }
+                    actions={
+                        can.manage && (
+                            <>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -125,89 +120,89 @@ export default function TrainingShow() {
                                     <Archive className="size-4" />
                                     Archive
                                 </Button>
-                            </div>
-                        )}
-                    </div>
+                            </>
+                        )
+                    }
+                />
 
-                    {/* Stat strip */}
-                    <div className="grid grid-cols-2 gap-3 border-t border-sidebar-border/60 pt-4 sm:grid-cols-4 dark:border-sidebar-border">
-                        <Stat
-                            label="Seats"
-                            value={
+                <StatTiles
+                    tiles={[
+                        {
+                            key: 'seats',
+                            label: 'Seats taken',
+                            value: program.active_count.toLocaleString(),
+                            hint:
                                 program.capacity === null
-                                    ? `${program.active_count} · uncapped`
-                                    : `${program.active_count} / ${program.capacity}`
-                            }
-                        />
-                        <Stat
-                            label="Completed"
-                            value={program.completed_count.toLocaleString()}
-                        />
-                        <Stat
-                            label="Total enrolled"
-                            value={program.enrollments_count.toLocaleString()}
-                        />
-                        <Stat
-                            label="Schedule"
-                            value={formatDateRange(
-                                program.start_date,
-                                program.end_date,
-                            )}
-                            highlight
-                        />
-                    </div>
-                </div>
+                                    ? 'uncapped'
+                                    : `of ${program.capacity}`,
+                            icon: Users,
+                            accent: 'teal',
+                        },
+                        {
+                            key: 'completion',
+                            label: 'Completion rate',
+                            value: rate === null ? '—' : `${rate}%`,
+                            hint: `${analytics.completed} of ${analytics.total}`,
+                            icon: CircleCheckBig,
+                            accent: 'emerald',
+                        },
+                        {
+                            key: 'score',
+                            label: 'Average score',
+                            value:
+                                analytics.average_score === null
+                                    ? '—'
+                                    : `${analytics.average_score}%`,
+                            icon: TrendingUp,
+                            accent: 'sky',
+                            valueClassName:
+                                analytics.average_score === null
+                                    ? undefined
+                                    : scoreTone(analytics.average_score),
+                        },
+                        {
+                            key: 'at-risk',
+                            label: 'At risk',
+                            value: analytics.at_risk.toLocaleString(),
+                            hint: 'unfinished past end',
+                            icon: TriangleAlert,
+                            accent: 'amber',
+                            valueClassName:
+                                analytics.at_risk > 0
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : undefined,
+                        },
+                        {
+                            key: 'dropped',
+                            label: 'Dropped',
+                            value: analytics.dropped.toLocaleString(),
+                            icon: UserX,
+                            accent: 'rose',
+                            valueClassName:
+                                analytics.dropped > 0
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : undefined,
+                        },
+                    ]}
+                />
 
-                {enrollments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-14 text-center dark:border-sidebar-border">
-                        <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                            <Users className="size-5 text-muted-foreground" />
-                        </span>
-                        <p className="text-sm font-medium">
-                            No one enrolled yet
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                            {can.manage
-                                ? 'Use "Enroll" to add people to this program.'
-                                : 'No employees are enrolled in this program.'}
-                        </p>
-                        {can.manage && (
-                            <Button
-                                size="sm"
-                                className="mt-1"
-                                onClick={() => setEnrollOpen(true)}
-                            >
-                                <UserPlus className="size-4" />
-                                Enroll employees
-                            </Button>
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        {/* Effectiveness analytics + AI read */}
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
-                            <RosterAnalytics analytics={analytics} />
-                            {ai_available && (
-                                <TrainingInsightsPanel
-                                    key={program.hashid}
-                                    hashid={program.hashid}
-                                    saved={program.ai_insights}
-                                />
-                            )}
-                        </div>
+                <RosterTable
+                    programHashid={program.hashid}
+                    enrollments={enrollments}
+                    canManage={can.manage}
+                    onEnroll={() => setEnrollOpen(true)}
+                    onEdit={setEdit}
+                    onRemove={setRemove}
+                />
 
-                        {/* Roster */}
-                        <RosterTable
-                            programHashid={program.hashid}
-                            enrollments={enrollments}
-                            canManage={can.manage}
-                            onEnroll={() => setEnrollOpen(true)}
-                            onEdit={setEdit}
-                            onRemove={setRemove}
-                        />
-                    </>
+                {ai_available && enrollments.length > 0 && (
+                    <TrainingInsightsPanel
+                        key={program.hashid}
+                        hashid={program.hashid}
+                        saved={program.ai_insights}
+                    />
                 )}
-            </div>
+            </PageBody>
 
             <BulkEnrollDialog
                 open={enrollOpen}
@@ -254,32 +249,12 @@ export default function TrainingShow() {
     );
 }
 
-function Stat({
-    label,
-    value,
-    highlight = false,
-}: {
-    label: string;
-    value: ReactNode;
-    highlight?: boolean;
-}) {
-    return (
-        <div className="flex flex-col">
-            <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                {label}
-            </span>
-            <span
-                className={cn(
-                    'text-sm font-semibold tracking-tight tabular-nums',
-                    highlight && 'text-[#0a8b91] dark:text-[#0ABFBF]',
-                )}
-            >
-                {value}
-            </span>
-        </div>
-    );
-}
-
-TrainingShow.layout = {
-    breadcrumbs: [{ title: 'Training', href: '/training' }],
-};
+TrainingShow.layout = (props: TrainingShowPageProps) => ({
+    breadcrumbs: [
+        { title: 'Training', href: '/training' },
+        {
+            title: props.program.name,
+            href: trainingRoutes.show(props.program.hashid),
+        },
+    ],
+});

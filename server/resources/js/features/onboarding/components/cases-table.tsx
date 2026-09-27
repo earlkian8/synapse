@@ -1,15 +1,14 @@
-import { Link, router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
+import { AlertTriangle, UserRoundCheck } from 'lucide-react';
 import {
-    AlertTriangle,
-    ArrowDown,
-    ArrowUp,
-    ChevronsUpDown,
-    UserRoundCheck,
-} from 'lucide-react';
-import type { MouseEvent, ReactNode } from 'react';
+    DataTable,
+    EmptyTableRow,
+    rowOpens,
+    SortableHead,
+    TableCard,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -44,49 +43,49 @@ export function CasesTable({
     onSort,
     ...handlers
 }: Props) {
+    const sortable = (column: CaseSort) => ({
+        active: filters.sort === column,
+        direction: filters.direction,
+        onSort: () => onSort(column),
+    });
+
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <Table>
-                <TableHeader className="bg-muted/40">
-                    <TableRow className="hover:bg-transparent">
-                        <SortHeader
-                            column="employee"
-                            filters={filters}
-                            onSort={onSort}
-                            className="pl-4"
-                        >
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <SortableHead {...sortable('employee')}>
                             Employee
-                        </SortHeader>
-                        <TableHead className="h-9">Department</TableHead>
-                        <TableHead className="h-9">Status</TableHead>
-                        <TableHead className="h-9 w-48">Checklist</TableHead>
-                        <TableHead className="h-9 text-right">
-                            Overdue
-                        </TableHead>
-                        <SortHeader
-                            column="start_date"
-                            filters={filters}
-                            onSort={onSort}
-                        >
+                        </SortableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-48">Checklist</TableHead>
+                        <TableHead className="text-right">Overdue</TableHead>
+                        <SortableHead {...sortable('start_date')}>
                             Started
-                        </SortHeader>
-                        <SortHeader
-                            column="target_end_date"
-                            filters={filters}
-                            onSort={onSort}
-                        >
+                        </SortableHead>
+                        <SortableHead {...sortable('target_end_date')}>
                             Target
-                        </SortHeader>
-                        <TableHead className="h-9 w-10 pr-4" />
+                        </SortableHead>
+                        <TableHead className="w-10" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {cases.length === 0 && (
-                        <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="py-12">
-                                <Empty filtered={filtered} />
-                            </TableCell>
-                        </TableRow>
+                        <EmptyTableRow
+                            colSpan={8}
+                            icon={UserRoundCheck}
+                            title={
+                                filtered
+                                    ? 'Nobody matches'
+                                    : 'Nobody is onboarding here yet'
+                            }
+                            description={
+                                filtered
+                                    ? 'Try adjusting the search or filters.'
+                                    : 'New hires on this program land here automatically — or start onboarding for someone.'
+                            }
+                        />
                     )}
 
                     {cases.map((item) => (
@@ -98,8 +97,8 @@ export function CasesTable({
                         />
                     ))}
                 </TableBody>
-            </Table>
-        </div>
+            </DataTable>
+        </TableCard>
     );
 }
 
@@ -113,21 +112,9 @@ function CaseRow({
     const { progress } = item;
     const inFlight = item.is_active;
 
-    const open = (event: MouseEvent<HTMLTableRowElement>) => {
-        if (
-            (event.target as HTMLElement).closest(
-                'a, button, [role="menuitem"]',
-            )
-        ) {
-            return;
-        }
-
-        router.visit(href);
-    };
-
     return (
-        <TableRow onClick={open} className="cursor-pointer">
-            <TableCell className="py-2 pl-4">
+        <TableRow {...rowOpens(href)}>
+            <TableCell>
                 <div className="flex min-w-0 items-center gap-2.5">
                     <PersonAvatar
                         name={employee?.full_name ?? 'Unknown employee'}
@@ -149,7 +136,7 @@ function CaseRow({
                     </div>
                 </div>
             </TableCell>
-            <TableCell className="py-2">
+            <TableCell>
                 <span className="block truncate text-sm">
                     {employee?.department?.name ?? (
                         <span className="text-muted-foreground">—</span>
@@ -161,10 +148,10 @@ function CaseRow({
                     </span>
                 )}
             </TableCell>
-            <TableCell className="py-2">
+            <TableCell>
                 <CaseStatusBadge status={item.status} />
             </TableCell>
-            <TableCell className="py-2">
+            <TableCell>
                 <div className="flex items-center gap-2">
                     <ProgressBar
                         percent={progress.percent}
@@ -176,7 +163,7 @@ function CaseRow({
                     </span>
                 </div>
             </TableCell>
-            <TableCell className="py-2 text-right text-sm tabular-nums">
+            <TableCell className="text-right text-sm tabular-nums">
                 {inFlight && progress.overdue > 0 ? (
                     <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
                         <AlertTriangle className="size-3.5" />
@@ -186,13 +173,13 @@ function CaseRow({
                     <span className="text-muted-foreground">0</span>
                 )}
             </TableCell>
-            <TableCell className="py-2 text-sm whitespace-nowrap text-muted-foreground">
+            <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
                 {formatDate(item.start_date)}
             </TableCell>
-            <TableCell className="py-2 text-sm whitespace-nowrap">
+            <TableCell className="text-sm whitespace-nowrap">
                 <TargetDate item={item} />
             </TableCell>
-            <TableCell className="py-2 pr-4 text-right">
+            <TableCell className="text-right">
                 <CaseRowActions
                     item={item}
                     canManage={canManage}
@@ -230,65 +217,6 @@ function TargetDate({ item }: { item: OnboardingCase }) {
         >
             {formatDate(item.target_end_date)}
         </span>
-    );
-}
-
-function SortHeader({
-    column,
-    filters,
-    onSort,
-    className,
-    children,
-}: {
-    column: CaseSort;
-    filters: CaseFilters;
-    onSort: (column: CaseSort) => void;
-    className?: string;
-    children: ReactNode;
-}) {
-    const active = filters.sort === column;
-
-    return (
-        <TableHead className={cn('h-9', className)}>
-            <button
-                type="button"
-                onClick={() => onSort(column)}
-                className={cn(
-                    // A button resets text-transform; match the other headers.
-                    'inline-flex items-center gap-1 tracking-wide uppercase transition-colors hover:text-foreground',
-                    active && 'text-foreground',
-                )}
-            >
-                {children}
-                {active ? (
-                    filters.direction === 'asc' ? (
-                        <ArrowUp className="size-3.5" />
-                    ) : (
-                        <ArrowDown className="size-3.5" />
-                    )
-                ) : (
-                    <ChevronsUpDown className="size-3.5 opacity-40" />
-                )}
-            </button>
-        </TableHead>
-    );
-}
-
-function Empty({ filtered }: { filtered: boolean }) {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <UserRoundCheck className="size-5 text-muted-foreground" />
-            </span>
-            <p className="text-sm font-medium">
-                {filtered ? 'Nobody matches' : 'Nobody is onboarding here yet'}
-            </p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-                {filtered
-                    ? 'Try adjusting the search or filters.'
-                    : 'New hires on this program land here automatically — or start onboarding for someone.'}
-            </p>
-        </div>
     );
 }
 

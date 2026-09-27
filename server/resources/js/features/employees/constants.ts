@@ -18,8 +18,6 @@ export const TYPE_FILTERS = [
     { value: 'part_time', label: 'Part-time' },
 ] as const;
 
-export const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100] as const;
-
 export const DEFAULT_FILTERS = {
     search: '',
     status: 'all',

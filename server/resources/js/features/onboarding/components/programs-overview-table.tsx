@@ -1,14 +1,19 @@
-import { Link, router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import {
     AlertTriangle,
     ClipboardList,
     ListChecks,
-    MoreHorizontal,
     Rocket,
     Settings2,
     Users,
 } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import {
+    DataTable,
+    EmptyTableRow,
+    RowMenuTrigger,
+    rowOpens,
+    TableCard,
+} from '@/components/data-table';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,7 +22,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -49,33 +53,36 @@ export function ProgramsOverviewTable({
     onStart,
 }: Props) {
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <Table>
-                <TableHeader className="bg-muted/40">
-                    <TableRow className="hover:bg-transparent">
-                        <TableHead className="h-9 pl-4">Program</TableHead>
-                        <TableHead className="h-9">Applies to</TableHead>
-                        <TableHead className="h-9 text-right">Tasks</TableHead>
-                        <TableHead className="h-9 text-right">
-                            Onboarding
-                        </TableHead>
-                        <TableHead className="h-9 text-right">
-                            Completed
-                        </TableHead>
-                        <TableHead className="h-9 w-44">Progress</TableHead>
-                        <TableHead className="h-9 text-right">
-                            Overdue
-                        </TableHead>
-                        <TableHead className="h-9 w-10 pr-4" />
+        <TableCard>
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Program</TableHead>
+                        <TableHead>Applies to</TableHead>
+                        <TableHead className="text-right">Tasks</TableHead>
+                        <TableHead className="text-right">Onboarding</TableHead>
+                        <TableHead className="text-right">Completed</TableHead>
+                        <TableHead className="w-44">Progress</TableHead>
+                        <TableHead className="text-right">Overdue</TableHead>
+                        <TableHead className="w-10" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {programs.length === 0 && (
-                        <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={8} className="py-12">
-                                <Empty searching={searching} />
-                            </TableCell>
-                        </TableRow>
+                        <EmptyTableRow
+                            colSpan={8}
+                            icon={ClipboardList}
+                            title={
+                                searching
+                                    ? 'No programs match'
+                                    : 'No onboarding programs yet'
+                            }
+                            description={
+                                searching
+                                    ? 'Try another name, or clear the search.'
+                                    : 'Create a program in Company Setup — every new hire’s checklist is seeded from one.'
+                            }
+                        />
                     )}
 
                     {programs.map((program) => (
@@ -87,8 +94,8 @@ export function ProgramsOverviewTable({
                         />
                     ))}
                 </TableBody>
-            </Table>
-        </div>
+            </DataTable>
+        </TableCard>
     );
 }
 
@@ -103,6 +110,7 @@ function ProgramRow({
 }) {
     const href = onboardingRoutes.program(program.hashid);
     const unassigned = program.hashid === null;
+    const opens = rowOpens(href);
     const targeting = [
         program.department?.name,
         program.employment_type
@@ -110,28 +118,15 @@ function ProgramRow({
             : null,
     ].filter(Boolean);
 
-    // The whole row opens the program; its links and menu keep their own clicks.
-    const open = (event: MouseEvent<HTMLTableRowElement>) => {
-        if (
-            (event.target as HTMLElement).closest(
-                'a, button, [role="menuitem"]',
-            )
-        ) {
-            return;
-        }
-
-        router.visit(href);
-    };
-
     return (
         <TableRow
-            onClick={open}
+            {...opens}
             className={cn(
-                'cursor-pointer',
+                opens.className,
                 !program.is_active && 'text-muted-foreground',
             )}
         >
-            <TableCell className="py-2 pl-4">
+            <TableCell>
                 <div className="flex min-w-0 items-center gap-2.5">
                     <span
                         className={cn(
@@ -163,21 +158,21 @@ function ProgramRow({
                             )}
                         </div>
                         {program.description && (
-                            <p className="line-clamp-1 max-w-sm text-xs text-muted-foreground">
+                            <p className="line-clamp-1 max-w-sm text-xs whitespace-normal text-muted-foreground">
                                 {program.description}
                             </p>
                         )}
                     </div>
                 </div>
             </TableCell>
-            <TableCell className="py-2 text-sm text-muted-foreground">
+            <TableCell className="text-sm text-muted-foreground">
                 {unassigned
                     ? '—'
                     : targeting.length > 0
                       ? targeting.join(' · ')
                       : 'All new hires'}
             </TableCell>
-            <TableCell className="py-2 text-right text-sm text-muted-foreground tabular-nums">
+            <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
                 {program.tasks_count === null ? (
                     '—'
                 ) : (
@@ -187,13 +182,13 @@ function ProgramRow({
                     </span>
                 )}
             </TableCell>
-            <TableCell className="py-2 text-right text-sm font-medium tabular-nums">
+            <TableCell className="text-right text-sm font-medium tabular-nums">
                 {program.cases.active}
             </TableCell>
-            <TableCell className="py-2 text-right text-sm text-muted-foreground tabular-nums">
+            <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
                 {program.cases.completed}
             </TableCell>
-            <TableCell className="py-2">
+            <TableCell>
                 {program.progress === null ? (
                     <span className="text-xs text-muted-foreground">
                         Nobody in progress
@@ -210,7 +205,7 @@ function ProgramRow({
                     </div>
                 )}
             </TableCell>
-            <TableCell className="py-2 text-right text-sm tabular-nums">
+            <TableCell className="text-right text-sm tabular-nums">
                 {program.overdue > 0 ? (
                     <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
                         <AlertTriangle className="size-3.5" />
@@ -220,16 +215,10 @@ function ProgramRow({
                     <span className="text-muted-foreground">0</span>
                 )}
             </TableCell>
-            <TableCell className="py-2 pr-4 text-right">
+            <TableCell className="text-right">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted data-[state=open]:bg-muted"
-                            aria-label={`Actions for ${program.name}`}
-                        >
-                            <MoreHorizontal className="size-4" />
-                        </button>
+                        <RowMenuTrigger label={`Actions for ${program.name}`} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
                         <DropdownMenuItem asChild>
@@ -282,23 +271,5 @@ function Tag({
         >
             {children}
         </span>
-    );
-}
-
-function Empty({ searching }: { searching: boolean }) {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <ClipboardList className="size-5 text-muted-foreground" />
-            </span>
-            <p className="text-sm font-medium">
-                {searching ? 'No programs match' : 'No onboarding programs yet'}
-            </p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-                {searching
-                    ? 'Try another name, or clear the search.'
-                    : 'Create a program in Company Setup — every new hire’s checklist is seeded from one.'}
-            </p>
-        </div>
     );
 }

@@ -2,12 +2,12 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { UserRoundCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { PageBody, PageHeader, TablePagination } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/features/employees/components/confirm-dialog';
 import { EmployeeBulkActionsBar } from '@/features/employees/components/employee-bulk-actions-bar';
 import { EmployeeDetailDialog } from '@/features/employees/components/employee-detail-dialog';
 import { EmployeeFormDialog } from '@/features/employees/components/employee-form-dialog';
-import { EmployeesPagination } from '@/features/employees/components/employees-pagination';
 import { EmployeesStats } from '@/features/employees/components/employees-stats';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
 import { EmployeesToolbar } from '@/features/employees/components/employees-toolbar';
@@ -234,31 +234,25 @@ export default function EmployeesIndex() {
         <>
             <Head title="Employees" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Employees
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Manage your organisation's workforce, records and
-                            placements.
-                        </p>
-                    </div>
-
-                    {can.invite && (
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={employeeRoutes.access}>
-                                <UserRoundCheck className="size-4" />
-                                App access
-                            </Link>
-                        </Button>
-                    )}
-                </div>
+            <PageBody>
+                <PageHeader
+                    title="Employees"
+                    description="Manage your organisation's workforce, records and placements."
+                    actions={
+                        can.invite && (
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href={employeeRoutes.access}>
+                                    <UserRoundCheck className="size-4" />
+                                    App access
+                                </Link>
+                            </Button>
+                        )
+                    }
+                />
 
                 <EmployeesStats stats={stats} />
 
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     <EmployeesToolbar
                         filters={filters}
                         departments={options.departments}
@@ -300,14 +294,14 @@ export default function EmployeesIndex() {
                         onDelete={remove}
                     />
 
-                    <EmployeesPagination
+                    <TablePagination
                         meta={employees.meta}
                         perPage={filters.per_page}
                         onPage={setPage}
                         onPerPage={setPerPage}
                     />
                 </div>
-            </div>
+            </PageBody>
 
             <EmployeeFormDialog
                 employee={formEmployee}

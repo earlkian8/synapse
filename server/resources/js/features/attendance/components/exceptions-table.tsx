@@ -1,5 +1,4 @@
 import {
-    ChevronRight,
     Clock,
     LogOut,
     MapPinX,
@@ -11,7 +10,16 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo } from 'react';
+import { DataTable, rowOpens, TableCard } from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
+import { Button } from '@/components/ui/button';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { useOrganizationTimeZone } from '@/hooks/use-organization-time-zone';
 import { cn } from '@/lib/utils';
 import {
@@ -31,12 +39,12 @@ type Group = {
 };
 
 /**
- * The exceptions panel — the day's problems pulled out of the table into a short,
- * actionable list grouped by kind (missing time-out, badly late, unscheduled
- * absence). Each item opens the person's day to resolve it. This is what makes
+ * The exceptions table — the day's problems pulled out of the log into a short,
+ * actionable table ordered by kind (missing time-out, badly late, unscheduled
+ * absence…). Each row opens the person's day to resolve it. This is what makes
  * the board feel like it's doing HR work, not just displaying rows.
  */
-export function ExceptionsPanel({
+export function ExceptionsTable({
     records,
     canManage,
     onResolve,
@@ -141,104 +149,114 @@ export function ExceptionsPanel({
         ].filter((group) => group.records.length > 0);
     }, [records, timeZone]);
 
-    const total = groups.reduce((sum, group) => sum + group.records.length, 0);
+    const rows = groups.flatMap((group) =>
+        group.records.map((record) => ({ group, record })),
+    );
 
     return (
-        <aside className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm dark:border-sidebar-border">
-            <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Exceptions</h2>
+        <TableCard
+            title="Exceptions"
+            count={rows.length > 0 ? rows.length : undefined}
+            actions={
                 <span
                     className={cn(
                         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                        total > 0
+                        rows.length > 0
                             ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                             : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
                     )}
                 >
-                    {total > 0 ? `${total} to review` : 'All clear'}
+                    {rows.length > 0 ? (
+                        'To review'
+                    ) : (
+                        <>
+                            <ShieldCheck className="size-3.5" />
+                            All clear — everyone is accounted for
+                        </>
+                    )}
                 </span>
-            </div>
+            }
+        >
+            {rows.length > 0 && (
+                <div className="max-h-72 overflow-y-auto">
+                    <DataTable>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Employee</TableHead>
+                                <TableHead>Exception</TableHead>
+                                <TableHead className="hidden md:table-cell">
+                                    Detail
+                                </TableHead>
+                                <TableHead className="w-24" />
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {rows.map(({ group, record }) => {
+                                const act = () =>
+                                    canManage
+                                        ? onResolve(record)
+                                        : onOpen(record);
+                                const name =
+                                    record.employee?.full_name ??
+                                    'Unknown employee';
 
-            {total === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                        <ShieldCheck className="size-5" />
-                    </span>
-                    <p className="text-sm font-medium">No exceptions today</p>
-                    <p className="max-w-[14rem] text-xs text-muted-foreground">
-                        Everyone's clocked in on time and accounted for.
-                    </p>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-4">
-                    {groups.map((group) => (
-                        <section
-                            key={group.key}
-                            className="flex flex-col gap-1.5"
-                        >
-                            <div className="flex items-center gap-2">
-                                <span
-                                    className={cn(
-                                        'flex size-6 items-center justify-center rounded-md',
-                                        group.tone,
-                                    )}
-                                >
-                                    <group.icon className="size-3.5" />
-                                </span>
-                                <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                                    {group.title}
-                                </span>
-                                <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                                    {group.records.length}
-                                </span>
-                            </div>
-
-                            <ul className="flex flex-col gap-1">
-                                {group.records.map((record) => (
-                                    <li key={record.employee?.id ?? record.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                canManage
-                                                    ? onResolve(record)
-                                                    : onOpen(record)
-                                            }
-                                            className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
-                                        >
-                                            <PersonAvatar
-                                                name={
-                                                    record.employee
-                                                        ?.full_name ?? 'Unknown'
-                                                }
-                                                initials={
-                                                    record.employee?.initials ??
-                                                    '?'
-                                                }
-                                                photo={record.employee?.photo}
-                                                className="size-7"
-                                            />
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate text-sm font-medium">
-                                                    {record.employee
-                                                        ?.full_name ??
-                                                        'Unknown employee'}
-                                                </p>
-                                                <p className="truncate text-xs text-muted-foreground">
-                                                    {group.detail(record)}
-                                                </p>
+                                return (
+                                    <TableRow
+                                        key={`${group.key}-${record.employee?.id ?? record.id}`}
+                                        {...rowOpens(act)}
+                                    >
+                                        <TableCell>
+                                            <div className="flex min-w-0 items-center gap-2.5">
+                                                <PersonAvatar
+                                                    name={name}
+                                                    initials={
+                                                        record.employee
+                                                            ?.initials ?? '?'
+                                                    }
+                                                    photo={
+                                                        record.employee?.photo
+                                                    }
+                                                    className="size-7"
+                                                    fallbackClassName="text-[10px]"
+                                                />
+                                                <span className="max-w-52 truncate text-sm font-medium">
+                                                    {name}
+                                                </span>
                                             </div>
-                                            <span className="text-xs font-medium text-[#0ABFBF] opacity-0 transition-opacity group-hover:opacity-100">
-                                                {canManage ? 'Resolve' : 'View'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="inline-flex items-center gap-2 text-sm">
+                                                <span
+                                                    className={cn(
+                                                        'flex size-6 shrink-0 items-center justify-center rounded-md',
+                                                        group.tone,
+                                                    )}
+                                                >
+                                                    <group.icon className="size-3.5" />
+                                                </span>
+                                                {group.title}
                                             </span>
-                                            <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </section>
-                    ))}
+                                        </TableCell>
+                                        <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                                            {group.detail(record)}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 px-2 text-xs"
+                                                onClick={act}
+                                            >
+                                                {canManage ? 'Resolve' : 'View'}
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </DataTable>
                 </div>
             )}
-        </aside>
+        </TableCard>
     );
 }

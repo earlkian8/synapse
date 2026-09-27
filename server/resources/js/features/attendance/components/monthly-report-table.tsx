@@ -1,7 +1,15 @@
 import { LineChart } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+    DataTable,
+    EmptyTableRow,
+    SortableHead,
+    TableCard,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { PersonAvatar } from '@/components/person-avatar';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -42,60 +50,171 @@ function hours(minutes: number): string {
     return `${Math.round((minutes / 60) * 10) / 10}h`;
 }
 
+type ReportSort =
+    | 'name'
+    | 'present'
+    | 'late'
+    | 'half'
+    | 'absent'
+    | 'holidays'
+    | 'overtime'
+    | 'rate';
+
+/** Comparable key per row for the active sort column. */
+function sortValue(row: MonthlyRow, key: ReportSort): string | number {
+    switch (key) {
+        case 'name':
+            return row.employee.full_name.toLowerCase();
+        case 'present':
+            return row.present_days;
+        case 'late':
+            return row.late_count;
+        case 'half':
+            return row.half_day_count;
+        case 'absent':
+            return row.absent_count;
+        case 'holidays':
+            return row.holiday_count;
+        case 'overtime':
+            return row.overtime_hours;
+        case 'rate':
+            return row.attendance_rate ?? -1;
+    }
+}
+
 /**
  * The monthly report — one summary row per employee: present days, late count,
  * half days, absences, overtime (and how much of it is approved), night work
  * when the company's policy sets it apart, and attendance rate, with an inline
  * sparkline of the worked-hours rhythm across the month.
  */
-export function MonthlyReportTable({ report }: { report: MonthlyReport }) {
-    if (report.rows.length === 0) {
-        return <EmptyState />;
-    }
+export function MonthlyReportTable({
+    report,
+    resetKey,
+}: {
+    report: MonthlyReport;
+    /** The server filters on screen — changing them returns to page one. */
+    resetKey: string;
+}) {
+    const [sort, setSort] = useState<ReportSort>('name');
+    const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
+
+    const sorted = useMemo(() => {
+        const dir = direction === 'asc' ? 1 : -1;
+
+        return [...report.rows].sort((a, b) => {
+            const av = sortValue(a, sort);
+            const bv = sortValue(b, sort);
+
+            return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+        });
+    }, [report.rows, sort, direction]);
+
+    const page = useClientPagination(
+        sorted,
+        `${resetKey}|${sort}|${direction}`,
+        25,
+    );
+
+    const sortable = (key: ReportSort) => ({
+        active: sort === key,
+        direction,
+        onSort: () => {
+            if (key === sort) {
+                setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+            } else {
+                setSort(key);
+                setDirection(key === 'name' ? 'asc' : 'desc');
+            }
+        },
+    });
 
     // Night minutes only exist under a policy that counts them; a column of
     // dashes for everybody else would be noise.
     const showNight = report.rows.some((row) => row.minutes.night > 0);
 
     return (
-        <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-            <Table>
-                <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                        <TableHead>Employee</TableHead>
-                        <TableHead className="text-right">Present</TableHead>
-                        <TableHead className="text-right">Late</TableHead>
-                        <TableHead className="hidden text-right md:table-cell">
-                            Half days
-                        </TableHead>
-                        <TableHead className="text-right">Absent</TableHead>
-                        <TableHead className="hidden text-right md:table-cell">
-                            Holidays
-                        </TableHead>
-                        <TableHead className="hidden text-right md:table-cell">
-                            Overtime
-                        </TableHead>
-                        {showNight && (
-                            <TableHead className="hidden text-right xl:table-cell">
-                                Night
+        <div className="flex flex-col gap-3">
+            <TableCard title="Monthly report" count={report.rows.length}>
+                <DataTable>
+                    <TableHeader>
+                        <TableRow>
+                            <SortableHead {...sortable('name')}>
+                                Employee
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('present')}
+                                align="right"
+                            >
+                                Present
+                            </SortableHead>
+                            <SortableHead {...sortable('late')} align="right">
+                                Late
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('half')}
+                                align="right"
+                                className="hidden md:table-cell"
+                            >
+                                Half days
+                            </SortableHead>
+                            <SortableHead {...sortable('absent')} align="right">
+                                Absent
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('holidays')}
+                                align="right"
+                                className="hidden md:table-cell"
+                            >
+                                Holidays
+                            </SortableHead>
+                            <SortableHead
+                                {...sortable('overtime')}
+                                align="right"
+                                className="hidden md:table-cell"
+                            >
+                                Overtime
+                            </SortableHead>
+                            {showNight && (
+                                <TableHead className="hidden text-right xl:table-cell">
+                                    Night
+                                </TableHead>
+                            )}
+                            <SortableHead {...sortable('rate')} align="right">
+                                Rate
+                            </SortableHead>
+                            <TableHead className="hidden text-right lg:table-cell">
+                                Trend
                             </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {report.rows.length === 0 && (
+                            <EmptyTableRow
+                                colSpan={showNight ? 10 : 9}
+                                icon={LineChart}
+                                title="No employees match this view"
+                                description="Try a different department or search."
+                            />
                         )}
-                        <TableHead className="text-right">Rate</TableHead>
-                        <TableHead className="hidden text-right lg:table-cell">
-                            Trend
-                        </TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {report.rows.map((row) => (
-                        <Row
-                            key={row.employee.id}
-                            row={row}
-                            showNight={showNight}
-                        />
-                    ))}
-                </TableBody>
-            </Table>
+
+                        {page.rows.map((row) => (
+                            <Row
+                                key={row.employee.id}
+                                row={row}
+                                showNight={showNight}
+                            />
+                        ))}
+                    </TableBody>
+                </DataTable>
+            </TableCard>
+
+            <TablePagination
+                meta={page.meta}
+                perPage={page.perPage}
+                onPage={page.setPage}
+                onPerPage={page.setPerPage}
+            />
         </div>
     );
 }
@@ -106,19 +225,20 @@ function Row({ row, showNight }: { row: MonthlyRow; showNight: boolean }) {
 
     return (
         <TableRow>
-            <TableCell className="py-2.5">
-                <div className="flex items-center gap-3">
+            <TableCell>
+                <div className="flex min-w-0 items-center gap-2.5">
                     <PersonAvatar
                         name={row.employee.full_name}
                         initials={row.employee.initials}
                         photo={row.employee.photo}
-                        className="size-9"
+                        className="size-8"
+                        fallbackClassName="text-[11px]"
                     />
                     <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
+                        <p className="max-w-56 truncate text-sm font-medium">
                             {row.employee.full_name}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="max-w-56 truncate text-xs text-muted-foreground">
                             {row.employee.department?.name ?? '—'}
                         </p>
                     </div>
@@ -222,19 +342,5 @@ function Row({ row, showNight }: { row: MonthlyRow; showNight: boolean }) {
                 </div>
             </TableCell>
         </TableRow>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <LineChart className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No employees match this view</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                Try a different department or search.
-            </p>
-        </div>
     );
 }

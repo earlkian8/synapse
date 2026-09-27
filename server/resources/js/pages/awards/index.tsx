@@ -1,30 +1,21 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import {
-    Award,
-    Download,
-    Pencil,
-    Plus,
-    Search,
-    Sparkles,
-    Trash2,
-} from 'lucide-react';
+import { Download, Plus, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { PersonAvatar } from '@/components/person-avatar';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    FilterSelect,
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
+import { Button } from '@/components/ui/button';
 import { removeAward } from '@/features/awards/api';
 import { AwardStatsCards } from '@/features/awards/components/award-stats';
-import { AwardTypeBadge } from '@/features/awards/components/award-type-badge';
+import { AwardsTable } from '@/features/awards/components/awards-table';
 import { GiveAwardDialog } from '@/features/awards/components/give-award-dialog';
-import { formatDate } from '@/features/awards/constants';
 import { awardsRoutes } from '@/features/awards/routes';
 import type {
     AwardsIndexPageProps,
@@ -77,6 +68,8 @@ export default function AwardsIndex() {
         });
     }, [awards, typeFilter, search]);
 
+    const page = useClientPagination(filtered, `${typeFilter}|${search}`);
+
     const openGive = () => {
         setEdit(null);
         setGiveOpen(true);
@@ -105,105 +98,92 @@ export default function AwardsIndex() {
         <>
             <Head title="Awards & Recognition" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Awards &amp; Recognition
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Celebrate great work — the organisation's
-                            recognition feed.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {awards.length > 0 && (
+            <PageBody>
+                <PageHeader
+                    title="Awards & Recognition"
+                    description="Celebrate great work — the organisation's recognition feed."
+                    actions={
+                        can.manage && (
                             <Button variant="outline" size="sm" asChild>
-                                <a href={awardsRoutes.export}>
-                                    <Download className="size-4" />
-                                    Export
-                                </a>
+                                <Link href={awardsRoutes.nominations}>
+                                    <Sparkles className="size-4" />
+                                    Nomination board
+                                </Link>
                             </Button>
-                        )}
-                        {can.manage && (
-                            <>
-                                <Button variant="outline" size="sm" asChild>
-                                    <Link href={awardsRoutes.nominations}>
-                                        <Sparkles className="size-4" />
-                                        Nomination board
-                                    </Link>
-                                </Button>
-                                <Button size="sm" onClick={openGive}>
-                                    <Plus className="size-4" />
-                                    Give recognition
-                                </Button>
-                            </>
-                        )}
-                    </div>
-                </div>
+                        )
+                    }
+                />
 
                 <AwardStatsCards stats={stats} />
 
-                {awards.length === 0 ? (
-                    <EmptyState canManage={can.manage} />
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        {/* Filters */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <div className="relative sm:max-w-xs sm:flex-1">
-                                <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Search employee…"
-                                    className="pl-8"
-                                />
-                            </div>
-                            <Select
-                                value={typeFilter}
-                                onValueChange={setTypeFilter}
-                            >
-                                <SelectTrigger className="sm:w-56">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        All award types
-                                    </SelectItem>
-                                    {filterTypes.map((t) => (
-                                        <SelectItem
-                                            key={t.id}
-                                            value={String(t.id)}
-                                        >
-                                            {t.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                <div className="flex flex-col gap-3">
+                    <ListToolbar
+                        filtered={search !== '' || typeFilter !== 'all'}
+                        onReset={() => {
+                            setSearch('');
+                            setTypeFilter('all');
+                        }}
+                        summary={
+                            filtered.length !== awards.length &&
+                            `${filtered.length} of ${awards.length}`
+                        }
+                        actions={
+                            <>
+                                {awards.length > 0 && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href={awardsRoutes.export}>
+                                            <Download className="size-4" />
+                                            Export
+                                        </a>
+                                    </Button>
+                                )}
+                                {can.manage && (
+                                    <Button size="sm" onClick={openGive}>
+                                        <Plus className="size-4" />
+                                        Give recognition
+                                    </Button>
+                                )}
+                            </>
+                        }
+                    >
+                        <SearchInput
+                            value={search}
+                            onSearch={setSearch}
+                            delay={0}
+                            placeholder="Search employee…"
+                            label="Search recognitions by employee"
+                        />
+                        <FilterSelect
+                            label="Filter by award type"
+                            value={typeFilter}
+                            onChange={setTypeFilter}
+                            options={[
+                                { value: 'all', label: 'All award types' },
+                                ...filterTypes.map((t) => ({
+                                    value: String(t.id),
+                                    label: t.name,
+                                })),
+                            ]}
+                            className="w-48"
+                        />
+                    </ListToolbar>
 
-                        {filtered.length === 0 ? (
-                            <p className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground dark:border-sidebar-border">
-                                No recognitions match these filters.
-                            </p>
-                        ) : (
-                            <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-                                <ul className="divide-y divide-border">
-                                    {filtered.map((award) => (
-                                        <AwardRow
-                                            key={award.id}
-                                            award={award}
-                                            canManage={can.manage}
-                                            onEdit={() => openEdit(award)}
-                                            onRemove={() => setRemove(award)}
-                                        />
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+                    <AwardsTable
+                        awards={page.rows}
+                        canManage={can.manage}
+                        filtered={awards.length > 0}
+                        onEdit={openEdit}
+                        onRemove={setRemove}
+                    />
+
+                    <TablePagination
+                        meta={page.meta}
+                        perPage={page.perPage}
+                        onPage={page.setPage}
+                        onPerPage={page.setPerPage}
+                    />
+                </div>
+            </PageBody>
 
             <GiveAwardDialog
                 open={giveOpen}
@@ -224,89 +204,6 @@ export default function AwardsIndex() {
                 onConfirm={confirmRemove}
             />
         </>
-    );
-}
-
-function AwardRow({
-    award,
-    canManage,
-    onEdit,
-    onRemove,
-}: {
-    award: EmployeeAward;
-    canManage: boolean;
-    onEdit: () => void;
-    onRemove: () => void;
-}) {
-    return (
-        <li className="flex items-start gap-3 px-4 py-3">
-            <PersonAvatar
-                name={award.employee?.full_name ?? 'Unknown'}
-                initials={award.employee?.initials ?? '?'}
-                photo={award.employee?.photo}
-                className="size-9"
-            />
-            <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-medium">
-                        {award.employee?.full_name ?? 'Unknown employee'}
-                    </p>
-                    {award.award_type && (
-                        <AwardTypeBadge
-                            name={award.award_type.name}
-                            color={award.award_type.color}
-                        />
-                    )}
-                </div>
-                {award.reason && (
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                        {award.reason}
-                    </p>
-                )}
-                <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                    {formatDate(award.awarded_on)}
-                    {award.granted_by ? ` · by ${award.granted_by.name}` : ''}
-                </p>
-            </div>
-            {canManage && (
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={onEdit}
-                        aria-label="Edit recognition"
-                    >
-                        <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-muted-foreground hover:text-destructive"
-                        onClick={onRemove}
-                        aria-label="Remove recognition"
-                    >
-                        <Trash2 className="size-4" />
-                    </Button>
-                </div>
-            )}
-        </li>
-    );
-}
-
-function EmptyState({ canManage }: { canManage: boolean }) {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <Award className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No recognitions yet</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                {canManage
-                    ? 'Add award types under Company Setup → Award Types, then give recognition here.'
-                    : 'No recognitions have been given yet.'}
-            </p>
-        </div>
     );
 }
 

@@ -133,12 +133,19 @@ resources/js/
     └── components/
         ├── employees-stats.tsx · employees-toolbar.tsx · employees-table.tsx
         ├── employee-row-actions.tsx · employee-status-badge.tsx · employee-avatar.tsx
-        ├── employee-bulk-actions-bar.tsx · employees-pagination.tsx
+        ├── employee-bulk-actions-bar.tsx
         ├── employee-form-dialog.tsx          # sectioned create/edit; FK selects; dept→position scoping
         ├── employee-detail-dialog.tsx        # tabbed profile + performance/documents/certifications/history
         ├── link-employee-dialog.tsx          # binds an approved join request to a roster line
         └── confirm-dialog.tsx
 ```
+
+The page, stat tiles, toolbar, table and pagination come from the shared Workforce
+table kit, `components/data-table/`
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)). A whole
+row opens the employee, and its menu holds the rest. **App access**
+(`/employees/access`) is three tables: people waiting to join, invitations sent, and
+people not invited yet (searchable and paged, with *Invite all*).
 
 Query params: `search`, `status`, `type`, `department`, `sort` (`first_name` |
 `employee_no` | `date_hired`), `direction`, `per_page`, `page`. Defaults are

@@ -9,12 +9,12 @@ export const DEFAULT_FILTERS = {
 
 /** The tabs across the top of the inbox. `upcoming` is approved leave not yet started. */
 export const STATUS_FILTERS = [
+    { value: 'all', label: 'All statuses' },
     { value: 'pending', label: 'Pending' },
     { value: 'approved', label: 'Approved' },
     { value: 'upcoming', label: 'Upcoming' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'cancelled', label: 'Cancelled' },
-    { value: 'all', label: 'All' },
 ] as const;
 
 export const STATUS_LABELS: Record<LeaveStatus, string> = {

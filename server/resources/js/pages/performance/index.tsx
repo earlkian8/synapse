@@ -1,15 +1,16 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import {
-    CalendarRange,
-    Download,
-    Gauge,
-    Plus,
-    Rocket,
-    Search,
-} from 'lucide-react';
+import { CalendarRange, Download, Plus, Rocket } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+    FilterSelect,
+    ListToolbar,
+    PageBody,
+    PageHeader,
+    SearchInput,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -21,6 +22,7 @@ import { kpiConfigRoutes } from '@/features/kpi-config/routes';
 import { BandDistribution } from '@/features/performance/components/band-distribution';
 import { CalibrationTable } from '@/features/performance/components/calibration-table';
 import { EvaluationTable } from '@/features/performance/components/evaluation-table';
+import type { EvaluationSort } from '@/features/performance/components/evaluation-table';
 import { LaunchCycleModal } from '@/features/performance/components/launch-cycle-modal';
 import { OpenAppraisalModal } from '@/features/performance/components/open-appraisal-modal';
 import { PerformanceStatsCards } from '@/features/performance/components/performance-stats';
@@ -39,6 +41,17 @@ const STATUS_FILTERS: { value: EvaluationStatus | 'all'; label: string }[] = [
     { value: 'acknowledged', label: 'Signed off' },
 ];
 
+/** Rank an appraisal by its lifecycle for the table's status sort. */
+const STATUS_RANK: Record<EvaluationStatus, number> = {
+    draft: 0,
+    submitted: 1,
+    acknowledged: 2,
+};
+
+/**
+ * Performance Management: the review cycle leads the page, then where it
+ * stands, how it was rated, and one table of every appraisal in it.
+ */
 export default function PerformanceIndex() {
     const {
         evaluations,
@@ -59,6 +72,8 @@ export default function PerformanceIndex() {
         'all',
     );
     const [search, setSearch] = useState('');
+    const [sort, setSort] = useState<EvaluationSort>('name');
+    const [direction, setDirection] = useState<'asc' | 'desc'>('asc');
 
     const period = periods.find((p) => p.id === currentPeriodId) ?? null;
 
@@ -75,41 +90,90 @@ export default function PerformanceIndex() {
         return set;
     }, [evaluations]);
 
-    const filtered = useMemo(() => {
+    const onSort = (key: EvaluationSort) => {
+        if (key === sort) {
+            setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSort(key);
+            setDirection(key === 'result' ? 'desc' : 'asc');
+        }
+    };
+
+    const rows = useMemo(() => {
         const needle = search.trim().toLowerCase();
+        const dir = direction === 'asc' ? 1 : -1;
 
-        return evaluations.filter((evaluation) => {
-            if (statusFilter !== 'all' && evaluation.status !== statusFilter) {
-                return false;
-            }
+        return evaluations
+            .filter((evaluation) => {
+                if (
+                    statusFilter !== 'all' &&
+                    evaluation.status !== statusFilter
+                ) {
+                    return false;
+                }
 
-            return (
-                needle === '' ||
-                (evaluation.employee?.full_name
-                    .toLowerCase()
-                    .includes(needle) ??
-                    false)
-            );
-        });
-    }, [evaluations, statusFilter, search]);
+                return (
+                    needle === '' ||
+                    [
+                        evaluation.employee?.full_name,
+                        evaluation.employee?.position,
+                        evaluation.employee?.department,
+                    ].some((field) =>
+                        (field ?? '').toLowerCase().includes(needle),
+                    )
+                );
+            })
+            .sort((a, b) => {
+                switch (sort) {
+                    case 'framework':
+                        return (
+                            (a.template_name ?? '').localeCompare(
+                                b.template_name ?? '',
+                            ) * dir
+                        );
+                    case 'result':
+                        return (
+                            ((a.overall_percent ?? -1) -
+                                (b.overall_percent ?? -1)) *
+                            dir
+                        );
+                    case 'status':
+                        return (
+                            (STATUS_RANK[a.status] - STATUS_RANK[b.status]) *
+                            dir
+                        );
+                    default:
+                        return (
+                            (a.employee?.full_name ?? '').localeCompare(
+                                b.employee?.full_name ?? '',
+                            ) * dir
+                        );
+                }
+            });
+    }, [evaluations, statusFilter, search, sort, direction]);
+
+    const page = useClientPagination(
+        rows,
+        [currentPeriodId, statusFilter, search, sort, direction].join('|'),
+    );
 
     const completed = evaluations.filter(
         (evaluation) => evaluation.result_label !== null,
     ).length;
 
+    const isFiltered = search !== '' || statusFilter !== 'all';
+
     return (
         <>
             <Head title="Performance Management" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+            <PageBody>
                 {/* The cycle is the unit of work, so it leads the page. */}
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 flex-col gap-2">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Performance Management
-                        </h1>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <PageHeader
+                    title="Performance Management"
+                    description={
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="flex items-center gap-1.5">
                                 <CalendarRange className="size-4" />
                                 Review cycle
                             </span>
@@ -132,7 +196,11 @@ export default function PerformanceIndex() {
                                     )
                                 }
                             >
-                                <SelectTrigger className="w-56">
+                                <SelectTrigger
+                                    size="sm"
+                                    className="w-56 text-foreground"
+                                    aria-label="Review cycle"
+                                >
                                     <SelectValue placeholder="No cycles yet" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -149,29 +217,16 @@ export default function PerformanceIndex() {
                             {period && (
                                 <>
                                     <PeriodStatusBadge status={period.status} />
-                                    <span className="text-xs text-muted-foreground tabular-nums">
+                                    <span className="text-xs tabular-nums">
                                         {formatDate(period.start_date)} –{' '}
                                         {formatDate(period.end_date)}
                                     </span>
                                 </>
                             )}
                         </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {evaluations.length > 0 && (
-                            <Button variant="outline" size="sm" asChild>
-                                <a
-                                    href={performanceRoutes.export(
-                                        currentPeriodId,
-                                    )}
-                                >
-                                    <Download className="size-4" />
-                                    Export
-                                </a>
-                            </Button>
-                        )}
-                        {can.manage && (
+                    }
+                    actions={
+                        can.manage && (
                             <>
                                 <Button
                                     variant="outline"
@@ -189,88 +244,104 @@ export default function PerformanceIndex() {
                                     Launch cycle
                                 </Button>
                             </>
-                        )}
-                    </div>
-                </div>
+                        )
+                    }
+                />
 
                 <PerformanceStatsCards stats={stats} />
 
-                {evaluations.length === 0 ? (
-                    <EmptyState
-                        canManage={can.manage}
-                        hasFramework={templates.length > 0}
-                        hasOpenCycle={periods.some(
-                            (p) => p.status === 'open' && !p.is_archived,
-                        )}
-                    />
-                ) : (
-                    <>
-                        <div className="grid gap-4 xl:grid-cols-2">
-                            <BandDistribution
-                                distribution={distribution}
-                                total={completed}
-                            />
-                            <CalibrationTable
-                                rows={byDepartment}
-                                average={stats.average_percent}
-                            />
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                <div className="relative sm:max-w-xs sm:flex-1">
-                                    <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                                    <Input
-                                        value={search}
-                                        onChange={(event) =>
-                                            setSearch(event.target.value)
-                                        }
-                                        placeholder="Search employee…"
-                                        aria-label="Search appraisals by employee"
-                                        className="pl-8"
-                                    />
-                                </div>
-                                <Select
-                                    value={statusFilter}
-                                    onValueChange={(value) =>
-                                        setStatusFilter(
-                                            value as EvaluationStatus | 'all',
-                                        )
-                                    }
-                                >
-                                    <SelectTrigger
-                                        className="sm:w-52"
-                                        aria-label="Filter by status"
-                                    >
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {STATUS_FILTERS.map((status) => (
-                                            <SelectItem
-                                                key={status.value}
-                                                value={status.value}
-                                            >
-                                                {status.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <span className="text-xs text-muted-foreground tabular-nums sm:ml-auto">
-                                    {filtered.length} of {evaluations.length}
-                                </span>
-                            </div>
-
-                            {filtered.length === 0 ? (
-                                <p className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground dark:border-sidebar-border">
-                                    No appraisals match these filters.
-                                </p>
-                            ) : (
-                                <EvaluationTable evaluations={filtered} />
-                            )}
-                        </div>
-                    </>
+                {evaluations.length > 0 && (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                        <BandDistribution
+                            distribution={distribution}
+                            total={completed}
+                        />
+                        <CalibrationTable
+                            rows={byDepartment}
+                            average={stats.average_percent}
+                        />
+                    </div>
                 )}
-            </div>
+
+                <div className="flex flex-col gap-3">
+                    <ListToolbar
+                        filtered={isFiltered}
+                        onReset={() => {
+                            setSearch('');
+                            setStatusFilter('all');
+                        }}
+                        summary={
+                            evaluations.length > 0
+                                ? `${rows.length} of ${evaluations.length}`
+                                : undefined
+                        }
+                        actions={
+                            evaluations.length > 0 && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <a
+                                        href={performanceRoutes.export(
+                                            currentPeriodId,
+                                        )}
+                                    >
+                                        <Download className="size-4" />
+                                        Export
+                                    </a>
+                                </Button>
+                            )
+                        }
+                    >
+                        <SearchInput
+                            value={search}
+                            onSearch={setSearch}
+                            delay={0}
+                            placeholder="Search employee, position…"
+                            label="Search appraisals"
+                        />
+                        <FilterSelect
+                            label="Filter by status"
+                            value={statusFilter}
+                            onChange={(value) =>
+                                setStatusFilter(
+                                    value as EvaluationStatus | 'all',
+                                )
+                            }
+                            options={STATUS_FILTERS}
+                            className="w-44"
+                        />
+                    </ListToolbar>
+
+                    <EvaluationTable
+                        evaluations={page.rows}
+                        sort={sort}
+                        direction={direction}
+                        onSort={onSort}
+                        empty={
+                            evaluations.length > 0
+                                ? {
+                                      title: 'No appraisals match',
+                                      description:
+                                          'Try another status, or clear the search.',
+                                  }
+                                : emptyCycle({
+                                      canManage: can.manage,
+                                      hasFramework: templates.length > 0,
+                                      hasOpenCycle: periods.some(
+                                          (p) =>
+                                              p.status === 'open' &&
+                                              !p.is_archived,
+                                      ),
+                                  })
+                        }
+                    />
+
+                    <TablePagination
+                        meta={page.meta}
+                        perPage={page.perPage}
+                        onPage={page.setPage}
+                        onPerPage={page.setPerPage}
+                    />
+                </div>
+            </PageBody>
 
             <OpenAppraisalModal
                 open={openAppraisal}
@@ -297,11 +368,11 @@ export default function PerformanceIndex() {
 }
 
 /**
- * An empty board means one of three different things, and each has a different
+ * An empty cycle means one of three different things, and each has a different
  * next step. Telling somebody to "launch the cycle" when they have no framework
  * to launch it with sends them to a modal that can only refuse them.
  */
-function EmptyState({
+function emptyCycle({
     canManage,
     hasFramework,
     hasOpenCycle,
@@ -310,44 +381,43 @@ function EmptyState({
     hasFramework: boolean;
     hasOpenCycle: boolean;
 }) {
+    if (!canManage) {
+        return {
+            title: 'Nothing appraised in this cycle',
+            description: 'No appraisals have been conducted in this cycle yet.',
+        };
+    }
+
     const blocked = !hasFramework
         ? {
               title: 'No appraisal framework yet',
-              body: 'A framework decides what gets measured and how the result is reported. Build one first.',
+              description:
+                  'A framework decides what gets measured and how the result is reported. Build one first.',
               cta: 'Set up a framework',
           }
         : !hasOpenCycle
           ? {
                 title: 'No review cycle is open',
-                body: 'Appraisals are conducted inside a cycle. Open one to start reviewing.',
+                description:
+                    'Appraisals are conducted inside a cycle. Open one to start reviewing.',
                 cta: 'Open a review cycle',
             }
           : {
                 title: 'Nothing appraised in this cycle',
-                body: 'Launch the cycle to open an appraisal for everyone at once, or open them one at a time.',
+                description:
+                    'Launch the cycle to open an appraisal for everyone at once, or open them one at a time.',
                 cta: null,
             };
 
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <Gauge className="size-5" />
-            </span>
-            <p className="text-sm font-medium">
-                {canManage ? blocked.title : 'Nothing appraised in this cycle'}
-            </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                {canManage
-                    ? blocked.body
-                    : 'No appraisals have been conducted in this cycle yet.'}
-            </p>
-            {canManage && blocked.cta && (
-                <Button variant="outline" size="sm" className="mt-2" asChild>
-                    <Link href={kpiConfigRoutes.index}>{blocked.cta}</Link>
-                </Button>
-            )}
-        </div>
-    );
+    return {
+        title: blocked.title,
+        description: blocked.description,
+        action: blocked.cta ? (
+            <Button variant="outline" size="sm" asChild>
+                <Link href={kpiConfigRoutes.index}>{blocked.cta}</Link>
+            </Button>
+        ) : undefined,
+    };
 }
 
 PerformanceIndex.layout = {

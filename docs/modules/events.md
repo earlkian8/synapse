@@ -11,18 +11,23 @@ See [ADR 0015](../decisions/0015-events-and-meetings.md).
 
 ## Surfaces
 
-- **`/events`** — the **overview**: a KPI bar (upcoming, total, meetings,
-  invitations) and a card per event grouped by derived status (**Happening now**,
-  **Upcoming**, **Past**). Each card shows the kind (event / meeting), the schedule,
-  the location and the going/invited headcount. HR can **schedule a new event** and
-  reveal an **Archived** section to restore / permanently delete.
+- **`/events`** — the **overview**: stat tiles (upcoming, total, meetings,
+  invitations) and a **table of events** (title with kind and organiser, schedule,
+  location, attending/invited, derived status). It can be searched, filtered by kind
+  and status, sorted and paged. A row opens the event. HR can **schedule a new
+  event**. **Archived (n)** is one more status option, and there a row's menu restores
+  the event or deletes it permanently.
 - **`/events/{event}`** — the **event detail**: a header (kind, schedule, location,
-  organiser, description, derived-status badge), a stat strip (location, invited,
-  accepted, organiser), and the **attendee roster**. HR can **invite attendees**
+  organiser, description, derived-status badge), stat tiles (invited, accepted,
+  tentative, not replied), and the **attendees table**, which can be searched, exported
+  and paged. HR can **invite attendees**
   (multi-select), change each invitee's **response** inline, remove an attendee, and
   **edit** or **archive** the event.
 - **Employee detail → Events tab** — a read-only list of the events an employee is
   invited to, with their response.
+
+Both pages use the shared Workforce table kit
+([ADR 0047](../decisions/0047-workforce-list-pages-share-one-table-kit.md)).
 
 ## Behaviour
 

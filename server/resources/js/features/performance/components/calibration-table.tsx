@@ -1,4 +1,12 @@
 import { Scale } from 'lucide-react';
+import { DataTable, EmptyTableRow, TableCard } from '@/components/data-table';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { formatPercent } from '../constants';
 import type { DepartmentCalibration } from '../types';
@@ -19,111 +27,81 @@ type Props = {
  * deviation is the thing HR acts on.
  */
 export function CalibrationTable({ rows, average }: Props) {
-    if (rows.length === 0) {
-        return null;
-    }
-
     return (
-        <section className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-[#0F2044]/8 text-[#0F2044] dark:bg-white/10 dark:text-white">
-                        <Scale className="size-4" />
-                    </span>
-                    <div>
-                        <h2 className="text-sm font-semibold">
-                            Calibration by department
-                        </h2>
-                        <p className="text-xs text-muted-foreground">
-                            How each department rates against the cycle average
-                        </p>
-                    </div>
-                </div>
-                {average !== null && (
+        <TableCard
+            title="Calibration by department"
+            description="How each department rates against the cycle average"
+            actions={
+                average !== null && (
                     <span className="text-xs text-muted-foreground tabular-nums">
                         Cycle average {formatPercent(average)}
                     </span>
-                )}
-            </header>
+                )
+            }
+        >
+            <DataTable>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead className="text-right">Average</TableHead>
+                        <TableHead className="text-right">vs. cycle</TableHead>
+                        <TableHead className="text-right">Top band</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {rows.length === 0 && (
+                        <EmptyTableRow
+                            colSpan={5}
+                            icon={Scale}
+                            title="No departments to compare yet"
+                            description="Calibration appears once appraisals are opened in this cycle."
+                        />
+                    )}
 
-            <div className="overflow-x-auto">
-                <table className="w-full min-w-[38rem] text-sm">
-                    <thead>
-                        <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                            <th scope="col" className="px-4 py-2 font-medium">
-                                Department
-                            </th>
-                            <th scope="col" className="px-4 py-2 font-medium">
-                                Progress
-                            </th>
-                            <th
-                                scope="col"
-                                className="px-4 py-2 text-right font-medium"
-                            >
-                                Average
-                            </th>
-                            <th
-                                scope="col"
-                                className="px-4 py-2 text-right font-medium"
-                            >
-                                vs. cycle
-                            </th>
-                            <th
-                                scope="col"
-                                className="px-4 py-2 text-right font-medium"
-                            >
-                                Top band
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                        {rows.map((row) => {
-                            const delta =
-                                row.average_percent !== null && average !== null
-                                    ? row.average_percent - average
-                                    : null;
+                    {rows.map((row) => {
+                        const delta =
+                            row.average_percent !== null && average !== null
+                                ? row.average_percent - average
+                                : null;
 
-                            return (
-                                <tr key={row.department}>
-                                    <th
-                                        scope="row"
-                                        className="max-w-[14rem] truncate px-4 py-2.5 text-left font-medium"
-                                    >
-                                        {row.department}
-                                    </th>
-                                    <td className="px-4 py-2.5 text-muted-foreground tabular-nums">
-                                        {row.completed} of {row.total} done
-                                    </td>
-                                    <td className="px-4 py-2.5 text-right tabular-nums">
-                                        {formatPercent(row.average_percent)}
-                                    </td>
-                                    <td
-                                        className={cn(
-                                            'px-4 py-2.5 text-right font-medium tabular-nums',
-                                            delta === null
-                                                ? 'text-muted-foreground'
-                                                : delta >= 5
-                                                  ? 'text-emerald-600 dark:text-emerald-400'
-                                                  : delta <= -5
-                                                    ? 'text-rose-600 dark:text-rose-400'
-                                                    : 'text-muted-foreground',
-                                        )}
-                                    >
-                                        {delta === null
-                                            ? '—'
-                                            : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}`}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                                        {row.top_band_share === null
-                                            ? '—'
-                                            : `${row.top_band_share}%`}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                        return (
+                            <TableRow key={row.department}>
+                                <TableCell className="max-w-56 truncate text-sm font-medium">
+                                    {row.department}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground tabular-nums">
+                                    {row.completed} of {row.total} done
+                                </TableCell>
+                                <TableCell className="text-right text-sm tabular-nums">
+                                    {formatPercent(row.average_percent)}
+                                </TableCell>
+                                <TableCell
+                                    className={cn(
+                                        'text-right text-sm font-medium tabular-nums',
+                                        delta === null
+                                            ? 'text-muted-foreground'
+                                            : delta >= 5
+                                              ? 'text-emerald-600 dark:text-emerald-400'
+                                              : delta <= -5
+                                                ? 'text-rose-600 dark:text-rose-400'
+                                                : 'text-muted-foreground',
+                                    )}
+                                >
+                                    {delta === null
+                                        ? '—'
+                                        : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}`}
+                                </TableCell>
+                                <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
+                                    {row.top_band_share === null
+                                        ? '—'
+                                        : `${row.top_band_share}%`}
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </DataTable>
+        </TableCard>
     );
 }

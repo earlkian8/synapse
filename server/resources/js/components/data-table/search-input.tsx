@@ -4,24 +4,28 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 type Props = {
-    /** The search as the server last applied it. */
     value: string;
     onSearch: (value: string) => void;
     placeholder: string;
     label: string;
+    /**
+     * Milliseconds to wait after typing stops — for a search the server runs.
+     * 0 (a search over rows already on the page) applies each keystroke.
+     */
+    delay?: number;
     className?: string;
 };
 
 /**
- * A search box that applies itself 350 ms after typing stops, and follows the
- * server's value when the filters are reset — the same behaviour as the
- * Employees toolbar.
+ * The search box every list starts its toolbar with. A server-run search waits
+ * until typing stops and follows the server's value when filters are reset.
  */
 export function SearchInput({
     value,
     onSearch,
     placeholder,
     label,
+    delay = 350,
     className,
 }: Props) {
     const [term, setTerm] = useState(value);
@@ -33,22 +37,34 @@ export function SearchInput({
     }
 
     useEffect(() => {
+        if (delay === 0) {
+            return;
+        }
+
         const handle = window.setTimeout(() => {
             if (term !== value) {
                 onSearch(term);
             }
-        }, 350);
+        }, delay);
 
         return () => window.clearTimeout(handle);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [term]);
+
+    const change = (next: string) => {
+        setTerm(next);
+
+        if (delay === 0) {
+            onSearch(next);
+        }
+    };
 
     return (
         <div className={cn('relative w-full sm:w-64', className)}>
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
                 value={term}
-                onChange={(event) => setTerm(event.target.value)}
+                onChange={(event) => change(event.target.value)}
                 placeholder={placeholder}
                 className="h-9 pl-9"
                 aria-label={label}
@@ -56,7 +72,7 @@ export function SearchInput({
             {term && (
                 <button
                     type="button"
-                    onClick={() => setTerm('')}
+                    onClick={() => change('')}
                     className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
                     aria-label="Clear search"
                 >

@@ -42,7 +42,7 @@ export function ResultSummary({ result, bands, display, live = false }: Props) {
     return (
         <div
             className={cn(
-                'flex flex-col gap-4 rounded-xl border p-5',
+                'flex flex-col gap-3 rounded-xl border px-4 py-3',
                 unscored
                     ? 'border-dashed border-border bg-card/50'
                     : cn(tone.border, tone.soft),
@@ -56,7 +56,7 @@ export function ResultSummary({ result, bands, display, live = false }: Props) {
                     </p>
                     <p
                         className={cn(
-                            'mt-0.5 text-3xl leading-tight font-semibold tracking-tight',
+                            'mt-0.5 text-2xl leading-tight font-semibold tracking-tight',
                             display !== 'band' && 'tabular-nums',
                             unscored ? 'text-muted-foreground' : tone.text,
                         )}

@@ -1,13 +1,5 @@
-import {
-    ArchiveRestore,
-    Eye,
-    MailX,
-    MoreHorizontal,
-    Pencil,
-    Send,
-    Trash2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArchiveRestore, Eye, MailX, Pencil, Send, Trash2 } from 'lucide-react';
+import { RowMenuTrigger } from '@/components/data-table';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -47,14 +39,7 @@ export function EmployeeRowActions({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground data-[state=open]:bg-muted"
-                    aria-label={`Actions for ${employee.full_name}`}
-                >
-                    <MoreHorizontal className="size-4" />
-                </Button>
+                <RowMenuTrigger label={`Actions for ${employee.full_name}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel className="text-xs text-muted-foreground">

@@ -1,9 +1,14 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+    PageBody,
+    PageHeader,
+    TablePagination,
+    useClientPagination,
+} from '@/components/data-table';
 import { AdjustBalanceDialog } from '@/features/leave/components/adjust-balance-dialog';
 import { BalanceToolbar } from '@/features/leave/components/balance-toolbar';
-import { EmployeeBalanceCard } from '@/features/leave/components/employee-balance-card';
+import { BalancesTable } from '@/features/leave/components/balances-table';
 import { LeaveNav } from '@/features/leave/components/leave-nav';
 import { leaveRoutes } from '@/features/leave/routes';
 import type {
@@ -12,8 +17,12 @@ import type {
 } from '@/features/leave/types';
 
 export default function LeaveBalances() {
-    const { employees, year, years, options, can, filters } =
+    const { types, employees, year, years, options, can, filters } =
         usePage<BalancesPageProps>().props;
+    const page = useClientPagination(
+        employees,
+        [year, filters.search, filters.department].join('|'),
+    );
 
     const [adjustId, setAdjustId] = useState<number | null>(null);
     const [adjustOpen, setAdjustOpen] = useState(false);
@@ -65,46 +74,45 @@ export default function LeaveBalances() {
         <>
             <Head title="Leave Balances" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-xl font-semibold tracking-tight">
-                            Leave Balances
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Each employee's entitlement, used and remaining days
-                            per leave type.
-                        </p>
-                    </div>
-                    <LeaveNav active="balances" />
-                </div>
-
-                <BalanceToolbar
-                    search={filters.search}
-                    year={year}
-                    years={years}
-                    department={filters.department}
-                    departments={options.departments}
-                    onSearch={(search) => apply({ search })}
-                    onYear={(value) => apply({ year: value })}
-                    onDepartment={(department) => apply({ department })}
+            <PageBody>
+                <PageHeader
+                    title="Leave Balances"
+                    description={`Each employee's ${year} entitlement and what is left of it, per leave type.`}
+                    actions={<LeaveNav active="balances" />}
                 />
 
-                {employees.length === 0 ? (
-                    <EmptyState />
-                ) : (
-                    <div className="flex flex-col gap-2.5">
-                        {employees.map((employee) => (
-                            <EmployeeBalanceCard
-                                key={employee.id}
-                                employee={employee}
-                                canManage={can.manage}
-                                onAdjust={openAdjust}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
+                <div className="flex flex-col gap-3">
+                    <BalanceToolbar
+                        search={filters.search}
+                        year={year}
+                        years={years}
+                        department={filters.department}
+                        departments={options.departments}
+                        onSearch={(search) => apply({ search })}
+                        onYear={(value) => apply({ year: value })}
+                        onDepartment={(department) => apply({ department })}
+                        onReset={() => apply({ search: '', department: null })}
+                    />
+
+                    <BalancesTable
+                        employees={page.rows}
+                        types={types}
+                        year={year}
+                        canManage={can.manage}
+                        filtered={
+                            filters.search !== '' || filters.department !== null
+                        }
+                        onAdjust={openAdjust}
+                    />
+
+                    <TablePagination
+                        meta={page.meta}
+                        perPage={page.perPage}
+                        onPage={page.setPage}
+                        onPerPage={page.setPerPage}
+                    />
+                </div>
+            </PageBody>
 
             <AdjustBalanceDialog
                 employee={adjustEmployee}
@@ -113,20 +121,6 @@ export default function LeaveBalances() {
                 onOpenChange={setAdjustOpen}
             />
         </>
-    );
-}
-
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <Users className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No employees</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                No employees match this view.
-            </p>
-        </div>
     );
 }
 

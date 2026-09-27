@@ -1,14 +1,10 @@
-import { Download, Plus, RotateCcw, Search, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Download, Plus } from 'lucide-react';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    FilterSelect,
+    ListToolbar,
+    SearchInput,
+} from '@/components/data-table';
+import { Button } from '@/components/ui/button';
 import { STATUS_FILTERS, TYPE_FILTERS } from '../constants';
 import { employeeRoutes } from '../routes';
 import type { DepartmentRef, EmployeesFilters } from '../types';
@@ -38,26 +34,7 @@ export function EmployeesToolbar({
     onReset,
     onCreate,
 }: Props) {
-    const [term, setTerm] = useState(filters.search);
-    const [syncedSearch, setSyncedSearch] = useState(filters.search);
-
-    if (filters.search !== syncedSearch) {
-        setSyncedSearch(filters.search);
-        setTerm(filters.search);
-    }
-
-    useEffect(() => {
-        const handle = window.setTimeout(() => {
-            if (term !== filters.search) {
-                onSearch(term);
-            }
-        }, 350);
-
-        return () => window.clearTimeout(handle);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [term]);
-
-    const hasActiveFilters =
+    const filtered =
         filters.search !== '' ||
         filters.status !== 'all' ||
         filters.type !== 'all' ||
@@ -68,117 +45,63 @@ export function EmployeesToolbar({
     }`;
 
     return (
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-64">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        value={term}
-                        onChange={(event) => setTerm(event.target.value)}
-                        placeholder="Search name, no., email…"
-                        className="pl-9"
-                        aria-label="Search employees"
-                    />
-                    {term && (
-                        <button
-                            type="button"
-                            onClick={() => setTerm('')}
-                            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-                            aria-label="Clear search"
-                        >
-                            <X className="size-4" />
-                        </button>
+        <ListToolbar
+            filtered={filtered}
+            onReset={onReset}
+            actions={
+                <>
+                    {canExport && (
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={exportUrl}>
+                                <Download className="size-4" />
+                                Export
+                            </a>
+                        </Button>
                     )}
-                </div>
-
-                <Select
-                    value={
-                        filters.department ? String(filters.department) : 'all'
-                    }
-                    onValueChange={(value) =>
-                        onDepartment(value === 'all' ? null : Number(value))
-                    }
-                >
-                    <SelectTrigger
-                        className="w-[160px]"
-                        aria-label="Filter by department"
-                    >
-                        <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All departments</SelectItem>
-                        {departments.map((department) => (
-                            <SelectItem
-                                key={department.id}
-                                value={String(department.id)}
-                            >
-                                {department.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={filters.status} onValueChange={onStatus}>
-                    <SelectTrigger
-                        className="w-[140px]"
-                        aria-label="Filter by status"
-                    >
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {STATUS_FILTERS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={filters.type} onValueChange={onType}>
-                    <SelectTrigger
-                        className="w-[140px]"
-                        aria-label="Filter by type"
-                    >
-                        <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {TYPE_FILTERS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                {hasActiveFilters && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onReset}
-                        className="text-muted-foreground"
-                    >
-                        <RotateCcw className="size-4" />
-                        Reset
-                    </Button>
-                )}
-            </div>
-
-            <div className="flex items-center gap-2">
-                {canExport && (
-                    <Button variant="outline" size="sm" asChild>
-                        <a href={exportUrl}>
-                            <Download className="size-4" />
-                            Export
-                        </a>
-                    </Button>
-                )}
-                {canCreate && (
-                    <Button size="sm" onClick={onCreate}>
-                        <Plus className="size-4" />
-                        New employee
-                    </Button>
-                )}
-            </div>
-        </div>
+                    {canCreate && (
+                        <Button size="sm" onClick={onCreate}>
+                            <Plus className="size-4" />
+                            New employee
+                        </Button>
+                    )}
+                </>
+            }
+        >
+            <SearchInput
+                value={filters.search}
+                onSearch={onSearch}
+                placeholder="Search name, no., email…"
+                label="Search employees"
+            />
+            <FilterSelect
+                label="Filter by department"
+                value={filters.department ? String(filters.department) : 'all'}
+                onChange={(value) =>
+                    onDepartment(value === 'all' ? null : Number(value))
+                }
+                options={[
+                    { value: 'all', label: 'All departments' },
+                    ...departments.map((department) => ({
+                        value: String(department.id),
+                        label: department.name,
+                    })),
+                ]}
+                className="w-44"
+            />
+            <FilterSelect
+                label="Filter by status"
+                value={filters.status}
+                onChange={onStatus}
+                options={STATUS_FILTERS}
+                className="w-36"
+            />
+            <FilterSelect
+                label="Filter by type"
+                value={filters.type}
+                onChange={onType}
+                options={TYPE_FILTERS}
+                className="w-36"
+            />
+        </ListToolbar>
     );
 }
