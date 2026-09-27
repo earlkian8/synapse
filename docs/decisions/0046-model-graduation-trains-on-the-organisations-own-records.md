@@ -82,10 +82,25 @@ estimated but whether the comparison can be trusted — hence 100 of each outcom
 
 `POST /train/{model}` fits the surface's own class — `PromotionReadinessModel`
 (pattern submodels, now able to fit each pattern on the rows that carry its inputs),
-`PerformanceForecastModel.for_sample(n)` (leaf size and conformal regions scaled to a few
-hundred rows, people kept whole across the calibration split), or the attrition forest
-(whose imputers now keep a column nobody recorded rather than dropping it). The local
-model reads its inputs in the range *its* records span.
+`PerformanceForecastModel.for_sample(n)` (conformal regions scaled to a few hundred rows,
+people kept whole across the calibration split), or the attrition forest (whose imputers
+now keep a column nobody recorded rather than dropping it). The local model reads its
+inputs in the range *its* records span.
+
+Two small-sample adjustments, found by training on the seeded history (see
+*Demo history* below), keep the local models from failing for reasons of their own:
+
+- **The local forecast is a monotone line** (`MonotoneLine`), not boosted steps. On a
+  few hundred comparisons a boosted model's steps are coarser than the relationship:
+  on the seeded history it missed by 4.50 points — worse than simply repeating the last
+  rating (4.62, so it lost that check) — where a line misses by 4.32. A negative slope
+  is flattened, so a better rating still never forecasts a worse one.
+- **Promotion calibration falls back to plain Platt scaling** when the quadratic bend
+  turns back inside the scores it was fitted on — at a few hundred rows that bend is
+  noise. It used to refuse outright, failing a model with a real signal. A score whose
+  direction the outcomes contradict is still refused.
+
+The reference models are unaffected: their fits never take either branch.
 
 It is offered only if, out of fold (every example scored by a model fitted without that
 employee), it is:
@@ -125,6 +140,17 @@ is* (General model → Collecting your history → Your own model, with "you are
 model* (train, the check's result in three numbers, switch / switch back). The
 statistical reasoning is behind "Why this number?". Field coverage is real, collapsed
 beneath.
+
+### 6. Demo history
+
+`WorkforceHistorySeeder` gives the demo company seven years of history — about 120
+people at a time with realistic turnover, annual appraisals FY 2019–FY 2025 as real
+scorecards, promotions decided on them, departures through Offboarding, and a risk
+assessment every March and September — with patterns of its own (promotion on level and
+improvement at twice the general rate; ratings regressing to the mean; resignations
+driven by overtime and disengagement). Every requirement on all three surfaces is met,
+and a model trained on it passes its check on each (see
+[the module doc](../modules/model-graduation.md#demo-history)).
 
 ## Consequences
 

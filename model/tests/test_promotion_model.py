@@ -171,6 +171,17 @@ def test_calibration_is_monotone_and_never_certain():
     assert 0 < p.min() and p.max() < 1
 
 
+def test_a_bend_that_turns_back_inside_the_scores_falls_back_to_plain_platt():
+    # A few hundred rows whose outcomes bend back at the top: the curvature is noise
+    # at this size, so the calibration stays a plain, monotone Platt step.
+    rng = np.random.default_rng(3)
+    s = rng.normal(0, 1, 400)
+    y = rng.random(len(s)) < 1 / (1 + np.exp(-(s - 0.9 * s**2)))
+    cal = MonotoneQuadraticPlatt().fit(s, y)
+    assert cal.c == 0 and cal.a > 0
+    assert np.all(np.diff(cal.predict(np.linspace(-4, 4, 801))) >= 0)
+
+
 def test_calibration_refuses_a_score_that_runs_backwards():
     rng = np.random.default_rng(2)
     s = rng.normal(0, 1, 5000)

@@ -63,7 +63,8 @@ class AttendanceSeeder extends Seeder
         $start = $today->subDays(self::DAYS);
         $holidays = HolidayCalendar::inRange($start, $today);
 
-        $employees = Employee::all();
+        // The current team: people who have left punch nothing.
+        $employees = Employee::query()->where('employment_status', 'active')->get();
         $shifts = app(ShiftResolver::class)->forMany($employees, $start->toDateString(), $today->toDateString());
 
         $employees->each(function (Employee $employee) use ($clock, $shifts, $start, $today, $now, $holidays): void {

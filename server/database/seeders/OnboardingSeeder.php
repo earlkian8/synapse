@@ -43,6 +43,7 @@ class OnboardingSeeder extends Seeder
 
         // 2. Start onboarding for a handful of employees and vary their progress.
         $employees = Employee::query()
+            ->where('employment_status', 'active')
             ->whereDoesntHave('onboardingCase')
             ->inRandomOrder()
             ->limit(5)

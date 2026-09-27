@@ -99,7 +99,10 @@ get them via the all-permissions grant.
 `OffboardingSeeder` (in `DatabaseSeeder`) seeds 5 exits across the
 lifecycle — completed (employee separated), in clearance, in clearance with a flagged
 item, just initiated, and cancelled — each with the standard 10-item clearance
-checklist. Idempotent (only seeds when no cases exist).
+checklist, on active employees. Idempotent: it seeds when no exit is in flight — the
+completed cases the workforce history leaves behind (`WorkforceHistorySeeder`, about
+230 past departures for [model graduation](./model-graduation.md#demo-history)) are the
+past, not the board's demo cases.
 
 ## Out of scope (this cut)
 

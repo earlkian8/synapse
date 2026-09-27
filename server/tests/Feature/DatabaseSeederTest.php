@@ -1,13 +1,20 @@
 <?php
 
+use App\Models\AttritionRiskRun;
+use App\Models\Employee;
+use App\Models\EvaluationPeriod;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Organization;
+use App\Models\PerformanceEvaluation;
 use App\Models\RecruitmentPipeline;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Ml\Graduation\ModelGraduation;
+use App\Support\Performance\PerformanceScorer;
 use App\Support\Tenancy;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /**
@@ -19,8 +26,9 @@ use Inertia\Testing\AssertableInertia as Assert;
  * next time somebody ran `migrate:fresh --seed`. This walks the whole seed and
  * asserts the invariants an alpha tester would notice first.
  *
- * Deliberately two tests, not a dataset: the seed is the expensive part, and
- * paying for it once per assertion would dominate the suite's runtime.
+ * Deliberately two tests, not a dataset: the seed is the expensive part (seven
+ * years of workforce history, and six weeks of attendance for a 120-person
+ * team), and paying for it once per assertion would dominate the suite's runtime.
  */
 beforeEach(function () {
     $this->seed(DatabaseSeeder::class);
@@ -82,10 +90,59 @@ test('the seed produces a coherent demo workspace', function () {
         ->and(JobPosting::has('screeningQuestions')->exists())->toBeTrue()
         ->and(JobPosting::pluck('status')->unique()->values()->all())->toContain('draft', 'open', 'filled')
         ->and(JobApplication::whereNotNull('hired_employee_id')->exists())->toBeTrue();
+
+    // 5. The mobile demo employee can sign in to the mobile app.
+    $this->postJson(route('api.auth.login'), [
+        'email' => DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL,
+        'password' => 'password',
+        'device_name' => 'pest',
+    ])->assertOk()
+        ->assertJsonPath('user.organization.id', Organization::orderBy('id')->value('id'));
+
+    // 6. The workforce history is enough for all three predictive surfaces to
+    //    graduate: every requirement is met on every surface.
+    foreach (array_keys(ModelGraduation::SURFACES) as $model) {
+        $check = app(ModelGraduation::class)->check($model, serviceReady: true);
+
+        expect($check['gate_open'])->toBeTrue("{$model}: ".collect($check['requirements'])
+            ->reject(fn (array $r): bool => $r['status'] === 'met')->pluck('key')->join(', '));
+    }
+
+    // 7. People came and went — through Offboarding, so every departure is dated
+    //    and typed — and about 120 are on the roster today.
+    $departed = Employee::query()->whereIn('employment_status', ['resigned', 'terminated']);
+
+    expect((clone $departed)->count())->toBeGreaterThan(100)
+        ->and((clone $departed)->whereDoesntHave('offboardingCase', fn ($q) => $q->where('status', 'completed'))->count())->toBe(0)
+        ->and(Employee::where('employment_status', 'active')->count())->toBeBetween(100, 140);
+
+    // 8. The history's appraisals are real scorecards: the stored result is what
+    //    the scorer derives from their lines.
+    $history = PerformanceEvaluation::query()
+        ->where('evaluation_period_id', EvaluationPeriod::where('name', 'FY 2019 Annual Review')->value('id'))
+        ->with('scores')
+        ->limit(5)
+        ->get();
+
+    expect($history)->toHaveCount(5);
+
+    foreach ($history as $appraisal) {
+        $rescored = app(PerformanceScorer::class)->score($appraisal->scores, $appraisal->bandList());
+
+        expect($appraisal->scores)->not->toBeEmpty()
+            ->and((float) $appraisal->overall_percent)->toBe((float) $rescored->percent);
+    }
+
+    // 9. A risk assessment every March and September, September 2019 to
+    //    September 2025, each holding the record as it stood.
+    expect(AttritionRiskRun::count())->toBe(13)
+        ->and(AttritionRiskRun::oldest('created_at')->first()->scores()->first()->features)
+        ->toHaveKeys(['tenure_years', 'monthly_salary', 'years_since_promotion', 'absences_90d', 'overtime_hours_90d']);
 });
 
 test('the seeded workspace renders for the account it was seeded for', function () {
     $this->actingAs(User::where('email', DatabaseSeeder::ACCOUNT_EMAIL)->sole());
+    Http::fake(['*/health' => Http::response(['status' => 'ok', 'service' => 'synapse-ml-inference', 'models' => []])]);
 
     // The surfaces the seed is the sole source of data for. Every other page is
     // walked against factory data by PageSmokeTest.
@@ -95,6 +152,10 @@ test('the seeded workspace renders for the account it was seeded for', function 
         'employees.index' => 'employees/index',
         'performance.index' => 'performance/index',
         'system.users.index' => 'system/users/index',
+        // Their graduation panels count the seeded history.
+        'analytics.promotion-readiness.index' => 'analytics/promotion-readiness',
+        'analytics.performance-forecast.index' => 'analytics/performance-forecast',
+        'analytics.attrition.index' => 'analytics/attrition',
     ];
 
     foreach ($pages as $name => $component) {
@@ -102,13 +163,4 @@ test('the seeded workspace renders for the account it was seeded for', function 
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component($component));
     }
-});
-
-test('the mobile demo employee can sign in to the mobile app', function () {
-    $this->postJson(route('api.auth.login'), [
-        'email' => DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL,
-        'password' => 'password',
-        'device_name' => 'pest',
-    ])->assertOk()
-        ->assertJsonPath('user.organization.id', Organization::orderBy('id')->value('id'));
 });

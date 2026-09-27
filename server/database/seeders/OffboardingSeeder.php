@@ -44,7 +44,9 @@ class OffboardingSeeder extends Seeder
 
         $this->seedDefaultProgram();
 
-        if (OffboardingCase::count() > 0) {
+        // Idempotent on exits in flight: the completed ones the workforce history
+        // leaves behind are the past, not the board's demo cases.
+        if (OffboardingCase::query()->where('status', '!=', 'completed')->exists()) {
             return;
         }
 

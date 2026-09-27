@@ -127,6 +127,18 @@ def test_a_forecast_that_reads_the_organisation_better_passes_and_keeps_its_prom
     assert outcome.fitted.inputs[0].low < 40
 
 
+def test_the_local_forecast_is_a_monotone_line():
+    from synapse_ml.performance.model import MonotoneLine
+
+    rows = performance_rows()
+    ex = training.examples("performance", rows)
+    fitted = training.fit("performance", ex.X, ex.y, ex.groups)
+    assert isinstance(fitted.point, MonotoneLine) and fitted.point.slope > 0
+    # A rating that runs backwards is flattened, never reversed.
+    backwards = MonotoneLine().fit(ex.X, 150 - ex.y)
+    assert backwards.slope == 0 and np.ptp(backwards.predict(ex.X)) == 0
+
+
 def test_a_forecast_no_better_than_repeating_the_last_rating_fails():
     rows, rng = performance_rows(), np.random.default_rng(7)
     for row in rows:  # next rating = last rating + noise: nothing to learn

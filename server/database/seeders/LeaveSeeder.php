@@ -70,7 +70,7 @@ class LeaveSeeder extends Seeder
         // Whoever the workspace's account is — resolved by identity, not by a
         // hardcoded address, so the demo login can be renamed freely.
         $reviewer = User::query()->orderBy('id')->first();
-        $employees = Employee::query()->inRandomOrder()->limit(6)->get();
+        $employees = Employee::query()->where('employment_status', 'active')->inRandomOrder()->limit(6)->get();
 
         foreach ($employees as $i => $employee) {
             // Explicit entitlements for the core paid types.

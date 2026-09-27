@@ -36,22 +36,9 @@ class EvaluationOpener
         ReviewTemplate $template,
         ?User $evaluator = null,
     ): PerformanceEvaluation {
-        $sections = collect($template->sectionList())->keyBy('key');
-        $items = $template->items()->with(['ratingScale', 'criterion.ratingScale'])->get();
+        $lines = $this->lines($template);
 
-        // Lines are laid out section by section, in the framework's own order, so
-        // the scorecard reads the way it was designed to read.
-        $ordered = $items
-            ->sortBy([
-                fn (ReviewTemplateItem $item): int => $sections->keys()->search($item->section_key) === false
-                    ? PHP_INT_MAX
-                    : (int) $sections->keys()->search($item->section_key),
-                fn (ReviewTemplateItem $item): int => $item->sort_order,
-                fn (ReviewTemplateItem $item): int => $item->id,
-            ])
-            ->values();
-
-        return DB::transaction(function () use ($employee, $period, $template, $evaluator, $sections, $ordered): PerformanceEvaluation {
+        return DB::transaction(function () use ($employee, $period, $template, $evaluator, $lines): PerformanceEvaluation {
             $evaluation = PerformanceEvaluation::create([
                 'employee_id' => $employee->id,
                 'evaluation_period_id' => $period->id,
@@ -64,30 +51,54 @@ class EvaluationOpener
                 'status' => 'draft',
             ]);
 
-            $evaluation->scores()->createMany(
-                $ordered->map(function (ReviewTemplateItem $item, int $index) use ($sections, $template): array {
-                    $section = $sections->get($item->section_key) ?? ReviewTemplate::fallbackSection();
-
-                    $wording = $this->wordingFor($item);
-
-                    return [
-                        'kpi_criterion_id' => $item->kpi_criterion_id,
-                        'review_template_item_id' => $item->id,
-                        'label' => $wording['label'],
-                        'description' => $wording['description'],
-                        'section_key' => $section['key'],
-                        'section_name' => $section['name'],
-                        'section_weight' => $section['weight'],
-                        'weight' => $item->weight,
-                        'score' => null,
-                        'sort_order' => $index,
-                        ...$this->scaleFor($item, $template)->snapshot(),
-                    ];
-                })->all()
-            );
+            $evaluation->scores()->createMany($lines);
 
             return $evaluation;
         });
+    }
+
+    /**
+     * The unrated score lines a scorecard on `$template` starts with, in reading
+     * order — laid out section by section, in the framework's own order, each with
+     * its wording and its scale frozen on. What {@see open()} writes, available on
+     * its own to whoever builds a scorecard in bulk (the demo history seeder).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function lines(ReviewTemplate $template): array
+    {
+        $sections = collect($template->sectionList())->keyBy('key');
+        $items = $template->items()->with(['ratingScale', 'criterion.ratingScale'])->get();
+
+        return $items
+            ->sortBy([
+                fn (ReviewTemplateItem $item): int => $sections->keys()->search($item->section_key) === false
+                    ? PHP_INT_MAX
+                    : (int) $sections->keys()->search($item->section_key),
+                fn (ReviewTemplateItem $item): int => $item->sort_order,
+                fn (ReviewTemplateItem $item): int => $item->id,
+            ])
+            ->values()
+            ->map(function (ReviewTemplateItem $item, int $index) use ($sections, $template): array {
+                $section = $sections->get($item->section_key) ?? ReviewTemplate::fallbackSection();
+
+                $wording = $this->wordingFor($item);
+
+                return [
+                    'kpi_criterion_id' => $item->kpi_criterion_id,
+                    'review_template_item_id' => $item->id,
+                    'label' => $wording['label'],
+                    'description' => $wording['description'],
+                    'section_key' => $section['key'],
+                    'section_name' => $section['name'],
+                    'section_weight' => $section['weight'],
+                    'weight' => $item->weight,
+                    'score' => null,
+                    'sort_order' => $index,
+                    ...$this->scaleFor($item, $template)->snapshot(),
+                ];
+            })
+            ->all();
     }
 
     /**

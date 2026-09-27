@@ -372,6 +372,7 @@ class RecruitmentSeeder extends Seeder
     private function linkHire(JobApplication $application, JobPosting $posting): void
     {
         $employee = Employee::query()
+            ->where('employment_status', 'active')
             ->where('department_id', $posting->department_id)
             ->whereNotIn('id', JobApplication::query()->whereNotNull('hired_employee_id')->pluck('hired_employee_id'))
             ->orderByDesc('date_hired')

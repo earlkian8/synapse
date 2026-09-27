@@ -142,7 +142,11 @@ class EmployeeProfileSeeder extends Seeder
      */
     private function seedPromotion(Employee $employee, int $i, Collection $positions, ?int $approverId): void
     {
-        if ($employee->promotions()->exists()) {
+        // Someone with an appraisal history already has the promotions that
+        // history decided (WorkforceHistorySeeder) — including none. Inventing one
+        // here would contradict the record model graduation learns from.
+        if ($employee->promotions()->exists()
+            || $employee->performanceEvaluations()->completed()->count() >= 2) {
             return;
         }
 

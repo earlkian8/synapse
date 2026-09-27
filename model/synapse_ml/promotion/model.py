@@ -59,6 +59,11 @@ class MonotoneQuadraticPlatt:
     probabilities, ties across thousands of people, and exact 0 % / 100 % at the
     tails. This keeps the correction smooth and monotone, which the readiness score's
     guarantees depend on ("a better record never lowers readiness").
+
+    On a small sample (an organisation's own few hundred appraisals) the fitted bend
+    can turn back inside the scores it was fitted on. Its curvature is then noise, not
+    signal, so the step falls back to plain Platt scaling — ``c = 0``, monotone by
+    construction. Only a score whose direction the outcomes contradict is refused.
     """
 
     def fit(self, scores, y) -> MonotoneQuadraticPlatt:
@@ -68,18 +73,18 @@ class MonotoneQuadraticPlatt:
         self.b = float(fit.intercept_[0])
         # d/ds (a·s + c·s²) = a + 2c·s ≥ 0 holds on one side of the turning point;
         # scores beyond it are held there.
-        if self.c == 0:
-            if self.a <= 0:
-                raise ValueError("calibration reverses the score's direction; refusing to fit")
-            self.low, self.high = -np.inf, np.inf
-        else:
+        if self.c != 0:
             turn = -self.a / (2 * self.c)
             self.low, self.high = (turn, np.inf) if self.c > 0 else (-np.inf, turn)
-        # Holding the tail flat is a guard, not the model: nearly every score the
-        # calibration was fitted on must lie where the curve rises.
-        rising = np.mean((s >= self.low) & (s <= self.high))
-        if rising < 0.99:
-            raise ValueError(f"calibration rises over only {rising:.1%} of the scores; refusing to fit")
+            # Holding the tail flat is a guard, not the model: nearly every score the
+            # calibration was fitted on must lie where the curve rises.
+            if np.mean((s >= self.low) & (s <= self.high)) >= 0.99:
+                return self
+            plain = LogisticRegression(C=1e6, max_iter=5000).fit(s.reshape(-1, 1), y)
+            self.a, self.c, self.b = float(plain.coef_[0][0]), 0.0, float(plain.intercept_[0])
+        if self.a <= 0:
+            raise ValueError("calibration reverses the score's direction; refusing to fit")
+        self.low, self.high = -np.inf, np.inf
         return self
 
     def predict(self, scores) -> np.ndarray:

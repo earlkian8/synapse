@@ -75,6 +75,18 @@ class DatabaseSeeder extends Seeder
         // seeders so it picks up attendance, leave, awards, etc. like the rest.
         $this->seedMobileEmployee($organization);
 
+        // Performance (KPI criteria + review cycles + scored evaluations) — ahead
+        // of the history below, which is written on its frameworks and leads up to
+        // its FY 2025 appraisals.
+        $this->call(PerformanceSeeder::class);
+
+        // Seven years of workforce history — people who came and went, their
+        // appraisals and promotions, and a risk assessment every September — so
+        // model graduation (ADR 0046) has its own records to learn from. Before the
+        // module seeders, so the people still here get attendance, leave and the
+        // rest like everyone else.
+        $this->call(WorkforceHistorySeeder::class);
+
         // Holiday calendar (PH statutory holidays) — read by Leave.
         $this->call(HolidaySeeder::class);
 
@@ -89,9 +101,6 @@ class DatabaseSeeder extends Seeder
 
         // Attendance (~6 weeks of demo punches across the team).
         $this->call(AttendanceSeeder::class);
-
-        // Performance (KPI criteria + review cycles + scored evaluations).
-        $this->call(PerformanceSeeder::class);
 
         // Training (programs across the lifecycle + employee enrollments).
         $this->call(TrainingSeeder::class);
