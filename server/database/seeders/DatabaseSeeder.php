@@ -2,9 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Organization;
+use App\Models\Position;
+use App\Models\Role;
 use App\Models\User;
+use App\Models\WorkSchedule;
 use App\Support\OrganizationProvisioner;
 use App\Support\Tenancy;
 use Illuminate\Database\Seeder;
@@ -13,7 +17,8 @@ use Illuminate\Support\Facades\Hash;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * The one login the seeded workspace ships with. Everything else — the roster,
+     * The owner login the seeded workspace ships with. Apart from the mobile demo
+     * employee ({@see self::MOBILE_EMPLOYEE_EMAIL}), everything else — the roster,
      * the applicants, the approvers — is data, not an account: alpha testers sign
      * in as this identity and see the whole system through it. Referenced by
      * {@see RolePermissionSeeder} so the Super Admin grant can never drift from it.
@@ -23,6 +28,12 @@ class DatabaseSeeder extends Seeder
     public const ACCOUNT_FIRST_NAME = 'Earl Kian';
 
     public const ACCOUNT_LAST_NAME = 'Bancayrin';
+
+    /**
+     * A plain staff login linked to its own roster line, for signing in to the
+     * mobile app as an ordinary employee rather than as the workspace owner.
+     */
+    public const MOBILE_EMPLOYEE_EMAIL = 'earlkian8@gmail.com';
 
     /**
      * Seed the application's database for a single demo organisation (tenant).
@@ -59,6 +70,10 @@ class DatabaseSeeder extends Seeder
 
         // Organisation foundation (departments, positions, schedules) + employees.
         $this->call(OrganizationSeeder::class);
+
+        // The demo employee login for the mobile app — added before the module
+        // seeders so it picks up attendance, leave, awards, etc. like the rest.
+        $this->seedMobileEmployee($organization);
 
         // Holiday calendar (PH statutory holidays) — read by Leave.
         $this->call(HolidaySeeder::class);
@@ -101,6 +116,49 @@ class DatabaseSeeder extends Seeder
         // A second company so the workspace switcher is demoable end-to-end:
         // the owner account belongs to both and can switch between them.
         $this->seedSecondaryTenant($owner, $organization);
+    }
+
+    /**
+     * A staff account linked to its own employee record (Earl Kian A. Bancayrin,
+     * Software Engineer in IT), so the mobile self-service app can be signed in
+     * to as a regular employee. Idempotent.
+     */
+    private function seedMobileEmployee(Organization $organization): void
+    {
+        $user = User::firstOrCreate(
+            ['email' => self::MOBILE_EMPLOYEE_EMAIL],
+            [
+                'first_name' => self::ACCOUNT_FIRST_NAME,
+                'middle_name' => 'A.',
+                'last_name' => self::ACCOUNT_LAST_NAME,
+                'password' => Hash::make('password'),
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ],
+        );
+
+        $employee = Employee::where('email', self::MOBILE_EMPLOYEE_EMAIL)->first();
+
+        if ($employee === null) {
+            $it = Department::where('code', 'IT')->first();
+
+            $employee = Employee::factory()->regular()->create([
+                'first_name' => self::ACCOUNT_FIRST_NAME,
+                'middle_name' => 'A.',
+                'last_name' => self::ACCOUNT_LAST_NAME,
+                'suffix' => null,
+                'gender' => 'male',
+                'email' => self::MOBILE_EMPLOYEE_EMAIL,
+                'department_id' => $it?->id,
+                'position_id' => Position::where('title', 'Software Engineer')->where('department_id', $it?->id)->value('id'),
+                'manager_id' => $it?->head_id,
+                'work_schedule_id' => WorkSchedule::where('name', 'Day Shift')->value('id'),
+            ]);
+        }
+
+        // Membership + the Staff role + the user ↔ employee link, the same way an
+        // accepted invitation admits someone (ADR 0026).
+        OrganizationProvisioner::admit($organization, $user, $employee, Role::STAFF);
     }
 
     /**

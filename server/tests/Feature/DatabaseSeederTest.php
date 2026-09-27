@@ -29,17 +29,24 @@ beforeEach(function () {
 });
 
 test('the seed produces a coherent demo workspace', function () {
-    // 1. One login, and it owns the place.
-    expect(User::count())->toBe(1);
+    // 1. Two logins: the owner, and a plain employee for the mobile app.
+    expect(User::count())->toBe(2);
 
-    $owner = User::sole();
+    $owner = User::where('email', DatabaseSeeder::ACCOUNT_EMAIL)->sole();
 
-    expect($owner->email)->toBe(DatabaseSeeder::ACCOUNT_EMAIL)
-        ->and($owner->roles->pluck('name'))->toContain(Role::SUPER_ADMIN)
+    expect($owner->roles->pluck('name'))->toContain(Role::SUPER_ADMIN)
         // Both companies, so the workspace switcher is demoable (ADR 0023).
         ->and($owner->memberships()->count())->toBe(2)
         // Linked to a roster line, so the mobile self-service app resolves a self record.
         ->and($owner->employee()->exists())->toBeTrue();
+
+    $staff = User::where('email', DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL)->sole();
+
+    expect($staff->roles->pluck('name')->all())->toBe([Role::STAFF])
+        ->and($staff->memberships()->count())->toBe(1)
+        // Its own roster line, so the mobile app signs in as an ordinary employee.
+        ->and($staff->employee?->email)->toBe(DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL)
+        ->and($staff->employee->is($owner->employee))->toBeFalse();
 
     // 2. Every posting hires through a pipeline the module can actually drive.
     $pipelines = RecruitmentPipeline::with('stages')->get();
@@ -78,7 +85,7 @@ test('the seed produces a coherent demo workspace', function () {
 });
 
 test('the seeded workspace renders for the account it was seeded for', function () {
-    $this->actingAs(User::sole());
+    $this->actingAs(User::where('email', DatabaseSeeder::ACCOUNT_EMAIL)->sole());
 
     // The surfaces the seed is the sole source of data for. Every other page is
     // walked against factory data by PageSmokeTest.
@@ -95,4 +102,13 @@ test('the seeded workspace renders for the account it was seeded for', function 
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component($component));
     }
+});
+
+test('the mobile demo employee can sign in to the mobile app', function () {
+    $this->postJson(route('api.auth.login'), [
+        'email' => DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL,
+        'password' => 'password',
+        'device_name' => 'pest',
+    ])->assertOk()
+        ->assertJsonPath('user.organization.id', Organization::orderBy('id')->value('id'));
 });

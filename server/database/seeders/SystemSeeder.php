@@ -17,8 +17,9 @@ use Illuminate\Support\Str;
  * Activity-Log trail and a few in-app Notifications, both attributed to the
  * tenant's one account.
  *
- * The workspace ships with a **single login** ({@see DatabaseSeeder::ACCOUNT_EMAIL}).
- * User Management is demoable through it plus the invitation and join-code flows
+ * The workspace ships with the owner login ({@see DatabaseSeeder::ACCOUNT_EMAIL})
+ * plus one staff login for the mobile app ({@see DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL}).
+ * User Management is demoable through those plus the invitation and join-code flows
  * (ADR 0026) — seeding extra fake logins would only put credentials nobody owns
  * in front of alpha testers.
  *
