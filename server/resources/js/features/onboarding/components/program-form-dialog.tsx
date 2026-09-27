@@ -165,7 +165,7 @@ function FormBody({
         const opts = { preserveScroll: true, onSuccess: () => onDone() };
 
         if (isEditing && program) {
-            post(onboardingRoutes.program(program.hashid), opts);
+            post(onboardingRoutes.programSetup(program.hashid), opts);
         } else {
             post(onboardingRoutes.programsStore, opts);
         }

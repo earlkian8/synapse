@@ -42,30 +42,34 @@ const CARDS: Card[] = [
     },
 ];
 
+/**
+ * The four headline counts, as compact tiles: icon, label and value on one line,
+ * so the table below starts high on the page.
+ */
 export function OnboardingStatsCards({ stats }: { stats: OnboardingStats }) {
     return (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
             {CARDS.map(({ key, label, icon: Icon, accent }) => (
                 <div
                     key={key}
-                    className="rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm transition-shadow hover:shadow-md dark:border-sidebar-border"
+                    className="flex items-center gap-3 rounded-xl border border-sidebar-border/70 bg-card px-3.5 py-2.5 shadow-sm dark:border-sidebar-border"
                 >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground">
+                    <span
+                        className={cn(
+                            'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                            accent,
+                        )}
+                    >
+                        <Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-muted-foreground">
                             {label}
-                        </span>
-                        <span
-                            className={cn(
-                                'flex size-7 items-center justify-center rounded-lg',
-                                accent,
-                            )}
-                        >
-                            <Icon className="size-4" />
-                        </span>
+                        </p>
+                        <p className="text-lg leading-tight font-semibold tracking-tight">
+                            {stats[key].toLocaleString()}
+                        </p>
                     </div>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
-                        {stats[key].toLocaleString()}
-                    </p>
                 </div>
             ))}
         </div>

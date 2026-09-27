@@ -25,30 +25,163 @@ function seedProgram(int $tasks = 3): OnboardingProgram
         ->create();
 }
 
-// ── Overview ────────────────────────────────────────────────────────────────
+// ── Overview: the programs ──────────────────────────────────────────────────
 
-test('the onboarding overview renders', function () {
+test('the overview lists every program with how its onboarding is going', function () {
     actingAsSuperAdmin();
-    OnboardingCase::factory()->count(2)->create();
+    $program = seedProgram();
+    $quiet = OnboardingProgram::factory()->create(['name' => 'Quiet program']);
+
+    $active = OnboardingCase::factory()->create(['onboarding_program_id' => $program->id, 'status' => 'in_progress']);
+    OnboardingTask::factory()->done()->create(['onboarding_case_id' => $active->id]);
+    OnboardingTask::factory()->create(['onboarding_case_id' => $active->id, 'status' => 'pending', 'due_date' => now()->subWeek()->toDateString()]);
+    OnboardingTask::factory()->create(['onboarding_case_id' => $active->id, 'status' => 'pending', 'due_date' => now()->addWeek()->toDateString()]);
+    OnboardingTask::factory()->create(['onboarding_case_id' => $active->id, 'status' => 'skipped']);
+    // A finished case counts as completed, and its tasks are no longer progress.
+    $done = OnboardingCase::factory()->completed()->create(['onboarding_program_id' => $program->id]);
+    OnboardingTask::factory()->create(['onboarding_case_id' => $done->id, 'status' => 'pending', 'due_date' => now()->subWeek()->toDateString()]);
 
     $this->get(route('onboarding.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('onboarding/index')
-            ->has('cases', 2)
+            ->has('programs', 2)
+            ->where('programs.0.hashid', $program->hashid)
+            ->where('programs.0.is_default', true)
+            ->where('programs.0.tasks_count', 3)
+            ->where('programs.0.cases', ['total' => 2, 'active' => 1, 'completed' => 1])
+            ->where('programs.0.progress', 50)
+            ->where('programs.0.overdue', 1)
+            ->where('programs.1.name', $quiet->name)
+            ->where('programs.1.cases.total', 0)
+            ->where('programs.1.progress', null)
             ->has('stats')
-            ->has('options')
+            ->has('options.programs')
+            ->has('options.employees')
             ->has('can')
-            ->has('filters'));
+            ->where('filters.search', ''));
 });
 
-test('it filters cases by status', function () {
+test('cases on no program are listed under Unassigned, only when there are any', function () {
     actingAsSuperAdmin();
-    OnboardingCase::factory()->create(['status' => 'in_progress']);
-    OnboardingCase::factory()->completed()->create();
+    seedProgram();
 
-    $this->get(route('onboarding.index', ['status' => 'completed']))
-        ->assertInertia(fn (Assert $page) => $page->has('cases', 1));
+    $this->get(route('onboarding.index'))
+        ->assertInertia(fn (Assert $page) => $page->has('programs', 1));
+
+    OnboardingCase::factory()->count(2)->create(['onboarding_program_id' => null]);
+
+    $this->get(route('onboarding.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('programs', 2)
+            ->where('programs.1.hashid', null)
+            ->where('programs.1.name', 'Unassigned')
+            ->where('programs.1.cases.active', 2));
+});
+
+test('the overview searches programs by name', function () {
+    actingAsSuperAdmin();
+    OnboardingProgram::factory()->create(['name' => 'Sales Onboarding']);
+    OnboardingProgram::factory()->create(['name' => 'Engineering Onboarding']);
+
+    $this->get(route('onboarding.index', ['search' => 'sales']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('programs', 1)
+            ->where('programs.0.name', 'Sales Onboarding')
+            ->where('filters.search', 'sales'));
+});
+
+test('starting onboarding only offers people on the roster who have no case', function () {
+    actingAsSuperAdmin();
+    $free = Employee::factory()->create(['employment_status' => 'active']);
+    Employee::factory()->create(['employment_status' => 'resigned']);
+    OnboardingCase::factory()->create();
+
+    $this->get(route('onboarding.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('options.employees', fn ($employees) => collect($employees)->pluck('id')->all() === [$free->id]));
+});
+
+// ── A program: the people it is onboarding ───────────────────────────────────
+
+test('a program lists the people it is onboarding, and no one else', function () {
+    actingAsSuperAdmin();
+    $program = seedProgram();
+    $mine = OnboardingCase::factory()->count(2)->create(['onboarding_program_id' => $program->id]);
+    OnboardingCase::factory()->completed()->create(['onboarding_program_id' => $program->id]);
+    OnboardingCase::factory()->create(['onboarding_program_id' => OnboardingProgram::factory()->create()->id]);
+    OnboardingCase::factory()->create(['onboarding_program_id' => null]);
+
+    $this->get(route('onboarding.programs.show', $program))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('onboarding/program')
+            ->where('program.hashid', $program->hashid)
+            ->where('program.id', $program->id)
+            ->where('program.tasks_count', 3)
+            // Every status by default — the finished case included.
+            ->has('cases.data', 3)
+            ->where('cases.meta.total', 3)
+            ->where('cases.data.0.program.hashid', $program->hashid)
+            ->where('stats.active', 2)
+            ->where('filters.status', 'all')
+            ->has('options.departments')
+            ->has('options.employees'));
+
+    $this->get(route('onboarding.programs.show', [$program, 'status' => 'completed']))
+        ->assertInertia(fn (Assert $page) => $page->has('cases.data', 1)->where('filters.status', 'completed'));
+
+    expect($mine)->toHaveCount(2);
+});
+
+test('the unassigned page lists the cases on no program', function () {
+    actingAsSuperAdmin();
+    OnboardingCase::factory()->count(2)->create(['onboarding_program_id' => null]);
+    OnboardingCase::factory()->create(['onboarding_program_id' => seedProgram()->id]);
+
+    $this->get(route('onboarding.programs.unassigned'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('onboarding/program')
+            ->where('program', null)
+            ->has('cases.data', 2)
+            ->where('stats.active', 2));
+});
+
+test('a program\'s people are searched, filtered, sorted and paged', function () {
+    actingAsSuperAdmin();
+    $program = seedProgram();
+    $sales = Department::factory()->create();
+    $case = fn (array $employee) => OnboardingCase::factory()->create([
+        'onboarding_program_id' => $program->id,
+        'employee_id' => Employee::factory()->create($employee)->id,
+    ]);
+    $case(['first_name' => 'Zed', 'last_name' => 'Ramos']);
+    $case(['first_name' => 'Amy', 'last_name' => 'Cruz', 'department_id' => $sales->id]);
+    $case(['first_name' => 'Mia', 'last_name' => 'Reyes']);
+
+    $this->get(route('onboarding.programs.show', [$program, 'search' => 'cruz']))
+        ->assertInertia(fn (Assert $page) => $page->has('cases.data', 1)->where('cases.data.0.employee.full_name', fn ($n) => str_starts_with($n, 'Amy')));
+
+    $this->get(route('onboarding.programs.show', [$program, 'department' => $sales->id]))
+        ->assertInertia(fn (Assert $page) => $page->has('cases.data', 1));
+
+    $this->get(route('onboarding.programs.show', [$program, 'sort' => 'employee', 'direction' => 'desc']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('cases.data.0.employee.full_name', fn ($n) => str_starts_with($n, 'Zed'))
+            ->where('cases.data.2.employee.full_name', fn ($n) => str_starts_with($n, 'Amy'))
+            ->where('filters.sort', 'employee')
+            ->where('filters.direction', 'desc'));
+
+    $this->get(route('onboarding.programs.show', [$program, 'per_page' => 10, 'page' => 1]))
+        ->assertInertia(fn (Assert $page) => $page->where('cases.meta.per_page', 10)->where('filters.per_page', 10));
+});
+
+test('another organisation\'s program cannot be opened', function () {
+    actingAsSuperAdmin();
+    $theirs = app(Tenancy::class)->runFor(Organization::factory()->create(), fn () => seedProgram());
+
+    $this->get(route('onboarding.programs.show', $theirs->hashid))->assertNotFound();
 });
 
 // ── Starting onboarding ──────────────────────────────────────────────────────
@@ -147,13 +280,16 @@ test('it completes, cancels and reopens a case', function () {
 
     $this->patch(route('onboarding.status', $case), ['action' => 'complete'])
         ->assertSessionHasNoErrors();
+    assertToast('success', 'Onboarding completed.');
     expect($case->fresh()->status)->toBe('completed')
         ->and($case->fresh()->completed_at)->not->toBeNull();
 
     $this->patch(route('onboarding.status', $case), ['action' => 'reopen']);
+    assertToast('success', 'Onboarding reopened.');
     expect($case->fresh()->status)->toBe('in_progress');
 
     $this->patch(route('onboarding.status', $case), ['action' => 'cancel']);
+    assertToast('success', 'Onboarding cancelled.');
     expect($case->fresh()->status)->toBe('cancelled');
 });
 
@@ -170,6 +306,29 @@ test('it updates case notes and target date, and deletes the case', function () 
 
     $this->delete(route('onboarding.destroy', $case))->assertSessionHasNoErrors();
     expect(OnboardingCase::find($case->id))->toBeNull();
+});
+
+test('deleting a case returns to the people it was listed with', function () {
+    actingAsSuperAdmin();
+    $program = seedProgram();
+    $onProgram = OnboardingCase::factory()->create(['onboarding_program_id' => $program->id]);
+    $onNone = OnboardingCase::factory()->create(['onboarding_program_id' => null]);
+
+    $this->delete(route('onboarding.destroy', $onProgram))
+        ->assertRedirect(route('onboarding.programs.show', $program));
+    $this->delete(route('onboarding.destroy', $onNone))
+        ->assertRedirect(route('onboarding.programs.unassigned'));
+});
+
+test('the checklist page knows its program, for the way back', function () {
+    actingAsSuperAdmin();
+    $program = seedProgram();
+    $case = OnboardingCase::factory()->create(['onboarding_program_id' => $program->id]);
+
+    $this->get(route('onboarding.show', $case))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('case.program.hashid', $program->hashid)
+            ->where('case.program.name', $program->name));
 });
 
 test('a past-due unresolved task surfaces as overdue', function () {
@@ -279,8 +438,11 @@ test('hiring an applicant starts their onboarding', function () {
 
 test('onboarding routes are permission gated', function () {
     actingAsUserWith([]);
+    $program = seedProgram();
 
     $this->get(route('onboarding.index'))->assertForbidden();
+    $this->get(route('onboarding.programs.show', $program))->assertForbidden();
+    $this->get(route('onboarding.programs.unassigned'))->assertForbidden();
 });
 
 test('viewing does not grant managing', function () {
@@ -304,6 +466,8 @@ test('cases are isolated per organisation', function () {
     $other = Organization::factory()->create();
     app(Tenancy::class)->runFor($other, fn () => OnboardingCase::factory()->count(3)->create());
 
+    $this->get(route('onboarding.programs.unassigned'))
+        ->assertInertia(fn (Assert $page) => $page->has('cases.data', 2)->where('stats.active', 2));
     $this->get(route('onboarding.index'))
-        ->assertInertia(fn (Assert $page) => $page->has('cases', 2));
+        ->assertInertia(fn (Assert $page) => $page->where('programs.0.cases.total', 2)->where('stats.active', 2));
 });

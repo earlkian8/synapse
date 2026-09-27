@@ -47,6 +47,7 @@ class OnboardingCaseResource extends JsonResource
             ] : null),
             'program' => $this->whenLoaded('program', fn () => $this->program ? [
                 'id' => $this->program->id,
+                'hashid' => $this->program->hashid,
                 'name' => $this->program->name,
             ] : null),
 

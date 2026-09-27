@@ -38,7 +38,7 @@ export function TaskRow({
     const skipped = task.status === 'skipped';
 
     return (
-        <div className="flex items-start gap-3 px-3 py-2.5">
+        <div className="flex items-start gap-3 px-3 py-2">
             <Checkbox
                 checked={done}
                 disabled={!canManage}

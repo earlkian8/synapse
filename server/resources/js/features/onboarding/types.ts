@@ -63,7 +63,7 @@ export type OnboardingCase = {
     notes: string | null;
     progress: CaseProgress;
     employee: CaseEmployee | null;
-    program: { id: number; name: string } | null;
+    program: { id: number; hashid: string; name: string } | null;
     tasks?: OnboardingTask[];
     created_human: string | null;
     updated_human: string | null;
@@ -120,22 +120,83 @@ export type OnboardingPermissions = {
     managePrograms: boolean;
 };
 
-export type OnboardingFilters = {
+/** One program on the overview, with how its onboarding is going. */
+export type ProgramOverviewRow = {
+    /** Null for the "Unassigned" row: cases that run on no program. */
+    id: number | null;
+    hashid: string | null;
+    name: string;
+    description: string | null;
+    department: DepartmentRef | null;
+    employment_type: EmploymentType | null;
+    is_default: boolean;
+    is_active: boolean;
+    tasks_count: number | null;
+    cases: { total: number; active: number; completed: number };
+    /** Resolved share of the in-flight cases' tasks; null with none in flight. */
+    progress: number | null;
+    /** Overdue tasks across the in-flight cases. */
+    overdue: number;
+};
+
+/** The program a page of cases belongs to (null: the unassigned cases). */
+export type ProgramSummary = {
+    id: number;
+    hashid: string;
+    name: string;
+    description: string | null;
+    department: DepartmentRef | null;
+    employment_type: EmploymentType | null;
+    is_default: boolean;
+    is_active: boolean;
+    tasks_count: number;
+};
+
+export type CaseSort = 'employee' | 'start_date' | 'target_end_date';
+
+export type CaseFilters = {
     search: string;
     status: string;
     department: number | null;
+    sort: CaseSort | null;
+    direction: 'asc' | 'desc';
+    per_page: number;
+};
+
+export type PaginationMeta = {
+    current_page: number;
+    from: number | null;
+    to: number | null;
+    last_page: number;
+    per_page: number;
+    total: number;
+};
+
+export type Paginated<T> = {
+    data: T[];
+    meta: PaginationMeta;
+};
+
+export type StartOptions = {
+    programs: ProgramOption[];
+    employees: EmployeeOption[];
 };
 
 export type IndexPageProps = {
-    cases: OnboardingCase[];
+    programs: ProgramOverviewRow[];
     stats: OnboardingStats;
-    options: {
-        departments: DepartmentRef[];
-        programs: ProgramOption[];
-        employees: EmployeeOption[];
-    };
+    options: StartOptions;
     can: OnboardingPermissions;
-    filters: OnboardingFilters;
+    filters: { search: string };
+};
+
+export type ProgramPageProps = {
+    program: ProgramSummary | null;
+    cases: Paginated<OnboardingCase>;
+    stats: OnboardingStats;
+    options: StartOptions & { departments: DepartmentRef[] };
+    can: OnboardingPermissions;
+    filters: CaseFilters;
 };
 
 export type CasePageProps = {

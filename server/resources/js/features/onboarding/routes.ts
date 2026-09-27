@@ -5,6 +5,12 @@
 export const onboardingRoutes = {
     index: '/onboarding',
     store: '/onboarding',
+    // The people one program is onboarding; cases on no program sit under
+    // "unassigned".
+    program: (hashid: string | null) =>
+        hashid === null
+            ? '/onboarding/programs/unassigned'
+            : `/onboarding/programs/${hashid}`,
     // Cases & programs are addressed by their obfuscated hashid (App\Support\Hashid).
     show: (hashid: string) => `/onboarding/${hashid}`,
     update: (hashid: string) => `/onboarding/${hashid}`,
@@ -18,5 +24,5 @@ export const onboardingRoutes = {
     // Programs (templates) live under Company Setup — see routes/setup.php.
     programs: '/setup/onboarding',
     programsStore: '/setup/onboarding',
-    program: (hashid: string) => `/setup/onboarding/${hashid}`,
+    programSetup: (hashid: string) => `/setup/onboarding/${hashid}`,
 } as const;

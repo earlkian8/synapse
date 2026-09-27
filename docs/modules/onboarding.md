@@ -17,14 +17,29 @@ Onboarding can also be started manually for anyone created outside Recruitment.
 
 ## Surfaces
 
-- **`/onboarding`** — the overview **board**: stats, search/status/department filters,
-  and a card grid of in-flight (and past) cases, each with a progress bar, target date,
-  and overdue count. A card opens the case. (A board of people-cards, not a table — the
-  unit of work here is a *person being onboarded*, so progress-at-a-glance beats rows.)
-- **`/onboarding/{case}`** — the **case**: the employee header, a progress summary, and
-  the **checklist grouped by category** (Paperwork · Equipment · Access · Orientation ·
-  Training · Compliance · Other). Tick tasks done, assign them, set due dates, add ad-hoc
-  tasks, edit notes/target, and complete / cancel / reopen the onboarding.
+Onboarding reads top-down in **three levels**, each a table, laid out like the
+Employees module (header · compact stat tiles · toolbar · table · pagination):
+
+1. **`/onboarding`** — the **programs**: one row per program with who it applies to, its
+   task count, how many people it is onboarding and has completed, the progress of its
+   in-flight checklists and their overdue tasks. Cases on no program (started without
+   one, or whose program was deleted) get an **Unassigned** row, only when there are
+   any. Search by name; *Start onboarding* (optionally *here*, from a row, which
+   pre-selects that program); *Manage programs* for those who may. A row opens level 2.
+2. **`/onboarding/programs/{program}`** (and **`/onboarding/programs/unassigned`**) — the
+   **people** that program is onboarding: employee, department and position, status,
+   checklist progress (resolved / total), overdue tasks, start and target dates (a
+   target an in-flight case has run past shows in red). Stats are the program's own.
+   Search, department and status filters (every status by default), sort by employee,
+   start or target date, paging. Each row's menu opens the checklist, marks it
+   complete / reopens it, cancels it (confirmed) or deletes it (confirmed — and you stay
+   on the program). *Start onboarding* here starts on this program. A row opens level 3.
+3. **`/onboarding/{case}`** — the **case**: the employee header, a progress summary, and
+   the **checklist grouped by category** (Paperwork · Equipment · Access · Orientation ·
+   Training · Compliance · Other), two groups abreast on wide screens. Tick tasks done,
+   assign them, set due dates, add ad-hoc tasks, edit notes/target, and complete /
+   cancel / reopen the onboarding. Breadcrumbs read *Onboarding › program › person*,
+   and the back arrow (and the program name in the summary) return to level 2.
 - **`/setup/onboarding`** — manage **programs** (templates) and their blueprint tasks.
   They live under **Company Setup** (routes `setup.onboarding.*`), with the other
   configuration surfaces, because they decide what *every* new hire's checklist is
@@ -88,7 +103,9 @@ behind them, and what is overdue by name
 ## Backend
 
 - Controllers (`app/Http/Controllers/Onboarding/`): `OnboardingCaseController`
-  (index / show / store / update / status / destroy), `OnboardingTaskController`
+  (index — the programs overview — / show / store / update / status / destroy; deleting
+  returns to the case's program), `OnboardingProgramCasesController` (show / unassigned
+  — one program's people), `OnboardingTaskController`
   (store / update / toggle / destroy), `OnboardingProgramController`
   (index / store / update / destroy).
 - **`App\Support\OnboardingProvisioner`** — the connective tissue. `start()` picks the
@@ -109,8 +126,14 @@ behind them, and what is overdue by name
   for one item, `nudgeMany()` grouped per person.
 - Requests under `app/Http/Requests/Onboarding/`; resources `OnboardingCaseResource`
   (with a derived `progress` summary), `OnboardingTaskResource`,
-  `OnboardingProgramResource`; queries `OnboardingCasesIndexQuery` (filtered, with task
-  counts — no pagination, the board is card-based) and `OnboardingStatistics`.
+  `OnboardingProgramResource`; queries `OnboardingProgramsOverviewQuery` (every program
+  with its case and in-flight task figures, from two grouped queries — cases per
+  program, and the tasks of active cases per program — plus the Unassigned row),
+  `OnboardingCasesIndexQuery` (filtered, with task counts; `paginate()` for one
+  program's table, scoped by a closure, sortable by employee / start / target) and
+  `OnboardingStatistics` (org-wide, or narrowed by the same scope).
+- *Start onboarding* offers only people **on the roster** (`employment_status =
+  active`) who have no case yet.
 - `routes/onboarding.php` (literal-prefixed routes precede the `{case}` wildcard). Every
   route is permission-gated. Cases and programs are addressed by **hashid**
   (`App\Support\Hashid`, via `HasHashid`); tasks by numeric id (sub-resources).
@@ -126,12 +149,15 @@ reopen are deliberate actions (`PATCH …/status`). The stage toggle stamps `com
 
 ## Frontend
 
-`features/onboarding/` — types, routes, constants (status & category meta), the board
-filter hook, and components: stats, toolbar, **case card**, progress bar, status badge,
-**start-onboarding modal**, **task checklist** (grouped) + **task row** + **task form
-modal**, **case settings modal**, **program card** + **program form modal** (with an
-inline blueprint-task editor), and a confirm dialog. Pages: `pages/onboarding/index.tsx`
-and `case.tsx`; the programs screen is `pages/setup/onboarding.tsx`. The sidebar
+`features/onboarding/` — types, routes, constants (status & category meta), hooks
+(`use-case-filters` for a program's table, `use-program-search` for the overview), and
+components: compact stat tiles, `search-input` (debounced), **programs overview table**,
+**cases table** + **case row actions**, pagination, progress bar, status badge,
+**start-onboarding modal** (optionally pre-set to a program), **task checklist**
+(grouped) + **task row** + **task form modal**, **case settings modal**, **program
+card** + **program form modal** (with an inline blueprint-task editor), and a confirm
+dialog. Pages: `pages/onboarding/index.tsx` (programs), `program.tsx` (a program's
+people) and `case.tsx`; the programs setup screen is `pages/setup/onboarding.tsx`. The sidebar
 **Talent Acquisition → Onboarding** link is gated on `onboarding.view`.
 
 All four open as **centred modals** built from the shared shell in
@@ -155,10 +181,14 @@ HR Manager (all three).
 
 ## Tests
 
-- `tests/Feature/Onboarding/OnboardingTest.php` — overview render + status filter, start
+- `tests/Feature/Onboarding/OnboardingTest.php` — the programs overview (figures per
+  program, the Unassigned row, search, who can be started), a program's people (only
+  theirs, every status by default, status / search / department filters, sort, paging,
+  scoped stats), the unassigned page, another tenant's program 404ing, deleting a case
+  returning to its program, the checklist knowing its program, start
   (with seeded checklist) + the one-case-per-employee guard, case render, add/edit/delete
   task, the complete-stamp + `in_progress` nudge, overdue surfacing, complete/cancel/reopen,
-  notes/target update + delete, programs CRUD (with single-default enforcement), the
+  notes/target update + delete (and the lifecycle toasts), programs CRUD (with single-default enforcement), the
   **hire → onboarding bridge**, the authorization matrix, and tenant isolation.
 - `tests/Unit/OnboardingTaskModelTest.php` — task/case accessors (DB-free).
 - `tests/Feature/Onboarding/OnboardingAssistantTest.php` — the agentic surface, driving

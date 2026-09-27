@@ -1,66 +1,93 @@
-import { Head, usePage } from '@inertiajs/react';
-import { UserRoundCheck } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ListChecks, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { OnboardingCaseCard } from '@/features/onboarding/components/onboarding-case-card';
+import { Button } from '@/components/ui/button';
 import { OnboardingStatsCards } from '@/features/onboarding/components/onboarding-stats';
-import { OnboardingToolbar } from '@/features/onboarding/components/onboarding-toolbar';
+import { ProgramsOverviewTable } from '@/features/onboarding/components/programs-overview-table';
+import { SearchInput } from '@/features/onboarding/components/search-input';
 import { StartOnboardingDialog } from '@/features/onboarding/components/start-onboarding-dialog';
-import { useOnboardingFilters } from '@/features/onboarding/hooks/use-onboarding-filters';
+import { useProgramSearch } from '@/features/onboarding/hooks/use-program-search';
+import { onboardingRoutes } from '@/features/onboarding/routes';
 import type { IndexPageProps } from '@/features/onboarding/types';
 
+/**
+ * Onboarding, first level: every program, with how many people it is onboarding
+ * and how that is going. A program opens the people it covers; a person opens
+ * their checklist.
+ */
 export default function OnboardingIndex() {
-    const { cases, stats, options, can, filters } =
+    const { programs, stats, options, can, filters } =
         usePage<IndexPageProps>().props;
-    const { setSearch, setStatus, setDepartment, reset } =
-        useOnboardingFilters(filters);
+    const search = useProgramSearch();
 
     const [startOpen, setStartOpen] = useState(false);
+    const [startProgram, setStartProgram] = useState<number | null>(null);
+
+    const openStart = (programId: number | null) => {
+        setStartProgram(programId);
+        setStartOpen(true);
+    };
 
     return (
         <>
             <Head title="Onboarding" />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-col gap-1">
+            <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+                <div className="flex flex-col gap-0.5">
                     <h1 className="text-xl font-semibold tracking-tight">
                         Onboarding
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        Guide every new hire from day one to fully productive
-                        with a structured checklist.
+                        Every program and the new hires going through it. Open a
+                        program to see its people.
                     </p>
                 </div>
 
                 <OnboardingStatsCards stats={stats} />
 
-                <div className="flex flex-col gap-4">
-                    <OnboardingToolbar
-                        filters={filters}
-                        departments={options.departments}
-                        canManage={can.manage}
-                        canManagePrograms={can.managePrograms}
-                        onSearch={setSearch}
-                        onStatus={setStatus}
-                        onDepartment={setDepartment}
-                        onReset={reset}
-                        onStart={() => setStartOpen(true)}
-                    />
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={search}
+                            placeholder="Search programs…"
+                            label="Search programs"
+                        />
 
-                    {cases.length === 0 ? (
-                        <EmptyState />
-                    ) : (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            {cases.map((c) => (
-                                <OnboardingCaseCard key={c.id} case={c} />
-                            ))}
+                        <div className="flex items-center gap-2">
+                            {can.managePrograms && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href={onboardingRoutes.programs}>
+                                        <ListChecks className="size-4" />
+                                        Manage programs
+                                    </Link>
+                                </Button>
+                            )}
+                            {can.manage && (
+                                <Button
+                                    size="sm"
+                                    onClick={() => openStart(null)}
+                                >
+                                    <Plus className="size-4" />
+                                    Start onboarding
+                                </Button>
+                            )}
                         </div>
-                    )}
+                    </div>
+
+                    <ProgramsOverviewTable
+                        programs={programs}
+                        can={can}
+                        searching={filters.search !== ''}
+                        onStart={openStart}
+                    />
                 </div>
             </div>
 
             <StartOnboardingDialog
                 employees={options.employees}
                 programs={options.programs}
+                programId={startProgram}
                 open={startOpen}
                 onOpenChange={setStartOpen}
             />
@@ -68,21 +95,6 @@ export default function OnboardingIndex() {
     );
 }
 
-function EmptyState() {
-    return (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-16 text-center dark:border-sidebar-border">
-            <span className="flex size-11 items-center justify-center rounded-full bg-[#0ABFBF]/10 text-[#0ABFBF]">
-                <UserRoundCheck className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No onboarding here</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-                New hires from Recruitment land here automatically. You can also
-                start onboarding for any employee.
-            </p>
-        </div>
-    );
-}
-
 OnboardingIndex.layout = {
-    breadcrumbs: [{ title: 'Onboarding', href: '/onboarding' }],
+    breadcrumbs: [{ title: 'Onboarding', href: onboardingRoutes.index }],
 };

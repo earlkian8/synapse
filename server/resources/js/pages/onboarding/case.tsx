@@ -48,6 +48,8 @@ export default function OnboardingCasePage() {
     const { case: c, options, can } = usePage<CasePageProps>().props;
     const employee = c.employee;
     const tasks = c.tasks ?? [];
+    // Back to the people this case is listed with.
+    const programUrl = onboardingRoutes.program(c.program?.hashid ?? null);
 
     const [taskFormOpen, setTaskFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<OnboardingTask | null>(null);
@@ -135,7 +137,7 @@ export default function OnboardingCasePage() {
                 title={`${employee?.full_name ?? 'Onboarding'} — Onboarding`}
             />
 
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+            <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
                 {/* Header */}
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-3">
@@ -146,8 +148,8 @@ export default function OnboardingCasePage() {
                             asChild
                         >
                             <Link
-                                href={onboardingRoutes.index}
-                                aria-label="Back to onboarding"
+                                href={programUrl}
+                                aria-label={`Back to ${c.program?.name ?? 'unassigned onboarding'}`}
                             >
                                 <ArrowLeft className="size-4" />
                             </Link>
@@ -244,7 +246,7 @@ export default function OnboardingCasePage() {
                 </div>
 
                 {/* Summary band */}
-                <div className="rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-sm dark:border-sidebar-border">
+                <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-3 shadow-sm dark:border-sidebar-border">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-medium">
                             {c.progress.resolved} of {c.progress.total} tasks
@@ -259,7 +261,7 @@ export default function OnboardingCasePage() {
                         muted={c.status === 'cancelled'}
                         className="mt-2"
                     />
-                    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
                         <Meta
                             icon={<CalendarClock className="size-3.5" />}
                             label="Started"
@@ -270,11 +272,18 @@ export default function OnboardingCasePage() {
                             label="Target"
                             value={formatDate(c.target_end_date)}
                         />
-                        <Meta
-                            icon={<ClipboardList className="size-3.5" />}
-                            label="Program"
-                            value={c.program?.name ?? 'None'}
-                        />
+                        <span className="inline-flex items-center gap-1.5">
+                            <ClipboardList className="size-3.5" />
+                            <span className="text-muted-foreground/70">
+                                Program:
+                            </span>
+                            <Link
+                                href={programUrl}
+                                className="font-medium text-foreground hover:text-[#0ABFBF]"
+                            >
+                                {c.program?.name ?? 'Unassigned'}
+                            </Link>
+                        </span>
                         {c.progress.overdue > 0 && (
                             <span className="font-medium text-rose-600 dark:text-rose-400">
                                 {c.progress.overdue} overdue
@@ -282,7 +291,7 @@ export default function OnboardingCasePage() {
                         )}
                     </div>
                     {c.notes && (
-                        <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                        <p className="mt-2.5 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                             {c.notes}
                         </p>
                     )}
@@ -361,6 +370,10 @@ function formatDate(date: string | null): string {
 OnboardingCasePage.layout = (props: CasePageProps) => ({
     breadcrumbs: [
         { title: 'Onboarding', href: onboardingRoutes.index },
+        {
+            title: props.case.program?.name ?? 'Unassigned',
+            href: onboardingRoutes.program(props.case.program?.hashid ?? null),
+        },
         {
             title: props.case.employee?.full_name ?? 'Case',
             href: onboardingRoutes.show(props.case.hashid),

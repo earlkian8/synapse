@@ -17,17 +17,20 @@ import type {
 
 export const DEFAULT_FILTERS = {
     search: '',
-    status: 'active',
+    status: 'all',
     department: null,
+    per_page: 15,
 } as const;
 
+export const PER_PAGE_OPTIONS = [10, 15, 25, 50, 100] as const;
+
 export const STATUS_FILTERS = [
+    { value: 'all', label: 'All statuses' },
     { value: 'active', label: 'Active' },
     { value: 'pending', label: 'Not started' },
     { value: 'in_progress', label: 'In progress' },
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
-    { value: 'all', label: 'All' },
 ] as const;
 
 export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {

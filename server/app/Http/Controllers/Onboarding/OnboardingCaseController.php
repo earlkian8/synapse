@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Onboarding;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Onboarding\StartOnboardingRequest;
 use App\Http\Resources\OnboardingCaseResource;
-use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OnboardingCase;
 use App\Models\OnboardingProgram;
 use App\Models\User;
-use App\Queries\OnboardingCasesIndexQuery;
+use App\Queries\OnboardingProgramsOverviewQuery;
 use App\Queries\OnboardingStatistics;
 use App\Support\ActivityLogger;
 use App\Support\OnboardingProvisioner;
@@ -23,20 +22,18 @@ use Inertia\Response;
 class OnboardingCaseController extends Controller
 {
     /**
-     * Display the onboarding overview — a board of in-flight (and past) cases.
+     * Display the onboarding overview: every program, with how many people it is
+     * onboarding and how that is going. Each opens onto the people it covers
+     * ({@see OnboardingProgramCasesController}).
      */
-    public function index(Request $request, OnboardingCasesIndexQuery $query, OnboardingStatistics $statistics): Response
+    public function index(Request $request, OnboardingProgramsOverviewQuery $programs, OnboardingStatistics $statistics): Response
     {
         return Inertia::render('onboarding/index', [
-            'cases' => OnboardingCaseResource::collection($query->get($request))->resolve($request),
+            'programs' => $programs->rows($request),
             'stats' => $statistics->toArray(),
-            'options' => $this->indexOptions(),
-            'can' => $this->permissions($request),
-            'filters' => [
-                'search' => $request->string('search')->toString(),
-                'status' => $query->status($request),
-                'department' => $request->integer('department') ?: null,
-            ],
+            'options' => $this->startOptions(),
+            'can' => self::permissions($request),
+            'filters' => ['search' => $request->string('search')->toString()],
         ]);
     }
 
@@ -56,7 +53,7 @@ class OnboardingCaseController extends Controller
         return Inertia::render('onboarding/case', [
             'case' => (new OnboardingCaseResource($case))->resolve($request),
             'options' => ['assignees' => $this->assignableUsers()],
-            'can' => $this->permissions($request),
+            'can' => self::permissions($request),
         ]);
     }
 
@@ -127,7 +124,11 @@ class OnboardingCaseController extends Controller
             subjectLabel: $case->employee->full_name,
         );
 
-        return $this->respond('Onboarding '.$case->status.'.');
+        return $this->respond(match ($validated['action']) {
+            'complete' => 'Onboarding completed.',
+            'cancel' => 'Onboarding cancelled.',
+            default => 'Onboarding reopened.',
+        });
     }
 
     /**
@@ -135,7 +136,8 @@ class OnboardingCaseController extends Controller
      */
     public function destroy(OnboardingCase $case): RedirectResponse
     {
-        $case->load('employee:id,first_name,middle_name,last_name,suffix');
+        $case->load(['employee:id,first_name,middle_name,last_name,suffix', 'program:id']);
+        $program = $case->program;
         $name = $case->employee?->full_name ?? 'employee';
         $case->delete();
 
@@ -148,7 +150,10 @@ class OnboardingCaseController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Onboarding removed.']);
 
-        return redirect()->route('onboarding.index');
+        // Back to the people the case was listed with.
+        return $program !== null
+            ? redirect()->route('onboarding.programs.show', $program)
+            : redirect()->route('onboarding.programs.unassigned');
     }
 
     /**
@@ -156,7 +161,7 @@ class OnboardingCaseController extends Controller
      *
      * @return array<string, bool>
      */
-    private function permissions(Request $request): array
+    public static function permissions(Request $request): array
     {
         $user = $request->user();
 
@@ -167,15 +172,15 @@ class OnboardingCaseController extends Controller
     }
 
     /**
-     * Options for the overview: department filter, programs, and employees who can
-     * still be put through onboarding.
+     * What starting onboarding offers: the active programs, and the employees who
+     * can still be put through onboarding — on the roster, and without a case.
+     * Shared with {@see OnboardingProgramCasesController}.
      *
      * @return array<string, mixed>
      */
-    private function indexOptions(): array
+    public static function startOptions(): array
     {
         return [
-            'departments' => Department::orderBy('name')->get(['id', 'name']),
             'programs' => OnboardingProgram::where('is_active', true)
                 ->withCount('tasks')
                 ->orderByDesc('is_default')
@@ -188,6 +193,7 @@ class OnboardingCaseController extends Controller
                     'is_default' => $p->is_default,
                 ]),
             'employees' => Employee::query()
+                ->where('employment_status', 'active')
                 ->whereDoesntHave('onboardingCase')
                 ->orderBy('first_name')
                 ->limit(300)

@@ -75,7 +75,7 @@ export function OnboardingProgramsManager({
             return;
         }
 
-        router.delete(onboardingRoutes.program(target.hashid), {
+        router.delete(onboardingRoutes.programSetup(target.hashid), {
             preserveScroll: true,
             onStart: () => setProcessing(true),
             onFinish: () => {

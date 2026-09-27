@@ -19,6 +19,8 @@ import type { EmployeeOption, ProgramOption } from '../types';
 type Props = {
     employees: EmployeeOption[];
     programs: ProgramOption[];
+    /** The program to start on (a program's own page); else the default one. */
+    programId?: number | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
@@ -28,6 +30,7 @@ const AUTO = '__auto__';
 export function StartOnboardingDialog({
     employees,
     programs,
+    programId = null,
     open,
     onOpenChange,
 }: Props) {
@@ -48,6 +51,7 @@ export function StartOnboardingDialog({
                     <FormBody
                         employees={employees}
                         programs={programs}
+                        programId={programId}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -59,15 +63,19 @@ export function StartOnboardingDialog({
 function FormBody({
     employees,
     programs,
+    programId,
     onDone,
 }: {
     employees: EmployeeOption[];
     programs: ProgramOption[];
+    programId: number | null;
     onDone: () => void;
 }) {
     const defaultProgram = useMemo(
-        () => programs.find((p) => p.is_default),
-        [programs],
+        () =>
+            programs.find((p) => p.id === programId) ??
+            programs.find((p) => p.is_default),
+        [programs, programId],
     );
 
     const { data, setData, post, processing, errors, transform } = useForm({

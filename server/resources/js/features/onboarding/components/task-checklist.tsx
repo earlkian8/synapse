@@ -38,14 +38,14 @@ export function TaskChecklist({
 
     if (tasks.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-12 text-center text-sm text-muted-foreground dark:border-sidebar-border">
+            <div className="rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground dark:border-sidebar-border">
                 No tasks yet. Add the first checklist item to get started.
             </div>
         );
     }
 
     return (
-        <div className="space-y-5">
+        <div className="grid items-start gap-3 xl:grid-cols-2">
             {groups.map(({ category, tasks: groupTasks }) => {
                 const meta = CATEGORY_META[category];
                 const Icon = meta.icon;
@@ -56,14 +56,14 @@ export function TaskChecklist({
                         key={category}
                         className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-sm dark:border-sidebar-border"
                     >
-                        <div className="flex items-center gap-2.5 border-b border-border px-3 py-2.5">
+                        <div className="flex items-center gap-2.5 border-b border-border bg-muted/30 px-3 py-2">
                             <span
                                 className={cn(
-                                    'flex size-7 items-center justify-center rounded-lg',
+                                    'flex size-6 items-center justify-center rounded-md',
                                     meta.accent,
                                 )}
                             >
-                                <Icon className="size-4" />
+                                <Icon className="size-3.5" />
                             </span>
                             <span className="text-sm font-semibold">
                                 {meta.label}
