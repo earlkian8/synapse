@@ -9,7 +9,6 @@ import {
     ListChecks,
     MapPinned,
     Network,
-    ScanLine,
     Target,
     Workflow,
 } from 'lucide-react';
@@ -40,8 +39,8 @@ export const GROUPS: { group: StepGroup; label: string }[] = [
 /**
  * Every Company Setup screen as a step, in the order the server walks them
  * (`CompanySetup::STEPS`). Where one step's options come from an earlier one —
- * a site's default schedule, a device's site, a roster's schedules — the
- * earlier one comes first.
+ * a site's default schedule, a roster's schedules — the earlier one comes
+ * first.
  */
 export const STEPS: StepMeta[] = [
     {
@@ -102,16 +101,6 @@ export const STEPS: StepMeta[] = [
         purpose:
             'Each site is a fence on the map that web and app punches are placed against.',
         href: '/setup/locations',
-    },
-    {
-        step: 'devices',
-        group: 'time',
-        icon: ScanLine,
-        label: 'Devices',
-        title: 'Any kiosks or scanners at the door?',
-        purpose:
-            'Biometric scanners and kiosk tablets that send punches alongside the web and the app.',
-        href: '/setup/devices',
     },
     {
         step: 'roster',

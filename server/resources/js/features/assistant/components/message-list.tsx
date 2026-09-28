@@ -42,6 +42,15 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'How do our attendance rules handle overtime?',
         permission: 'setup.attendance-policies.view',
     },
+    { prompt: 'What sites do we have?', permission: 'setup.locations.view' },
+    {
+        prompt: 'What leave types do we offer?',
+        permission: 'setup.leave-types.view',
+    },
+    {
+        prompt: 'What does our appraisal framework measure?',
+        permission: 'setup.kpi.view',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',

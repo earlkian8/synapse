@@ -97,7 +97,6 @@ class PermissionRegistry
             'setup.attendance-policies.manage' => 'Manage attendance policies',
             'setup.locations.view' => 'View work locations',
             'setup.locations.manage' => 'Manage work locations, their fences & who is based there',
-            'setup.devices.manage' => 'Register & manage kiosks and biometric devices',
             'setup.departments.view' => 'View departments & positions',
             'setup.departments.manage' => 'Manage departments & positions',
             'setup.leave-types.view' => 'View leave types',

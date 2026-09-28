@@ -35,7 +35,7 @@ commit history rather than repeating them.
 - [Onboarding](./modules/onboarding.md) — template-driven checklists carrying each new hire from day one to productive.
 - [Employees](./modules/employees.md) — HR hub: directory, 201 file, career history, lifecycle.
 - [Leave Management](./modules/leave.md) — time off: approval inbox, derived balances, leave types.
-- [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules and the shift roster (in Company Setup); sign-off; geofenced, device and offline capture; days that close themselves; mobile token API.
+- [Attendance](./modules/attendance.md) — DTR: punch events, daily records, schedules and the shift roster (in Company Setup); sign-off; geofenced and offline capture; days that close themselves; mobile token API.
 - [Performance Management](./modules/performance.md) — weighted KPI evaluations across review periods, with a derived overall score.
 - [Training & Development](./modules/training.md) — training programs with a derived lifecycle + scored employee enrollments.
 - [Awards & Recognition](./modules/awards.md) — a recognition feed over a typed, colour-coded award catalogue.
@@ -46,7 +46,6 @@ commit history rather than repeating them.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Work Locations (Company Setup)](./modules/work-locations.md) — sites drawn on a map, the fences punches are checked against, and who is based where.
-- [Attendance Devices (Company Setup)](./modules/attendance-devices.md) — kiosks and biometric scanners: device keys, the push API, CSV import and the web kiosk.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
 - [User Management](./modules/user-management.md) — accounts, access, archiving, bulk ops.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
@@ -63,7 +62,7 @@ commit history rather than repeating them.
 - [recruitment tables](./database/recruitment-tables.md) — job postings, applicants, applications, interviews.
 - [onboarding tables](./database/onboarding-tables.md) — programs, blueprint tasks, cases, checklist tasks.
 - [leave tables](./database/leave-tables.md) — leave types, balances (entitlement), requests + approval lifecycle.
-- [attendance tables](./database/attendance-tables.md) — punch events (with where and how they were captured), daily records (with minute buckets and flags), attendance policies, work locations and devices.
+- [attendance tables](./database/attendance-tables.md) — punch events (with where and how they were captured), daily records (with minute buckets and flags), attendance policies and work locations.
 - [scheduling tables](./database/scheduling-tables.md) — shift day patterns, dated assignments, roster overrides.
 - [performance tables](./database/performance-tables.md) — KPI criteria, evaluation periods, evaluations + per-criterion scores.
 - [training tables](./database/training-tables.md) — training programs (derived status) + employee enrollments.

@@ -29,7 +29,6 @@ export type AttendanceFlag =
     // What capture and the end-of-day job found (ADR 0040, ADR 0041).
     | 'outside_geofence'
     | 'source_not_allowed'
-    | 'device_sequence_anomaly'
     | 'clock_skew'
     | 'auto_closed'
     | 'missing_clock_out';
@@ -37,8 +36,6 @@ export type AttendanceFlag =
 export type PunchSource =
     | 'web'
     | 'mobile'
-    | 'kiosk'
-    | 'biometric'
     | 'manual'
     /** Written by the end-of-day job closing a forgotten clock-out (ADR 0041). */
     | 'system';
@@ -57,7 +54,11 @@ export type Punch = {
     id: number;
     type: PunchType;
     punched_at: string | null;
-    source: PunchSource;
+    /**
+     * One of today's sources — or, on a punch recorded before a source was
+     * retired (ADR 0054), the name it was recorded under.
+     */
+    source: PunchSource | (string & {});
     latitude: number | null;
     longitude: number | null;
     accuracy: number | null;
@@ -69,8 +70,6 @@ export type Punch = {
     distance_meters?: number | null;
     /** On site, off site, or not checked (null). */
     within_geofence?: boolean | null;
-    /** The kiosk or scanner that sent it. */
-    device?: { name: string; type: 'kiosk' | 'biometric' } | null;
     /** A phone queued it while offline and sent it later. */
     offline?: boolean;
     received_at?: string | null;

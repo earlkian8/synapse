@@ -2,7 +2,6 @@ import {
     Clock,
     LogOut,
     MapPinX,
-    ScanLine,
     ShieldCheck,
     SplitSquareHorizontal,
     TimerOff,
@@ -131,20 +130,12 @@ export function ExceptionsTable({
                         : 'Clock-out written by the policy',
             },
             {
-                key: 'device',
-                title: 'Device punches out of order',
-                icon: ScanLine,
-                tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
-                records: flagged('device_sequence_anomaly'),
-                detail: () => 'Recorded as the device sent them',
-            },
-            {
                 key: 'skew',
                 title: 'Clock was off',
                 icon: Clock,
                 tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
                 records: flagged('clock_skew'),
-                detail: () => 'Stamped by a phone or device clock that was off',
+                detail: () => 'Stamped by a phone clock that was off',
             },
         ].filter((group) => group.records.length > 0);
     }, [records, timeZone]);

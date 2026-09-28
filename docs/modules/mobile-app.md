@@ -76,8 +76,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   seconds and whenever the app returns to the foreground; a punch the server refuses
   (older than the policy's offline window, say) is dropped with a toast saying why — HR
   enters it instead. A resend is harmless: the same client id returns
-  `duplicate`. The day screen shows each punch's site and distance, the device that sent
-  it, and whether it was sent offline.
+  `duplicate`. The day screen shows each punch's site and distance, and whether it was
+  sent offline.
 - **Attendance** — month calendar with status dots + legend, a metrics summary
   card (present/late/absent, hours rendered, late/OT minutes) from
   `GET /attendance/summary`, a list view, and a per-day punch-timeline detail.

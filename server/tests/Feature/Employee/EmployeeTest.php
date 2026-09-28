@@ -52,6 +52,20 @@ test('it searches employees', function () {
         ->assertInertia(fn (Assert $page) => $page->has('employees.data', 1));
 });
 
+test('a full name is found as it is shown, suffix and all', function () {
+    actingAsSuperAdmin();
+    $juan = Employee::factory()->create(['first_name' => 'Juan', 'middle_name' => null, 'last_name' => 'Zobelcruz', 'suffix' => 'Jr.']);
+
+    $matches = Employee::query();
+
+    foreach (explode(' ', $juan->full_name) as $word) {
+        $matches->search($word);
+    }
+
+    expect($juan->full_name)->toBe('Juan Zobelcruz Jr.')
+        ->and($matches->pluck('id')->all())->toBe([$juan->id]);
+});
+
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 test('it creates an employee and auto-generates the employee number', function () {

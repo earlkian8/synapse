@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Onboarding\OnboardingProgramController;
 use App\Http\Controllers\Recruitment\RecruitmentPipelineController;
-use App\Http\Controllers\Setup\AttendanceDeviceController;
 use App\Http\Controllers\Setup\AttendancePolicyController;
 use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
@@ -122,15 +121,6 @@ Route::middleware(['auth', 'verified'])
         Route::delete('locations/{workLocation}', [WorkLocationController::class, 'destroy'])->middleware('can:setup.locations.manage')->name('locations.destroy');
         Route::patch('locations/{workLocation}/restore', [WorkLocationController::class, 'restore'])->middleware('can:setup.locations.manage')->name('locations.restore');
         Route::delete('locations/{workLocation}/force', [WorkLocationController::class, 'forceDelete'])->middleware('can:setup.locations.manage')->name('locations.force-delete');
-
-        // Devices — kiosks and biometric scanners, each with a key shown once
-        // (ADR 0040); a scanner that cannot push is fed from its CSV export.
-        Route::get('devices', [AttendanceDeviceController::class, 'index'])->middleware('can:setup.devices.manage')->name('devices.index');
-        Route::post('devices', [AttendanceDeviceController::class, 'store'])->middleware('can:setup.devices.manage')->name('devices.store');
-        Route::post('devices/{attendanceDevice}', [AttendanceDeviceController::class, 'update'])->middleware('can:setup.devices.manage')->name('devices.update');
-        Route::post('devices/{attendanceDevice}/key', [AttendanceDeviceController::class, 'rotateKey'])->middleware('can:setup.devices.manage')->name('devices.rotate-key');
-        Route::post('devices/{attendanceDevice}/import', [AttendanceDeviceController::class, 'import'])->middleware('can:setup.devices.manage')->name('devices.import');
-        Route::delete('devices/{attendanceDevice}', [AttendanceDeviceController::class, 'destroy'])->middleware('can:setup.devices.manage')->name('devices.destroy');
 
         // Departments (org structure).
         Route::get('departments', [DepartmentController::class, 'index'])->middleware('can:setup.departments.view')->name('departments.index');

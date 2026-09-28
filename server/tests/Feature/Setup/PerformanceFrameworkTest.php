@@ -1,12 +1,14 @@
 <?php
 
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\KpiCriterion;
 use App\Models\Organization;
 use App\Models\RatingScale;
 use App\Models\ReviewTemplate;
 use App\Models\ReviewTemplateItem;
 use App\Support\Performance\RatingModel;
+use App\Support\Performance\TemplateResolver;
 use App\Support\Tenancy;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -364,4 +366,24 @@ test('a criterion used by a framework cannot be permanently deleted', function (
 
     assertToast('warning', 'cannot be permanently deleted');
     expect(KpiCriterion::withTrashed()->count())->toBe(1);
+});
+
+test('the framework for a person is the most specific, then the default, then the oldest', function () {
+    actingAsSuperAdmin();
+    $sales = Department::factory()->create(['name' => 'Sales', 'code' => 'SAL']);
+    $employee = Employee::factory()->create(['department_id' => $sales->id, 'employment_type' => 'regular']);
+
+    $older = ReviewTemplate::factory()->create(['name' => 'Everyone (older)']);
+    $default = ReviewTemplate::factory()->create(['name' => 'Everyone (default)', 'is_default' => true]);
+
+    expect(app(TemplateResolver::class)->forEmployee($employee)?->name)->toBe('Everyone (default)');
+
+    $default->update(['is_default' => false]);
+
+    expect(app(TemplateResolver::class)->forEmployee($employee)?->id)->toBe($older->id);
+
+    ReviewTemplate::factory()->create(['name' => 'Regulars', 'applies_to' => 'employment_type', 'applies_to_values' => ['regular']]);
+    ReviewTemplate::factory()->create(['name' => 'Sales team', 'applies_to' => 'department', 'applies_to_values' => [(string) $sales->id]]);
+
+    expect(app(TemplateResolver::class)->forEmployee($employee)?->name)->toBe('Sales team');
 });

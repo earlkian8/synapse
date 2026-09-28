@@ -174,6 +174,46 @@ assistant ([ADR 0049](../decisions/0049-assistant-prompt-injection-defences.md))
 - **No self-service.** As on the screens, there is no "my appraisal" view: an
   appraisal, including one's own, needs `performance.view`.
 
+### The framework in the assistant
+
+`App\Services\Assistant\Modules\PerformanceFrameworkModule`
+([ADR 0055](../decisions/0055-assistant-locations-leave-and-award-types-and-performance-framework.md)).
+Every write on `/setup/kpi` — frameworks, scales, criteria, cycles — goes through
+**`App\Support\Setup\PerformanceFrameworkWorkflow`**, which the four controllers use too
+(`PerformanceFrameworkException` for the in-use delete guards). A framework is rebuilt
+whole and validated by the editor's own request (`ReviewTemplateRequest::normalise()`,
+`documentRules()`, `validateDocument()`).
+
+- **Reads** (`setup.kpi.view`):
+  - `find_frameworks`;
+  - `get_framework`: section by section with each item's weight and scale, the bands,
+    and who it **covers today**, asked of `TemplateResolver`;
+  - `find_kpi_criteria`, `find_rating_scales`;
+  - `find_review_cycles`, only for users without `performance.view`, whose
+    `list_review_cycles` already answers.
+- **Writes** (`setup.kpi.manage`):
+  - `create_framework`, by copying one or from catalogue criteria. It applies to
+    everyone and is not the default, so it reaches only people no framework covers until
+    it is re-targeted;
+  - `add_kpi_criterion`, `create_rating_scale` (numeric, percentage, or levels from
+    labels), `set_default_rating_scale`, `create_review_cycle` (a draft);
+  - **these always wait for Confirm**, their cards saying whom the framework covers or
+    what uses the record:
+    - `update_framework` (name, description, who it applies to by names, active,
+      result display);
+    - `set_framework_item` and `remove_framework_item`;
+    - `set_framework_section` (rename, re-weight, or add);
+    - `set_default_framework` and `archive_framework`;
+    - `update_kpi_criterion` and `archive_kpi_criterion` (frameworks take a criterion's
+      wording and scale when a scorecard opens);
+    - `update_review_cycle` (an open cycle takes new appraisals).
+- **Screen-only:** the rating bands, editing or archiving a scale, removing a section,
+  restoring, and permanent deletion.
+- **Retrieval:** "what does our appraisal framework measure?" carries the frameworks,
+  whom each applies to, and how the one for a person is chosen.
+- **`TemplateResolver` ranks explicitly**: the most specific rule, then the default,
+  then the oldest. Its old `sortBy()` of key closures did not.
+
 ## Out of scope (this cut)
 
 Self / peer / 360 reviews, employee self-service acknowledgement, goal libraries

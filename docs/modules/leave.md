@@ -97,6 +97,27 @@ quoted in chat is the figure the balances screen shows), the last five requests,
 many are waiting on a decision. Both paths need `leave.view`; see
 [ADR 0035](../decisions/0035-assistant-answers-from-a-retrieved-brief.md).
 
+### Leave types in the assistant
+
+`App\Services\Assistant\Modules\LeaveTypesModule` keeps the catalogue
+([ADR 0055](../decisions/0055-assistant-locations-leave-and-award-types-and-performance-framework.md)).
+Every write goes through **`App\Support\Setup\LeaveTypeWorkflow`**, which the Leave
+Types screen uses too (`LeaveTypeException` for the restore code clash and the
+permanent-delete guard), against `LeaveTypeRequest::rulesFor()`.
+
+- **Reads** (`setup.leave-types.view`): `find_leave_types`; `get_leave_type` — the
+  settings and this year's use (approved requests and days taken, pending, and how many
+  people have an entitlement of their own).
+- **Writes** (`setup.leave-types.manage`):
+  - `create_leave_type`: the code is upper-cased and unique, the flags default as on the
+    screen, and the colour is the editor's first palette colour no live type wears;
+  - `restore_leave_type`;
+  - **`update_leave_type` and `archive_leave_type` always wait for Confirm.** The card
+    says how many people's balance is the type's default this year and how many requests
+    are pending; the reply lists each change ("Default: 15 days → 18 days").
+- A name another type has in any case is refused. Permanent deletion stays on the screen.
+- **Retrieval:** "what leave types do we offer?" carries the catalogue.
+
 ## Permissions
 
 `leave.view`, `leave.request` (file / edit / cancel), `leave.manage`

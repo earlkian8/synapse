@@ -352,8 +352,6 @@ function LocationRow({
                     {location.employees_count === 0
                         ? 'Nobody based here'
                         : `${location.employees_count} ${location.employees_count === 1 ? 'person' : 'people'} based here`}
-                    {location.devices_count > 0 &&
-                        ` · ${location.devices_count} ${location.devices_count === 1 ? 'device' : 'devices'}`}
                 </p>
                 {defaults.length > 0 && (
                     <p className="mt-0.5 text-xs text-muted-foreground/80">

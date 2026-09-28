@@ -32,7 +32,6 @@ class WorkLocationResource extends JsonResource
             'is_active' => (bool) $this->is_active,
             'is_archived' => $this->trashed(),
             'employees_count' => (int) ($this->employees_count ?? 0),
-            'devices_count' => (int) ($this->devices_count ?? 0),
             // Who is based here, and for whom it is the primary site.
             'people' => $this->whenLoaded('employees', fn () => $this->employees
                 ->map(fn (Employee $employee): array => [

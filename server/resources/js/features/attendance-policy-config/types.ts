@@ -78,7 +78,7 @@ export type OvertimeBasis = 'none' | 'daily' | 'weekly' | 'daily_and_weekly';
 export type MissingClockOutAction =
     'flag' | 'auto_close_at_shift_end' | 'auto_close_after_minutes';
 export type GeofenceMode = 'off' | 'flag' | 'block';
-export type PunchSource = 'web' | 'mobile' | 'kiosk' | 'biometric' | 'manual';
+export type PunchSource = 'web' | 'mobile' | 'manual';
 
 /** A server-defined starting point (`AttendancePolicyPresets`). */
 export type PolicyPreset = {

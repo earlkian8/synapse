@@ -38,13 +38,12 @@ stretches; the working pane beside it is the app's own light surface.
 | | 4 · Schedules & holidays | Work Schedule & Holidays | The Philippine holiday calendar, ticked |
 | | 5 · Leave | Leave Types | Statutory and common leave, customisable, or your own |
 | | 6 · Locations | Locations — fences on the map, who is based where | — |
-| | 7 · Devices | Devices — kiosks and scanners, keys, CSV import | — |
-| | 8 · Shift roster | Shift Roster — the week, overrides, assignments | — |
-| Your people, hire to exit | 9 · Hiring | Recruitment Pipelines | Three process shapes, customisable, or draw your own |
-| | 10 · Onboarding | Onboarding Programs | The standard onboarding checklist |
-| | 11 · Appraisals | Performance Framework — frameworks, scales, criteria, review cycles | Three frameworks, customisable, or design your own |
-| | 12 · Awards | Award Types | The common award types |
-| | 13 · Offboarding | Offboarding Programs | The standard exit clearance |
+| | 7 · Shift roster | Shift Roster — the week, overrides, assignments | — |
+| Your people, hire to exit | 8 · Hiring | Recruitment Pipelines | Three process shapes, customisable, or draw your own |
+| | 9 · Onboarding | Onboarding Programs | The standard onboarding checklist |
+| | 10 · Appraisals | Performance Framework — frameworks, scales, criteria, review cycles | Three frameworks, customisable, or design your own |
+| | 11 · Awards | Award Types | The common award types |
+| | 12 · Offboarding | Offboarding Programs | The standard exit clearance |
 
 Around them: a **welcome** (the three stretches, and that any step can wait) and a
 **send-off** (where each step landed, with *Review* or *Do it now* on each, and
@@ -187,11 +186,11 @@ over `features/setup-wizard/`:
   `advance` (continue), `finish`, and which of them is in flight.
 - `components/suggestions-panel.tsx` — the tray; `section-heading.tsx` — the heading
   over an editor; `editor-step.tsx` — a step that is only its editor (locations,
-  devices, roster); `checklist-step.tsx` — onboarding and offboarding; one component per
+  roster); `checklist-step.tsx` — onboarding and offboarding; one component per
   other step.
 - The editors are the Company Setup **managers**: `DepartmentsManager`,
   `PoliciesManager`, `ScheduleManager`, `LeaveTypesManager`, `LocationsManager`,
-  `DevicesManager`, `RosterManager`, `PipelinesManager`, `OnboardingProgramsManager`,
+  `RosterManager`, `PipelinesManager`, `OnboardingProgramsManager`,
   `KpiManager`, `AwardTypesManager`, `OffboardingProgramsManager` — each in its own
   feature folder, each rendered by its Company Setup page too. `RosterManager` takes the
   URL its filters reload against.
@@ -216,7 +215,6 @@ module it configures, and carries its screen only for somebody holding it:
 | Schedules & holidays | `setup.schedule.manage` |
 | Leave | `setup.leave-types.manage` |
 | Locations | `setup.locations.manage` |
-| Devices | `setup.devices.manage` |
 | Shift roster | `setup.roster.manage` |
 | Hiring | `recruitment.configure-pipelines` |
 | Onboarding | `onboarding.manage-programs` |

@@ -5,14 +5,12 @@ import {
     MapPin,
     MapPinCheck,
     MapPinX,
-    ScanLine,
     StickyNote,
-    TabletSmartphone,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useOrganizationTimeZone } from '@/hooks/use-organization-time-zone';
 import { cn } from '@/lib/utils';
-import { formatTime, PUNCH_META, SOURCE_LABELS } from '../constants';
+import { formatTime, PUNCH_META, sourceLabel } from '../constants';
 import type { Punch } from '../types';
 
 /**
@@ -24,7 +22,7 @@ import type { Punch } from '../types';
  * repeated in a column beside it.
  *
  * A punch with no photo still gets a tile, saying which of the three things
- * happened: the source never takes one (a web or biometric punch), the mobile
+ * happened: the source never takes one (a web punch), the mobile
  * app was expected to and did not, or the file has since gone. A blank space
  * says none of that, and "no evidence" and "evidence missing" are not the same
  * finding.
@@ -76,7 +74,7 @@ function PunchRow({ punch }: { punch: Punch }) {
 
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                     <span className="rounded bg-muted px-1.5 py-0.5">
-                        {SOURCE_LABELS[punch.source]}
+                        {sourceLabel(punch.source)}
                     </span>
                     {hasGeo && (
                         <a
@@ -149,7 +147,7 @@ function Capture({ punch }: { punch: Punch }) {
             : null;
     })();
 
-    if (!place && !punch.device && !punch.offline) {
+    if (!place && !punch.offline) {
         return null;
     }
 
@@ -161,16 +159,6 @@ function Capture({ punch }: { punch: Punch }) {
                 >
                     <place.icon className="size-3 shrink-0" />
                     {place.text}
-                </span>
-            )}
-            {punch.device && (
-                <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    {punch.device.type === 'kiosk' ? (
-                        <TabletSmartphone className="size-3 shrink-0" />
-                    ) : (
-                        <ScanLine className="size-3 shrink-0" />
-                    )}
-                    {punch.device.name}
                 </span>
             )}
             {punch.offline && (
@@ -200,13 +188,12 @@ function formatMeters(meters: number): string {
 
 /**
  * Why a punch has no photo, short enough to sit inside the tile. The prose form
- * ({@link SOURCE_LABELS}) stays on the row itself and in the tile's tooltip.
+ * ({@link sourceLabel}) stays on the row itself and in the tile's tooltip. A
+ * retired source (ADR 0054) never took one.
  */
-const NO_PHOTO: Record<Punch['source'], string> = {
+const NO_PHOTO: Record<string, string> = {
     web: 'Web punch',
     mobile: 'Not taken',
-    kiosk: 'Kiosk punch',
-    biometric: 'Biometric',
     manual: 'By hand',
     system: 'Automatic',
 };
@@ -241,7 +228,11 @@ function PunchPhoto({ punch }: { punch: Punch }) {
 
     const state = broken
         ? { icon: ImageOff, title: 'Photo gone', note: 'File missing' }
-        : { icon: CameraOff, title: 'No photo', note: NO_PHOTO[punch.source] };
+        : {
+              icon: CameraOff,
+              title: 'No photo',
+              note: NO_PHOTO[punch.source] ?? sourceLabel(punch.source),
+          };
 
     const Icon = state.icon;
 
@@ -251,7 +242,7 @@ function PunchPhoto({ punch }: { punch: Punch }) {
             title={
                 broken
                     ? 'This photo is no longer available'
-                    : `No photo was taken with this punch (${SOURCE_LABELS[punch.source]})`
+                    : `No photo was taken with this punch (${sourceLabel(punch.source)})`
             }
         >
             <Icon className="size-4" />

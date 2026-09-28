@@ -4,7 +4,6 @@ namespace App\Support\Setup;
 
 use App\Http\Controllers\Setup\SetupWizardController;
 use App\Http\Middleware\RequireCompanySetup;
-use App\Models\AttendanceDevice;
 use App\Models\AttendancePolicy;
 use App\Models\AwardType;
 use App\Models\Department;
@@ -23,7 +22,6 @@ use App\Queries\Setup\AttendancePoliciesScreen;
 use App\Queries\Setup\AwardTypesScreen;
 use App\Queries\Setup\CompanyProfileScreen;
 use App\Queries\Setup\DepartmentsScreen;
-use App\Queries\Setup\DevicesScreen;
 use App\Queries\Setup\LeaveTypesScreen;
 use App\Queries\Setup\LocationsScreen;
 use App\Queries\Setup\OffboardingProgramsScreen;
@@ -65,8 +63,6 @@ class CompanySetup
 
     public const LOCATIONS = 'locations';
 
-    public const DEVICES = 'devices';
-
     public const ROSTER = 'roster';
 
     public const RECRUITMENT = 'recruitment';
@@ -82,10 +78,10 @@ class CompanySetup
     /**
      * The steps, in the order the wizard walks them: the company and its shape,
      * then time (how a day is judged, when people work, the time they take off,
-     * where and how they clock in, who works which shift), then a person's life
+     * where they clock in, who works which shift), then a person's life
      * at the company from hire to exit. Where one step's options come from an
-     * earlier one — a site's default schedule, a device's site, a roster's
-     * schedules — the earlier one comes first.
+     * earlier one — a site's default schedule, a roster's schedules — the
+     * earlier one comes first.
      */
     public const STEPS = [
         self::COMPANY,
@@ -94,7 +90,6 @@ class CompanySetup
         self::SCHEDULE,
         self::LEAVE_TYPES,
         self::LOCATIONS,
-        self::DEVICES,
         self::ROSTER,
         self::RECRUITMENT,
         self::ONBOARDING,
@@ -132,7 +127,6 @@ class CompanySetup
         self::SCHEDULE => 'setup.schedule.manage',
         self::LEAVE_TYPES => 'setup.leave-types.manage',
         self::LOCATIONS => 'setup.locations.manage',
-        self::DEVICES => 'setup.devices.manage',
         self::ROSTER => 'setup.roster.manage',
         self::RECRUITMENT => 'recruitment.configure-pipelines',
         self::ONBOARDING => 'onboarding.manage-programs',
@@ -155,7 +149,6 @@ class CompanySetup
         self::SCHEDULE => WorkScheduleScreen::class,
         self::LEAVE_TYPES => LeaveTypesScreen::class,
         self::LOCATIONS => LocationsScreen::class,
-        self::DEVICES => DevicesScreen::class,
         self::ROSTER => ShiftRosterScreen::class,
         self::RECRUITMENT => RecruitmentPipelinesScreen::class,
         self::ONBOARDING => OnboardingProgramsScreen::class,
@@ -290,7 +283,6 @@ class CompanySetup
             self::SCHEDULE => WorkSchedule::query()->exists() || Holiday::query()->exists(),
             self::LEAVE_TYPES => LeaveType::query()->exists(),
             self::LOCATIONS => WorkLocation::query()->exists(),
-            self::DEVICES => AttendanceDevice::query()->exists(),
             self::ROSTER => $organization->default_work_schedule_id !== null
                 || EmployeeScheduleAssignment::query()->exists()
                 || ShiftRosterEntry::query()->exists(),

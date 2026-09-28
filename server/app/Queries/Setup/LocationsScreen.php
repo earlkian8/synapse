@@ -58,7 +58,7 @@ class LocationsScreen implements SetupScreen
     {
         return WorkLocation::query()
             ->with(['defaultSchedule:id,name', 'policy:id,name'])
-            ->withCount(['employees', 'devices'])
+            ->withCount('employees')
             ->orderByDesc('is_active')
             ->orderBy('name');
     }

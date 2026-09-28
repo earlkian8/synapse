@@ -31,16 +31,26 @@ class TemplateResolver
      */
     public function forEmployee(Employee $employee, ?Collection $templates = null): ?ReviewTemplate
     {
+        // One explicit comparator. `sortBy()` given a list of closures calls each
+        // as a two-argument comparator, so one-argument key closures there never
+        // ranked anything — the order came out of the sort, not these rules.
         $candidates = ($templates ?? $this->active())
             ->filter(fn (ReviewTemplate $template): bool => $template->coversEmployee($employee))
-            ->sortBy([
-                fn (ReviewTemplate $template): int => self::SPECIFICITY[$template->applies_to] ?? 9,
-                // Within equal specificity, the tenant's own default is the answer.
-                fn (ReviewTemplate $template): int => $template->is_default ? 0 : 1,
-                fn (ReviewTemplate $template): int => $template->id,
-            ]);
+            ->sort(fn (ReviewTemplate $a, ReviewTemplate $b): int => $this->rank($a) <=> $this->rank($b));
 
         return $candidates->first();
+    }
+
+    /**
+     * Where a framework stands among those covering somebody: the narrowest
+     * rule first; within equal specificity, the tenant's own default; then the
+     * oldest.
+     *
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function rank(ReviewTemplate $template): array
+    {
+        return [self::SPECIFICITY[$template->applies_to] ?? 9, $template->is_default ? 0 : 1, (int) $template->id];
     }
 
     /**

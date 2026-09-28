@@ -7,14 +7,18 @@ use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Modules\AttendanceModule;
 use App\Services\Assistant\Modules\AttendancePoliciesModule;
 use App\Services\Assistant\Modules\AwardsModule;
+use App\Services\Assistant\Modules\AwardTypesModule;
 use App\Services\Assistant\Modules\CompanyProfileModule;
 use App\Services\Assistant\Modules\DashboardModule;
 use App\Services\Assistant\Modules\DepartmentsModule;
 use App\Services\Assistant\Modules\EmployeeModule;
 use App\Services\Assistant\Modules\EventsModule;
 use App\Services\Assistant\Modules\LeaveModule;
+use App\Services\Assistant\Modules\LeaveTypesModule;
+use App\Services\Assistant\Modules\LocationsModule;
 use App\Services\Assistant\Modules\OffboardingModule;
 use App\Services\Assistant\Modules\OnboardingModule;
+use App\Services\Assistant\Modules\PerformanceFrameworkModule;
 use App\Services\Assistant\Modules\PerformanceModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Modules\ReportsModule;
@@ -84,6 +88,10 @@ class AppServiceProvider extends ServiceProvider
             $app->make(CompanyProfileModule::class),
             $app->make(SchedulesModule::class),
             $app->make(AttendancePoliciesModule::class),
+            $app->make(LocationsModule::class),
+            $app->make(LeaveTypesModule::class),
+            $app->make(AwardTypesModule::class),
+            $app->make(PerformanceFrameworkModule::class),
             $app->make(DashboardModule::class),
         ]);
 
@@ -136,12 +144,6 @@ class AppServiceProvider extends ServiceProvider
         // quota, but its token is a capability: limit the guessing.
         RateLimiter::for('assistant-actions', fn (Request $request) => Limit::perMinute(30)
             ->by('assistant-actions:'.$request->user()?->id));
-
-        // A device sends punches in batches; a kiosk once per person at the
-        // counter. Keyed per device key, so one misbehaving scanner cannot
-        // crowd out the rest of the building (ADR 0040).
-        RateLimiter::for('attendance-device', fn (Request $request) => Limit::perMinute(120)
-            ->by('attendance-device:'.hash('sha256', (string) ($request->bearerToken() ?? $request->header('X-Device-Key') ?? $request->ip()))));
     }
 
     /**

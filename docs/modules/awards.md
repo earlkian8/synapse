@@ -83,6 +83,21 @@ assistant ([ADR 0050](../decisions/0050-assistant-training-awards-and-events.md)
   - a question about recognition that names nobody carries the feed. For
     `awards.manage`, it also carries the front-runner for each award type.
 
+### Award types in the assistant
+
+`App\Services\Assistant\Modules\AwardTypesModule` keeps the catalogue
+([ADR 0055](../decisions/0055-assistant-locations-leave-and-award-types-and-performance-framework.md)).
+Every write goes through **`App\Support\Setup\AwardTypeWorkflow`**, which the Award
+Types screen uses too (`AwardTypeException` for the given-out delete guard).
+
+- **Reads** (`setup.award-types.view`): `find_award_types` (archived on request) and
+  `get_award_type` — how often a type was given, this year and in all, and when last.
+  **Never to whom**: that is this module's awards capability, under `awards.view`.
+- **Writes** (`setup.award-types.manage`): `create_award_type`, `update_award_type`
+  (rename, describe, retire or reactivate), `restore_award_type`, and
+  **`archive_award_type`, which waits for Confirm**.
+- A name another type has in any case is refused. Permanent deletion stays on the screen.
+
 ## Out of scope (this cut)
 
 Nomination / approval workflows, points & reward redemption, peer-to-peer kudos, and

@@ -77,8 +77,6 @@ export const GEOFENCE_OPTIONS: {
 export const SOURCE_LABELS: Record<PunchSource, string> = {
     web: 'Web',
     mobile: 'Mobile app',
-    kiosk: 'Kiosk',
-    biometric: 'Biometric device',
     manual: 'Entered by HR',
 };
 

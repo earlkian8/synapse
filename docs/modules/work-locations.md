@@ -42,8 +42,7 @@ their colour.
   `radius_meters`, `default_work_schedule_id`, `attendance_policy_id`, `is_active`, soft
   deletes; addressed by hashid.
 - **`employee_work_locations`**: employee ↔ location, with `is_primary`.
-- Punches name the nearest site (`attendance_punches.work_location_id`) and devices name
-  where they hang (`attendance_devices.work_location_id`).
+- Punches name the nearest site (`attendance_punches.work_location_id`).
 
 See [attendance tables](../database/attendance-tables.md).
 
@@ -56,8 +55,7 @@ See [attendance tables](../database/attendance-tables.md).
   when `distance − accuracy ≤ radius`. The nearest site, the distance and the verdict
   are stored on the punch, so a later change to a fence never rewrites where a punch
   was.
-- **Only located sources are checked**: web and mobile. A kiosk or scanner punch takes
-  its device's site.
+- **Only located sources are checked**: web and mobile. HR's entry is placed nowhere.
 - **What the verdict does is the attendance policy's call** (`capture.geofence`: off,
   flag, block). See [Attendance Policies](./attendance-policies.md#settings).
 - **Default schedule and policy.** A site is a link in both precedence chains, between
@@ -74,6 +72,31 @@ See [attendance tables](../database/attendance-tables.md).
   so the day modal can still say where those punches were.
 - Changing or archiving a site queues **no** recompute (ADR 0041). A punch was judged
   where it was made.
+
+## The assistant
+
+`App\Services\Assistant\Modules\LocationsModule`
+([ADR 0055](../decisions/0055-assistant-locations-leave-and-award-types-and-performance-framework.md)).
+Every write goes through **`App\Support\Setup\WorkLocationWorkflow`**, which the
+Locations screen uses too (`WorkLocationException` for the kept-for-its-punches refusal),
+against `WorkLocationRequest::rulesFor()`.
+
+- **Reads** (`setup.locations.view`):
+  - `find_locations`: the sites, or — given an employee, which also needs
+    `employees.view`, checked first — where somebody is based;
+  - `get_location`: the fence, who is based there (primary marked), the default schedule
+    and policy, and the last 30 days' punches placed nearest it and how many were outside.
+- **Writes** (`setup.locations.manage`):
+  - `base_at_location` (optionally as the primary site, which clears it elsewhere) and
+    `unbase_from_location`, at most 25 people at a time;
+  - `restore_location`;
+  - **`update_location` and `archive_location` always wait for Confirm.** The card says
+    how many are based there and how many have it as their primary site.
+- **Never in chat:** creating a site and moving its pin (no tool declares a
+  coordinate: a guessed point could refuse everybody's punches under a blocking policy),
+  and permanent deletion.
+- **Retrieval:** "what sites do we have?" carries the sites, the policies that check
+  fences, and a warning when a policy checks a fence nobody drew.
 
 ## Permissions
 

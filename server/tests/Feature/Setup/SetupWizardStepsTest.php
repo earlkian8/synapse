@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\AttendanceDevice;
 use App\Models\AwardType;
 use App\Models\Department;
 use App\Models\Holiday;
@@ -20,7 +19,7 @@ use Inertia\Testing\AssertableInertia as Assert;
  * The wizard as a route through all of Company Setup: every screen is a step
  * that carries that screen whole, the view lives in the URL so the screen's own
  * editors can post and come back to it, and the steps new to the wizard —
- * schedules & holidays, locations, devices, the roster, onboarding, awards and
+ * schedules & holidays, locations, the roster, onboarding, awards and
  * offboarding — each start from something where something sensible exists.
  */
 
@@ -39,14 +38,10 @@ function renderedProps(TestResponse $response): array
     return $response->viewData('page')['props'];
 }
 
-/** A registered device — its key issued the way the Devices screen issues it. */
-function registeredDevice(): AttendanceDevice
+/** A site drawn the way the Locations screen draws one. */
+function drawnSite(): WorkLocation
 {
-    $device = new AttendanceDevice(['name' => 'Front door', 'type' => 'kiosk', 'is_active' => true]);
-    $device->issueKey();
-    $device->save();
-
-    return $device;
+    return WorkLocation::create(['name' => 'Head office', 'latitude' => 14.5547, 'longitude' => 121.0244, 'radius_meters' => 150]);
 }
 
 /** Each step, and the Company Setup screen it carries. */
@@ -57,7 +52,6 @@ dataset('step screens', [
     'schedule' => [CompanySetup::SCHEDULE, 'setup.schedule.index'],
     'leave' => [CompanySetup::LEAVE_TYPES, 'setup.leave-types.index'],
     'locations' => [CompanySetup::LOCATIONS, 'setup.locations.index'],
-    'devices' => [CompanySetup::DEVICES, 'setup.devices.index'],
     'roster' => [CompanySetup::ROSTER, 'setup.roster.index'],
     'hiring' => [CompanySetup::RECRUITMENT, 'setup.recruitment-pipelines.index'],
     'onboarding' => [CompanySetup::ONBOARDING, 'setup.onboarding.index'],
@@ -69,7 +63,7 @@ dataset('step screens', [
 // ── Every Company Setup screen is a step ─────────────────────────────────────
 
 test('the wizard has a step for every Company Setup screen, each gated by that screen’s own ability', function () {
-    expect(CompanySetup::STEPS)->toHaveCount(13)
+    expect(CompanySetup::STEPS)->toHaveCount(12)
         ->and(array_keys(CompanySetup::ABILITIES))->toBe(CompanySetup::STEPS)
         ->and(array_keys(CompanySetup::SCREENS))->toBe(CompanySetup::STEPS);
 });
@@ -245,12 +239,12 @@ test('the wizard says which steps are configured, however they were configured',
     actingAsSuperAdmin();
     tenantOwingSetup();
 
-    registeredDevice();
+    drawnSite();
 
-    $this->get(route('setup.wizard.show', CompanySetup::DEVICES))
+    $this->get(route('setup.wizard.show', CompanySetup::LOCATIONS))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('configured.devices', true)
-            ->where('configured.locations', false)
+            ->where('configured.locations', true)
+            ->where('configured.departments', false)
             ->where('configured.company', true)
             ->etc());
 });
@@ -270,14 +264,14 @@ test('the roster counts as configured once there is a default schedule to be ros
 test('continuing is held to the step module’s own permission', function () {
     actingAsUserWith(['setup.company.manage']);
     tenantOwingSetup();
-    registeredDevice();
+    drawnSite();
 
-    $this->post(route('setup.wizard.continue'), ['step' => CompanySetup::DEVICES])->assertForbidden();
+    $this->post(route('setup.wizard.continue'), ['step' => CompanySetup::LOCATIONS])->assertForbidden();
 
-    actingAsUserWith(['setup.company.manage', 'setup.devices.manage']);
+    actingAsUserWith(['setup.company.manage', 'setup.locations.manage']);
     tenantOwingSetup();
 
-    $this->post(route('setup.wizard.continue'), ['step' => CompanySetup::DEVICES])->assertSessionHasNoErrors();
+    $this->post(route('setup.wizard.continue'), ['step' => CompanySetup::LOCATIONS])->assertSessionHasNoErrors();
 });
 
 test('continuing refuses a step that is not one of the wizard’s', function () {
@@ -285,6 +279,8 @@ test('continuing refuses a step that is not one of the wizard’s', function () 
     tenantOwingSetup();
 
     $this->post(route('setup.wizard.continue'), ['step' => 'payroll'])->assertSessionHasErrors('step');
+    // Kiosks and scanners were a step once (ADR 0054).
+    $this->post(route('setup.wizard.continue'), ['step' => 'devices'])->assertSessionHasErrors('step');
 });
 
 // ── Schedules & holidays ─────────────────────────────────────────────────────

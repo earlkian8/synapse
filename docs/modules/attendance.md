@@ -13,8 +13,9 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 (attendance policies, the day evaluator, minute buckets and flags — detailed in
 [Attendance Policies](./attendance-policies.md)) and
 [ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md)
-(geofences, capture rules, devices, offline punches — the sites and devices themselves are
-in [Work Locations](./work-locations.md) and [Attendance Devices](./attendance-devices.md))
+(geofences, capture rules, offline punches — the sites themselves are in
+[Work Locations](./work-locations.md); its kiosks and scanners are gone, per
+[ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md))
 and [ADR 0041](../decisions/0041-attendance-days-close-themselves.md) (the end-of-day
 job, recompute when inputs change, reminders) and
 [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)
@@ -37,8 +38,8 @@ Everything is tenant-scoped (ADR 0005).
   - **Today's Log** — an **exceptions table** above a sortable **daily log**. The
     exceptions table has one row per problem: the person, the kind of exception and
     the detail. The kinds are missing time-out, badly late, unscheduled absence, **half
-    day**, **punched away from the site**, **closed automatically**, **device punches
-    out of order** and **clock was off**. Each row has **Resolve** (or **View**). When
+    day**, **punched away from the site**, **closed automatically** and **clock was
+    off**. Each row has **Resolve** (or **View**). When
     there are none, it collapses to an "All clear" line. The daily log shows avatar +
     name, time in / out, computed hours, a **status pill** and an **anomaly flag** (late
     by N, missing time-out, left early, unscheduled absence, a half day, a break that
@@ -68,10 +69,10 @@ Everything is tenant-scoped (ADR 0005).
 
   Each punch is one row — time, source, GPS pin, note — with a **capture line** under it
   (on site or off, with the nearest site and the distance — "Off site: 1.2 km from Main
-  Office"; the device that sent it; **sent offline** with when it arrived; the clock's
+  Office"; **sent offline** with when it arrived; the clock's
   skew when it was off) and **the photo taken at it on that row**, large enough to recognise a face and opening full-size in a new tab. A
   punch with no photo still gets a tile, saying which of three things happened: the
-  source never takes one (a web, kiosk or biometric punch), the mobile app was expected
+  source never takes one (a web punch, or HR's entry), the mobile app was expected
   to and did not, or the file has since gone. "No evidence" and "evidence missing" are
   different findings, and an empty space states neither. The section header counts them
   ("4 punches · 2 with a photo"), and the remarks and approval blocks are likewise always
@@ -112,8 +113,6 @@ Everything is tenant-scoped (ADR 0005).
   `duplicate`), `punched_at` (the phone's time, for a punch queued offline) and
   `sent_at` (the phone's clock when it sent, to measure skew) — see
   [Mobile App](./mobile-app.md).
-- **Kiosks and scanners** (`/kiosk` and `/api/devices`, device-key authenticated) —
-  see [Attendance Devices](./attendance-devices.md).
 - **The shift roster** — the *plan* rather than the record — is configuration, so it
   lives in Company Setup: see [Shift Roster](#shift-roster) below.
 
@@ -139,17 +138,16 @@ three more hold the plan (see [scheduling tables](../database/scheduling-tables.
   forgotten clock-out. Unique on `(employee_id, work_date)`.
 - **`attendance_punches`** — the raw punch events the summary is built from: `type`
   (`clock_in | clock_out | break_start | break_end`), `punched_at`, `source`
-  (`web | mobile | kiosk | biometric | manual | system`), GPS
+  (`web | mobile | manual | system`; a punch recorded before ADR 0054 may say `kiosk` or
+  `biometric`, and keeps it), GPS
   (`latitude / longitude / accuracy`), an optional `photo` selfie, a `note`, and
   `recorded_by` (null when self-punched). What capture established (ADR 0040): the
-  nearest `work_location_id`, `distance_meters`, `within_geofence`; the
-  `attendance_device_id` and the device's own `external_id` (unique together);
-  `device_punched_at` (the phone's time for an offline punch), `received_at` and
+  nearest `work_location_id`, `distance_meters`, `within_geofence`; the phone's own
+  `external_id` for a queued punch; `device_punched_at` (the phone's time for an offline
+  punch), `received_at` and
   `clock_skew_seconds`. Soft-deleted when an edit replaces it.
 - **`work_locations`** / **`employee_work_locations`** — sites and their fences, and who
   is based where ([Work Locations](./work-locations.md)).
-- **`attendance_devices`** — kiosks and scanners, each with a hashed key
-  ([Attendance Devices](./attendance-devices.md)).
 - **`work_schedule_days`**, **`employee_schedule_assignments`** and
   **`shift_roster_entries`** — a template's cycle, who works it over which dates, and the
   one-off overrides (ADR 0037).
@@ -205,20 +203,19 @@ belongs to:
 
 ### Punching
 
-**`AttendanceClock::capture(employee, ?type, context)`** — which `punch()` wraps — runs
+**`AttendanceClock::capture(employee, type, context)`** — which `punch()` wraps — runs
 in a transaction with a row lock on the employee: return the punch already received
-under the same device or client id, infer the type when none is given, resolve the work
-date, find the day (or build it **unsaved**, with its rules
-frozen), and then, **for a person** (web, mobile, kiosk, manual): the policy allows the
+under the same phone client id, resolve the work date, find the day (or build it
+**unsaved**, with its rules frozen), and then, for every punch (web, mobile, manual):
+the policy allows the
 source, an offline punch is inside its window, the transition is valid **at the instant
 given** (no double clock-in, no clock-out before clock-in, breaks only while clocked
 in — counting punches recorded after it), and the capture rules hold (the web IP
 allowlist, the mobile selfie). Then it **places** the punch — the nearest site, the
 distance and the fence verdict, refusing a person under a `block` geofence — and only
 then saves the day, writes
-the punch and recomputes. **A refused punch writes nothing.** A **scanner's** punch is
-`record_only`: it skips the person checks and is never blocked, and the evaluator flags
-the day instead (ADR 0040). `nextExpected()` / `allowed()` drive the
+the punch and recomputes. **A refused punch writes nothing.** There is one mode: the
+scanners' `record_only` went with them (ADR 0054). `nextExpected()` / `allowed()` drive the
 UI's buttons; `currentRecord()` is the day the clock card shows. `applyManualPunches()`
 backs HR manual entry and corrections; the punches it replaces are soft-deleted, so a
 fixed day keeps what it said before.
@@ -278,7 +275,7 @@ never flagged absent.
 
 `approval_status` means *needs sign-off* and is derived on every evaluation: `pending`
 while the day carries a review flag (`unapproved_overtime`, `outside_geofence`,
-`source_not_allowed`, `device_sequence_anomaly`, `clock_skew`, `auto_closed`),
+`source_not_allowed`, `clock_skew`, `auto_closed`),
 `approved` once signed off, null otherwise. **Sign off** (`attendance.manage`) grants the
 day's overtime as it stands (`signed_off_overtime_minutes`); the evaluator reads it back
 as `DayContext::grantedOvertimeMinutes` on every evaluation, so it survives a recompute
@@ -361,8 +358,7 @@ roles: **HR Manager** gets all of them; **Department Head** and **Staff** get
 `attendance.clock` (the Department Head also `attendance.view`). The roster is
 `setup.roster.view` / `setup.roster.manage` (overrides and assigning schedules —
 including naming an attendance policy on the assignment). The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
-`setup.locations.view` / `.manage`, and devices `setup.devices.manage`. The device API
-takes a device key, not a user. Assigning a schedule from the **employee profile**
+`setup.locations.view` / `.manage`. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
 
 ## Assistant
@@ -380,11 +376,11 @@ The agent's **Attendance** capability (available with `attendance.view` or
   `setup.roster.manage`).
 - **`find_attendance_exceptions`** — "who hasn't clocked in?", "who is missing a
   clock-out?", "who punched outside the office this week?": not clocked in, missing
-  clock-out, outside the site, auto-closed, absent, device anomalies, clock skew, or all
+  clock-out, outside the site, auto-closed, absent, clock skew, or all
   of them (gated by `attendance.view`).
 
-The 30-day brief also counts days punched away from the site, closed automatically,
-still missing a clock-out after closing, and with scanner punches out of order.
+The 30-day brief also counts days punched away from the site, closed automatically, and
+still missing a clock-out after closing.
 
 Punches route through `AttendanceClock` and overrides through `RosterWriter`, so totals,
 status, the shift a night punch belongs to, and the history left behind are the same

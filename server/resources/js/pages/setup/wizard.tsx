@@ -2,7 +2,6 @@ import { Head, usePage } from '@inertiajs/react';
 import { Lock } from 'lucide-react';
 import { useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import { DevicesManager } from '@/features/devices/components/devices-manager';
 import { LocationsManager } from '@/features/locations/components/locations-manager';
 import { OffboardingProgramsManager } from '@/features/offboarding/components/programs-manager';
 import { OnboardingProgramsManager } from '@/features/onboarding/components/programs-manager';
@@ -305,24 +304,6 @@ function StepView({
                             <SectionHeading
                                 title="Your sites"
                                 hint="Draw each office, plant or store as a fence on the map. Whether a punch from outside one is flagged or refused is each attendance policy’s call; people and a default schedule and policy can be set per site."
-                            />
-                        }
-                    />
-                </EditorStep>
-            );
-
-        case 'devices':
-            return (
-                <EditorStep
-                    {...controls}
-                    emptyNote="Most companies need none — skip unless you have a scanner or want a kiosk."
-                >
-                    <DevicesManager
-                        {...screenFor<'devices'>()}
-                        heading={
-                            <SectionHeading
-                                title="Your devices"
-                                hint="Register a biometric scanner to take its punches, or turn a tablet at the door into a kiosk. Each device gets a key, shown once; a scanner that cannot send can be fed from its CSV export."
                             />
                         }
                     />

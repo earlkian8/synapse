@@ -127,8 +127,6 @@ export type EmployeeOffboardingSummary = {
 export type ManagedEmployee = {
     id: number;
     employee_no: string;
-    /** The id a biometric scanner knows them by, when not their number. */
-    device_enrollment_id: string | null;
     first_name: string;
     middle_name: string | null;
     last_name: string;

@@ -35,7 +35,6 @@ final readonly class DayResult
         // What capture and the end-of-day job found (ADR 0040, ADR 0041).
         'outside_geofence',
         'source_not_allowed',
-        'device_sequence_anomaly',
         'clock_skew',
         'auto_closed',
         'missing_clock_out',
@@ -45,16 +44,15 @@ final readonly class DayResult
      * Flags that put a day in front of a manager before it counts. A day
      * carrying one is `approval_status = pending` until somebody signs it off.
      * From ADR 0040 and 0041, so does every punch that could not be trusted as
-     * it stood — taken off site, from a source the policy does not allow, out
-     * of order on a device, from a clock that was wrong — and a clock-out the
-     * end-of-day job wrote. A day still missing its clock-out is not among
-     * them: it needs HR to enter the time, not a signature.
+     * it stood — taken off site, from a source the policy does not allow, from
+     * a clock that was wrong — and a clock-out the end-of-day job wrote. A day
+     * still missing its clock-out is not among them: it needs HR to enter the
+     * time, not a signature.
      */
     public const REVIEW_FLAGS = [
         'unapproved_overtime',
         'outside_geofence',
         'source_not_allowed',
-        'device_sequence_anomaly',
         'clock_skew',
         'auto_closed',
     ];

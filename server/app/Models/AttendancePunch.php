@@ -34,11 +34,12 @@ class AttendancePunch extends Model
 
     /**
      * Where a punch can be captured — the sources an attendance policy chooses
-     * among (ADR 0038).
+     * among (ADR 0038). Kiosks and biometric scanners are gone (ADR 0054); a
+     * punch they recorded before keeps its `source`, which is history.
      *
      * @var list<string>
      */
-    public const CAPTURE_SOURCES = ['web', 'mobile', 'kiosk', 'biometric', 'manual'];
+    public const CAPTURE_SOURCES = ['web', 'mobile', 'manual'];
 
     /**
      * Where a punch originated: a capture source, or the end-of-day job closing
@@ -49,17 +50,8 @@ class AttendancePunch extends Model
     public const SOURCES = [...self::CAPTURE_SOURCES, 'system'];
 
     /**
-     * Sources where a person is punching for themselves, so the punch engine
-     * enforces the policy's capture rules and the day's order on them. A device's
-     * punch is recorded as it happened instead (ADR 0040).
-     *
-     * @var list<string>
-     */
-    public const PERSON_SOURCES = ['web', 'mobile', 'kiosk', 'manual'];
-
-    /**
      * Sources whose punch is checked against a work location's fence: the ones
-     * that report where the person was. A kiosk or scanner is where it is.
+     * that report where the person was. HR's entry reports nowhere.
      *
      * @var list<string>
      */
@@ -78,7 +70,6 @@ class AttendancePunch extends Model
         'work_location_id',
         'distance_meters',
         'within_geofence',
-        'attendance_device_id',
         'external_id',
         'device_punched_at',
         'received_at',
@@ -139,16 +130,6 @@ class AttendancePunch extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(WorkLocation::class, 'work_location_id')->withTrashed();
-    }
-
-    /**
-     * The kiosk or scanner that sent the punch, when one did.
-     *
-     * @return BelongsTo<AttendanceDevice, $this>
-     */
-    public function device(): BelongsTo
-    {
-        return $this->belongsTo(AttendanceDevice::class, 'attendance_device_id')->withTrashed();
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

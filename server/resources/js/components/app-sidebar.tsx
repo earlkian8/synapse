@@ -33,7 +33,6 @@ import {
     Users,
     Workflow,
     MapPinned,
-    ScanLine,
     CalendarCog,
 } from 'lucide-react';
 import CompanyLogo from '@/components/company-logo';
@@ -215,13 +214,6 @@ const companySetupNavItems: GatedNavItem[] = [
         href: '/setup/locations',
         icon: MapPinned,
         permission: 'setup.locations.view',
-    },
-    {
-        // Kiosks and biometric scanners (ADR 0040).
-        title: 'Devices',
-        href: '/setup/devices',
-        icon: ScanLine,
-        permission: 'setup.devices.manage',
     },
     {
         title: 'Leave Types',

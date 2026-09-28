@@ -7,8 +7,8 @@ use App\Models\AttendanceRecord;
 
 /**
  * What {@see AttendanceClock::capture()} did with a punch: the day it landed on,
- * the punch, and whether it had already been received — a device or a phone
- * sending the same punch again gets the punch it sent the first time.
+ * the punch, and whether it had already been received — a phone sending the
+ * same queued punch again gets the punch it sent the first time.
  */
 final readonly class CapturedPunch
 {

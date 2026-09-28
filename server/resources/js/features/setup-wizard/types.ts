@@ -4,7 +4,6 @@ import type { PolicyPreset } from '@/features/attendance-policy-config/types';
 import type { AwardTypeSetupPageProps } from '@/features/award-types-config/types';
 import type { CompanyProfile } from '@/features/company-profile/types';
 import type { DepartmentsPageProps } from '@/features/departments/types';
-import type { DevicesPageProps } from '@/features/devices/types';
 import type { KpiSetupPageProps } from '@/features/kpi-config/types';
 import type { LeaveTypesPageProps } from '@/features/leave-types/types';
 import type { LocationsPageProps } from '@/features/locations/types';
@@ -38,7 +37,6 @@ export type SetupStep =
     | 'schedule'
     | 'leave-types'
     | 'locations'
-    | 'devices'
     | 'roster'
     | 'recruitment'
     | 'onboarding'
@@ -214,7 +212,6 @@ export type StepScreens = {
     schedule: ScheduleSetupPageProps;
     'leave-types': LeaveTypesPageProps;
     locations: LocationsPageProps;
-    devices: DevicesPageProps;
     roster: RosterPageProps;
     recruitment: PipelinesPageProps;
     onboarding: OnboardingProgramsPageProps;

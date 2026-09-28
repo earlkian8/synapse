@@ -6,15 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\LeaveTypeRequest;
 use App\Models\LeaveType;
 use App\Queries\Setup\LeaveTypesScreen;
-use App\Support\ActivityLogger;
 use App\Support\Hashid;
+use App\Support\Setup\LeaveTypeException;
+use App\Support\Setup\LeaveTypeWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Company Setup → Leave Types: the kinds of leave the organisation grants, with
+ * their entitlement and policy. Addressed by hashid; restore / force-delete take
+ * it as a string. Thin controller: every write is {@see LeaveTypeWorkflow},
+ * which the assistant uses too.
+ */
 class LeaveTypeController extends Controller
 {
+    public function __construct(private readonly LeaveTypeWorkflow $workflow) {}
+
     /**
      * Display the leave-type catalogue (Company Setup).
      */
@@ -28,15 +37,7 @@ class LeaveTypeController extends Controller
      */
     public function store(LeaveTypeRequest $request): RedirectResponse
     {
-        $type = LeaveType::create($request->validated());
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created leave type \"{$type->name}\"",
-            subject: $type,
-            logName: 'company-setup',
-            subjectLabel: $type->name,
-        );
+        $this->workflow->create($request->validated());
 
         return $this->respond('Leave type created.');
     }
@@ -46,15 +47,7 @@ class LeaveTypeController extends Controller
      */
     public function update(LeaveTypeRequest $request, LeaveType $leaveType): RedirectResponse
     {
-        $leaveType->update($request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated leave type \"{$leaveType->name}\"",
-            subject: $leaveType,
-            logName: 'company-setup',
-            subjectLabel: $leaveType->name,
-        );
+        $this->workflow->update($leaveType, $request->validated());
 
         return $this->respond('Leave type updated.');
     }
@@ -64,43 +57,21 @@ class LeaveTypeController extends Controller
      */
     public function destroy(LeaveType $leaveType): RedirectResponse
     {
-        $name = $leaveType->name;
-        $leaveType->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived leave type \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->archive($leaveType);
 
         return $this->respond('Leave type archived.');
     }
 
     /**
-     * Restore an archived leave type.
+     * Restore an archived leave type — refused when its code was reused.
      */
     public function restore(string $leaveType): RedirectResponse
     {
-        $model = $this->findTrashed($leaveType);
-
-        // The per-tenant unique index ignores archived rows, so the code may have
-        // been reused while this one was archived — refuse rather than hit a DB error.
-        $clash = LeaveType::where('code', $model->code)->whereKeyNot($model->id)->exists();
-
-        if ($clash) {
-            return $this->respond("Another leave type already uses the code \"{$model->code}\".", 'warning');
+        try {
+            $this->workflow->restore($this->findTrashed($leaveType));
+        } catch (LeaveTypeException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored leave type \"{$model->name}\"",
-            subject: $model,
-            logName: 'company-setup',
-            subjectLabel: $model->name,
-        );
 
         return $this->respond('Leave type restored.');
     }
@@ -110,22 +81,11 @@ class LeaveTypeController extends Controller
      */
     public function forceDelete(string $leaveType): RedirectResponse
     {
-        $model = $this->findTrashed($leaveType);
-
-        if ($model->requests()->exists()) {
-            return $this->respond('This leave type has leave requests and cannot be permanently deleted.', 'warning');
+        try {
+            $this->workflow->forceDelete($this->findTrashed($leaveType));
+        } catch (LeaveTypeException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $name = $model->name;
-        $model->balances()->delete();
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted leave type \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
 
         return $this->respond('Leave type permanently deleted.');
     }

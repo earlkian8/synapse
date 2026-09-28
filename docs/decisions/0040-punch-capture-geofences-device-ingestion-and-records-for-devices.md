@@ -1,6 +1,6 @@
 # 0040 — Punch capture: geofences, device ingestion, and records-for-devices
 
-- **Status:** Accepted
+- **Status:** Accepted, except its devices, which are superseded by [0054 — No kiosks or biometric scanners](./0054-no-kiosks-or-biometric-scanners.md)
 - **Date:** 2026-09-19
 - **Builds on:** [0010 — Attendance and the mobile API](./0010-attendance-and-mobile-api.md),
   [0038 — Attendance policies: presets and typed options, snapshotted per day](./0038-attendance-policies-presets-and-typed-options-snapshotted-per-day.md),

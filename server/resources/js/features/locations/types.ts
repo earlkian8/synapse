@@ -14,7 +14,6 @@ export type WorkLocation = {
     is_active: boolean;
     is_archived: boolean;
     employees_count: number;
-    devices_count: number;
     /** Who is based here — the active listing only. */
     people?: { id: number; is_primary: boolean }[];
 };

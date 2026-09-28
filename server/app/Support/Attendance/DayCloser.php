@@ -290,7 +290,6 @@ class DayCloser
         'missing_clock_out' => 'still missing a clock-out',
         'auto_closed' => 'closed automatically',
         'outside_geofence' => 'punched away from the site',
-        'device_sequence_anomaly' => 'with device punches out of order',
         'clock_skew' => 'stamped by a clock that was off',
     ];
 

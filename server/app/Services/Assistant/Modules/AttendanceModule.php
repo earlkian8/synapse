@@ -109,7 +109,6 @@ class AttendanceModule extends Module implements ContributesContext
         'outside_geofence' => 'Punched away from the site',
         'auto_closed' => 'Clock-out written automatically',
         'absent' => 'Absent without leave',
-        'device_anomaly' => 'Device punches out of order',
         'clock_skew' => 'Stamped by a clock that was off',
     ];
 
@@ -227,7 +226,6 @@ class AttendanceModule extends Module implements ContributesContext
             ($flags['outside_geofence'] ?? 0) > 0 ? 'Punched away from the work site on '.$flags['outside_geofence'].' day'.($flags['outside_geofence'] === 1 ? '' : 's') : null,
             ($flags['auto_closed'] ?? 0) > 0 ? 'Forgot to clock out on '.$flags['auto_closed'].' day'.($flags['auto_closed'] === 1 ? '' : 's').' (closed automatically by the policy)' : null,
             ($flags['missing_clock_out'] ?? 0) > 0 ? 'Still missing a clock-out on '.$flags['missing_clock_out'].' closed day'.($flags['missing_clock_out'] === 1 ? '' : 's') : null,
-            ($flags['device_sequence_anomaly'] ?? 0) > 0 ? 'Biometric punches out of order on '.$flags['device_sequence_anomaly'].' day'.($flags['device_sequence_anomaly'] === 1 ? '' : 's') : null,
         ]);
     }
 
@@ -253,7 +251,7 @@ class AttendanceModule extends Module implements ContributesContext
         - record_punch logs a clock punch for an employee: type is clock_in, clock_out, break_start or break_end. Punch order is validated (you can't clock out before clocking in). Punches are timed on the organisation's clock and filed under the shift they belong to — a night shift's clock-out after midnight closes the previous evening's day.
         - find_shifts answers "who works Saturday?" and "what is Ana's shift next week?" — it reads the roster (the plan), not the records (what happened). Pass `date` for one day, or `from` and `to` for a range; pass `employee` to narrow it to one person. Each shift says where it came from: a one-off roster override, a dated assignment, a department or company default, or the built-in Mon–Fri fallback.
         - set_roster_entry puts one person on different hours for one date — a swap, a Saturday call-in, or a day off. Either name a `schedule` to borrow for that day, or give `start` and `end` times, or set `rest_day` to true. It overwrites any existing override for that person and date.
-        - find_attendance_exceptions answers "who hasn't clocked in?", "who is missing a clock-out?", "who punched outside the office this week?". `kind` is not_clocked_in (today only: the shift has started and there is no clock-in, not on leave or a holiday), missing_clock_out, outside_geofence, auto_closed (the end-of-day job wrote the clock-out), absent (no punches and no leave — past days only, today's are not final), device_anomaly, clock_skew, or all. Give `date`, or `from` and `to` (up to 31 days); it defaults to today.
+        - find_attendance_exceptions answers "who hasn't clocked in?", "who is missing a clock-out?", "who punched outside the office this week?". `kind` is not_clocked_in (today only: the shift has started and there is no clock-in, not on leave or a holiday), missing_clock_out, outside_geofence, auto_closed (the end-of-day job wrote the clock-out), absent (no punches and no leave — past days only, today's are not final), clock_skew, or all. Give `date`, or `from` and `to` (up to 31 days); it defaults to today.
         - Pass `employee` as a name or employee number.
         TXT;
     }
@@ -318,7 +316,7 @@ class AttendanceModule extends Module implements ContributesContext
             ],
             [
                 'name' => 'find_attendance_exceptions',
-                'description' => "Find attendance exceptions: who hasn't clocked in, who is missing a clock-out, who punched away from the site, absences, device problems.",
+                'description' => "Find attendance exceptions: who hasn't clocked in, who is missing a clock-out, who punched away from the site, absences, clock problems.",
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
@@ -640,7 +638,7 @@ class AttendanceModule extends Module implements ContributesContext
             $out[] = ['missing_clock_out', $cell['first_in_at'] !== null ? 'In at '.OrganizationClock::local(CarbonImmutable::parse($cell['first_in_at']))->format('g:i A') : ''];
         }
 
-        foreach (['outside_geofence' => 'outside_geofence', 'auto_closed' => 'auto_closed', 'device_sequence_anomaly' => 'device_anomaly', 'clock_skew' => 'clock_skew'] as $flag => $exception) {
+        foreach (['outside_geofence' => 'outside_geofence', 'auto_closed' => 'auto_closed', 'clock_skew' => 'clock_skew'] as $flag => $exception) {
             if (in_array($flag, $flags, true)) {
                 $out[] = [$exception, ''];
             }

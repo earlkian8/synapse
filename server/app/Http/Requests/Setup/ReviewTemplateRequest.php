@@ -30,6 +30,17 @@ class ReviewTemplateRequest extends FormRequest
      */
     public function rules(): array
     {
+        return self::documentRules();
+    }
+
+    /**
+     * The rules a framework document is held to. Static so a caller with no
+     * request — the assistant — holds one to exactly these.
+     *
+     * @return array<string, mixed>
+     */
+    public static function documentRules(): array
+    {
         return [
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -87,49 +98,73 @@ class ReviewTemplateRequest extends FormRequest
      */
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
-            $keys = array_column($this->input('sections', []), 'key');
-            $seen = [];
+        $validator->after(fn (Validator $validator) => self::validateDocument($validator, $this->all()));
+    }
 
-            foreach ($this->input('items', []) as $index => $item) {
-                if (! in_array($item['section_key'] ?? null, $keys, true)) {
-                    $validator->errors()->add("items.{$index}.section_key", 'This item is not in one of the framework’s sections.');
-                }
+    /**
+     * The cross-references {@see withValidator()} checks, on a document that has
+     * been through {@see normalise()}.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    public static function validateDocument(Validator $validator, array $input): void
+    {
+        $keys = array_column((array) ($input['sections'] ?? []), 'key');
+        $seen = [];
 
-                $criterion = $item['kpi_criterion_id'] ?? null;
-
-                if ($criterion === null) {
-                    continue;
-                }
-
-                if (in_array($criterion, $seen, true)) {
-                    $validator->errors()->add("items.{$index}.kpi_criterion_id", 'This criterion is already measured in this framework.');
-                }
-
-                $seen[] = $criterion;
+        foreach ((array) ($input['items'] ?? []) as $index => $item) {
+            if (! in_array($item['section_key'] ?? null, $keys, true)) {
+                $validator->errors()->add("items.{$index}.section_key", 'This item is not in one of the framework’s sections.');
             }
 
-            $bands = $this->input('bands', []);
-            $floor = $bands === [] ? null : min(array_map(fn (array $band): float => (float) ($band['min_percent'] ?? 0), $bands));
+            $criterion = $item['kpi_criterion_id'] ?? null;
 
-            if ($floor !== null && $floor > 0) {
-                $validator->errors()->add('bands', 'The lowest band has to start at 0%, so every result has a rating.');
+            if ($criterion === null) {
+                continue;
             }
-        });
+
+            if (in_array($criterion, $seen, true)) {
+                $validator->errors()->add("items.{$index}.kpi_criterion_id", 'This criterion is already measured in this framework.');
+            }
+
+            $seen[] = $criterion;
+        }
+
+        $bands = (array) ($input['bands'] ?? []);
+        $floor = $bands === [] ? null : min(array_map(fn (array $band): float => (float) ($band['min_percent'] ?? 0), $bands));
+
+        if ($floor !== null && $floor > 0) {
+            $validator->errors()->add('bands', 'The lowest band has to start at 0%, so every result has a rating.');
+        }
     }
 
     protected function prepareForValidation(): void
     {
-        $this->merge([
-            'is_default' => $this->boolean('is_default'),
-            'is_active' => $this->boolean('is_active', true),
-            'applies_to_values' => $this->input('applies_to') === 'all'
+        $this->merge(self::normalise($this->all()));
+    }
+
+    /**
+     * A framework document as it is validated and stored: the flags coerced,
+     * the eligibility values as strings, every section and band keyed, and every
+     * catalogue-backed item worded by its catalogue entry. Static so a caller
+     * with no request builds exactly the document the editor would.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function normalise(array $input): array
+    {
+        return [
+            ...$input,
+            'is_default' => filter_var($input['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'is_active' => filter_var($input['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            'applies_to_values' => ($input['applies_to'] ?? null) === 'all'
                 ? null
-                : array_values(array_map(strval(...), (array) $this->input('applies_to_values', []))),
-            'sections' => $this->keyed($this->input('sections'), 'name', 'section'),
-            'bands' => $this->keyed($this->input('bands'), 'label', 'band'),
-            'items' => $this->catalogued($this->input('items')),
-        ]);
+                : array_values(array_map(strval(...), (array) ($input['applies_to_values'] ?? []))),
+            'sections' => self::keyed($input['sections'] ?? null, 'name', 'section'),
+            'bands' => self::keyed($input['bands'] ?? null, 'label', 'band'),
+            'items' => self::catalogued($input['items'] ?? null),
+        ];
     }
 
     /**
@@ -142,7 +177,7 @@ class ReviewTemplateRequest extends FormRequest
      *
      * @return list<array<string, mixed>>
      */
-    private function catalogued(mixed $rows): array
+    private static function catalogued(mixed $rows): array
     {
         if (! is_array($rows)) {
             return [];
@@ -182,7 +217,7 @@ class ReviewTemplateRequest extends FormRequest
      *
      * @return list<array<string, mixed>>
      */
-    private function keyed(mixed $rows, string $labelField, string $prefix): array
+    private static function keyed(mixed $rows, string $labelField, string $prefix): array
     {
         if (! is_array($rows)) {
             return [];

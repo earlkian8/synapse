@@ -15,11 +15,13 @@ below ([ADR 0038](../decisions/0038-attendance-policies-presets-and-typed-option
 sign-off grant; the request and period tables it created were dropped again by
 `…_remove_attendance_requests_and_periods`
 ([ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)).
-**Where punches come from** — `work_locations`,
-`employee_work_locations` and `attendance_devices` — and what capture records on each
-punch are below ([ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md),
+**Where punches come from** — `work_locations` and `employee_work_locations` — and
+what capture records on each punch are below ([ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md),
 `…_create_work_locations_and_attendance_devices`), which also added `closed_at` for the
-end-of-day job ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md)).
+end-of-day job ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md)). Its
+`attendance_devices` table, the punch's `attendance_device_id` and the employee's
+`device_enrollment_id` were dropped again by `…_remove_attendance_devices`
+([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)).
 
 ## `attendance_records`
 
@@ -37,7 +39,7 @@ day's punches (never trusted from the client).
 | `scheduled_start_at` / `scheduled_end_at` | timestamp, nullable | The shift as UTC instants, worked out in the organisation's zone; the end is the next morning when it is at or before the start. What lateness and undertime are measured against. |
 | `rules` | json, nullable | The `DayRules` snapshot the day is judged by: `version`, `grace_minutes`, `required_minutes`, `is_working_day`, `work_schedule_id`, `schedule_name`, `holiday_type`, `holiday_name`, and — from `version: 2` (ADR 0037) — `type`, `segments`, `core_start_at` / `core_end_at`, `unpaid_break_minutes` and `source`; from `version: 3` (ADR 0038) — `policy`: `{id, name, source, settings_version, settings}`, the complete attendance policy the day is judged by. Changes only when HR re-applies the current schedule and policy. Null on rows from before ADR 0036 until they are recomputed; a `version: 1` snapshot still reads as a fixed shift, and a `version: 1` or `2` one is judged by the built-in fallback policy. |
 | `status` | string | `present \| late \| undertime \| half_day \| absent \| on_leave \| day_off \| holiday \| incomplete`. `half_day` (ADR 0038) is very late or very short by the policy's thresholds; a threshold can also make a punched day `absent`. |
-| `flags` | json, nullable | Everything more specific than the status (ADR 0038): `late`, `undertime`, `half_day`, `late_absent`, `below_minimum`, `break_deducted`, `break_exceeded`, `unapproved_overtime`, `rest_day_worked`, `holiday_worked`; and from approved requests (ADR 0039) `official_business`, `remote_work`; from capture (ADR 0040) `outside_geofence`, `source_not_allowed`, `device_sequence_anomaly`, `clock_skew`; from the end-of-day job (ADR 0041) `auto_closed`, and `missing_clock_out` on a day it closed still open. |
+| `flags` | json, nullable | Everything more specific than the status (ADR 0038): `late`, `undertime`, `half_day`, `late_absent`, `below_minimum`, `break_deducted`, `break_exceeded`, `unapproved_overtime`, `rest_day_worked`, `holiday_worked`; and from approved requests (ADR 0039) `official_business`, `remote_work`; from capture (ADR 0040) `outside_geofence`, `source_not_allowed`, `clock_skew` (and, on days judged before ADR 0054, `device_sequence_anomaly`); from the end-of-day job (ADR 0041) `auto_closed`, and `missing_clock_out` on a day it closed still open. |
 | `first_in_at` / `last_out_at` | timestamp, nullable | Derived from the punches. |
 | `worked_minutes` | uint | On-the-clock minutes judged by the policy: breaks excluded (but the paid part of a punched one counted, and an unpunched unpaid one deducted), clock-ins and clock-outs rounded, early minutes clipped when the policy does not count them. |
 | `break_minutes` | uint | Total break time — punched, or the unpunched one the policy deducted. |
@@ -52,7 +54,7 @@ day's punches (never trusted from the client).
 | `holiday_minutes` | uint | Worked minutes on a `regular` or `special_non_working` holiday. A tag. |
 | `is_manual` | boolean | True when entered/edited by HR. |
 | `remarks` | text, nullable | |
-| `approval_status` | string, nullable | *Needs sign-off* (ADR 0039), derived on every evaluation: `pending` while the day carries a review flag (`unapproved_overtime`, `outside_geofence`, `source_not_allowed`, `device_sequence_anomaly`, `clock_skew`, `auto_closed`), `approved` once signed off, null otherwise. |
+| `approval_status` | string, nullable | *Needs sign-off* (ADR 0039), derived on every evaluation: `pending` while the day carries a review flag (`unapproved_overtime`, `outside_geofence`, `source_not_allowed`, `clock_skew`, `auto_closed`), `approved` once signed off, null otherwise. |
 | `approved_by` | FK → users, nullable | Who signed the day off. |
 | `approved_at` | timestamp, nullable | |
 | `signed_off_overtime_minutes` | uint, nullable | The overtime the sign-off granted — the day's overtime at that moment. Read back by the evaluator, so it survives a recompute. |
@@ -103,21 +105,19 @@ mobile app's punches are fully auditable.
 | `device_punched_at` | timestamp, nullable | The phone's own time for a punch it queued offline (ADR 0040); null for a live punch. |
 | `received_at` | timestamp, nullable | When the server received it. |
 | `clock_skew_seconds` | int, nullable | The sender's clock minus the server's when it sent the punch (from `sent_at`). Beyond the policy's `max_clock_skew_minutes`, the day is flagged `clock_skew`. |
-| `source` | string | `web \| mobile \| kiosk \| biometric \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). |
-| `attendance_device_id` | FK → attendance_devices, nullable | The kiosk or scanner that sent it (null on delete). |
-| `external_id` | string(100), nullable | The sender's own id for the punch — a device's, or a phone's client id for a queued punch — so a resend is recognised. |
+| `source` | string | `web \| mobile \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). A punch recorded before ADR 0054 may keep `kiosk` or `biometric`. |
+| `external_id` | string(100), nullable | A phone's client id for a queued punch, so a resend is recognised (per employee). |
 | `latitude` / `longitude` | decimal(10,7), nullable | GPS fix. |
 | `accuracy` | decimal(8,2), nullable | Metres. |
-| `work_location_id` | FK → work_locations, nullable | The nearest site of the employee's fence, or the device's site (null on delete). |
+| `work_location_id` | FK → work_locations, nullable | The nearest site of the employee's fence (null on delete). |
 | `distance_meters` | uint, nullable | From that site's centre. |
-| `within_geofence` | boolean, nullable | `distance − accuracy ≤ radius`. Null when not checked: no site to check against, or a kiosk / scanner punch. False, too, for a web or mobile punch with no position while the policy checks. |
+| `within_geofence` | boolean, nullable | `distance − accuracy ≤ radius`. Null when not checked: no site to check against, or HR's entry. False, too, for a web or mobile punch with no position while the policy checks. |
 | `photo` | string, nullable | Selfie path (public disk). |
 | `note` | string, nullable | |
 | `recorded_by` | FK → users, nullable | Null when the employee self-punched. |
 | timestamps, `deleted_at` | | Soft-deleted when an HR edit replaces it, so the day keeps what it said before. |
 
-**Indexes:** `(employee_id, punched_at)`; unique `(attendance_device_id, external_id)`;
-`(employee_id, external_id)`.
+**Indexes:** `(employee_id, punched_at)`; `(employee_id, external_id)`.
 
 ## `work_locations`
 
@@ -152,28 +152,6 @@ Who is based where. Scoped through both of its parents.
 | timestamps | | |
 
 **Indexes:** unique `(employee_id, work_location_id)`; `work_location_id`.
-
-## `attendance_devices`
-
-Kiosks and biometric scanners (ADR 0040), each authenticated by its own key. See
-[Attendance Devices](../modules/attendance-devices.md).
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | bigint (PK) | Addressed by hashid. |
-| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
-| `name` | string | |
-| `type` | string | `kiosk \| biometric`; fixed once created. |
-| `work_location_id` | FK → work_locations, nullable | Where it is; its punches are recorded there (null on delete). |
-| `api_key_hash` | string(64), unique | SHA-256 of the key. The key (`sdk_` + 40 characters) is shown once and never stored. |
-| `api_key_hint` | string(8) | The key's last four characters, to tell keys apart. |
-| `last_seen_at` | timestamp, nullable | Updated on every authenticated call. |
-| `is_active` | boolean | An inactive device's key is refused. |
-| `csv_mapping` | json, nullable | How the device's CSV export maps onto a punch, remembered from the last import. |
-| `created_by` | FK → users, nullable | |
-| timestamps, `deleted_at` | | Removing a device deactivates it and keeps its punches. |
-
-**Index:** `(organization_id, is_active)`.
 
 ## Mobile auth
 

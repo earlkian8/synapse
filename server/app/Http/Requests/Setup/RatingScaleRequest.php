@@ -53,10 +53,23 @@ class RatingScaleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $type = in_array($this->input('type'), RatingScales::TYPES, true) ? $this->input('type') : 'numeric';
-        $levels = RatingScales::normalizeLevels($this->input('levels'));
+        $this->merge(self::normalise($this->all()));
+    }
 
-        $merge = ['type' => $type, 'is_default' => $this->boolean('is_default')];
+    /**
+     * A scale as it is validated and stored: the bounds derived from its type.
+     * Static so a caller with no request — the assistant — builds exactly the
+     * scale the editor would.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function normalise(array $input): array
+    {
+        $type = in_array($input['type'] ?? null, RatingScales::TYPES, true) ? $input['type'] : 'numeric';
+        $levels = RatingScales::normalizeLevels($input['levels'] ?? null);
+
+        $merge = ['type' => $type, 'is_default' => filter_var($input['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN)];
 
         if ($type === 'percentage') {
             $merge += ['min' => 0, 'max' => 100, 'levels' => null];
@@ -76,6 +89,6 @@ class RatingScaleRequest extends FormRequest
             $merge += ['levels' => null];
         }
 
-        $this->merge($merge);
+        return [...$input, ...$merge];
     }
 }

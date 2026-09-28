@@ -25,7 +25,6 @@ class Employee extends Model
         'organization_id',
         'user_id',
         'employee_no',
-        'device_enrollment_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -390,21 +389,6 @@ class Employee extends Model
     // ── Scopes ───────────────────────────────────────────────────────────────
 
     /**
-     * The employee a device knows by a reference — their employee number or
-     * their device enrolment id, exactly and ignoring case (ADR 0040).
-     *
-     * @param  Builder<Employee>  $query
-     */
-    public function scopeWhereDeviceReference(Builder $query, string $reference): void
-    {
-        $reference = mb_strtolower(trim($reference));
-
-        $query->where(fn (Builder $q) => $q
-            ->whereRaw('lower(employee_no) = ?', [$reference])
-            ->orWhereRaw('lower(device_enrollment_id) = ?', [$reference]));
-    }
-
-    /**
      * Free-text search across the searchable columns.
      *
      * @param  Builder<Employee>  $query
@@ -421,7 +405,9 @@ class Employee extends Model
         $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
 
         $query->where(function (Builder $query) use ($needle, $like) {
-            foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'email', 'phone'] as $column) {
+            // `suffix` too: a full name as it is shown ("Juan Cruz Jr.") is
+            // searched word by word, and a word no column holds matches nobody.
+            foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'suffix', 'email', 'phone'] as $column) {
                 $query->orWhere($column, $like, $needle);
             }
         });

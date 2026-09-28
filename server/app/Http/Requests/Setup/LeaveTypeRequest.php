@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Setup;
 
+use App\Models\LeaveType;
 use App\Support\Tenancy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -18,7 +19,17 @@ class LeaveTypeRequest extends FormRequest
      */
     public function rules(): array
     {
-        $type = $this->route('leaveType');
+        return self::rulesFor($this->route('leaveType'));
+    }
+
+    /**
+     * The rules for creating a leave type (null) or editing this one. Static so
+     * a caller with no route — the assistant — holds a type to exactly these.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(?LeaveType $type): array
+    {
         $orgId = app(Tenancy::class)->id();
 
         return [
@@ -40,6 +51,14 @@ class LeaveTypeRequest extends FormRequest
     }
 
     /**
+     * A code as it is stored: trimmed and upper-cased.
+     */
+    public static function normaliseCode(string $code): string
+    {
+        return strtoupper(trim($code));
+    }
+
+    /**
      * Normalise the code (trimmed, uppercase) and coerce the policy flags.
      */
     protected function prepareForValidation(): void
@@ -47,7 +66,7 @@ class LeaveTypeRequest extends FormRequest
         $merge = [];
 
         if ($this->has('code')) {
-            $merge['code'] = strtoupper(trim((string) $this->input('code')));
+            $merge['code'] = self::normaliseCode((string) $this->input('code'));
         }
 
         foreach (['is_paid', 'allow_half_day', 'requires_approval', 'is_active'] as $flag) {

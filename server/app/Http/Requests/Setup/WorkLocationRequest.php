@@ -18,8 +18,17 @@ class WorkLocationRequest extends FormRequest
      */
     public function rules(): array
     {
-        $location = $this->route('workLocation');
+        return self::rulesFor($this->route('workLocation'));
+    }
 
+    /**
+     * The rules for creating a site (null) or editing this one. Static so a
+     * caller with no route — the assistant — holds a site to exactly these.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(?WorkLocation $location): array
+    {
         return [
             'name' => [
                 'required', 'string', 'max:120',

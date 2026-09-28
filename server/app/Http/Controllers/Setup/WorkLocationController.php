@@ -5,14 +5,13 @@ namespace App\Http\Controllers\Setup;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\WorkLocationPeopleRequest;
 use App\Http\Requests\Setup\WorkLocationRequest;
-use App\Models\AttendancePunch;
 use App\Models\WorkLocation;
 use App\Queries\Setup\LocationsScreen;
-use App\Support\ActivityLogger;
 use App\Support\Hashid;
+use App\Support\Setup\WorkLocationException;
+use App\Support\Setup\WorkLocationWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,10 +23,13 @@ use Inertia\Response;
  * Addressed by hashid; restore / force-delete take it as a string. Archived
  * rather than deleted, so a punch that names a site keeps saying where it was.
  * Moving a fence never re-judges a punch already made — a punch was judged where
- * it was made.
+ * it was made. Thin controller: every write is {@see WorkLocationWorkflow},
+ * which the assistant uses too.
  */
 class WorkLocationController extends Controller
 {
+    public function __construct(private readonly WorkLocationWorkflow $workflow) {}
+
     public function index(Request $request, LocationsScreen $screen): Response
     {
         return Inertia::render('setup/locations', $screen->toArray($request));
@@ -35,31 +37,14 @@ class WorkLocationController extends Controller
 
     public function store(WorkLocationRequest $request): RedirectResponse
     {
-        $location = WorkLocation::create($request->locationAttributes());
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created work location \"{$location->name}\" ({$location->radius_meters} m fence)",
-            subject: $location,
-            logName: 'company-setup',
-            subjectLabel: $location->name,
-        );
+        $this->workflow->create($request->locationAttributes());
 
         return $this->respond('Location created. Add the people based there so their punches are checked against it.');
     }
 
     public function update(WorkLocationRequest $request, WorkLocation $workLocation): RedirectResponse
     {
-        $workLocation->update($request->locationAttributes());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated work location \"{$workLocation->name}\"",
-            subject: $workLocation,
-            properties: ['changes' => array_keys($workLocation->getChanges())],
-            logName: 'company-setup',
-            subjectLabel: $workLocation->name,
-        );
+        $this->workflow->update($workLocation, $request->locationAttributes());
 
         return $this->respond('Location updated. Punches already made keep where they were judged.');
     }
@@ -74,71 +59,32 @@ class WorkLocationController extends Controller
         $ids = array_map('intval', $request->validated('employee_ids'));
         $primary = array_map('intval', $request->validated('primary_ids'));
 
-        DB::transaction(function () use ($workLocation, $ids, $primary): void {
-            $workLocation->employees()->sync(array_fill_keys($ids, ['is_primary' => false]));
-            $workLocation->makePrimaryFor($primary);
-        });
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: 'Set '.count($ids).' '.str('person')->plural(count($ids))." as based at \"{$workLocation->name}\"",
-            subject: $workLocation,
-            properties: ['employees' => count($ids), 'primary' => count($primary)],
-            logName: 'company-setup',
-            subjectLabel: $workLocation->name,
-        );
+        $this->workflow->setPeople($workLocation, $ids, $primary);
 
         return $this->respond(count($ids) === 1 ? '1 person is based here.' : count($ids).' people are based here.');
     }
 
     public function destroy(WorkLocation $workLocation): RedirectResponse
     {
-        $name = $workLocation->name;
-        $workLocation->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived work location \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->archive($workLocation);
 
         return $this->respond('Location archived. Punches are no longer checked against it.');
     }
 
     public function restore(string $workLocation): RedirectResponse
     {
-        $model = $this->findTrashed($workLocation);
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored work location \"{$model->name}\"",
-            subject: $model,
-            logName: 'company-setup',
-            subjectLabel: $model->name,
-        );
+        $this->workflow->restore($this->findTrashed($workLocation));
 
         return $this->respond('Location restored.');
     }
 
     public function forceDelete(string $workLocation): RedirectResponse
     {
-        $model = $this->findTrashed($workLocation);
-
-        if (AttendancePunch::withTrashed()->where('work_location_id', $model->id)->exists()) {
-            return $this->respond('Punches were made at this location, so it is kept to say where they were. It stays archived.', 'warning');
+        try {
+            $this->workflow->forceDelete($this->findTrashed($workLocation));
+        } catch (WorkLocationException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $name = $model->name;
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted work location \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
 
         return $this->respond('Location permanently deleted.');
     }

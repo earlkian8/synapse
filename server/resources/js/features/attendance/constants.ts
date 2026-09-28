@@ -112,7 +112,6 @@ export const FLAG_LABELS: Record<AttendanceFlag, string> = {
     holiday_worked: 'Worked a holiday',
     outside_geofence: 'Punched away from the site',
     source_not_allowed: 'Punched from a source the policy doesn’t allow',
-    device_sequence_anomaly: 'Device punches out of order',
     clock_skew: 'Stamped by a clock that was off',
     auto_closed: 'Clock-out written automatically',
     missing_clock_out: 'Still missing a clock-out',
@@ -130,7 +129,6 @@ export const CHIP_FLAGS: AttendanceFlag[] = [
     'holiday_worked',
     'outside_geofence',
     'source_not_allowed',
-    'device_sequence_anomaly',
     'clock_skew',
     'auto_closed',
     'missing_clock_out',
@@ -150,7 +148,6 @@ export const FLAG_TONES: Record<AttendanceFlag, 'warn' | 'info'> = {
     holiday_worked: 'info',
     outside_geofence: 'warn',
     source_not_allowed: 'warn',
-    device_sequence_anomaly: 'warn',
     clock_skew: 'warn',
     auto_closed: 'warn',
     missing_clock_out: 'warn',
@@ -195,10 +192,6 @@ export function recordAnomalies(record: AttendanceRecord): Anomaly[] {
         out.push({ label: 'Clock-out written automatically', tone: 'warn' });
     }
 
-    if (record.flags?.includes('device_sequence_anomaly')) {
-        out.push({ label: 'Device punches out of order', tone: 'warn' });
-    }
-
     if (record.flags?.includes('break_exceeded')) {
         out.push({ label: 'Break ran over', tone: 'warn' });
     }
@@ -233,17 +226,26 @@ type PunchMeta = {
 /**
  * Where a punch came from, in the words somebody checking a record would use.
  * It is also the answer to "why is there no photo here" — only the mobile app
- * captures one, so a web or biometric punch never having a selfie is normal
- * rather than missing.
+ * captures one, so a web punch never having a selfie is normal rather than
+ * missing.
  */
 export const SOURCE_LABELS: Record<PunchSource, string> = {
     web: 'Web',
     mobile: 'Mobile app',
-    kiosk: 'Kiosk',
-    biometric: 'Biometric',
     manual: 'Entered by hand',
     system: 'Closed automatically',
 };
+
+/**
+ * A punch's source in words. A punch recorded under a source since retired
+ * (ADR 0054) keeps the name it was recorded under, capitalised.
+ */
+export function sourceLabel(source: string): string {
+    return (
+        (SOURCE_LABELS as Record<string, string>)[source] ??
+        source.charAt(0).toUpperCase() + source.slice(1)
+    );
+}
 
 export const PUNCH_META: Record<PunchType, PunchMeta> = {
     clock_in: {

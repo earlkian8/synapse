@@ -193,7 +193,7 @@ test('a company with no locations has nothing to check against, so nothing is', 
 
 test('a punch from a source the policy does not allow is refused', function () {
     $user = actingAsUserWith(['attendance.clock']);
-    captureWorker(['allowed_sources' => ['mobile', 'kiosk']], $user);
+    captureWorker(['allowed_sources' => ['mobile', 'manual']], $user);
 
     $this->post(route('attendance.me.punch'), ['type' => 'clock_in']);
 
@@ -380,12 +380,12 @@ test('somebody based at two sites with neither primary defaults from neither', f
     expect((new ShiftResolver)->for($employee, '2026-09-18')->source)->toBe('fallback');
 });
 
-test('a person’s punch that breaks the order is still refused, whatever the source', function () {
+test('a punch that breaks the order is refused, whatever the source', function () {
     $employee = captureWorker();
     $clock = app(AttendanceClock::class);
 
-    $clock->punch($employee, 'clock_in', ['source' => 'kiosk']);
+    $clock->punch($employee, 'clock_in', ['source' => 'manual']);
 
-    expect(fn () => $clock->punch($employee, 'clock_in', ['source' => 'kiosk']))
+    expect(fn () => $clock->punch($employee, 'clock_in', ['source' => 'mobile']))
         ->toThrow(AttendancePunchException::class, "You're already clocked in.");
 });

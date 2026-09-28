@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection as SupportCollection;
 
@@ -86,16 +85,6 @@ class WorkLocation extends Model
     public function policy(): BelongsTo
     {
         return $this->belongsTo(AttendancePolicy::class, 'attendance_policy_id')->withTrashed();
-    }
-
-    /**
-     * The devices installed here.
-     *
-     * @return HasMany<AttendanceDevice, $this>
-     */
-    public function devices(): HasMany
-    {
-        return $this->hasMany(AttendanceDevice::class);
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────

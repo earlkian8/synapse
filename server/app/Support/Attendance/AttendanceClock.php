@@ -45,12 +45,10 @@ use Symfony\Component\HttpFoundation\IpUtils;
  * The punch windows are the policy's too: how early a clock-in still counts
  * towards a shift, and how long an open shift keeps claiming punches.
  *
- * **It enforces for people and records for devices** (ADR 0040). A person on
- * the web, the phone or a kiosk is held to the day's policy — where they may
+ * **It enforces the day's policy on every punch** (ADR 0040). A person on the
+ * web or the phone, or HR entering for them, is held to it — where they may
  * punch from, from which address, with a selfie, inside the fence — and to the
- * day's order ("you're already clocked in"). A scanner on a wall reports what
- * happened: its punch is recorded as it came and the evaluator flags what does
- * not add up ({@see capture()}).
+ * day's order ("you're already clocked in") ({@see capture()}).
  */
 class AttendanceClock
 {
@@ -64,8 +62,6 @@ class AttendanceClock
     private const SOURCE_WORDS = [
         'web' => 'the web',
         'mobile' => 'the mobile app',
-        'kiosk' => 'a kiosk',
-        'biometric' => 'a biometric device',
         'manual' => 'entry by HR',
     ];
 
@@ -90,63 +86,54 @@ class AttendanceClock
      * Capture one punch, on any path. In order, inside one transaction with a
      * row lock on the employee:
      *
-     *  1. **A resend is recognised.** A punch carrying the sender's own id
-     *     (`external_id` — a device's, or the id a phone gave a queued punch)
-     *     that has been received before returns what was recorded the first
-     *     time, and records nothing.
-     *  2. **An untyped punch is inferred** — a scanner often only knows "a
-     *     punch happened": out when a shift is open, otherwise in.
-     *  3. The work date and the day are found as for any punch.
-     *  4. **For a person** (`record_only` unset) the day's policy is enforced:
-     *     where they may punch from, how old a queued punch may be, the day's
-     *     order, the web address allowlist, the selfie, and — in `block` mode —
-     *     the fence. A refused punch writes nothing.
-     *  5. **The punch is placed**: the nearest work location, the distance and
+     *  1. **A resend is recognised.** A punch carrying the id a phone gave a
+     *     queued punch (`external_id`) that has been received before returns
+     *     what was recorded the first time, and records nothing.
+     *  2. The work date and the day are found as for any punch.
+     *  3. **The day's policy is enforced**: where they may punch from, how old a
+     *     queued punch may be, the day's order, the web address allowlist, the
+     *     selfie, and — in `block` mode — the fence. A refused punch writes
+     *     nothing.
+     *  4. **The punch is placed**: the nearest work location, the distance and
      *     whether it was on site, kept on the punch whatever the policy says.
-     *  6. The punch is written and the day recomputed.
+     *  5. The punch is written and the day recomputed.
      *
      * Context keys, all optional: `source` (default `web`), `latitude`,
      * `longitude`, `accuracy`, `photo`, `note`, `recorded_by`, `punched_at`
-     * (default now), `ip` (a web punch's client address), `attendance_device_id`,
-     * `work_location_id` (where a device is), `external_id`, `offline` (the time
-     * was stamped by a phone that was offline), `sent_at` (the sender's clock
-     * when it sent the punch, to measure its skew) and `record_only` (a device's
-     * punch: recorded, not judged).
+     * (default now), `ip` (a web punch's client address), `external_id`,
+     * `offline` (the time was stamped by a phone that was offline) and `sent_at`
+     * (the phone's clock when it sent the punch, to measure its skew).
      *
      * @param  array<string, mixed>  $context
      *
      * @throws AttendancePunchException when the punch is refused
      */
-    public function capture(Employee $employee, ?string $type, array $context = []): CapturedPunch
+    public function capture(Employee $employee, string $type, array $context = []): CapturedPunch
     {
-        if ($type !== null && ! in_array($type, AttendancePunch::TYPES, true)) {
+        if (! in_array($type, AttendancePunch::TYPES, true)) {
             throw new AttendancePunchException('That punch type is not recognised.');
         }
 
         $receivedAt = CarbonImmutable::now()->utc();
         $at = (isset($context['punched_at']) ? CarbonImmutable::parse($context['punched_at']) : $receivedAt)->utc();
         $source = (string) ($context['source'] ?? 'web');
-        $recordOnly = (bool) ($context['record_only'] ?? false);
         $offline = (bool) ($context['offline'] ?? false);
         $externalId = filled($context['external_id'] ?? null) ? (string) $context['external_id'] : null;
-        $deviceId = isset($context['attendance_device_id']) ? (int) $context['attendance_device_id'] : null;
         $sentAt = isset($context['sent_at']) ? CarbonImmutable::parse($context['sent_at'])->utc() : null;
 
-        return DB::transaction(function () use ($employee, $type, $context, $at, $receivedAt, $source, $recordOnly, $offline, $externalId, $deviceId, $sentAt): CapturedPunch {
+        return DB::transaction(function () use ($employee, $type, $context, $at, $receivedAt, $source, $offline, $externalId, $sentAt): CapturedPunch {
             // One punch at a time per employee: two taps racing each other must not
             // both pass the state check below, nor both open the same day — and a
             // resend racing its original must find it.
             Employee::query()->whereKey($employee->getKey())->lockForUpdate()->first(['id']);
 
             if ($externalId !== null) {
-                $seen = $this->alreadyReceived($employee, $deviceId, $externalId);
+                $seen = $this->alreadyReceived($employee, $externalId);
 
                 if ($seen !== null) {
                     return $seen;
                 }
             }
-
-            $type ??= $this->inferType($employee, $at);
 
             $date = $this->workDateFor($employee, $at, $type);
 
@@ -154,18 +141,16 @@ class AttendanceClock
             $policy = $this->rulesFor($record)->policy;
 
             // Checked before anything is written, so a refused punch leaves no row.
-            if (! $recordOnly) {
-                $this->assertSourceAllowed($policy, $source);
+            $this->assertSourceAllowed($policy, $source);
 
-                if ($offline) {
-                    $this->assertWithinOfflineWindow($policy, $at, $receivedAt);
-                }
-
-                $this->assertAllowedAt($record, $type, $at);
-                $this->assertCaptureRules($policy, $source, $context);
+            if ($offline) {
+                $this->assertWithinOfflineWindow($policy, $at, $receivedAt);
             }
 
-            $placement = $this->place($employee, $policy, $source, $context, enforce: ! $recordOnly);
+            $this->assertAllowedAt($record, $type, $at);
+            $this->assertCaptureRules($policy, $source, $context);
+
+            $placement = $this->place($employee, $policy, $source, $context);
 
             if (! $record->exists) {
                 $record->save();
@@ -180,7 +165,6 @@ class AttendanceClock
                 'longitude' => $context['longitude'] ?? null,
                 'accuracy' => $context['accuracy'] ?? null,
                 ...$placement,
-                'attendance_device_id' => $deviceId,
                 'external_id' => $externalId,
                 'device_punched_at' => $offline ? $at : null,
                 'received_at' => $receivedAt,
@@ -194,17 +178,6 @@ class AttendanceClock
 
             return new CapturedPunch($record, $punch);
         });
-    }
-
-    /**
-     * Which punch an untyped one is: the clock-out of a shift still open, or else
-     * a clock-in. A scanner that only knows "somebody punched" is read the way the
-     * person meant it — in, out, in, out — and a mistake is the day's anomaly to
-     * flag, not the device's punch to refuse.
-     */
-    public function inferType(Employee $employee, CarbonInterface $at): string
-    {
-        return $this->openShift($employee, CarbonImmutable::instance($at)->utc()) !== null ? 'clock_out' : 'clock_in';
     }
 
     /**
@@ -927,7 +900,7 @@ class AttendanceClock
     /**
      * Where a punch was: the nearest work location, the distance to it, and
      * whether it counted as on site ({@see GeofenceCheck}). Only a web or phone
-     * punch reports a position; a kiosk's or scanner's is where the device is.
+     * punch reports a position; HR's entry is placed nowhere.
      *
      * The facts are kept whatever the policy's mode, so a reviewer can always
      * see where somebody punched. The mode decides what they mean:
@@ -935,8 +908,8 @@ class AttendanceClock
      *  - `off` — nothing is flagged or refused.
      *  - `flag` — a punch not shown to be on site (outside, or with no position
      *    at all) is accepted, and the evaluator flags the day.
-     *  - `block` — such a punch from a person is refused, naming the nearest site
-     *    and how far off it was.
+     *  - `block` — such a punch is refused, naming the nearest site and how far
+     *    off it was.
      *
      * A company with no locations has nothing to check against, so nothing is.
      *
@@ -945,12 +918,12 @@ class AttendanceClock
      *
      * @throws AttendancePunchException
      */
-    private function place(Employee $employee, AttendancePolicySettings $policy, string $source, array $context, bool $enforce): array
+    private function place(Employee $employee, AttendancePolicySettings $policy, string $source, array $context): array
     {
         $unplaced = ['work_location_id' => null, 'distance_meters' => null, 'within_geofence' => null];
 
         if (! in_array($source, AttendancePunch::LOCATED_SOURCES, true)) {
-            return [...$unplaced, 'work_location_id' => isset($context['work_location_id']) ? (int) $context['work_location_id'] : null];
+            return $unplaced;
         }
 
         $locations = WorkLocation::fenceFor($employee);
@@ -971,7 +944,7 @@ class AttendanceClock
             // No position while the policy checks one: not shown to be on site.
             : [...$unplaced, 'within_geofence' => $policy->geofence === 'off' ? null : false];
 
-        if (! $enforce || $policy->geofence !== 'block' || $placement['within_geofence'] !== false) {
+        if ($policy->geofence !== 'block' || $placement['within_geofence'] !== false) {
             return $placement;
         }
 
@@ -981,19 +954,15 @@ class AttendanceClock
     }
 
     /**
-     * The punch already received under a sender's id, if there is one — a
-     * replaced one included, so a device resending a punch HR has since fixed
+     * The punch already received under a phone's id for it, if there is one — a
+     * replaced one included, so a phone resending a punch HR has since fixed
      * does not bring it back.
      */
-    private function alreadyReceived(Employee $employee, ?int $deviceId, string $externalId): ?CapturedPunch
+    private function alreadyReceived(Employee $employee, string $externalId): ?CapturedPunch
     {
         $punch = AttendancePunch::withTrashed()
+            ->where('employee_id', $employee->id)
             ->where('external_id', $externalId)
-            ->when(
-                $deviceId !== null,
-                fn ($query) => $query->where('attendance_device_id', $deviceId),
-                fn ($query) => $query->whereNull('attendance_device_id')->where('employee_id', $employee->id),
-            )
             ->first();
 
         $record = $punch?->record()->first();
@@ -1002,7 +971,7 @@ class AttendanceClock
     }
 
     /**
-     * "the web, a kiosk or the mobile app".
+     * "the web, the mobile app or entry by HR".
      *
      * @param  list<string>  $items
      */
