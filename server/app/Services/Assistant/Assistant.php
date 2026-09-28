@@ -4,6 +4,7 @@ namespace App\Services\Assistant;
 
 use App\Models\User;
 use App\Services\Assistant\Contracts\AssistantModule;
+use App\Services\Assistant\Contracts\ExplainsConsequences;
 use App\Services\Assistant\Retrieval\ContextBrief;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Security\PendingActions;
@@ -82,7 +83,7 @@ class Assistant
         'start', 'post', 'open', 'close', 'withdraw', 'assign', 'mark', 'send', 'make', 'rate', 'score',
         'submit', 'acknowledge', 'launch', 'sign', 'enroll', 'enrol', 'invite', 'give', 'award', 'recognise',
         'recognize', 'grade', 'drop', 'reschedule', 'offboard', 'complete', 'reopen', 'flag', 'clear', 'apply',
-        'rename', 'restore', 'nest',
+        'rename', 'restore', 'nest', 'declare', 'turn', 'enable', 'disable', 'require',
     ];
 
     /**
@@ -411,6 +412,12 @@ class Assistant
     {
         [$title, $details] = $this->describeCall($declaration, $tool, $args);
 
+        // What the call would reach, when the module can say: the card is only
+        // consent if it shows who a setting applies to, not just its new value.
+        $consequence = $module instanceof ExplainsConsequences
+            ? UntrustedText::clean($module->consequence($user, $tool, $args), UntrustedText::LINE)
+            : null;
+
         $token = $this->pending->hold($user, $turn->conversationId, $tool, $args, $title);
 
         return ToolResult::held('Waiting for your OK: '.$title, $reason, [
@@ -420,7 +427,7 @@ class Assistant
             'badge' => 'Needs your OK',
             'title' => $title,
             'subtitle' => $details,
-            'meta' => [$reason],
+            'meta' => array_values(array_filter([$consequence, $reason])),
             'avatar' => null,
             'id' => null,
             'confirmation' => [

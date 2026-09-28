@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\UpdateCompanyProfileRequest;
 use App\Models\Organization;
 use App\Queries\Setup\CompanyProfileScreen;
-use App\Support\ActivityLogger;
 use App\Support\Setup\CompanyProfileWriter;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
@@ -38,15 +37,7 @@ class CompanyProfileController extends Controller
     {
         $organization = $this->organization();
 
-        CompanyProfileWriter::apply($organization, $request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: 'Updated the company profile',
-            subject: $organization,
-            logName: 'company-setup',
-            subjectLabel: $organization->name,
-        );
+        CompanyProfileWriter::save($organization, $request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Company profile updated.']);
 

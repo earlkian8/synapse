@@ -20,7 +20,8 @@ import { MessageList } from './message-list';
 /**
  * Who sees the assistant: anyone with a module it can read for them — the
  * directory, leave, attendance, onboarding, offboarding, recruitment,
- * performance, training, awards, events, the org structure, or any block of the
+ * performance, training, awards, events, the org structure, the company
+ * profile, schedules and holidays, attendance policies, or any block of the
  * dashboard (reports follow the same module permissions). Self-service alone
  * does not open it: every turn spends model quota.
  */
@@ -37,6 +38,9 @@ const ASSISTANT_PERMISSIONS = [
     'awards.view',
     'events.view',
     'setup.departments.view',
+    'setup.company.view',
+    'setup.schedule.view',
+    'setup.attendance-policies.view',
     'activity-logs.view',
 ] as const;
 

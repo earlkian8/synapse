@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Models\User;
 use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Modules\AttendanceModule;
+use App\Services\Assistant\Modules\AttendancePoliciesModule;
 use App\Services\Assistant\Modules\AwardsModule;
+use App\Services\Assistant\Modules\CompanyProfileModule;
 use App\Services\Assistant\Modules\DashboardModule;
 use App\Services\Assistant\Modules\DepartmentsModule;
 use App\Services\Assistant\Modules\EmployeeModule;
@@ -16,6 +18,7 @@ use App\Services\Assistant\Modules\OnboardingModule;
 use App\Services\Assistant\Modules\PerformanceModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Modules\ReportsModule;
+use App\Services\Assistant\Modules\SchedulesModule;
 use App\Services\Assistant\Modules\TrainingModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
@@ -78,6 +81,9 @@ class AppServiceProvider extends ServiceProvider
             $app->make(OffboardingModule::class),
             $app->make(ReportsModule::class),
             $app->make(DepartmentsModule::class),
+            $app->make(CompanyProfileModule::class),
+            $app->make(SchedulesModule::class),
+            $app->make(AttendancePoliciesModule::class),
             $app->make(DashboardModule::class),
         ]);
 

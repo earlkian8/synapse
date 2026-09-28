@@ -6,10 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\SetDefaultScheduleRequest;
 use App\Http\Requests\Setup\WorkScheduleRequest;
 use App\Models\WorkSchedule;
-use App\Support\ActivityLogger;
-use App\Support\Attendance\SchedulePatternWriter;
 use App\Support\Hashid;
-use App\Support\Tenancy;
+use App\Support\Setup\WorkScheduleException;
+use App\Support\Setup\WorkScheduleWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
@@ -18,93 +17,49 @@ use Inertia\Inertia;
  * assigned to. Addressed by hashid; restore / force-delete take it as a string.
  * Archived rather than hard-deleted so assigned employees keep a schedule.
  *
- * A schedule's day pattern is written by {@see SchedulePatternWriter}, which also
- * keeps the pre-pattern summary columns true (ADR 0037). Thin controller.
+ * Thin controller: every write is {@see WorkScheduleWorkflow}, which the
+ * assistant uses too, and whose day pattern is written by the one pattern
+ * writer (ADR 0037).
  */
 class WorkScheduleController extends Controller
 {
-    public function __construct(private readonly SchedulePatternWriter $patterns) {}
+    public function __construct(private readonly WorkScheduleWorkflow $workflow) {}
 
     public function store(WorkScheduleRequest $request): RedirectResponse
     {
-        $schedule = WorkSchedule::create($request->safe()->except('days'));
-        $this->patterns->write($schedule, $request->array('days'));
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created work schedule \"{$schedule->name}\"",
-            subject: $schedule,
-            logName: 'company-setup',
-            subjectLabel: $schedule->name,
-        );
+        $this->workflow->create($request->safe()->except('days'), $request->array('days'));
 
         return $this->respond('Work schedule created.');
     }
 
     public function update(WorkScheduleRequest $request, WorkSchedule $workSchedule): RedirectResponse
     {
-        $workSchedule->update($request->safe()->except('days'));
-        $this->patterns->write($workSchedule, $request->array('days'));
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated work schedule \"{$workSchedule->name}\"",
-            subject: $workSchedule,
-            logName: 'company-setup',
-            subjectLabel: $workSchedule->name,
-        );
+        $this->workflow->update($workSchedule, $request->safe()->except('days'), $request->array('days'));
 
         return $this->respond('Work schedule updated.');
     }
 
     public function destroy(WorkSchedule $workSchedule): RedirectResponse
     {
-        $name = $workSchedule->name;
-        $workSchedule->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived work schedule \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->archive($workSchedule);
 
         return $this->respond('Work schedule archived.');
     }
 
     public function restore(string $workSchedule): RedirectResponse
     {
-        $model = $this->findTrashed($workSchedule);
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored work schedule \"{$model->name}\"",
-            subject: $model,
-            logName: 'company-setup',
-            subjectLabel: $model->name,
-        );
+        $this->workflow->restore($this->findTrashed($workSchedule));
 
         return $this->respond('Work schedule restored.');
     }
 
     public function forceDelete(string $workSchedule): RedirectResponse
     {
-        $model = $this->findTrashed($workSchedule);
-
-        if ($model->employees()->exists()) {
-            return $this->respond('This schedule is assigned to employees and cannot be permanently deleted.', 'warning');
+        try {
+            $this->workflow->forceDelete($this->findTrashed($workSchedule));
+        } catch (WorkScheduleException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $name = $model->name;
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted work schedule \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
 
         return $this->respond('Work schedule permanently deleted.');
     }
@@ -116,25 +71,11 @@ class WorkScheduleController extends Controller
      */
     public function setDefault(SetDefaultScheduleRequest $request): RedirectResponse
     {
-        $organization = app(Tenancy::class)->organization();
-
-        abort_if($organization === null, 403);
-
         $schedule = $request->filled('work_schedule_id')
             ? WorkSchedule::findOrFail($request->integer('work_schedule_id'))
             : null;
 
-        $organization->forceFill(['default_work_schedule_id' => $schedule?->id])->save();
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: $schedule !== null
-                ? "Set \"{$schedule->name}\" as the company's default schedule"
-                : "Cleared the company's default schedule",
-            subject: $schedule,
-            logName: 'company-setup',
-            subjectLabel: $schedule?->name ?? 'Work schedules',
-        );
+        $this->workflow->setDefault($schedule);
 
         return $this->respond($schedule !== null
             ? "\"{$schedule->name}\" is now the company default."

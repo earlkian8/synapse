@@ -66,6 +66,14 @@ permanently-delete (mirrors the KPI setup page):
   `HolidayResource` (+ derived `month`/`day`).
 - `App\Support\Attendance\SchedulePatternWriter` is the only writer of a template's
   cycle; it also refreshes the legacy summary columns.
+- **`App\Support\Setup\WorkScheduleWorkflow`** and **`HolidayWorkflow`** hold every
+  write, with the audit lines. The screen and the assistant both call them:
+  - a schedule and its pattern are written in one transaction;
+  - permanently deleting a schedule people are on throws `WorkScheduleException`,
+    which the screen shows as a warning toast;
+  - the pattern checks that span the form (one row per cycle day, a working day,
+    flexible core hours) are `WorkScheduleRequest::validatePattern()`, so a caller
+    with no request holds a pattern to the same rules.
 - `routes/setup.php` under the `schedule/…` prefix; every route gated.
 
 ### Integration — holidays make leave holiday-aware
@@ -93,6 +101,40 @@ holiday is an ordinary working day.
 > **Editing a schedule or adding a holiday does not change days already recorded.** HR
 > re-applies the current schedule from the attendance board when a past day should be
 > judged by the change.
+
+## The assistant
+
+`App\Services\Assistant\Modules\SchedulesModule` puts the calendar and the templates in
+the chat assistant ([ADR 0053](../decisions/0053-assistant-company-profile-schedules-and-attendance-policies.md)).
+
+- **Reads** (`setup.schedule.view`):
+  - `find_holidays`: the next twelve months by default, or a year, or a range of up to
+    two years. A yearly holiday is placed on each year the range spans; archived ones
+    on request;
+  - `find_work_schedules`;
+  - `get_work_schedule`: the pattern day by day, grace, weekly target, the policy it
+    names, how many are assigned and working it today, and which departments default
+    to it.
+- **Writes** (`setup.schedule.manage`), through the workflows and the screen's rules:
+  - `add_holiday` / `update_holiday`:
+    - dates are `YYYY-MM-DD`;
+    - a holiday of the same name on the same date is refused;
+    - two holidays of one name are told apart by `on`;
+    - a date already passed gets a note that recorded days keep their judgement;
+  - `restore_holiday`, `restore_work_schedule`;
+  - `create_work_schedule`: a weekly schedule with the same hours on each working day,
+    defaulting like the editor (480 required minutes; hours-only days keep 08:00–17:00).
+    A name another schedule has is refused;
+  - **`update_work_schedule`, `set_default_schedule`, `archive_work_schedule` and
+    `archive_holiday` always wait for Confirm.** Their cards say how many people work
+    the schedule today, whom the company default reaches, or which date becomes a
+    working day.
+- **Never flattened:** a rotation, a split shift, different hours on different days, or
+  start/end limits cannot be described by one set of hours. Their hours are refused and
+  pointed to this screen; a rename, grace or policy change still works.
+- **Screen-only:** permanent deletion.
+- **Retrieval:** "when is the next holiday?", "what are our working hours?" carry the
+  next holidays and the schedules before the model is called.
 
 ## Permissions
 

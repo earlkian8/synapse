@@ -7,14 +7,14 @@ use App\Http\Requests\Setup\AttendancePolicyPreviewRequest;
 use App\Http\Requests\Setup\AttendancePolicyRequest;
 use App\Models\AttendancePolicy;
 use App\Queries\Setup\AttendancePoliciesScreen;
-use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Attendance\WorkedExample;
 use App\Support\Hashid;
+use App\Support\Setup\AttendancePolicyException;
+use App\Support\Setup\AttendancePolicyWorkflow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,11 +27,14 @@ use Inertia\Response;
  * rather than hard-deleted, so a schedule or department that points at one keeps
  * resolving. Editing a policy never re-judges a day already recorded — HR
  * re-applies it from the attendance board when that is what they mean. Thin
- * controller: validation lives in {@see AttendancePolicyRequest}, the example in
+ * controller: validation lives in {@see AttendancePolicyRequest}, every write in
+ * {@see AttendancePolicyWorkflow} (which the assistant uses too), the example in
  * {@see WorkedExample}.
  */
 class AttendancePolicyController extends Controller
 {
+    public function __construct(private readonly AttendancePolicyWorkflow $workflow) {}
+
     public function index(Request $request, AttendancePoliciesScreen $screen): Response
     {
         return Inertia::render('setup/attendance-policies', $screen->toArray($request));
@@ -39,38 +42,14 @@ class AttendancePolicyController extends Controller
 
     public function store(AttendancePolicyRequest $request): RedirectResponse
     {
-        $policy = DB::transaction(function () use ($request): AttendancePolicy {
-            $policy = AttendancePolicy::create($request->policyAttributes());
-            $policy->enforceSingleDefault();
-
-            return $policy;
-        });
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created attendance policy \"{$policy->name}\"".($policy->is_default ? ' as the company default' : ''),
-            subject: $policy,
-            logName: 'company-setup',
-            subjectLabel: $policy->name,
-        );
+        $this->workflow->create($request->policyAttributes());
 
         return $this->respond('Attendance policy created.');
     }
 
     public function update(AttendancePolicyRequest $request, AttendancePolicy $attendancePolicy): RedirectResponse
     {
-        DB::transaction(function () use ($request, $attendancePolicy): void {
-            $attendancePolicy->update($request->policyAttributes());
-            $attendancePolicy->enforceSingleDefault();
-        });
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated attendance policy \"{$attendancePolicy->name}\"",
-            subject: $attendancePolicy,
-            logName: 'company-setup',
-            subjectLabel: $attendancePolicy->name,
-        );
+        $this->workflow->update($attendancePolicy, $request->policyAttributes());
 
         return $this->respond('Attendance policy updated. Days already recorded keep the rules they were judged by.');
     }
@@ -84,20 +63,7 @@ class AttendancePolicyController extends Controller
     {
         $making = ! $attendancePolicy->is_default;
 
-        DB::transaction(function () use ($attendancePolicy, $making): void {
-            $attendancePolicy->forceFill(['is_default' => $making])->save();
-            $attendancePolicy->enforceSingleDefault();
-        });
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: $making
-                ? "Set \"{$attendancePolicy->name}\" as the company's default attendance policy"
-                : "Cleared \"{$attendancePolicy->name}\" as the company's default attendance policy",
-            subject: $attendancePolicy,
-            logName: 'company-setup',
-            subjectLabel: $attendancePolicy->name,
-        );
+        $this->workflow->setDefault($attendancePolicy, $making);
 
         return $this->respond($making
             ? "\"{$attendancePolicy->name}\" is now the company default."
@@ -106,56 +72,29 @@ class AttendancePolicyController extends Controller
 
     public function destroy(AttendancePolicy $attendancePolicy): RedirectResponse
     {
-        $name = $attendancePolicy->name;
-
-        // An archived policy is no longer anybody's default; what points at it
-        // directly keeps resolving to it.
-        $attendancePolicy->forceFill(['is_default' => false])->save();
-        $attendancePolicy->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived attendance policy \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->archive($attendancePolicy);
 
         return $this->respond('Attendance policy archived.');
     }
 
     public function restore(string $attendancePolicy): RedirectResponse
     {
-        $model = $this->findTrashed($attendancePolicy);
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored attendance policy \"{$model->name}\"",
-            subject: $model,
-            logName: 'company-setup',
-            subjectLabel: $model->name,
-        );
+        try {
+            $this->workflow->restore($this->findTrashed($attendancePolicy));
+        } catch (AttendancePolicyException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         return $this->respond('Attendance policy restored.');
     }
 
     public function forceDelete(string $attendancePolicy): RedirectResponse
     {
-        $model = $this->findTrashed($attendancePolicy);
-
-        if ($model->isInUse()) {
-            return $this->respond('A schedule, department or assignment still uses this policy, so it cannot be permanently deleted.', 'warning');
+        try {
+            $this->workflow->forceDelete($this->findTrashed($attendancePolicy));
+        } catch (AttendancePolicyException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $name = $model->name;
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted attendance policy \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
 
         return $this->respond('Attendance policy permanently deleted.');
     }

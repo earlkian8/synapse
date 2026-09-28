@@ -37,6 +37,11 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'How is our org structure set up?',
         permission: 'setup.departments.view',
     },
+    { prompt: 'When is the next holiday?', permission: 'setup.schedule.view' },
+    {
+        prompt: 'How do our attendance rules handle overtime?',
+        permission: 'setup.attendance-policies.view',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',

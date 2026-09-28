@@ -61,30 +61,41 @@ class WorkScheduleRequest extends FormRequest
     public function after(): array
     {
         return [
-            function (Validator $validator): void {
-                if ($validator->errors()->isNotEmpty()) {
-                    return;
-                }
-
-                $days = (array) $this->input('days', []);
-
-                if (count($days) !== $this->integer('cycle_length_days')) {
-                    $validator->errors()->add('days', 'Give the pattern one row for each day of the cycle.');
-
-                    return;
-                }
-
-                $working = array_filter($days, fn ($day): bool => ! (bool) ($day['is_rest_day'] ?? false));
-
-                if ($working === []) {
-                    $validator->errors()->add('days', 'A schedule needs at least one working day.');
-                }
-
-                if ($this->input('type') === 'flexible') {
-                    $this->validateCoreWindows($validator, $working);
-                }
-            },
+            fn (Validator $validator) => self::validatePattern($validator, $this->all()),
         ];
+    }
+
+    /**
+     * The checks that span the pattern: one row per day of the cycle, at least
+     * one working day, and core hours on every working day of a flexible
+     * schedule. Static so a caller with no request — the assistant — holds a
+     * pattern to exactly these rules.
+     *
+     * @param  array<string, mixed>  $input  The schedule as submitted (after {@see prepareForValidation()}).
+     */
+    public static function validatePattern(Validator $validator, array $input): void
+    {
+        if ($validator->errors()->isNotEmpty()) {
+            return;
+        }
+
+        $days = (array) ($input['days'] ?? []);
+
+        if (count($days) !== (int) ($input['cycle_length_days'] ?? 0)) {
+            $validator->errors()->add('days', 'Give the pattern one row for each day of the cycle.');
+
+            return;
+        }
+
+        $working = array_filter($days, fn ($day): bool => ! (bool) ($day['is_rest_day'] ?? false));
+
+        if ($working === []) {
+            $validator->errors()->add('days', 'A schedule needs at least one working day.');
+        }
+
+        if (($input['type'] ?? null) === 'flexible') {
+            self::validateCoreWindows($validator, $working);
+        }
     }
 
     /**
@@ -93,7 +104,7 @@ class WorkScheduleRequest extends FormRequest
      *
      * @param  array<int, array<string, mixed>>  $working
      */
-    private function validateCoreWindows(Validator $validator, array $working): void
+    private static function validateCoreWindows(Validator $validator, array $working): void
     {
         foreach ($working as $index => $day) {
             if (($day['core_start'] ?? null) === null || ($day['core_end'] ?? null) === null) {

@@ -107,9 +107,19 @@ are whole minutes; "off" is `null`.
 | | `offline_window_hours` | 72 | How old a punch a phone queued offline may be when it arrives (1–720). Older is refused; HR enters it instead. |
 | | `max_clock_skew_minutes` | 10 | A phone's or device's clock further off than this is accepted and flagged `clock_skew` (1–1440). |
 
-Validation lives in `AttendancePolicyRequest` — `settingsRules()` for each field and
-`validateSettings()` for the ones that must agree — shared by the editor, the wizard and
-the worked example.
+Validation lives in `AttendancePolicyRequest` — `rulesFor(?AttendancePolicy)` for the
+policy, `settingsRules()` for each field and `validateSettings()` for the ones that must
+agree — shared by the editor, the wizard, the worked example and the assistant.
+
+Every write goes through **`App\Support\Setup\AttendancePolicyWorkflow`**: create,
+edit, set or clear the default, archive, restore, and permanently delete. The controller
+and the assistant both call it. Refusals are `AttendancePolicyException`, shown as they
+are:
+
+- a policy still named somewhere cannot be permanently deleted;
+- one whose name was given to another while it was archived cannot be restored.
+  Names are unique among live policies by validation only, so restoring used to leave
+  two of one name.
 
 ## Presets
 
@@ -202,7 +212,47 @@ assignment goes with that screen's own permission.
 
 ## Assistant
 
-No tools of its own. The retrieved brief about a person reports overtime and how much of
-it awaits approval, half days, night, rest-day and holiday minutes, breaks that ran over,
-and days punched away from the site or closed automatically. Exceptions are the
+`App\Services\Assistant\Modules\AttendancePoliciesModule`
+([ADR 0053](../decisions/0053-assistant-company-profile-schedules-and-attendance-policies.md)):
+
+- **Reads** (`setup.attendance-policies.view`):
+  - `find_attendance_policies`;
+  - `get_attendance_policy`: a policy, a preset or the built-in rules, group by group
+    in the editor's words (`Support\Attendance\PolicyDescription`, the server's copy
+    of `groupSummaries()`), with where it is named and how many people it judges
+    today;
+  - `get_worked_example`: the editor's worked example (`WorkedExample`), for "what
+    happens if someone clocks in at 8:20?". Nothing is written;
+  - `get_applicable_policy`: which policy judges a person on a date, and why. It
+    also needs `employees.view`, checked before the name is looked up.
+- **Writes** (`setup.attendance-policies.manage`):
+  - `create_attendance_policy` from a preset or the built-in rules, with typed
+    options adjusted. It judges nobody until named or made the default, so it does
+    not wait;
+  - `restore_attendance_policy`;
+  - **`update_attendance_policy`, `set_default_attendance_policy` and
+    `archive_attendance_policy` always wait for Confirm.** The card says how many
+    people the policy (or the company default) judges today, resolved by
+    `Support\Attendance\AttendanceCoverage` through the resolvers themselves. An
+    edit's reply lists each group that changed, old → new.
+- **Settings in chat:**
+  - lateness, undertime, rounding, breaks, overtime, missing clock-out, reminders
+    and night differential, as flat parameters validated by the request's own
+    rules;
+  - `0` turns off an optional threshold;
+  - `grace_from_schedule` and `overtime_after_required_hours` restore the two
+    "defer to the shift" values.
+- **Screen-only:**
+  - **capture** (sources, selfie, geofence, office networks, offline window, clock
+    skew), which reads summarise without the addresses;
+  - **punch windows**;
+  - **permanent deletion**.
+- **Names:** a name that differs from another policy's only in case is refused. The
+  editor's rule compares exactly.
+- **Retrieval:** "what are our attendance rules?", "what's our overtime policy?"
+  carry each policy's leading rules and how the one that applies is chosen.
+
+The retrieved brief about a person still reports overtime and how much of it awaits
+approval, half days, night, rest-day and holiday minutes, breaks that ran over, and days
+punched away from the site or closed automatically. Exceptions are the
 [attendance module's](./attendance.md#assistant) tools.

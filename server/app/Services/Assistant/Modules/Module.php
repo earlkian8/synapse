@@ -167,10 +167,16 @@ abstract class Module implements AssistantModule
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>  $rules
      * @param  array<string, string>  $messages  The request's own custom messages.
+     * @param  array<string, string>  $attributes  What a field is called in the message — the tool's parameter name rather than a nested key.
+     * @param  (callable(\Illuminate\Validation\Validator): void)|null  $after  The request's own cross-field checks.
      */
-    protected function invalid(array $data, array $rules, array $messages = []): ?string
+    protected function invalid(array $data, array $rules, array $messages = [], array $attributes = [], ?callable $after = null): ?string
     {
-        $validator = Validator::make($data, $rules, $messages);
+        $validator = Validator::make($data, $rules, $messages, $attributes);
+
+        if ($after !== null) {
+            $validator->after($after);
+        }
 
         return $validator->fails() ? (string) $validator->errors()->first() : null;
     }

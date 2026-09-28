@@ -287,6 +287,22 @@ test('a consequential write always waits, and the model’s own claim is discard
         ->and($turn['reply'])->toContain('needs your OK');
 });
 
+test('a held change says whom it reaches, before anybody confirms it', function () {
+    $user = actingAsSuperAdmin();
+    testOrganization()->forceFill(['timezone' => 'Asia/Manila'])->save();
+
+    $turn = withModel(scriptedModel([[
+        call('set_company_timezone', ['timezone' => 'America/New_York']),
+    ]]))->handle($user, 'set our time zone to new york');
+
+    $card = $turn['actions'][0];
+
+    expect(testOrganization()->fresh()->timezone)->toBe('Asia/Manila')
+        ->and($card['kind'])->toBe('confirm')
+        ->and($card['meta'][0])->toContain('From now on "today", lateness and every time shown follow America/New_York')
+        ->and($card['meta'][1])->toContain('always needs your OK');
+});
+
 test('at most three writes run in one turn', function () {
     $user = actingAsSuperAdmin();
     $people = collect(['Ana', 'Ben', 'Cara', 'Dan'])->map(fn (string $name): Employee => Employee::factory()->create(['first_name' => $name, 'last_name' => 'Test', 'phone' => null]));

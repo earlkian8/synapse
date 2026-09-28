@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Setup;
 
+use App\Models\AttendancePolicy;
 use App\Models\AttendancePunch;
 use App\Support\Attendance\AttendancePolicyPresets;
 use App\Support\Attendance\AttendancePolicySettings;
@@ -30,7 +31,18 @@ class AttendancePolicyRequest extends FormRequest
      */
     public function rules(): array
     {
-        $policy = $this->route('attendancePolicy');
+        return self::rulesFor($this->route('attendancePolicy'));
+    }
+
+    /**
+     * The rules for creating a policy (null) or editing this one — a name
+     * unique among the workspace's live policies, and the settings. Static so a
+     * caller with no route (the assistant) holds a policy to exactly these.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(?AttendancePolicy $policy): array
+    {
         $organization = app(Tenancy::class)->id();
 
         return [

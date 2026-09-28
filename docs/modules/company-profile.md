@@ -56,6 +56,10 @@ path to a public URL; `Organization::initials()` powers the avatar fallback.
 - Routes in `routes/setup.php` (`setup.company.edit` / `setup.company.update`). The update
   is a `POST` so the logo can be sent as multipart. Mutations are activity-logged
   (`logName: 'company-setup'`, like the other Company Setup screens).
+- **`CompanyProfileWriter::save()`** applies an edit and records it. The screen and the
+  assistant both call it; the wizard's first step calls `apply()` and records its own
+  line. A changed time zone is written into the audit line, old → new ("Updated the
+  company profile: time zone Asia/Manila → Europe/London").
 
 ## Permissions
 
@@ -73,6 +77,32 @@ Admin / Administrator get them via the all-permissions grant. The sidebar item i
 - **Seeding** — `OrganizationSeeder` backfills the demo tenant's profile (legal name,
   contact, employer numbers) when unset, so the screen isn't empty; idempotent, and it
   never overwrites a profile edited in-app.
+
+## The assistant
+
+`App\Services\Assistant\Modules\CompanyProfileModule` puts the profile in the chat
+assistant ([ADR 0053](../decisions/0053-assistant-company-profile-schedules-and-attendance-policies.md)).
+
+- **Reads** (`setup.company.view`): `get_company_profile` returns:
+  - the names and contact details;
+  - the time zone, with the time there now;
+  - whether a logo is on file;
+  - which statutory employer numbers are on file and which are missing;
+  - for those who manage the profile, whether joining by code is on.
+- **Writes** (`setup.company.manage`), through `CompanyProfileWriter::save()` and the
+  request's own rules:
+  - `update_company_profile`: display name, registered legal name, email, phone,
+    address; `clear` empties one;
+  - **`set_company_timezone` always waits for Confirm.** It takes a zone
+    ("Asia/Manila") or a city only one zone has ("singapore"), never an offset. Its
+    card shows the time there and on the current clock, and what moves.
+- **Deliberately screen-only:**
+  - **statutory numbers** are never read or written in chat. They are what payroll
+    remits against;
+  - the **join code** (a credential, ADR 0026) is never read, rotated or switched;
+  - the **logo**.
+- **Retrieval:** "what time zone are we on?", "what's our registered name?" carry the
+  profile before the model is called.
 
 ## Out of scope (this cut)
 
