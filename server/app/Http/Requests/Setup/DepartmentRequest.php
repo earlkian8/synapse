@@ -20,6 +20,19 @@ class DepartmentRequest extends FormRequest
     public function rules(): array
     {
         $department = $this->route('department');
+
+        return self::rulesFor($department instanceof Department ? $department : null);
+    }
+
+    /**
+     * The rules for creating a department (null) or updating the given one — the
+     * same rules wherever the change comes from, the assistant included, which has
+     * no route to read the department from.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(?Department $department): array
+    {
         $orgId = app(Tenancy::class)->id();
 
         $parentRule = ['nullable', 'integer', Rule::exists('departments', 'id')->where('organization_id', $orgId)->whereNull('deleted_at')];
@@ -63,8 +76,16 @@ class DepartmentRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         if ($this->has('code')) {
-            $this->merge(['code' => strtoupper(trim((string) $this->input('code')))]);
+            $this->merge(['code' => self::normaliseCode((string) $this->input('code'))]);
         }
+    }
+
+    /**
+     * A department code as it is stored: trimmed and upper-cased.
+     */
+    public static function normaliseCode(string $code): string
+    {
+        return strtoupper(trim($code));
     }
 
     /**

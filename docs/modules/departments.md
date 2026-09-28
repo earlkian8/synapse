@@ -42,7 +42,13 @@ department.
   remains as a JSON endpoint.
 - Requests `DepartmentRequest` (per-tenant unique `code` + cycle-safe `parent_id`) and
   `PositionRequest` (`salary_grade_max ≥ min`); resources `DepartmentResource`,
-  `PositionResource`; `DepartmentStatistics`.
+  `PositionResource`; `DepartmentStatistics`. The department rules are
+  `DepartmentRequest::rulesFor(?Department)`, so a caller with no route — the assistant
+  — gets the same unique-code and cycle guards.
+- **`App\Support\Setup\DepartmentWorkflow`** (with `DepartmentException`) is the one
+  path for every write: create, update, archive, restore (refused when the code was
+  taken meanwhile), permanently delete, and add / update / delete a position. Both
+  controllers are thin callers of it, and so is the assistant.
 - `routes/setup.php` (prefix `setup`, name `setup.*`). Departments are addressed by
   **hashid**; positions by numeric id. Restore / force-delete take the hashid as a plain
   string so they can resolve archived rows. Every route is permission-gated; mutations
@@ -70,6 +76,37 @@ on `setup.departments.view`.
 `setup.departments.view`, `setup.departments.manage`. Seeded to Super Admin /
 Administrator (both) and HR Manager (both).
 
+## The assistant
+
+`App\Services\Assistant\Modules\DepartmentsModule` puts the org structure in the chat
+assistant ([ADR 0052](../decisions/0052-assistant-departments-without-pay.md)).
+
+- **Reads** (`setup.departments.view`):
+  - `find_departments` (archived ones on request);
+  - `get_department` — head, where it sits in the tree, sub-departments, positions with
+    how many hold each, headcount, default schedule and attendance policy;
+  - `list_positions`;
+  - `org_structure_summary` — counts, the tree two levels deep, heads, and the gaps
+    (no head, nobody assigned).
+- **Writes** (`setup.departments.manage`), through `DepartmentWorkflow` and the
+  screen's own rules:
+  - `create_department` and `update_department` — name, code (upper-cased and unique),
+    parent (or top-level), head (or none) and description. A department cannot be
+    moved into its own subtree, and the reply uses the screen's words;
+  - `restore_department`;
+  - `add_position` (a title a department already has is refused) and
+    `update_position`;
+  - **`archive_department` and `delete_position` always wait for Confirm.** Their
+    replies say how many people stay assigned or lose their position.
+- **Deliberately screen-only:**
+  - **salary bands**, which are never read or set in chat: a band beside a person's
+    title estimates their pay (ADR 0027);
+  - a department's **default schedule and attendance policy**, since changing them
+    re-judges everyone's attendance;
+  - **permanent deletion**, which is irreversible and detaches everyone.
+- **Retrieval:** "how is our org structure set up?" carries the structure brief before
+  the model is called.
+
 ## Tests
 
 - `tests/Feature/Setup/DepartmentTest.php` — index + show render, create (code
@@ -77,6 +114,10 @@ Administrator (both) and HR Manager (both).
   update, the **cycle guard**, head assignment, archive/restore/force-delete + the
   restore code-clash guard, positions CRUD + salary-band validation, the authorization
   matrix, and tenant isolation.
+- `tests/Feature/Setup/DepartmentsAssistantTest.php` — the assistant: permissions and
+  confirmations, no salary band anywhere in its reads or tools, the read-out and the
+  structure brief, code rules, the cycle guard, heads, archive/restore, positions, and
+  tenant isolation.
 
 (The Feature suite needs `pdo_sqlite` / CI; the migration, queries, resources, the tree
 render, and every mutation path were validated against live Postgres.)

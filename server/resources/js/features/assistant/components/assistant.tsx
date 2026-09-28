@@ -17,12 +17,12 @@ import { Composer } from './composer';
 import { ConversationList } from './conversation-list';
 import { MessageList } from './message-list';
 
-/** Permissions that make at least part of the assistant useful. */
 /**
  * Who sees the assistant: anyone with a module it can read for them — the
- * directory, leave, attendance, onboarding, recruitment, performance, training,
- * awards, or any block of the dashboard. (Self-service alone does not open it: every turn
- * spends model quota.)
+ * directory, leave, attendance, onboarding, offboarding, recruitment,
+ * performance, training, awards, events, the org structure, or any block of the
+ * dashboard (reports follow the same module permissions). Self-service alone
+ * does not open it: every turn spends model quota.
  */
 const ASSISTANT_PERMISSIONS = [
     'employees.view',
@@ -36,6 +36,7 @@ const ASSISTANT_PERMISSIONS = [
     'training.view',
     'awards.view',
     'events.view',
+    'setup.departments.view',
     'activity-logs.view',
 ] as const;
 

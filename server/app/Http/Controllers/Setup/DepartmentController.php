@@ -7,15 +7,23 @@ use App\Http\Requests\Setup\DepartmentRequest;
 use App\Http\Resources\DepartmentResource;
 use App\Models\Department;
 use App\Queries\Setup\DepartmentsScreen;
-use App\Support\ActivityLogger;
 use App\Support\Hashid;
+use App\Support\Setup\DepartmentException;
+use App\Support\Setup\DepartmentWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * The org-structure board and its department writes. Every write goes through
+ * {@see DepartmentWorkflow} — the path the assistant takes too. Thin (route
+ * gates `setup.departments.view` / `setup.departments.manage`).
+ */
 class DepartmentController extends Controller
 {
+    public function __construct(private readonly DepartmentWorkflow $workflow) {}
+
     /**
      * Display the org-structure board: the department hierarchy + positions.
      */
@@ -44,15 +52,7 @@ class DepartmentController extends Controller
      */
     public function store(DepartmentRequest $request): RedirectResponse
     {
-        $department = Department::create($request->validated());
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created department \"{$department->name}\"",
-            subject: $department,
-            logName: 'company-setup',
-            subjectLabel: $department->name,
-        );
+        $this->workflow->create($request->validated());
 
         return $this->respond('Department created.');
     }
@@ -62,15 +62,7 @@ class DepartmentController extends Controller
      */
     public function update(DepartmentRequest $request, Department $department): RedirectResponse
     {
-        $department->update($request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated department \"{$department->name}\"",
-            subject: $department,
-            logName: 'company-setup',
-            subjectLabel: $department->name,
-        );
+        $this->workflow->update($department, $request->validated());
 
         return $this->respond('Department updated.');
     }
@@ -80,15 +72,7 @@ class DepartmentController extends Controller
      */
     public function destroy(Department $department): RedirectResponse
     {
-        $name = $department->name;
-        $department->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived department \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->archive($department);
 
         return $this->respond('Department archived.');
     }
@@ -98,25 +82,11 @@ class DepartmentController extends Controller
      */
     public function restore(string $department): RedirectResponse
     {
-        $model = $this->findTrashed($department);
-
-        // The per-tenant unique index ignores archived rows, so a code may have been
-        // reused while this one was archived — refuse rather than hit a DB error.
-        $clash = Department::where('code', $model->code)->whereKeyNot($model->id)->exists();
-
-        if ($clash) {
-            return $this->respond("Another department already uses the code \"{$model->code}\".", 'warning');
+        try {
+            $this->workflow->restore($this->findTrashed($department));
+        } catch (DepartmentException $e) {
+            return $this->respond($e->getMessage(), 'warning');
         }
-
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored department \"{$model->name}\"",
-            subject: $model,
-            logName: 'company-setup',
-            subjectLabel: $model->name,
-        );
 
         return $this->respond('Department restored.');
     }
@@ -127,16 +97,7 @@ class DepartmentController extends Controller
      */
     public function forceDelete(string $department): RedirectResponse
     {
-        $model = $this->findTrashed($department);
-        $name = $model->name;
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted department \"{$name}\"",
-            logName: 'company-setup',
-            subjectLabel: $name,
-        );
+        $this->workflow->forceDelete($this->findTrashed($department));
 
         return $this->respond('Department permanently deleted.');
     }

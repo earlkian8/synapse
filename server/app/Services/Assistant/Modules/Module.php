@@ -166,10 +166,11 @@ abstract class Module implements AssistantModule
      *
      * @param  array<string, mixed>  $data
      * @param  array<string, mixed>  $rules
+     * @param  array<string, string>  $messages  The request's own custom messages.
      */
-    protected function invalid(array $data, array $rules): ?string
+    protected function invalid(array $data, array $rules, array $messages = []): ?string
     {
-        $validator = Validator::make($data, $rules);
+        $validator = Validator::make($data, $rules, $messages);
 
         return $validator->fails() ? (string) $validator->errors()->first() : null;
     }

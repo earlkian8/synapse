@@ -6,26 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Setup\PositionRequest;
 use App\Models\Department;
 use App\Models\Position;
-use App\Support\ActivityLogger;
+use App\Support\Setup\DepartmentWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
+/**
+ * Positions under a department: add, edit, delete. The writes go through
+ * {@see DepartmentWorkflow}, the path the assistant takes too. Thin (route gate
+ * `setup.departments.manage`).
+ */
 class PositionController extends Controller
 {
+    public function __construct(private readonly DepartmentWorkflow $workflow) {}
+
     /**
      * Add a position under a department.
      */
     public function store(PositionRequest $request, Department $department): RedirectResponse
     {
-        $position = $department->positions()->create($request->validated());
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Added position \"{$position->title}\" to {$department->name}",
-            subject: $department,
-            logName: 'company-setup',
-            subjectLabel: $department->name,
-        );
+        $this->workflow->addPosition($department, $request->validated());
 
         return $this->respond('Position added.');
     }
@@ -35,15 +34,7 @@ class PositionController extends Controller
      */
     public function update(PositionRequest $request, Position $position): RedirectResponse
     {
-        $position->update($request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated position \"{$position->title}\"",
-            subject: $position,
-            logName: 'company-setup',
-            subjectLabel: $position->title,
-        );
+        $this->workflow->updatePosition($position, $request->validated());
 
         return $this->respond('Position updated.');
     }
@@ -53,15 +44,7 @@ class PositionController extends Controller
      */
     public function destroy(Position $position): RedirectResponse
     {
-        $title = $position->title;
-        $position->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Deleted position \"{$title}\"",
-            logName: 'company-setup',
-            subjectLabel: $title,
-        );
+        $this->workflow->deletePosition($position);
 
         return $this->respond('Position deleted.');
     }

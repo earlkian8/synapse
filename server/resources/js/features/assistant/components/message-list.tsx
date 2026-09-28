@@ -33,6 +33,10 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
     },
     { prompt: 'Who is on leave this week?', permission: 'leave.view' },
     { prompt: 'Any meetings coming up this week?', permission: 'events.view' },
+    {
+        prompt: 'How is our org structure set up?',
+        permission: 'setup.departments.view',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',

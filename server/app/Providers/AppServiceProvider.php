@@ -7,6 +7,7 @@ use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Modules\AttendanceModule;
 use App\Services\Assistant\Modules\AwardsModule;
 use App\Services\Assistant\Modules\DashboardModule;
+use App\Services\Assistant\Modules\DepartmentsModule;
 use App\Services\Assistant\Modules\EmployeeModule;
 use App\Services\Assistant\Modules\EventsModule;
 use App\Services\Assistant\Modules\LeaveModule;
@@ -76,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(EventsModule::class),
             $app->make(OffboardingModule::class),
             $app->make(ReportsModule::class),
+            $app->make(DepartmentsModule::class),
             $app->make(DashboardModule::class),
         ]);
 
