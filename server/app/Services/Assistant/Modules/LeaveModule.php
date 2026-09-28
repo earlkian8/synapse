@@ -132,8 +132,8 @@ class LeaveModule extends Module implements ContributesContext
 
     public function guidance(User $user): string
     {
-        $types = LeaveType::where('is_active', true)->orderBy('name')->get(['name', 'code'])
-            ->map(fn (LeaveType $t): string => "{$t->name} ({$t->code})")->implode(', ') ?: 'none';
+        $types = $this->catalog(LeaveType::where('is_active', true)->orderBy('name')->get(['name', 'code'])
+            ->map(fn (LeaveType $t): string => "{$t->name} ({$t->code})"));
 
         return <<<TXT
         LEAVE — time-off requests with an approval lifecycle (pending → approved/rejected, or cancelled).

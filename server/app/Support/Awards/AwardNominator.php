@@ -102,6 +102,19 @@ class AwardNominator
     }
 
     /**
+     * One award type's entry on the board — its profile and ranked shortlist —
+     * without scoring every other type.
+     *
+     * @return array<string, mixed>
+     */
+    public function for(AwardType $type): array
+    {
+        $employees = $this->activeEmployees();
+
+        return $this->nomination($type, $employees, $this->signals($employees->pluck('id')));
+    }
+
+    /**
      * Score one employee against one award type — the citation writer's input.
      *
      * @return array<string, mixed>|null

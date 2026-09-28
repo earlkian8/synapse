@@ -60,7 +60,7 @@ class TrainingController extends Controller
         return Inertia::render('training/show', [
             'program' => (new TrainingProgramResource($trainingProgram))->resolve($request),
             'enrollable' => $this->enrollableEmployees($trainingProgram),
-            'analytics' => $this->analytics($trainingProgram),
+            'analytics' => $trainingProgram->analytics(),
             'ai_available' => $insights->enabled(),
             'can' => $this->permissions($request),
         ]);
@@ -79,7 +79,7 @@ class TrainingController extends Controller
 
         $result = $insights->generate(
             $trainingProgram,
-            $this->analytics($trainingProgram),
+            $trainingProgram->analytics(),
             $this->rosterDigest($trainingProgram),
         );
 
@@ -137,38 +137,6 @@ class TrainingController extends Controller
                 'department' => $employee->department?->name,
             ])
             ->all();
-    }
-
-    /**
-     * Effectiveness analytics for one program, derived from its loaded roster:
-     * outcome counts, completion rate, average score and the at-risk headcount
-     * (still enrolled after the program has ended).
-     *
-     * @return array<string, int|float|null>
-     */
-    private function analytics(TrainingProgram $program): array
-    {
-        $enrollments = $program->enrollments;
-        $total = $enrollments->count();
-
-        $completed = $enrollments->where('status', 'completed')->count();
-        $dropped = $enrollments->where('status', 'dropped')->count();
-        $enrolled = $enrollments->where('status', 'enrolled')->count();
-
-        $scored = $enrollments->whereNotNull('score');
-        $hasEnded = $program->status() === 'completed';
-
-        return [
-            'total' => $total,
-            'completed' => $completed,
-            'dropped' => $dropped,
-            'enrolled' => $enrolled,
-            'completion_rate' => $total === 0 ? null : (int) round($completed / $total * 100),
-            'average_score' => $scored->isEmpty()
-                ? null
-                : round((float) $scored->avg(fn ($e): float => (float) $e->score), 1),
-            'at_risk' => $hasEnded ? $enrolled : 0,
-        ];
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Events;
 
 use App\Models\EventAttendee;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +23,7 @@ class EventAttendeeRequest extends FormRequest
 
         return [
             'employee_ids' => [Rule::requiredIf($inviting), 'array'],
-            'employee_ids.*' => ['integer', Rule::exists('employees', 'id')],
+            'employee_ids.*' => ['integer', TenantRule::exists('employees')],
             'response' => [Rule::requiredIf(! $inviting), Rule::in(EventAttendee::RESPONSES)],
         ];
     }

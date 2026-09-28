@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Events\EventRequest;
 use App\Models\Event;
 use App\Support\ActivityLogger;
+use App\Support\Events\EventWorkflow;
 use App\Support\Hashid;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,39 +17,22 @@ use Inertia\Inertia;
  * Manage events / meetings: create, edit, archive (soft delete), restore and
  * permanently delete. Created in-module (no Company-Setup config). Addressed by
  * hashid; restore / force-delete take it as a string. The creating user is recorded
- * as the organiser. Thin (route gate `events.manage`).
+ * as the organiser. Thin (route gate `events.manage`): scheduling, editing and
+ * archiving go through {@see EventWorkflow} — which reads the form's times as the
+ * organisation's wall clock — the path the assistant takes too.
  */
 class EventManagementController extends Controller
 {
-    public function store(EventRequest $request): RedirectResponse
+    public function store(EventRequest $request, EventWorkflow $workflow): RedirectResponse
     {
-        $event = Event::create([
-            ...$request->validated(),
-            'organizer_id' => $request->user()->id,
-        ]);
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Scheduled {$event->type} \"{$event->title}\"",
-            subject: $event,
-            logName: 'events',
-            subjectLabel: $event->title,
-        );
+        $workflow->schedule($request->validated(), $request->user());
 
         return $this->respond('Event scheduled.');
     }
 
-    public function update(EventRequest $request, Event $event): RedirectResponse
+    public function update(EventRequest $request, Event $event, EventWorkflow $workflow): RedirectResponse
     {
-        $event->update($request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated {$event->type} \"{$event->title}\"",
-            subject: $event,
-            logName: 'events',
-            subjectLabel: $event->title,
-        );
+        $workflow->update($event, $request->validated());
 
         return $this->respond('Event updated.');
     }
@@ -84,17 +68,9 @@ class EventManagementController extends Controller
         return redirect()->route('events.show', $copy);
     }
 
-    public function destroy(Event $event): RedirectResponse
+    public function destroy(Event $event, EventWorkflow $workflow): RedirectResponse
     {
-        $title = $event->title;
-        $event->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived event \"{$title}\"",
-            logName: 'events',
-            subjectLabel: $title,
-        );
+        $workflow->archive($event);
 
         // The event's own page no longer resolves (soft-deleted), so land on the
         // overview rather than back() into a 404.

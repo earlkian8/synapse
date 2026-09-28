@@ -137,8 +137,8 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
 
     public function guidance(User $user): string
     {
-        $cycles = EvaluationPeriod::query()->recentFirst()->limit(6)->get(['name', 'status'])
-            ->map(fn (EvaluationPeriod $p): string => "{$p->name} ({$p->status})")->implode(', ') ?: 'none';
+        $cycles = $this->catalog(EvaluationPeriod::query()->recentFirst()->limit(6)->get(['name', 'status'])
+            ->map(fn (EvaluationPeriod $p): string => "{$p->name} ({$p->status})"));
 
         $manage = $this->allows($user, 'performance.manage')
             ? <<<'TXT'
@@ -486,7 +486,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
      */
     private function openAppraisal(User $user, array $args): ToolResult
     {
-        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''));
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say whose appraisal.');
 
         if ($employee === null) {
             return ToolResult::error('Looked up the employee', $error);
@@ -733,35 +733,6 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
     // ── Resolution ───────────────────────────────────────────────────────────
 
     /**
-     * Exactly one employee for a name or number, or why not.
-     *
-     * @return array{0: Employee|null, 1: string}
-     */
-    private function resolveEmployee(string $needle): array
-    {
-        $needle = trim($needle);
-
-        if ($needle === '') {
-            return [null, 'Say whose appraisal.'];
-        }
-
-        // An employee number is exact.
-        $byNumber = Employee::query()->whereRaw('lower(employee_no) = ?', [Str::lower($needle)])->first();
-
-        if ($byNumber !== null) {
-            return [$byNumber, ''];
-        }
-
-        $matches = $this->matchByTokens(Employee::query(), $needle)->limit(2)->get();
-
-        return match ($matches->count()) {
-            0 => [null, 'No matching employee found.'],
-            1 => [$matches->first(), ''],
-            default => [null, 'More than one person matches “'.Str::limit($needle, 60).'”. Use their full name or employee number.'],
-        };
-    }
-
-    /**
      * The appraisal the arguments mean: the person's in the named cycle, else
      * their latest (in the given status, when the action needs one).
      *
@@ -770,7 +741,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
      */
     private function locateAppraisal(array $args, ?string $status = null): array
     {
-        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''));
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say whose appraisal.');
 
         if ($employee === null) {
             return [null, $error];

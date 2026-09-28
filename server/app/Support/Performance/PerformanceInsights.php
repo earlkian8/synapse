@@ -4,6 +4,7 @@ namespace App\Support\Performance;
 
 use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceScore;
+use App\Services\Assistant\Security\UntrustedText;
 use App\Support\Ai\GeminiClient;
 use App\Support\Ai\GeminiException;
 use App\Support\Recruitment\ApplicantInsights;
@@ -126,17 +127,17 @@ class PerformanceInsights
         $employee = $evaluation->employee;
         $lines = [];
 
-        $lines[] = 'EMPLOYEE: '.($employee?->full_name ?? 'Unknown');
+        $lines[] = 'EMPLOYEE: '.($this->trim($employee?->full_name) ?: 'Unknown');
         if ($employee?->relationLoaded('position') && $employee->position) {
-            $lines[] = 'ROLE: '.$employee->position->title;
+            $lines[] = 'ROLE: '.$this->trim($employee->position->title);
         }
         if ($employee?->relationLoaded('department') && $employee->department) {
-            $lines[] = 'DEPARTMENT: '.$employee->department->name;
+            $lines[] = 'DEPARTMENT: '.$this->trim($employee->department->name);
         }
 
         $lines[] = '';
-        $lines[] = 'REVIEW CYCLE: '.($evaluation->period?->name ?? 'Unknown cycle');
-        $lines[] = 'FRAMEWORK: '.($evaluation->template_name ?? 'Standard');
+        $lines[] = 'REVIEW CYCLE: '.($this->trim($evaluation->period?->name) ?: 'Unknown cycle');
+        $lines[] = 'FRAMEWORK: '.($this->trim($evaluation->template_name) ?: 'Standard');
         $lines[] = 'STATUS: '.$evaluation->status;
         $lines[] = 'OVERALL ATTAINMENT: '.($evaluation->overall_percent !== null
             ? number_format((float) $evaluation->overall_percent, 1).' / 100'
@@ -156,11 +157,11 @@ class PerformanceInsights
 
             foreach ($scores->groupBy('section_key') as $section) {
                 $first = $section->first();
-                $lines[] = '  ['.($first->section_name ?? 'Performance criteria')
+                $lines[] = '  ['.($this->trim($first->section_name) ?: 'Performance criteria')
                     .' — '.rtrim(rtrim((string) $first->section_weight, '0'), '.').'% of the appraisal]';
 
                 foreach ($section as $score) {
-                    $lines[] = '    - '.$score->label.' (weight '.rtrim(rtrim((string) $score->weight, '0'), '.').'%): '
+                    $lines[] = '    - '.$this->trim($score->label).' (weight '.rtrim(rtrim((string) $score->weight, '0'), '.').'%): '
                         .$this->displayScore($score)
                         .($score->remarks ? ' — '.$this->trim($score->remarks, 200) : '');
                 }
@@ -202,9 +203,14 @@ class PerformanceInsights
             : $formatted;
     }
 
-    private function trim(?string $value, int $limit): string
+    /**
+     * One digest value on one line: no control or invisible characters, no line
+     * breaks to forge a heading with, and a bounded length — remarks are typed
+     * by people, and the digest is read by a model.
+     */
+    private function trim(?string $value, int $limit = UntrustedText::FIELD): string
     {
-        return mb_strimwidth(trim((string) $value), 0, $limit, '…');
+        return UntrustedText::clean($value, $limit) ?? '';
     }
 
     /**

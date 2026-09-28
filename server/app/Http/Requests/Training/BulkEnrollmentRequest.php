@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Training;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,7 +24,7 @@ class BulkEnrollmentRequest extends FormRequest
         return [
             'action' => ['required', Rule::in(self::ACTIONS)],
             'enrollment_ids' => ['required', 'array', 'min:1'],
-            'enrollment_ids.*' => ['integer', Rule::exists('training_enrollments', 'id')],
+            'enrollment_ids.*' => ['integer', TenantRule::exists('training_enrollments')],
         ];
     }
 

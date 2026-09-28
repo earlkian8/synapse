@@ -7,37 +7,42 @@ use App\Http\Requests\Awards\EmployeeAwardRequest;
 use App\Models\AwardType;
 use App\Models\Employee;
 use App\Models\EmployeeAward;
-use App\Support\ActivityLogger;
+use App\Support\Awards\AwardException;
+use App\Support\Awards\AwardWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
 /**
  * Give and manage recognitions: award an employee, edit an award (type / date /
- * reason), or remove it. Thin (route gate `awards.manage`). The granting user is
+ * reason), or remove it. The rules live in {@see AwardWorkflow}, which the
+ * assistant uses too. Thin (route gate `awards.manage`). The granting user is
  * recorded as `awarded_by`.
  */
 class EmployeeAwardController extends Controller
 {
+    public function __construct(private readonly AwardWorkflow $workflow) {}
+
     /**
      * Give a recognition to an employee.
      */
     public function store(EmployeeAwardRequest $request): RedirectResponse
     {
-        $award = EmployeeAward::create([
-            ...$request->validated(),
-            'awarded_by' => $request->user()->id,
-        ]);
+        // Resolved through the models, so the tenant scope applies here as well
+        // as in the request's rules.
+        $employee = Employee::query()->findOrFail($request->validated('employee_id'));
+        $type = AwardType::query()->withTrashed()->findOrFail($request->validated('award_type_id'));
 
-        $employee = Employee::find($award->employee_id);
-        $type = AwardType::find($award->award_type_id);
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Recognised {$employee?->full_name} — {$type?->name}",
-            subject: $award,
-            logName: 'awards',
-            subjectLabel: $employee?->full_name,
-        );
+        try {
+            $this->workflow->give(
+                $employee,
+                $type,
+                $request->validated('awarded_on'),
+                $request->validated('reason'),
+                $request->user(),
+            );
+        } catch (AwardException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         return $this->respond('Recognition given.');
     }
@@ -47,15 +52,11 @@ class EmployeeAwardController extends Controller
      */
     public function update(EmployeeAwardRequest $request, EmployeeAward $employeeAward): RedirectResponse
     {
-        $employeeAward->update($request->safe()->except(['employee_id']));
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: 'Updated a recognition',
-            subject: $employeeAward,
-            logName: 'awards',
-            subjectLabel: $employeeAward->employee?->full_name,
-        );
+        try {
+            $this->workflow->revise($employeeAward, $request->safe()->except(['employee_id']));
+        } catch (AwardException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         return $this->respond('Recognition updated.');
     }
@@ -65,15 +66,7 @@ class EmployeeAwardController extends Controller
      */
     public function destroy(EmployeeAward $employeeAward): RedirectResponse
     {
-        $name = $employeeAward->employee?->full_name;
-        $employeeAward->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: 'Removed a recognition',
-            logName: 'awards',
-            subjectLabel: $name,
-        );
+        $this->workflow->remove($employeeAward);
 
         return $this->respond('Recognition removed.');
     }

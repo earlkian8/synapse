@@ -20,8 +20,8 @@ import { MessageList } from './message-list';
 /** Permissions that make at least part of the assistant useful. */
 /**
  * Who sees the assistant: anyone with a module it can read for them — the
- * directory, leave, attendance, onboarding, recruitment, performance, or any
- * block of the dashboard. (Self-service alone does not open it: every turn
+ * directory, leave, attendance, onboarding, recruitment, performance, training,
+ * awards, or any block of the dashboard. (Self-service alone does not open it: every turn
  * spends model quota.)
  */
 const ASSISTANT_PERMISSIONS = [
@@ -33,6 +33,8 @@ const ASSISTANT_PERMISSIONS = [
     'offboarding.view',
     'recruitment.view',
     'performance.view',
+    'training.view',
+    'awards.view',
     'events.view',
     'activity-logs.view',
 ] as const;
@@ -78,13 +80,15 @@ export function Assistant() {
         }
     }, [input, activeId]);
 
-    // Apply side effects (toasts + live refresh) for newly executed actions.
+    // Apply side effects (toasts + live refresh) for newly executed actions —
+    // never for a conversation opened from history, whose actions ran before.
     useEffect(() => {
         for (const message of messages) {
             if (
                 message.role !== 'assistant' ||
                 message.pending ||
                 message.failed ||
+                message.replayed ||
                 !message.actions?.length ||
                 processed.current.has(message.id)
             ) {

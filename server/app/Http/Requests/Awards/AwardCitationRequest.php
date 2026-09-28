@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Awards;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Ask the AI to draft a citation for one employee × one award type. Both must
@@ -17,8 +17,8 @@ class AwardCitationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
-            'award_type_id' => ['required', 'integer', Rule::exists('award_types', 'id')],
+            'employee_id' => ['required', 'integer', TenantRule::exists('employees')],
+            'award_type_id' => ['required', 'integer', TenantRule::exists('award_types')],
         ];
     }
 }

@@ -16,6 +16,7 @@ import {
     Search,
     ShieldCheck,
     Sparkles,
+    Trophy,
     UserPlus,
     X,
     XCircle,
@@ -48,6 +49,7 @@ const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
     hire: BadgeCheck,
     post: Megaphone,
     remind: BellRing,
+    award: Trophy,
     insight: Sparkles,
     confirm: ShieldCheck,
 };

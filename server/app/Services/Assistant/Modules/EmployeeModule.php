@@ -177,12 +177,12 @@ class EmployeeModule extends Module implements ContributesContext
             TXT;
         }
 
-        $departments = Department::orderBy('name')->get(['id', 'name'])
-            ->map(fn (Department $d): string => "#{$d->id} {$d->name}")->implode(', ') ?: 'none';
-        $positions = Position::orderBy('title')->get(['id', 'title'])
-            ->map(fn (Position $p): string => "#{$p->id} {$p->title}")->implode(', ') ?: 'none';
-        $schedules = WorkSchedule::orderBy('name')->get(['id', 'name'])
-            ->map(fn (WorkSchedule $s): string => "#{$s->id} {$s->name}")->implode(', ') ?: 'none';
+        $departments = $this->catalog(Department::orderBy('name')->get(['id', 'name'])
+            ->map(fn (Department $d): string => "#{$d->id} {$d->name}"));
+        $positions = $this->catalog(Position::orderBy('title')->get(['id', 'title'])
+            ->map(fn (Position $p): string => "#{$p->id} {$p->title}"));
+        $schedules = $this->catalog(WorkSchedule::orderBy('name')->get(['id', 'name'])
+            ->map(fn (WorkSchedule $s): string => "#{$s->id} {$s->name}"));
 
         return <<<TXT
         EMPLOYEES — the staff directory: answer questions about the workforce, and create, update and archive people (including extracting details from an attached CV/resume).

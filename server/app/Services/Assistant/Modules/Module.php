@@ -2,10 +2,14 @@
 
 namespace App\Services\Assistant\Modules;
 
+use App\Models\Employee;
 use App\Models\User;
 use App\Services\Assistant\Contracts\AssistantModule;
+use App\Services\Assistant\Security\UntrustedText;
 use App\Services\Assistant\ToolResult;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 /**
@@ -110,6 +114,67 @@ abstract class Module implements AssistantModule
     }
 
     /**
+     * A list of record names for a guidance fragment — "Leave types: …",
+     * "Review cycles: …".
+     *
+     * Guidance is the one place record text reaches the system instruction
+     * itself rather than the fenced data block, so every name is cleaned on the
+     * way in ({@see UntrustedText}): a department or a leave type named with a
+     * line break and a fake rule stays one inert item in a list.
+     *
+     * @param  iterable<mixed>  $names
+     */
+    protected function catalog(iterable $names, string $glue = ', ', int $max = 40): string
+    {
+        $clean = [];
+
+        foreach ($names as $name) {
+            $text = UntrustedText::clean(is_scalar($name) ? (string) $name : null, 80);
+
+            if ($text !== null) {
+                $clean[] = $text;
+            }
+
+            if (count($clean) >= $max) {
+                break;
+            }
+        }
+
+        return $clean === [] ? 'none' : implode($glue, $clean);
+    }
+
+    /**
+     * A calendar date the model passed, as "Y-m-d" — or null when it is not
+     * one. Only ISO dates are taken: "next Friday" is the model's to resolve
+     * against today's date, and a guess here would be a silent one.
+     */
+    protected function isoDate(mixed $value): ?string
+    {
+        $value = trim(is_scalar($value) ? (string) $value : '');
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m) !== 1) {
+            return null;
+        }
+
+        return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $value : null;
+    }
+
+    /**
+     * Check values against a screen's own validation rules, so what the form
+     * would refuse is refused here too, in the same words. The first problem,
+     * or null when there is none.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $rules
+     */
+    protected function invalid(array $data, array $rules): ?string
+    {
+        $validator = Validator::make($data, $rules);
+
+        return $validator->fails() ? (string) $validator->errors()->first() : null;
+    }
+
+    /**
      * Apply a token-aware search to a query whose model has a `search` scope, so
      * a multi-word name like "Jane Doe" matches first_name *and* last_name rather
      * than failing because no single column contains the whole string. Each token
@@ -129,6 +194,89 @@ abstract class Module implements AssistantModule
         }
 
         return $query;
+    }
+
+    /**
+     * Exactly one employee for a name or employee number, or why not.
+     *
+     * An employee number is exact. A name must pick out one person: when several
+     * match the words, the one whose name is exactly what was typed wins, and
+     * otherwise nobody does — nothing is done to "the first Maria".
+     *
+     * @return array{0: Employee|null, 1: string}
+     */
+    protected function resolveEmployee(string $needle, string $missing = 'Say who.'): array
+    {
+        $needle = trim($needle);
+
+        if ($needle === '') {
+            return [null, $missing];
+        }
+
+        $byNumber = Employee::query()->whereRaw('lower(employee_no) = ?', [Str::lower($needle)])->first();
+
+        if ($byNumber !== null) {
+            return [$byNumber, ''];
+        }
+
+        $matches = $this->matchByTokens(Employee::query(), $needle)->limit(10)->get();
+
+        if ($matches->count() > 1) {
+            $typed = Str::lower(preg_replace('/\s+/', ' ', $needle) ?? $needle);
+            $exact = $matches->filter(fn (Employee $e): bool => in_array($typed, [
+                Str::lower($e->full_name),
+                Str::lower(trim($e->first_name.' '.$e->last_name)),
+            ], true));
+
+            if ($exact->count() === 1) {
+                return [$exact->first(), ''];
+            }
+        }
+
+        return match ($matches->count()) {
+            0 => [null, 'No matching employee found.'],
+            1 => [$matches->first(), ''],
+            default => [null, 'More than one person matches “'.Str::limit($needle, 60).'”. Use their full name or employee number.'],
+        };
+    }
+
+    /**
+     * Every name in a list resolved to exactly one employee — or the first one
+     * that is not, and nobody. A list is acted on whole or not at all, so a
+     * typo never quietly leaves somebody out.
+     *
+     * @param  array<int, mixed>  $names
+     * @return array{0: Collection<int, Employee>|null, 1: string}
+     */
+    protected function resolveEmployees(array $names, int $max): array
+    {
+        $names = collect($names)
+            ->map(fn (mixed $name): string => trim(is_scalar($name) ? (string) $name : ''))
+            ->filter(fn (string $name): bool => $name !== '')
+            ->unique(fn (string $name): string => Str::lower($name))
+            ->values();
+
+        if ($names->isEmpty()) {
+            return [null, 'Say who.'];
+        }
+
+        if ($names->count() > $max) {
+            return [null, "At most {$max} people at a time here — use the screen for more."];
+        }
+
+        $employees = collect();
+
+        foreach ($names as $name) {
+            [$employee, $error] = $this->resolveEmployee($name);
+
+            if ($employee === null) {
+                return [null, '“'.Str::limit($name, 60).'”: '.$error];
+            }
+
+            $employees->put($employee->id, $employee);
+        }
+
+        return [$employees->values(), ''];
     }
 
     /**

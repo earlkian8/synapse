@@ -37,13 +37,15 @@ test('the tools on offer follow the blocks this user can see', function () {
 
     $hr = actingAsSuperAdmin();
 
-    expect(dashboardAgentTools($hr))->toContain('list_upcoming_events', 'get_recent_activity', 'get_attendance_trend');
+    expect(dashboardAgentTools($hr))->toContain('get_recent_activity', 'get_attendance_trend')
+        // Events are the Events module's to list; one tool per job.
+        ->not->toContain('list_upcoming_events');
 });
 
 test('every tool only reads', function () {
     $module = app(DashboardModule::class);
 
-    foreach (['get_workspace_overview', 'get_attention_queue', 'list_upcoming_events', 'get_recent_activity', 'get_attendance_trend'] as $tool) {
+    foreach (['get_workspace_overview', 'get_attention_queue', 'get_recent_activity', 'get_attendance_trend'] as $tool) {
         expect($module->isReadOnly($tool))->toBeTrue("{$tool} is not a read");
     }
 });
@@ -84,17 +86,6 @@ test('recent activity reads the audit trail, filtered and capped', function () {
 
     expect(count($all->cards))->toBeLessThanOrEqual(15)
         ->and(array_column($leave->cards, 'title'))->toBe(['Filed leave for Maria']);
-});
-
-test('upcoming events stay inside the window asked for', function () {
-    $user = actingAsSuperAdmin();
-
-    Event::create(['title' => 'Town hall', 'type' => 'meeting', 'starts_at' => now()->addDays(3)]);
-    Event::create(['title' => 'Year-end party', 'type' => 'celebration', 'starts_at' => now()->addDays(40)]);
-    Event::create(['title' => 'Last week', 'type' => 'meeting', 'starts_at' => now()->subDays(7)]);
-
-    expect(array_column(dashboardAgent($user, 'list_upcoming_events', ['days' => 7])->cards, 'title'))->toBe(['Town hall'])
-        ->and(dashboardAgent($user, 'list_upcoming_events', ['days' => 60])->cards)->toHaveCount(2);
 });
 
 test('an empty action queue says so plainly', function () {

@@ -3,7 +3,6 @@
 namespace App\Services\Assistant\Modules;
 
 use App\Models\ActivityLog;
-use App\Models\Event;
 use App\Models\User;
 use App\Queries\DashboardOverview;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
@@ -78,7 +77,6 @@ class DashboardModule extends Module implements ContributesTopicContext
         return [
             'get_workspace_overview' => 'overview',
             'get_attention_queue' => 'attention',
-            'list_upcoming_events' => 'events',
             'get_recent_activity' => 'activity',
             'get_attendance_trend' => 'trend',
         ];
@@ -87,7 +85,6 @@ class DashboardModule extends Module implements ContributesTopicContext
     protected function permissionMap(): array
     {
         return [
-            'list_upcoming_events' => 'events.view',
             'get_recent_activity' => 'activity-logs.view',
             'get_attendance_trend' => 'attendance.view',
         ];
@@ -118,7 +115,7 @@ class DashboardModule extends Module implements ContributesTopicContext
         return <<<TXT
         DASHBOARD — the workspace at a glance, exactly as this user's home dashboard shows it (visible blocks: {$blocks}). Read-only.
         - A general question ("how are we doing today?", "catch me up") is usually answered by the retrieved workspace context already — do not call a tool for what it contains.
-        - get_workspace_overview reads one block (or all) in detail; get_attention_queue lists what currently needs this user's action; list_upcoming_events, get_recent_activity (the audit trail) and get_attendance_trend (the last 14 days) are there when asked for specifically.
+        - get_workspace_overview reads one block (or all) in detail; get_attention_queue lists what currently needs this user's action; get_recent_activity (the audit trail) and get_attendance_trend (the last 14 days) are there when asked for specifically. Events have their own tools.
         TXT;
     }
 
@@ -144,16 +141,6 @@ class DashboardModule extends Module implements ContributesTopicContext
                 'name' => 'get_attention_queue',
                 'description' => 'What currently needs this user\'s action across modules: leave to review, overdue onboarding tasks, flagged clearance items, upcoming interviews.',
                 'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass],
-            ],
-            [
-                'name' => 'list_upcoming_events',
-                'description' => 'Upcoming events and meetings.',
-                'parameters' => [
-                    'type' => 'OBJECT',
-                    'properties' => [
-                        'days' => ['type' => 'INTEGER', 'description' => 'How many days ahead to look (1–60). Defaults to 14.'],
-                    ],
-                ],
             ],
             [
                 'name' => 'get_recent_activity',
@@ -211,7 +198,7 @@ class DashboardModule extends Module implements ContributesTopicContext
             $lines[] = 'Next events: '.collect($overview['events'])->take(3)->map(fn (array $event): string => sprintf(
                 '%s (%s)',
                 Str::limit((string) $event['title'], 60),
-                $event['starts_at'] ? Carbon::parse($event['starts_at'])->format('D M j, g:ia') : 'date not set',
+                $event['starts_at'] ? OrganizationClock::local(Carbon::parse($event['starts_at']))->format('D M j, g:ia') : 'date not set',
             ))->implode('; ').'.';
         }
 
@@ -298,33 +285,6 @@ class DashboardModule extends Module implements ContributesTopicContext
         ), $items);
 
         return ToolResult::found('Checked what needs you', count($cards).' '.Str::plural('item', count($cards)), $cards);
-    }
-
-    /**
-     * @param  array<string, mixed>  $args
-     */
-    private function events(User $user, array $args): ToolResult
-    {
-        $days = max(1, min(60, (int) ($args['days'] ?? 14)));
-
-        $cards = Event::query()
-            ->where('starts_at', '>=', now())
-            ->where('starts_at', '<=', now()->addDays($days))
-            ->orderBy('starts_at')
-            ->limit(self::MAX_ROWS)
-            ->get(['id', 'title', 'type', 'starts_at', 'location'])
-            ->map(fn (Event $event): array => $this->card(
-                kind: 'find',
-                tone: 'info',
-                badge: Str::headline((string) $event->type),
-                title: (string) $event->title,
-                subtitle: $event->starts_at?->format('D M j, g:ia'),
-                meta: [$event->location],
-                id: $event->id,
-            ))
-            ->all();
-
-        return ToolResult::found("Listed events in the next {$days} days", count($cards).' found', $cards);
     }
 
     /**

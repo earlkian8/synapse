@@ -88,6 +88,38 @@ class TrainingProgram extends Model
     }
 
     /**
+     * Effectiveness analytics, derived from the roster: outcome counts, the
+     * completion rate, the average score and the at-risk headcount (still
+     * enrolled after the program has ended). Uses the loaded `enrollments` when
+     * present — the program screen loads them anyway — and loads them otherwise.
+     *
+     * @return array{total: int, completed: int, dropped: int, enrolled: int, completion_rate: int|null, average_score: float|null, at_risk: int}
+     */
+    public function analytics(): array
+    {
+        $enrollments = $this->enrollments;
+        $total = $enrollments->count();
+
+        $completed = $enrollments->where('status', 'completed')->count();
+        $dropped = $enrollments->where('status', 'dropped')->count();
+        $enrolled = $enrollments->where('status', 'enrolled')->count();
+
+        $scored = $enrollments->whereNotNull('score');
+
+        return [
+            'total' => $total,
+            'completed' => $completed,
+            'dropped' => $dropped,
+            'enrolled' => $enrolled,
+            'completion_rate' => $total === 0 ? null : (int) round($completed / $total * 100),
+            'average_score' => $scored->isEmpty()
+                ? null
+                : round((float) $scored->avg(fn (TrainingEnrollment $e): float => (float) $e->score), 1),
+            'at_risk' => $this->status() === 'completed' ? $enrolled : 0,
+        ];
+    }
+
+    /**
      * Newest / soonest programs first.
      *
      * @param  Builder<TrainingProgram>  $query

@@ -79,7 +79,12 @@ assistant. It is read-only ([ADR 0049](../decisions/0049-assistant-prompt-inject
 - **Tools:**
   - `get_workspace_overview` — one block, or all;
   - `get_attention_queue`;
-  - `list_upcoming_events` (`events.view`) — within 1–60 days;
   - `get_recent_activity` (`activity-logs.view`) — filtered by area, capped at 15;
   - `get_attendance_trend` (`attendance.view`).
+
+  Events are listed by the Events module's own `find_events` (see
+  [Events](./events.md#the-assistant)). The dashboard used to carry a
+  `list_upcoming_events` of its own; two tools for one job cost tokens on every turn
+  and gave the model a choice it did not need.
+- **Event times in the brief are the office's wall clock**, not UTC.
 

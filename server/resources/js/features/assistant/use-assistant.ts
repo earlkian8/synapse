@@ -83,7 +83,14 @@ export function useAssistant() {
 
             try {
                 const detail = await api.getConversation(id);
-                setMessages(detail.messages.map(serverMessageToChat));
+                // What a stored conversation did has already happened; opening
+                // it again must not re-announce it (or reload the page).
+                setMessages(
+                    detail.messages.map((m) => ({
+                        ...serverMessageToChat(m),
+                        replayed: true,
+                    })),
+                );
             } catch {
                 setMessages([]);
             } finally {

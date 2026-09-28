@@ -41,7 +41,49 @@ types still render on the past awards that used them.
 `setup.award-types.view` / `setup.award-types.manage` (the configuration surface).
 Built-in **HR Manager** gets all of them. The granting user is recorded on each award.
 
+## Where the rules live
+
+`App\Support\Awards\AwardWorkflow` is the one path that gives, revises or takes back
+a recognition, for the screens and the assistant alike. It refuses, in words shown as
+they are (`AwardException`):
+
+- **an award type that is no longer given out** (inactive or archived). An award that
+  already has such a type keeps it and can still be edited; only giving it anew, or
+  switching an award to it, is refused;
+- **a date in the future, by the organisation's calendar.** The form's own rule uses
+  the organisation's today too. Before, a Manila morning award could be refused as
+  "in the future" because UTC was still on yesterday.
+
+The employee and award-type ids are validated against the current workspace
+(`TenantRule`). Before, another organisation's id passed validation and was stored.
+
+## The assistant
+
+`App\Services\Assistant\Modules\AwardsModule` puts recognition in the chat
+assistant ([ADR 0050](../decisions/0050-assistant-training-awards-and-events.md)).
+
+- **Reads** (`awards.view`):
+  - `find_awards` — by person, award type, and since a date;
+  - `list_award_types` — the catalogue, active or retired, with how often each was
+    given;
+  - `awards_summary` — the feed's tiles, the latest awards and the most-given types.
+- **The nomination board** (`get_award_nominees`) needs `awards.manage`, as the board
+  does, because it ranks people against each other. It is `AwardNominator`'s own
+  ranking, breakdown and repeat-winner flag included. `AwardNominator::for()` scores
+  one award type without scoring the rest.
+- **Writes** (`awards.manage`), all through `AwardWorkflow`:
+  - `give_award` — the date defaults to the organisation's today;
+  - `update_award` — an award is identified by its person, and by its type or date
+    when they have several. It is never "the latest one" by guess;
+  - `remove_award` always waits for the user's **Confirm**.
+- **Retrieval:**
+  - a question about a person carries their recognitions with the citations. One's
+    **own** recognitions need no permission, since the mobile app already shows them
+    to their owner;
+  - a question about recognition that names nobody carries the feed. For
+    `awards.manage`, it also carries the front-runner for each award type.
+
 ## Out of scope (this cut)
 
-Nomination / approval workflows, points & reward redemption, peer-to-peer kudos,
-public recognition feeds for non-HR users, and an assistant capability.
+Nomination / approval workflows, points & reward redemption, peer-to-peer kudos, and
+public recognition feeds for non-HR users.

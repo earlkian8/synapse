@@ -83,6 +83,16 @@ class OrganizationClock
     }
 
     /**
+     * A date-time somebody typed — a form's `datetime-local` value, "2026-10-02
+     * 14:00" — read as the organisation's wall clock and returned as the UTC
+     * instant it names. A value that carries its own offset keeps it.
+     */
+    public static function parse(string $wallClock): CarbonImmutable
+    {
+        return CarbonImmutable::parse($wallClock, self::timezone())->utc();
+    }
+
+    /**
      * Every zone an organisation may keep.
      *
      * PHP's canonical list: backward-compatible aliases such as "Asia/Calcutta"

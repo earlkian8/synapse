@@ -256,13 +256,13 @@ class RecruitmentModule extends Module implements ContributesContext
 
     public function guidance(User $user): string
     {
-        $departments = Department::orderBy('name')->pluck('name')->implode(', ') ?: 'none';
-        $positions = Position::orderBy('title')->pluck('title')->implode(', ') ?: 'none';
+        $departments = $this->catalog(Department::orderBy('name')->pluck('name'));
+        $positions = $this->catalog(Position::orderBy('title')->pluck('title'));
         $postingTypes = implode(', ', StoreJobPostingRequest::EMPLOYMENT_TYPES);
         $sources = implode(', ', StoreApplicantRequest::SOURCES);
         $defaultPipeline = $this->defaultPipeline();
-        $stages = $defaultPipeline ? $defaultPipeline->stages->pluck('name')->implode(' → ') : null;
-        $movable = $defaultPipeline ? $defaultPipeline->stages->where('kind', 'open')->pluck('name')->implode(', ') : null;
+        $stages = $defaultPipeline ? $this->catalog($defaultPipeline->stages->pluck('name'), ' → ') : null;
+        $movable = $defaultPipeline ? $this->catalog($defaultPipeline->stages->where('kind', 'open')->pluck('name')) : null;
 
         $lines = [
             $stages

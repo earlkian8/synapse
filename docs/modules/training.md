@@ -47,8 +47,52 @@ when an enrollment is marked completed and cleared otherwise.
 `training.view` (overview & rosters), `training.manage` (create / edit / archive
 programs, enroll, grade, remove enrollments). Built-in **HR Manager** gets both.
 
+## Where the rules live
+
+`App\Support\Training\TrainingWorkflow` is the one path that changes a program or
+its roster: create, edit and archive a program; enroll (eligibility and capacity,
+reported through `EnrollmentOutcome`); grade (status / score / remarks, with
+`completed_at` following the status); bulk actions; remove. Both controllers are thin
+callers of it, and so is the assistant, so the toasts and the rules are the same
+however a change arrives. A program's effectiveness figures are
+`TrainingProgram::analytics()`, shared by the program screen, the AI read and the
+assistant.
+
+Enrollment ids are validated against the current workspace (`TenantRule`), so an id
+from another organisation is a validation error rather than a silent skip.
+
+## The assistant
+
+`App\Services\Assistant\Modules\TrainingModule` puts training in the chat assistant
+([ADR 0050](../decisions/0050-assistant-training-awards-and-events.md)).
+
+- **Reads** (`training.view`):
+  - `find_training_programs` — by name or provider, and by derived status;
+  - `get_training_program` — schedule, seats, the outcome counts, the average score,
+    and by name who is still enrolled after the program ended and who dropped;
+  - `find_training_enrollments` — one person's trainings, or one program's roster;
+  - `training_summary` — the overview: programs by status, people enrolled,
+    completions in the last year, and ended programs with people still enrolled.
+- **Writes** (`training.manage`), all through `TrainingWorkflow`:
+  - `create_training_program` and `update_training_program` — the values are checked
+    against `TrainingProgramRequest`'s own rules. An update is checked as the whole
+    program would be, so moving only the end date is still checked against the start.
+    A capacity of 0 removes the cap. A name that already exists is refused, so a
+    repeated request does not make a second program;
+  - `enroll_in_training` — up to 25 people by name. Every name must resolve to exactly
+    one person, or nobody is enrolled;
+  - `update_training_enrollment` — status, score (0–100) or remarks;
+  - `remove_from_training` (the person's score and remarks go with them) and
+    `archive_training_program` always wait for the user's **Confirm**.
+- **Retrieval:**
+  - a question about a person carries their enrollments and how each ended;
+  - a question about training that names nobody ("how are our trainings going?")
+    carries the overview.
+- **No self-service.** As on the screens, training needs `training.view`, including
+  one's own.
+
 ## Out of scope (this cut)
 
 Per-session calendars & attendance, certificates and expiry tracking, training
-budgets / cost, training-needs analysis from performance gaps, employee self-enrollment,
-and an assistant capability.
+budgets / cost, training-needs analysis from performance gaps, and employee
+self-enrollment.

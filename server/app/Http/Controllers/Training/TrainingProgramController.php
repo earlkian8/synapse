@@ -7,6 +7,7 @@ use App\Http\Requests\Training\TrainingProgramRequest;
 use App\Models\TrainingProgram;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
+use App\Support\Training\TrainingWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
@@ -14,51 +15,28 @@ use Inertia\Inertia;
  * Manage training programs: create, edit, archive (soft delete), restore and
  * permanently delete. Created in-module (no Company-Setup config). Addressed by
  * hashid; restore / force-delete take it as a string. Thin (route gate
- * `training.manage`).
+ * `training.manage`): create, edit and archive go through
+ * {@see TrainingWorkflow}, the path the assistant takes too.
  */
 class TrainingProgramController extends Controller
 {
-    public function store(TrainingProgramRequest $request): RedirectResponse
+    public function store(TrainingProgramRequest $request, TrainingWorkflow $workflow): RedirectResponse
     {
-        $program = TrainingProgram::create($request->validated());
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created training program \"{$program->name}\"",
-            subject: $program,
-            logName: 'training',
-            subjectLabel: $program->name,
-        );
+        $workflow->create($request->validated());
 
         return $this->respond('Training program created.');
     }
 
-    public function update(TrainingProgramRequest $request, TrainingProgram $trainingProgram): RedirectResponse
+    public function update(TrainingProgramRequest $request, TrainingProgram $trainingProgram, TrainingWorkflow $workflow): RedirectResponse
     {
-        $trainingProgram->update($request->validated());
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated training program \"{$trainingProgram->name}\"",
-            subject: $trainingProgram,
-            logName: 'training',
-            subjectLabel: $trainingProgram->name,
-        );
+        $workflow->update($trainingProgram, $request->validated());
 
         return $this->respond('Training program updated.');
     }
 
-    public function destroy(TrainingProgram $trainingProgram): RedirectResponse
+    public function destroy(TrainingProgram $trainingProgram, TrainingWorkflow $workflow): RedirectResponse
     {
-        $name = $trainingProgram->name;
-        $trainingProgram->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived training program \"{$name}\"",
-            logName: 'training',
-            subjectLabel: $name,
-        );
+        $workflow->archive($trainingProgram);
 
         // The program's own page no longer resolves (soft-deleted), so land on the
         // overview rather than back() into a 404.

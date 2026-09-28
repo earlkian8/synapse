@@ -44,6 +44,8 @@ export type AgentCardKind =
     | 'post'
     /** Someone was chased about outstanding work. */
     | 'remind'
+    /** Someone was recognised with an award. */
+    | 'award'
     /** A read-out rather than a change: a summary, a ranking, an AI read. */
     | 'insight'
     /** An action held until the user confirms or cancels it. */
@@ -102,6 +104,8 @@ export type ChatMessage = {
     pending?: boolean;
     /** The assistant reply should reveal progressively (simulated streaming). */
     streaming?: boolean;
+    /** Loaded from history: its actions ran in an earlier session. */
+    replayed?: boolean;
     createdAt?: string | null;
 };
 

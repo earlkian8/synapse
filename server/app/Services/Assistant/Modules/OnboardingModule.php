@@ -187,12 +187,11 @@ class OnboardingModule extends Module implements ContributesContext
 
     public function guidance(User $user): string
     {
-        $programs = OnboardingProgram::where('is_active', true)
+        $programs = $this->catalog(OnboardingProgram::where('is_active', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['name', 'is_default'])
-            ->map(fn (OnboardingProgram $p): string => $p->name.($p->is_default ? ' (default)' : ''))
-            ->implode(', ') ?: 'none';
+            ->map(fn (OnboardingProgram $p): string => $p->name.($p->is_default ? ' (default)' : '')));
 
         $categories = implode(', ', OnboardingTask::CATEGORIES);
         $taskStatuses = implode(', ', OnboardingTask::STATUSES);

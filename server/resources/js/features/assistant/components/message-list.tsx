@@ -1,18 +1,44 @@
 import { ArrowDown, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ChatMessage } from '../types';
 import type { AnswerAction } from './agent-activity';
 import { MessageItem } from './message-item';
 
-const SUGGESTIONS = [
-    'How are we doing today?',
-    'How is the review cycle going?',
-    'Add a new employee',
-    'File sick leave for someone tomorrow',
-    'Move a candidate to the interview stage',
-    'Who is on leave this week?',
+/**
+ * Starting points, each shown only to someone who could actually do it — a
+ * suggestion that ends in "you don't have permission" is worse than none.
+ */
+const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
+    { prompt: 'How are we doing today?', permission: null },
+    {
+        prompt: 'How is the review cycle going?',
+        permission: 'performance.view',
+    },
+    { prompt: 'Who is on leave this week?', permission: 'leave.view' },
+    {
+        prompt: 'What trainings are running right now?',
+        permission: 'training.view',
+    },
+    { prompt: 'Any meetings coming up this week?', permission: 'events.view' },
+    {
+        prompt: 'Who is leading for Employee of the Month?',
+        permission: 'awards.manage',
+    },
+    { prompt: 'Add a new employee', permission: 'employees.create' },
+    {
+        prompt: 'File sick leave for someone tomorrow',
+        permission: 'leave.manage',
+    },
+    {
+        prompt: 'Move a candidate to the interview stage',
+        permission: 'recruitment.manage-pipeline',
+    },
 ];
+
+/** How many suggestions the empty state offers at most. */
+const MAX_SUGGESTIONS = 6;
 
 export function MessageList({
     messages,
@@ -140,6 +166,11 @@ export function MessageList({
 }
 
 function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
+    const { can } = usePermissions();
+    const suggestions = SUGGESTIONS.filter(
+        ({ permission }) => permission === null || can(permission),
+    ).slice(0, MAX_SUGGESTIONS);
+
     return (
         <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-[#0F2044] text-[#0ABFBF] ring-1 ring-border">
@@ -148,13 +179,14 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
             <div>
                 <p className="text-sm font-semibold">How can I help?</p>
                 <p className="mx-auto mt-1 max-w-[280px] text-xs text-muted-foreground">
-                    I can manage employees, leave, onboarding and recruitment
-                    for you. Describe what you need, or drop in a CV and I'll
-                    take it from there.
+                    I can answer questions about your workspace and take care of
+                    HR work, from leave and hiring to appraisals, training,
+                    awards and events. Describe what you need, or drop in a CV
+                    and I'll take it from there.
                 </p>
             </div>
             <div className="mt-1 flex flex-col items-stretch gap-1.5 self-stretch">
-                {SUGGESTIONS.map((prompt) => (
+                {suggestions.map(({ prompt }) => (
                     <button
                         key={prompt}
                         type="button"

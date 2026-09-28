@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Training;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Enroll one or more employees into a training program in a single action. Only
@@ -21,7 +21,7 @@ class EnrollEmployeesRequest extends FormRequest
     {
         return [
             'employee_ids' => ['required', 'array', 'min:1'],
-            'employee_ids.*' => ['integer', Rule::exists('employees', 'id')],
+            'employee_ids.*' => ['integer', TenantRule::exists('employees')],
         ];
     }
 

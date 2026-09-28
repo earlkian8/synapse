@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Events;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Response;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -39,18 +39,22 @@ class EventIcsController extends Controller
         ]);
     }
 
-    /** iCalendar UTC timestamp: 20260616T063000Z. */
-    private function utc(Carbon $moment): string
+    /** iCalendar UTC timestamp: 20260616T063000Z. Dates are immutable app-wide. */
+    private function utc(CarbonInterface $moment): string
     {
         return $moment->clone()->utc()->format('Ymd\THis\Z');
     }
 
-    /** Escape iCalendar text values (RFC 5545 §3.3.11). */
+    /**
+     * Escape iCalendar text values (RFC 5545 §3.3.11). Every line break — a lone
+     * CR included, which some readers treat as one — becomes a literal "\n", so a
+     * title can never start a property of its own.
+     */
     private function escape(string $value): string
     {
         return str_replace(
-            ['\\', ';', ',', "\r\n", "\n"],
-            ['\\\\', '\;', '\,', '\n', '\n'],
+            ['\\', ';', ',', "\r\n", "\n", "\r"],
+            ['\\\\', '\;', '\,', '\n', '\n', '\n'],
             $value,
         );
     }
