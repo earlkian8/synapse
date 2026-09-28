@@ -8,8 +8,13 @@ export type PipelineStage = {
     position: number;
 };
 
-/** A stage row while it's being edited — no id until it's saved. */
-export type StageDraft = { name: string; kind: StageKind };
+/**
+ * A stage row while it's being edited. A saved stage keeps its `id` all the way
+ * to the server, which is how a kept stage is told from a new one — without it
+ * every save would drop and re-create every stage, and a stage candidates sit
+ * on can't be dropped.
+ */
+export type StageDraft = { id?: number; name: string; kind: StageKind };
 
 /** A tenant-defined hiring process a job posting can be assigned to. */
 export type Pipeline = {

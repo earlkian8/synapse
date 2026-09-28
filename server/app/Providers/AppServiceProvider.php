@@ -17,10 +17,12 @@ use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\LeaveTypesModule;
 use App\Services\Assistant\Modules\LocationsModule;
 use App\Services\Assistant\Modules\OffboardingModule;
+use App\Services\Assistant\Modules\OffboardingProgramsModule;
 use App\Services\Assistant\Modules\OnboardingModule;
 use App\Services\Assistant\Modules\PerformanceFrameworkModule;
 use App\Services\Assistant\Modules\PerformanceModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
+use App\Services\Assistant\Modules\RecruitmentPipelinesModule;
 use App\Services\Assistant\Modules\ReportsModule;
 use App\Services\Assistant\Modules\SchedulesModule;
 use App\Services\Assistant\Modules\TrainingModule;
@@ -92,6 +94,8 @@ class AppServiceProvider extends ServiceProvider
             $app->make(LeaveTypesModule::class),
             $app->make(AwardTypesModule::class),
             $app->make(PerformanceFrameworkModule::class),
+            $app->make(RecruitmentPipelinesModule::class),
+            $app->make(OffboardingProgramsModule::class),
             $app->make(DashboardModule::class),
         ]);
 

@@ -22,9 +22,10 @@ import { MessageList } from './message-list';
  * directory, leave, attendance, onboarding, offboarding, recruitment,
  * performance, training, awards, events, the org structure, the company
  * profile, schedules and holidays, attendance policies, work locations, leave
- * types, award types, the performance framework, or any block of the dashboard
- * (reports follow the same module permissions). Self-service alone does not
- * open it: every turn spends model quota.
+ * types, award types, the performance framework, recruitment pipelines,
+ * clearance templates, or any block of the dashboard (reports follow the same
+ * module permissions). Self-service alone does not open it: every turn spends
+ * model quota.
  */
 const ASSISTANT_PERMISSIONS = [
     'employees.view',
@@ -46,6 +47,8 @@ const ASSISTANT_PERMISSIONS = [
     'setup.leave-types.view',
     'setup.award-types.view',
     'setup.kpi.view',
+    'recruitment.configure-pipelines',
+    'offboarding.manage-programs',
     'activity-logs.view',
 ] as const;
 

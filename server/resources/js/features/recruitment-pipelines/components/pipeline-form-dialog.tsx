@@ -80,6 +80,7 @@ function FormBody({
         is_default: pipeline?.is_default ?? false,
         stages: pipeline?.stages?.length
             ? pipeline.stages.map((s): StageDraft => ({
+                  id: s.id,
                   name: s.name,
                   kind: s.kind,
               }))
@@ -134,7 +135,7 @@ function FormBody({
         transform((payload) => ({
             ...payload,
             stages: payload.stages
-                .map((s) => ({ name: s.name.trim(), kind: s.kind }))
+                .map((s) => ({ id: s.id, name: s.name.trim(), kind: s.kind }))
                 .filter((s) => s.name.length > 0),
         }));
 

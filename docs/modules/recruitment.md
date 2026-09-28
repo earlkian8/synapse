@@ -66,6 +66,13 @@ toolbar · table · pagination), from the shared table kit
   reaches the UI. A "Start from template" button pre-fills the classic 6-stage process.
   Deleting a stage that still has applications, or a pipeline still assigned to a
   posting, is refused.
+  - **A kept stage keeps its id**, and so its candidates: the editor sends each stage's
+    `id`, and the request refuses an id that is not one of this pipeline's stages.
+  - **The default is replaced, not switched off.** Making another pipeline the default
+    is how it moves; new postings resolve through it.
+  - Every write goes through **`App\Support\Recruitment\PipelineWorkflow`**
+    (`PipelineException`), which the assistant uses too
+    ([ADR 0056](../decisions/0056-assistant-recruitment-pipelines-and-clearance-templates.md)).
 
 ## Automatic ranking & decision support
 
@@ -173,6 +180,26 @@ activity log, notifications), reusing the same support classes the controllers d
 - **Résumés in chat.** The assistant is multimodal, so a CV attached to the message is
   read by the model and its fields (headline, years of experience, contact) can be
   passed straight into `add_applicant` / `add_application`.
+
+### Pipelines in the assistant
+
+`App\Services\Assistant\Modules\RecruitmentPipelinesModule`, gated by
+`recruitment.configure-pipelines` like the screen
+([ADR 0056](../decisions/0056-assistant-recruitment-pipelines-and-clearance-templates.md)):
+
+- **Reads:** `find_pipelines`; `get_pipeline`, stage by stage with the candidates on
+  each and the postings running on it.
+- **Writes:**
+  - `create_pipeline`, from its in-progress steps (plus a hired stage and rejected
+    stages) or by copying one;
+  - `update_pipeline`, to rename it or make it the default;
+  - `set_pipeline_stage`, to add a stage (in progress or rejected), or rename or move
+    one. A stage's kind is changed on the screen only.
+- **Confirmed:** `remove_pipeline_stage` and `delete_pipeline`. The card says how many
+  postings run on the pipeline and whether candidates sit on the stage (then it is
+  refused).
+- A pipeline name another has in any case, or two stages of one name, is refused.
+- **Retrieval:** "what hiring stages do we use?" carries every pipeline's flow.
 
 ## Due dates
 

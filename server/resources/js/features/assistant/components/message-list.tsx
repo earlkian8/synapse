@@ -51,6 +51,14 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'What does our appraisal framework measure?',
         permission: 'setup.kpi.view',
     },
+    {
+        prompt: 'What stages do our hiring pipelines have?',
+        permission: 'recruitment.configure-pipelines',
+    },
+    {
+        prompt: 'What is on our exit clearance checklist?',
+        permission: 'offboarding.manage-programs',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',

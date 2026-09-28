@@ -180,6 +180,29 @@ past, not the board's demo cases.
   - "who is leaving soon?" carries the board.
 - **No self-service.** As on the screens, one's own exit needs `offboarding.view`.
 
+### Clearance templates in the assistant
+
+`App\Services\Assistant\Modules\OffboardingProgramsModule`, gated by
+`offboarding.manage-programs` like the screen
+([ADR 0056](../decisions/0056-assistant-recruitment-pipelines-and-clearance-templates.md)).
+Every write goes through **`App\Support\Offboarding\OffboardingProgramWorkflow`**,
+which the Offboarding Programs screen uses too.
+
+- **Reads:** `find_clearance_templates`; `get_clearance_template`, its sign-offs and
+  owners, and whose exit it would seed today (`OffboardingProvisioner::programFor()`).
+- **Writes:**
+  - `create_clearance_template`, from items (each owned by a department, "own", or
+    nobody), by copying one, or from the built-in standard list. It is never the
+    default at creation;
+  - `set_clearance_template_item` (add, reword, re-own) and
+    `remove_clearance_template_item`. Exits in flight keep their checklist.
+- **Confirmed:** `update_clearance_template` (name, description, department, exit
+  type, active, default) and `delete_clearance_template`. The card says whose exit the
+  template would seed and how many exits in flight came from it.
+- A template name another has in any case is refused.
+- **Retrieval:** "what is on our exit checklist?" carries the templates and how one is
+  chosen.
+
 ## Out of scope (this cut)
 
 Auto exit-interview surveys, document generation (clearance form / COE PDF), a

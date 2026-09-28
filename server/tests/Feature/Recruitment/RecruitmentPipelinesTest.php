@@ -117,9 +117,54 @@ test('editing a pipeline cannot drop a stage that still has candidates on it', f
         'name' => $pipeline->name,
         'is_default' => true,
         'stages' => $keep->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'kind' => $s->kind])->all(),
+    ])->assertRedirect();
+
+    // A refusal the person can read, not a server error.
+    assertToast('error', 'still have candidates on them');
+    expect($pipeline->fresh()->stages->pluck('name')->all())->toContain('Screening');
+});
+
+test('editing a pipeline as the editor posts it keeps each stage, and the candidates on it', function () {
+    actingAsSuperAdmin();
+    $pipeline = seedDefaultPipeline();
+    $application = JobApplication::factory()->stage('screening')->create();
+
+    $stages = $pipeline->stages->map(fn ($s) => ['id' => $s->id, 'name' => $s->name === 'Screening' ? 'Phone screen' : $s->name, 'kind' => $s->kind])->values()->all();
+    array_splice($stages, 2, 0, [['name' => 'Assessment', 'kind' => 'open']]);
+
+    $this->post(route('setup.recruitment-pipelines.update', $pipeline), ['name' => $pipeline->name, 'is_default' => true, 'stages' => $stages])
+        ->assertSessionHasNoErrors();
+
+    expect($pipeline->fresh()->stages->pluck('name')->all())->toBe(['Applied', 'Phone screen', 'Assessment', 'Interview', 'Offer', 'Hired', 'Rejected'])
+        ->and($application->fresh()->pipelineStage->name)->toBe('Phone screen');
+});
+
+test('a stage from another pipeline is refused rather than silently dropped', function () {
+    actingAsSuperAdmin();
+    $pipeline = seedDefaultPipeline();
+    $other = RecruitmentPipeline::factory()->withStandardStages()->create(['name' => 'Other']);
+
+    $stages = $pipeline->stages->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'kind' => $s->kind])->values()->all();
+    $stages[0]['id'] = $other->stages()->first()->id;
+
+    $this->post(route('setup.recruitment-pipelines.update', $pipeline), ['name' => $pipeline->name, 'is_default' => true, 'stages' => $stages])
+        ->assertSessionHasErrors('stages.0.id');
+
+    expect($pipeline->fresh()->stages()->count())->toBe(6);
+});
+
+test('the default pipeline is not switched off, only replaced', function () {
+    actingAsSuperAdmin();
+    $pipeline = seedDefaultPipeline();
+
+    $this->post(route('setup.recruitment-pipelines.update', $pipeline), [
+        'name' => $pipeline->name,
+        'is_default' => false,
+        'stages' => $pipeline->stages->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'kind' => $s->kind])->all(),
     ]);
 
-    expect($pipeline->fresh()->stages->pluck('name')->all())->toContain('Screening');
+    assertToast('error', 'Make another pipeline the default');
+    expect($pipeline->fresh()->is_default)->toBeTrue();
 });
 
 test('a pipeline still in use by a posting cannot be deleted', function () {
