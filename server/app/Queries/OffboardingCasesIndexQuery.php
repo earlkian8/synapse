@@ -32,11 +32,22 @@ class OffboardingCasesIndexQuery
      */
     public function build(Request $request): Builder
     {
-        $status = $this->status($request);
-        $department = $request->integer('department');
-        $type = $request->string('type')->toString();
-        $search = $request->string('search')->toString();
+        return $this->filtered(
+            $this->status($request),
+            $request->integer('department'),
+            $request->string('type')->toString(),
+            $request->string('search')->toString(),
+        );
+    }
 
+    /**
+     * The same board, from plain filter values — for a caller that has no
+     * request (the assistant). `$status` is one of {@see STATUSES}.
+     *
+     * @return Builder<OffboardingCase>
+     */
+    public function filtered(string $status, int $department = 0, string $type = '', string $search = ''): Builder
+    {
         return OffboardingCase::query()
             ->with([
                 'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id,employment_type,employment_status,date_hired',

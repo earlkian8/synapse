@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Notification;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,8 +31,8 @@ class SendNotificationRequest extends FormRequest
     {
         return [
             'audience' => ['required', 'string', Rule::in(self::AUDIENCES)],
-            'role_id' => ['required_if:audience,role', 'nullable', 'integer', 'exists:roles,id'],
-            'user_id' => ['required_if:audience,user', 'nullable', 'integer', 'exists:users,id'],
+            'role_id' => ['required_if:audience,role', 'nullable', 'integer', TenantRule::exists('roles')],
+            'user_id' => ['required_if:audience,user', 'nullable', 'integer', TenantRule::member()],
             'title' => ['required', 'string', 'max:120'],
             'body' => ['required', 'string', 'max:1000'],
             'url' => ['nullable', 'string', 'max:300'],

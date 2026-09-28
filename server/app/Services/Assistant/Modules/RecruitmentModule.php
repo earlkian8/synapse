@@ -1406,8 +1406,14 @@ class RecruitmentModule extends Module implements ContributesContext
             }
         }
 
+        $interviewer = $this->resolveInterviewer($args);
+
+        if ($interviewer instanceof ToolResult) {
+            return $interviewer;
+        }
+
         $data = [
-            'interviewer_id' => $this->resolveInterviewer($args),
+            'interviewer_id' => $interviewer,
             'scheduled_at' => $this->dateTime($args['scheduled_at'] ?? null),
             'mode' => $args['mode'] ?? null,
             'location' => $args['location'] ?? null,
@@ -1448,6 +1454,12 @@ class RecruitmentModule extends Module implements ContributesContext
             return ToolResult::error('Looked up the interview', 'No interview found for that candidate.');
         }
 
+        $interviewer = $this->resolveInterviewer($args);
+
+        if ($interviewer instanceof ToolResult) {
+            return $interviewer;
+        }
+
         $changes = array_filter([
             'scheduled_at' => $this->dateTime($args['scheduled_at'] ?? null),
             'mode' => in_array($args['mode'] ?? null, StoreInterviewRequest::MODES, true) ? $args['mode'] : null,
@@ -1455,7 +1467,7 @@ class RecruitmentModule extends Module implements ContributesContext
             'notes' => $args['notes'] ?? null,
             'result' => in_array($args['result'] ?? null, InterviewScheduler::RESULTS, true) ? $args['result'] : null,
             'feedback' => $args['feedback'] ?? null,
-            'interviewer_id' => $this->resolveInterviewer($args),
+            'interviewer_id' => $interviewer,
         ], fn ($value): bool => $value !== null);
 
         if ($changes === []) {
@@ -1943,7 +1955,7 @@ class RecruitmentModule extends Module implements ContributesContext
     /**
      * @param  array<string, mixed>  $args
      */
-    private function resolveInterviewer(array $args): ?int
+    private function resolveInterviewer(array $args): int|ToolResult|null
     {
         $name = $this->firstFilled($args, ['interviewer', 'interviewer_name']);
 
@@ -1951,9 +1963,13 @@ class RecruitmentModule extends Module implements ContributesContext
             return null;
         }
 
-        $id = $this->matchByTokens(User::query()->where('is_active', true), $name)->value('id');
+        // Members of this workspace only, and exactly one — an interviewer who
+        // cannot be found is an error, never a silently unassigned interview.
+        [$member, $error] = $this->resolveMember($name);
 
-        return $id !== null ? (int) $id : null;
+        return $member !== null
+            ? $member->id
+            : ToolResult::error('Looked up the interviewer', $error);
     }
 
     /**

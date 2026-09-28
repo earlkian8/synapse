@@ -40,6 +40,23 @@ final class TenantRule
     }
 
     /**
+     * A user who is a member of the current organisation.
+     *
+     * Users are identities, not tenant rows — one person can belong to several
+     * workspaces — so `users` has no `organization_id` to confine by, and a bare
+     * `exists:users,id` accepts anybody on the instance. Membership lives in the
+     * `organization_user` pivot; that is what "a user of this workspace" means.
+     */
+    public static function member(): Exists
+    {
+        $tenancy = app(Tenancy::class);
+
+        return $tenancy->check()
+            ? Rule::exists('organization_user', 'user_id')->where('organization_id', $tenancy->id())
+            : Rule::exists('users', 'id');
+    }
+
+    /**
      * `unique`, confined to the current organisation's rows — so two tenants can
      * hold the same employee number without colliding.
      */

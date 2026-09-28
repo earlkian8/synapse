@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Offboarding;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Offboarding\InitiateOffboardingRequest;
+use App\Http\Requests\Offboarding\OffboardingStatusRequest;
+use App\Http\Requests\Offboarding\UpdateOffboardingCaseRequest;
 use App\Http\Resources\OffboardingCaseResource;
 use App\Models\Department;
 use App\Models\Employee;
@@ -11,15 +13,20 @@ use App\Models\OffboardingCase;
 use App\Models\OffboardingProgram;
 use App\Queries\OffboardingCasesIndexQuery;
 use App\Queries\OffboardingStatistics;
-use App\Support\ActivityLogger;
-use App\Support\OffboardingProvisioner;
+use App\Support\Offboarding\OffboardingException;
+use App\Support\Offboarding\OffboardingWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * The offboarding board and a case's page, and the exit's lifecycle. Every write
+ * goes through {@see OffboardingWorkflow} — the path the assistant takes too — so
+ * the rules and the audit trail are the same however an exit is changed. Thin
+ * (route gates `offboarding.view` / `offboarding.manage`).
+ */
 class OffboardingCaseController extends Controller
 {
     /**
@@ -65,35 +72,26 @@ class OffboardingCaseController extends Controller
     }
 
     /**
-     * Start offboarding for an employee, seeding the standard clearance checklist.
+     * Start offboarding for an employee, seeding the clearance checklist.
      */
-    public function store(InitiateOffboardingRequest $request): RedirectResponse
+    public function store(InitiateOffboardingRequest $request, OffboardingWorkflow $workflow): RedirectResponse
     {
         $employee = Employee::findOrFail($request->integer('employee_id'));
-
-        if ($employee->offboardingCase()->exists()) {
-            return $this->respond('That employee is already being offboarded.', 'warning');
-        }
 
         $program = $request->filled('offboarding_program_id')
             ? OffboardingProgram::where('is_active', true)->find($request->integer('offboarding_program_id'))
             : null;
 
-        $case = OffboardingProvisioner::start($employee, [
-            'type' => $request->string('type')->toString(),
-            'notice_date' => $request->date('notice_date')?->toDateString(),
-            'last_working_day' => $request->date('last_working_day')?->toDateString(),
-            'reason' => $request->string('reason')->toString() ?: null,
-        ], $program);
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Started offboarding for {$employee->full_name}",
-            subject: $case,
-            properties: ['type' => $case->type],
-            logName: 'offboarding',
-            subjectLabel: $employee->full_name,
-        );
+        try {
+            $case = $workflow->start($employee, [
+                'type' => $request->string('type')->toString(),
+                'notice_date' => $request->date('notice_date')?->toDateString(),
+                'last_working_day' => $request->date('last_working_day')?->toDateString(),
+                'reason' => $request->string('reason')->toString() ?: null,
+            ], $program);
+        } catch (OffboardingException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Offboarding started.']);
 
@@ -103,16 +101,9 @@ class OffboardingCaseController extends Controller
     /**
      * Update an exit's details — its kind, key dates and reason.
      */
-    public function update(Request $request, OffboardingCase $case): RedirectResponse
+    public function update(UpdateOffboardingCaseRequest $request, OffboardingCase $case, OffboardingWorkflow $workflow): RedirectResponse
     {
-        $validated = $request->validate([
-            'type' => ['required', Rule::in(OffboardingCase::TYPES)],
-            'notice_date' => ['nullable', 'date'],
-            'last_working_day' => ['nullable', 'date'],
-            'reason' => ['nullable', 'string', 'max:5000'],
-        ]);
-
-        $case->update($validated);
+        $workflow->update($case, $request->validated());
 
         return $this->respond('Offboarding updated.');
     }
@@ -122,72 +113,29 @@ class OffboardingCaseController extends Controller
      * exit transitions the employee's employment_status to match the exit type;
      * reopening or cancelling returns them to active (ADR 0016).
      */
-    public function status(Request $request, OffboardingCase $case): RedirectResponse
+    public function status(OffboardingStatusRequest $request, OffboardingCase $case, OffboardingWorkflow $workflow): RedirectResponse
     {
-        $validated = $request->validate([
-            'action' => ['required', Rule::in(['complete', 'cancel', 'reopen'])],
-        ]);
+        $action = $request->validated('action');
 
-        $case->load('employee:id,first_name,middle_name,last_name,suffix,employment_status');
+        try {
+            $workflow->transition($case, $action);
+        } catch (OffboardingException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
 
-        match ($validated['action']) {
-            'complete' => $this->complete($case),
-            'cancel' => $this->reactivate($case, 'cancelled'),
-            'reopen' => $this->reactivate($case, 'clearance'),
-        };
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: ucfirst($validated['action']).'d offboarding for '.$case->employee->full_name,
-            subject: $case,
-            logName: 'offboarding',
-            subjectLabel: $case->employee->full_name,
-        );
-
-        return $this->respond('Offboarding '.$case->status.'.');
+        return $this->respond('Offboarding '.strtolower(OffboardingWorkflow::ACTIONS[$action]).'.');
     }
 
     /**
      * Delete an offboarding case (and its clearance items).
      */
-    public function destroy(OffboardingCase $case): RedirectResponse
+    public function destroy(OffboardingCase $case, OffboardingWorkflow $workflow): RedirectResponse
     {
-        $case->load('employee:id,first_name,middle_name,last_name,suffix');
-        $name = $case->employee?->full_name ?? 'employee';
-        $case->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Deleted offboarding for {$name}",
-            logName: 'offboarding',
-            subjectLabel: $name,
-        );
+        $workflow->delete($case);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Offboarding removed.']);
 
         return redirect()->route('offboarding.index');
-    }
-
-    /**
-     * Finalise an exit and mark the employee separated.
-     */
-    private function complete(OffboardingCase $case): void
-    {
-        $case->update(['status' => 'completed', 'completed_at' => now()]);
-
-        $case->employee?->update(['employment_status' => $case->targetEmploymentStatus()]);
-    }
-
-    /**
-     * Re-open or cancel an exit and return the employee to active.
-     */
-    private function reactivate(OffboardingCase $case, string $status): void
-    {
-        $case->update(['status' => $status, 'completed_at' => null]);
-
-        if ($case->employee && in_array($case->employee->employment_status, ['resigned', 'terminated'], true)) {
-            $case->employee->update(['employment_status' => 'active']);
-        }
     }
 
     /**

@@ -112,7 +112,11 @@ class Notifier
     }
 
     /**
-     * Notify every active user in the system.
+     * Notify every active member of the current organisation — "everyone" means
+     * everyone in this workspace. Users are identities shared across workspaces,
+     * so an unscoped query here would announce one company's news to every
+     * company on the instance. With no workspace bound (a console run), the
+     * scope is a no-op.
      */
     public static function toAll(
         string $title,
@@ -122,7 +126,7 @@ class Notifier
         string $category = 'general',
         ?User $actor = null,
     ): int {
-        $recipients = User::query()->where('is_active', true)->get();
+        $recipients = User::query()->where('is_active', true)->inCurrentOrganization()->get();
 
         return self::deliver($recipients, $title, $body, $url, $level, $category, $actor);
     }

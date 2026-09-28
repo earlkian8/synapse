@@ -41,7 +41,7 @@ class UpdateEmployeeRequest extends FormRequest
             'position_id' => ['nullable', 'integer', TenantRule::exists('positions')],
             'manager_id' => ['nullable', 'integer', TenantRule::exists('employees'), Rule::notIn([$employee->id])],
             'work_schedule_id' => ['nullable', 'integer', TenantRule::exists('work_schedules')],
-            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id'), TenantRule::unique('employees', 'user_id')->ignore($employee->id)],
+            'user_id' => ['nullable', 'integer', TenantRule::member(), TenantRule::unique('employees', 'user_id')->ignore($employee->id)],
 
             'employment_type' => ['required', Rule::in(StoreEmployeeRequest::EMPLOYMENT_TYPES)],
             'employment_status' => ['required', Rule::in(StoreEmployeeRequest::EMPLOYMENT_STATUSES)],

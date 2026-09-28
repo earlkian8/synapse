@@ -241,6 +241,49 @@ abstract class Module implements AssistantModule
     }
 
     /**
+     * Exactly one active user *of this workspace* for a name, or why not — for
+     * the people work is assigned to (a task's owner, an interviewer).
+     *
+     * Users are identities shared across workspaces and carry no tenant scope of
+     * their own, so an unscoped lookup would find — and notify — somebody in
+     * another company, and would tell the asker which names exist there.
+     *
+     * @return array{0: User|null, 1: string}
+     */
+    protected function resolveMember(string $name): array
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return [null, 'Say who.'];
+        }
+
+        $matches = $this->matchByTokens(
+            User::query()->where('is_active', true)->inCurrentOrganization(),
+            $name,
+        )->limit(10)->get();
+
+        if ($matches->count() > 1) {
+            $typed = Str::lower(preg_replace('/\s+/', ' ', $name) ?? $name);
+            $exact = $matches->filter(fn (User $u): bool => in_array($typed, [
+                Str::lower((string) $u->full_name),
+                Str::lower(trim($u->first_name.' '.$u->last_name)),
+                Str::lower((string) $u->email),
+            ], true));
+
+            if ($exact->count() === 1) {
+                return [$exact->first(), ''];
+            }
+        }
+
+        return match ($matches->count()) {
+            0 => [null, 'No active user in this workspace is called “'.Str::limit($name, 60).'”.'],
+            1 => [$matches->first(), ''],
+            default => [null, 'More than one user matches “'.Str::limit($name, 60).'”. Use their full name or email.'],
+        };
+    }
+
+    /**
      * Every name in a list resolved to exactly one employee — or the first one
      * that is not, and nobody. A list is acted on whole or not at all, so a
      * typo never quietly leaves somebody out.

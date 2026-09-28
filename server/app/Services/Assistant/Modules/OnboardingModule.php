@@ -1337,11 +1337,12 @@ class OnboardingModule extends Module implements ContributesContext
             return null;
         }
 
-        $id = $this->matchByTokens(User::query()->where('is_active', true), $name)->value('id');
+        // Members of this workspace only — never somebody in another company.
+        [$member, $error] = $this->resolveMember($name);
 
-        return $id !== null
-            ? (int) $id
-            : ToolResult::error("Looked up “{$name}”", 'No active user by that name to assign the task to.');
+        return $member !== null
+            ? $member->id
+            : ToolResult::error("Looked up “{$name}”", $error);
     }
 
     /**

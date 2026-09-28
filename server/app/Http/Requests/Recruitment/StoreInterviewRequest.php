@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +19,7 @@ class StoreInterviewRequest extends FormRequest
         $pipelineId = $application?->jobPosting?->recruitment_pipeline_id;
 
         return [
-            'interviewer_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'interviewer_id' => ['nullable', 'integer', TenantRule::member()],
             'scheduled_at' => ['required', 'date'],
             'mode' => ['required', Rule::in(self::MODES)],
             'location' => ['nullable', 'string', 'max:255'],

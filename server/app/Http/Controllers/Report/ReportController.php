@@ -6,14 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Support\Reports\MlSignals;
 use App\Support\Reports\Report;
 use App\Support\Reports\ReportInsights;
+use App\Support\Reports\ReportParameters;
 use App\Support\Reports\ReportRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Throwable;
 
 /**
  * Drives the Reports analytics workspace: one page that lists every report the user
@@ -30,6 +29,7 @@ class ReportController extends Controller
         private readonly ReportRegistry $registry,
         private readonly MlSignals $signals,
         private readonly ReportInsights $insights,
+        private readonly ReportParameters $parameters,
     ) {}
 
     /** The workspace: the report catalogue plus the active report rendered inline. */
@@ -182,58 +182,11 @@ class ReportController extends Controller
      */
     private function normalize(Request $request, Report $report): array
     {
-        $params = [];
-
-        foreach ($report->filters() as $filter) {
-            switch ($filter['type']) {
-                case 'daterange':
-                    $start = $this->validDate($request->query('start'), $filter['default']['start']);
-                    $end = $this->validDate($request->query('end'), $filter['default']['end']);
-
-                    // A backwards range is almost always a slip — order it rather than return nothing.
-                    if ($start > $end) {
-                        [$start, $end] = [$end, $start];
-                    }
-
-                    $params['start'] = $start;
-                    $params['end'] = $end;
-                    break;
-
-                case 'month':
-                    $params[$filter['key']] = $this->validMonth($request->query($filter['key']), $filter['default']);
-                    break;
-
-                case 'select':
-                    $value = $request->query($filter['key']);
-                    $params[$filter['key']] = ($value === null || $value === '')
-                        ? ($filter['default'] ?? 'all')
-                        : (string) $value;
-                    break;
-
-                case 'search':
-                    $params[$filter['key']] = trim((string) $request->query($filter['key'], ''));
-                    break;
-            }
-        }
+        // A stale or hand-edited URL still opens: what cannot be used falls back
+        // to the filter's default. The assistant, which must not, reads the
+        // problems this ignores.
+        [$params] = $this->parameters->resolve($report, $request->query());
 
         return $params;
-    }
-
-    private function validDate(mixed $value, string $fallback): string
-    {
-        if (is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            try {
-                return Carbon::parse($value)->toDateString();
-            } catch (Throwable) {
-                // fall through to the default
-            }
-        }
-
-        return $fallback;
-    }
-
-    private function validMonth(mixed $value, string $fallback): string
-    {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}$/', $value) ? $value : $fallback;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +18,7 @@ class StoreJobApplicationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'applicant_id' => ['nullable', 'integer', Rule::exists('applicants', 'id')],
+            'applicant_id' => ['nullable', 'integer', TenantRule::exists('applicants')],
 
             // New applicant (when no applicant_id is supplied).
             'first_name' => ['required_without:applicant_id', 'nullable', 'string', 'max:255'],

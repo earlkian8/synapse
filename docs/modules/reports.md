@@ -26,6 +26,7 @@ the totals, the charts, the CSV export *and* the LLM digest, so they can never d
 | `ReportRegistry` | `app/Support/Reports/ReportRegistry.php` | Catalogue; filters to the viewer's permissions. |
 | `MlSignals` | `app/Support/Reports/MlSignals.php` | Decision signals from the **persisted** ML runs. |
 | `ReportInsights` | `app/Support/Reports/ReportInsights.php` | The LLM decision-support generator. |
+| `ReportParameters` | `app/Support/Reports/ReportParameters.php` | Raw filter input → a report's declared, validated params (workspace and assistant). |
 | `ReportController` | `app/Http/Controllers/Report/ReportController.php` | Workspace, CSV `export`, AI `insights`. |
 
 ### The reports
@@ -68,6 +69,48 @@ Three layers turn a table into a decision:
 
 Filters are declarative, so the runner renders any report without bespoke code, and every
 control patches the URL and re-fetches.
+
+### Filter resolution (`ReportParameters`)
+
+The workspace and the assistant both turn raw input into a report's params through
+`ReportParameters::resolve()`:
+
+- a **daterange** takes `start` / `end` as real YYYY-MM-DD dates, ordered if backwards;
+- a **month** takes YYYY-MM;
+- a **select** takes one of its declared options, by value or by label;
+- a **search** is trimmed and capped at 120 characters.
+
+Before, a select passed any string straight into the report's query. It also returns
+the problems it found. The workspace ignores them, so a stale URL still opens on the
+defaults. The assistant refuses instead of silently widening a filter to "all".
+
+### The AI read, hardened
+
+The `ReportInsights` digest carries report rows, and some of those are typed by
+strangers: an applicant's name comes from the public careers page. Every value is now
+cleaned to one bounded line. The prompt has a security block that treats the digest
+as data and reports steering attempts, and the answer's fields come back as plain text
+whatever shape the model returned. Before, a non-string `headline` threw.
+
+## The assistant
+
+`App\Services\Assistant\Modules\ReportsModule` runs reports from the chat
+([ADR 0051](../decisions/0051-assistant-offboarding-reports-and-workspace-members.md)).
+It is read-only, and it is offered to anyone who may run at least one report.
+
+- **`run_report`:**
+  - the `report` argument is an enum of the keys this user may run, and the
+    permission is checked again at run time;
+  - the filters are declared as the union across those reports, and one a report does
+    not have is refused ("Headcount Summary has no stage filter");
+  - a run returns the report's own totals, chart aggregates, ML signals, up to 10
+    rows and the `/reports?…` link that reopens exactly that run;
+  - the model writes the analysis itself from that, with no second model call.
+- **`list_reports`** describes each report's filters and their allowed values.
+- **Retrieval:** "what's our turnover this year?" reads, before the model is called,
+  which reports the user can run. Where they may see it, it also reads the last
+  twelve months of Workforce Movement: totals, and separations by kind and by
+  department.
 
 ## Adding a report
 

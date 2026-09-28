@@ -3,6 +3,7 @@
 namespace App\Http\Requests\UserManagement;
 
 use App\Models\User;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +29,7 @@ class UpdateUserRequest extends FormRequest
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'remove_photo' => ['boolean'],
             'roles' => ['array'],
-            'roles.*' => ['integer', Rule::exists('roles', 'id')],
+            'roles.*' => ['integer', TenantRule::exists('roles')],
         ];
     }
 

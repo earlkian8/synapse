@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,9 +26,9 @@ class StoreJobPostingRequest extends FormRequest
     {
         return [
             'title' => ['required', 'string', 'max:255'],
-            'recruitment_pipeline_id' => ['required', 'integer', Rule::exists('recruitment_pipelines', 'id')],
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
-            'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
+            'recruitment_pipeline_id' => ['required', 'integer', TenantRule::exists('recruitment_pipelines')],
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
+            'position_id' => ['nullable', 'integer', TenantRule::exists('positions')],
             'description' => ['nullable', 'string', 'max:5000'],
             'requirements' => ['nullable', 'string', 'max:5000'],
             // Optional, position-aware screening criteria that shape the ranking.

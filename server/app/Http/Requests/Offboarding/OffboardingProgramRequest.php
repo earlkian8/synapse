@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Offboarding;
 
 use App\Models\OffboardingCase;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,14 +22,14 @@ class OffboardingProgramRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
             'exit_type' => ['nullable', Rule::in(OffboardingCase::TYPES)],
             'is_default' => ['boolean'],
             'is_active' => ['boolean'],
 
             'items' => ['array'],
             'items.*.item' => ['required', 'string', 'max:255'],
-            'items.*.department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
+            'items.*.department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
             'items.*.use_employee_department' => ['boolean'],
         ];
     }

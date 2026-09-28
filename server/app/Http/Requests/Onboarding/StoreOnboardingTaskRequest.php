@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Onboarding;
 
 use App\Models\OnboardingTask;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +21,7 @@ class StoreOnboardingTaskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'category' => ['required', Rule::in(OnboardingTask::CATEGORIES)],
-            'assigned_to' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'assigned_to' => ['nullable', 'integer', TenantRule::member()],
             'due_date' => ['nullable', 'date'],
         ];
     }

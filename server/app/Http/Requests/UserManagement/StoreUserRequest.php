@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\UserManagement;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class StoreUserRequest extends FormRequest
@@ -29,7 +29,7 @@ class StoreUserRequest extends FormRequest
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'roles' => ['array'],
-            'roles.*' => ['integer', Rule::exists('roles', 'id')],
+            'roles.*' => ['integer', TenantRule::exists('roles')],
         ];
     }
 

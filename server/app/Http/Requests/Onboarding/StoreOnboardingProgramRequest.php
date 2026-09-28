@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Onboarding;
 
 use App\Models\OnboardingTask;
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +23,7 @@ class StoreOnboardingProgramRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
             'employment_type' => ['nullable', Rule::in(self::EMPLOYMENT_TYPES)],
             'is_default' => ['boolean'],
             'is_active' => ['boolean'],

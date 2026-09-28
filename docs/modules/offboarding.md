@@ -70,7 +70,10 @@ toolbar · table · pagination), from the shared table kit
 
 - Controllers (`app/Http/Controllers/Offboarding/`): `OffboardingCaseController`
   (index / show / store / update / status / destroy), `ClearanceItemController`
-  (store / update / toggle / destroy).
+  (store / update / toggle / destroy / apply-program / bulk-clear). Both are thin:
+  every write goes through **`App\Support\Offboarding\OffboardingWorkflow`**, the
+  path the assistant takes too. Refusals are an `OffboardingException`, whose message
+  is the toast.
 - **`App\Support\OffboardingProvisioner`** — the connective tissue (the
   `OnboardingProvisioner` analogue). `start()` opens a case and instantiates the
   **standard clearance checklist**, routing each item to its department (IT / Finance /
@@ -83,7 +86,15 @@ toolbar · table · pagination), from the shared table kit
 - `routes/offboarding.php` (literal-prefixed `clearance/…` routes precede the `{case}`
   wildcard). Every route is permission-gated. Cases are addressed by **hashid**
   (`App\Support\Hashid`, via `HasHashid`); items by numeric id (sub-resources).
-- Mutations are activity-logged (`logName: 'offboarding'`).
+- Mutations are activity-logged (`logName: 'offboarding'`). That now includes
+  editing an exit's details and every clearance write (add, edit, sign off, flag,
+  reset, remove), none of which were logged before. The lifecycle lines read
+  "Completed / Cancelled / Reopened"; before, they read "Canceld" and "Reopend".
+- Validation lives in FormRequests (`UpdateOffboardingCaseRequest`,
+  `OffboardingStatusRequest`, `ClearanceStatusRequest`, `ApplyClearanceTemplateRequest`,
+  `BulkClearClearanceRequest`). Every id is confined to the workspace (`TenantRule`):
+  before, a clearance item or a template item could be saved against another
+  organisation's department. A last working day before the notice date is refused.
 
 ### Clearance status & lifecycle
 
@@ -97,6 +108,11 @@ toolbar · table · pagination), from the shared table kit
 - **Completion bridge** — completing the exit stamps `completed_at` and transitions the
   employee's `employment_status` to match the type; reopening / cancelling returns them
   to `active`. The complete action confirms the change (and warns of any pending items).
+- **Guarded lifecycle** — only an exit in progress can be completed or cancelled, and
+  only a completed or cancelled one reopened. Before, a completed exit could be
+  "completed" again, re-stamping its date. An exit cannot be started for someone who
+  is already resigned or terminated. Deleting an exit leaves the employment status
+  alone.
 
 ## Frontend
 
@@ -132,9 +148,39 @@ completed cases the workforce history leaves behind (`WorkforceHistorySeeder`, a
 230 past departures for [model graduation](./model-graduation.md#demo-history)) are the
 past, not the board's demo cases.
 
+## The assistant
+
+`App\Services\Assistant\Modules\OffboardingModule` puts exits in the chat assistant
+([ADR 0051](../decisions/0051-assistant-offboarding-reports-and-workspace-members.md)).
+
+- **Reads** (`offboarding.view`):
+  - `find_offboarding_cases` — the board's own query (`OffboardingCasesIndexQuery`,
+    now with a request-free `filtered()`), in progress by default;
+  - `get_offboarding_case` — one person's exit and every checklist item. Its reason may
+    be a termination's, so reading it is audited as `viewed`;
+  - `find_clearance_items` — sign-offs across exits in progress, by status (pending by
+    default), department or person ("what does IT still owe?");
+  - `offboarding_summary` — the board's tiles, who leaves next, what is flagged.
+- **Writes** (`offboarding.manage`), all through `OffboardingWorkflow`:
+  - `update_offboarding_case`, `add_clearance_item`, `update_clearance_item`,
+    `set_clearance_status` (sign off, flag with a reason, or reset) and
+    `apply_clearance_template` run on a plain instruction;
+  - **these always wait for Confirm:**
+    - `start_offboarding` — it tells the organisation somebody is leaving;
+    - `set_offboarding_status` — completing separates the employee, and the reply
+      says how many items were never signed off;
+    - `delete_offboarding_case`;
+    - `clear_pending_clearance` — many sign-offs in the user's name;
+    - `remove_clearance_item`.
+- An exit is identified by its employee, and a checklist item by (part of) its label.
+  Each resolves to exactly one or not at all.
+- **Retrieval:**
+  - a question about a person carries their exit, the reason, and what is flagged or
+    pending;
+  - "who is leaving soon?" carries the board.
+- **No self-service.** As on the screens, one's own exit needs `offboarding.view`.
+
 ## Out of scope (this cut)
 
 Auto exit-interview surveys, document generation (clearance form / COE PDF), a
-self-service employee resignation request, final-pay computation from the case, and an
-assistant capability — matching the Training / Awards / Events precedent of shipping the
-operational core first.
+self-service employee resignation request, and final-pay computation from the case.

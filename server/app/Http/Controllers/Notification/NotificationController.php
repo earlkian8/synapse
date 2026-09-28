@@ -65,7 +65,7 @@ class NotificationController extends Controller
 
         $count = match ($data['audience']) {
             'user' => Notifier::toUser(
-                User::findOrFail($data['user_id']),
+                User::query()->inCurrentOrganization()->findOrFail($data['user_id']),
                 $data['title'], $data['body'], $data['url'] ?? null, $data['level'], 'announcement', $actor,
             ),
             'role' => Notifier::toRole(
@@ -151,8 +151,11 @@ class NotificationController extends Controller
     {
         return [
             'roles' => Role::orderBy('label')->get(['id', 'name', 'label']),
+            // Members of this workspace only — the picker is not a directory of
+            // every account on the instance.
             'users' => User::query()
                 ->where('is_active', true)
+                ->inCurrentOrganization()
                 ->orderBy('first_name')
                 ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'email'])
                 ->map(fn (User $user): array => [

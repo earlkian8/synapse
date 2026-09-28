@@ -81,7 +81,7 @@ class Assistant
         'delete', 'remove', 'archive', 'update', 'set', 'change', 'nudge', 'remind', 'record', 'clock',
         'start', 'post', 'open', 'close', 'withdraw', 'assign', 'mark', 'send', 'make', 'rate', 'score',
         'submit', 'acknowledge', 'launch', 'sign', 'enroll', 'enrol', 'invite', 'give', 'award', 'recognise',
-        'recognize', 'grade', 'drop', 'reschedule',
+        'recognize', 'grade', 'drop', 'reschedule', 'offboard', 'complete', 'reopen', 'flag', 'clear', 'apply',
     ];
 
     /**

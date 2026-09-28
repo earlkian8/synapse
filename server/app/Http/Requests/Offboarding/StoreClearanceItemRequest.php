@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Offboarding;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Create or edit a single clearance sign-off on a case (its label, the owning
@@ -18,7 +18,7 @@ class StoreClearanceItemRequest extends FormRequest
     {
         return [
             'item' => ['required', 'string', 'max:255'],
-            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
+            'department_id' => ['nullable', 'integer', TenantRule::exists('departments')],
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
     }

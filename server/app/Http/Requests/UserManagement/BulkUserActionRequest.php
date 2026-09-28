@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\UserManagement;
 
+use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +27,7 @@ class BulkUserActionRequest extends FormRequest
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer'],
             // Only the assign-role action carries a target role.
-            'role_id' => ['required_if:action,assign-role', 'integer', Rule::exists('roles', 'id')],
+            'role_id' => ['required_if:action,assign-role', 'integer', TenantRule::exists('roles')],
         ];
     }
 }

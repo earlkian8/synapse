@@ -8,7 +8,9 @@ import { MessageItem } from './message-item';
 
 /**
  * Starting points, each shown only to someone who could actually do it — a
- * suggestion that ends in "you don't have permission" is worse than none.
+ * suggestion that ends in "you don't have permission" is worse than none. The
+ * first six someone may use are shown, so the order spreads them across
+ * modules.
  */
 const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
     { prompt: 'How are we doing today?', permission: null },
@@ -16,16 +18,21 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'How is the review cycle going?',
         permission: 'performance.view',
     },
-    { prompt: 'Who is on leave this week?', permission: 'leave.view' },
+    { prompt: 'Who is leaving this month?', permission: 'offboarding.view' },
+    {
+        prompt: 'What’s our turnover this year?',
+        permission: 'employees.view',
+    },
     {
         prompt: 'What trainings are running right now?',
         permission: 'training.view',
     },
-    { prompt: 'Any meetings coming up this week?', permission: 'events.view' },
     {
         prompt: 'Who is leading for Employee of the Month?',
         permission: 'awards.manage',
     },
+    { prompt: 'Who is on leave this week?', permission: 'leave.view' },
+    { prompt: 'Any meetings coming up this week?', permission: 'events.view' },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',
@@ -179,10 +186,10 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
             <div>
                 <p className="text-sm font-semibold">How can I help?</p>
                 <p className="mx-auto mt-1 max-w-[280px] text-xs text-muted-foreground">
-                    I can answer questions about your workspace and take care of
-                    HR work, from leave and hiring to appraisals, training,
-                    awards and events. Describe what you need, or drop in a CV
-                    and I'll take it from there.
+                    I can answer questions about your workspace, run its
+                    reports, and take care of HR work, from leave and hiring to
+                    appraisals, training, awards, events and exits. Describe
+                    what you need, or drop in a CV and I'll take it from there.
                 </p>
             </div>
             <div className="mt-1 flex flex-col items-stretch gap-1.5 self-stretch">
