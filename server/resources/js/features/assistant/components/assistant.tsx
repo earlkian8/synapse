@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { tourTarget } from '@/features/product-tour/targets';
 import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import type { AgentCard } from '../types';
@@ -156,6 +157,7 @@ export function Assistant() {
                     type="button"
                     onClick={() => setOpen(true)}
                     aria-label="Open assistant"
+                    {...tourTarget('assistant')}
                     className="group fixed right-5 bottom-5 z-50 flex size-14 items-center justify-center rounded-full bg-[#0F2044] text-white shadow-lg ring-1 shadow-black/20 ring-white/10 transition-transform hover:scale-105 active:scale-95"
                 >
                     <span className="absolute inset-0 animate-ping rounded-full bg-[#0ABFBF]/30 [animation-duration:2.5s]" />

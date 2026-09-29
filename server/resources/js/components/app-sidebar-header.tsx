@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { CircleHelp, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationsDropdown } from '@/components/notifications-dropdown';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -19,6 +19,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { HelpMenu } from '@/features/product-tour/components/help-menu';
+import { tourTarget } from '@/features/product-tour/targets';
 import { useInitials } from '@/hooks/use-initials';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
@@ -75,22 +77,8 @@ export function AppSidebarHeader({
                         className="mx-0.5 hidden h-5 sm:block"
                     />
 
-                    {/* Help */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Help & resources"
-                                className="hidden size-8 text-muted-foreground hover:text-foreground sm:inline-flex"
-                            >
-                                <CircleHelp className="size-[18px]" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-xs">
-                            Help &amp; resources
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Help — the tour, and the Setup Guide for owners */}
+                    <HelpMenu />
 
                     {/* Theme */}
                     <ThemeToggle />
@@ -112,6 +100,7 @@ export function AppSidebarHeader({
                                         variant="ghost"
                                         className="size-8 rounded-full p-0"
                                         aria-label="Account menu"
+                                        {...tourTarget('account')}
                                     >
                                         <Avatar className="size-8 rounded-full ring-1 ring-border">
                                             <AvatarImage

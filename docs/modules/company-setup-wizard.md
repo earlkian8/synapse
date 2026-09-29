@@ -230,6 +230,9 @@ owner) holds all of them.
 
 - **Every Company Setup screen** — a step renders the screen's manager with the
   screen's props, so the two are the same editor.
+- **Product tour** — once setup is closed, the first page in the app shell offers the
+  owner the [first-run tour](./product-tour.md), whose Help stop (and the Help menu)
+  lead back to this Setup Guide.
 - **Employees → Access** — the join code card, and the send-off's hand-over.
 - **Seeding** — `OrganizationSeeder` marks a seeded tenant complete, so the demo account
   lands on the dashboard rather than the wizard; the holiday, award and onboarding

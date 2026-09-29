@@ -41,7 +41,9 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
     'last_login_at',
     'password_changed_at',
 ])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'email_verification_code'])]
+// Tour state is hidden too: the shared props carry it as `auth.tour`, the one
+// place the browser reads it from (see ProductTour).
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'email_verification_code', 'tour_finished_at', 'tour_outcome'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -311,6 +313,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'push_notifications' => 'boolean',
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
+            'tour_finished_at' => 'datetime',
         ];
     }
 }

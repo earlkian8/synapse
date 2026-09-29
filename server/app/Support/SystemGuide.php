@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
  *
  * It describes the product, not its implementation — no class names, tables or
  * internals — because everything in it may be repeated to whoever asked.
- * Keeping it in step with the sidebar (`app-sidebar.tsx`) and the routes is
+ * Keeping it in step with the sidebar (`lib/app-navigation.ts`) and the routes is
  * part of adding a screen.
  */
 final class SystemGuide
@@ -299,6 +299,13 @@ final class SystemGuide
             'tasks' => ['Ask a question in plain words', 'Ask it to do something, then confirm'],
             'assistant' => 'It cannot see pay, government ID numbers, bank details, home addresses, birth dates or passwords.',
             'keywords' => ['assistant', 'chat', 'ai', 'copilot', 'what can you do'],
+        ],
+        'tour' => [
+            'title' => 'The product tour', 'menu' => 'Help (the question mark in the top bar) → Take the tour', 'path' => '', 'any' => [],
+            'about' => 'A one-minute walk around the app — the sidebar sections you can open, notifications, your account menu and this assistant — shown once on your first visit, and any time again from the Help menu.',
+            'tasks' => ['Replay the tour from the Help menu'],
+            'assistant' => 'Point you to it; the tour is started from the Help menu, not from chat.',
+            'keywords' => ['tour', 'tutorial', 'walkthrough', 'getting started', 'show me around', 'new here', 'first time'],
         ],
     ];
 

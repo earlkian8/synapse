@@ -7,6 +7,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { tourTarget as tourAnchor } from '@/features/product-tour/targets';
+import type { TourTarget } from '@/features/product-tour/targets';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
@@ -15,13 +17,18 @@ type Props = {
     items: NavItem[];
     label?: string;
     badge?: ReactNode;
+    /** Where the first-run tour points at this section. */
+    tourTarget?: TourTarget;
 };
 
-export function NavMain({ items = [], label, badge }: Props) {
+export function NavMain({ items = [], label, badge, tourTarget }: Props) {
     const { currentUrl } = useCurrentUrl();
 
     return (
-        <SidebarGroup className="px-2 py-1">
+        <SidebarGroup
+            className="px-2 py-1"
+            {...(tourTarget ? tourAnchor(tourTarget) : {})}
+        >
             {label && (
                 <SidebarGroupLabel className="mb-1 flex items-center justify-between px-2 text-[10px] font-semibold tracking-[0.12em] text-sidebar-foreground/50 uppercase">
                     {label}

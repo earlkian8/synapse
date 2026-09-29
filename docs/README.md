@@ -43,6 +43,7 @@ commit history rather than repeating them.
 - [Offboarding](./modules/offboarding.md) — structured employee exits: a department-grouped clearance checklist + the separation bridge.
 - [Company Profile (Company Setup)](./modules/company-profile.md) — the tenant's own identity, contact details, logo & statutory employer numbers.
 - [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided walk-through a brand-new company gets before its dashboard: a step for every Company Setup screen, each carrying that screen's editors, with suggestions to start from.
+- [Product Tour](./modules/product-tour.md) — the first-run walk around the app, offered once to everyone and replayable from Help: a spotlight on each part of the screen their role can use, then where to start.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Work Locations (Company Setup)](./modules/work-locations.md) — sites drawn on a map, the fences punches are checked against, and who is based where.

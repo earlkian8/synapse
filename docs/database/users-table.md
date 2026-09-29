@@ -24,6 +24,8 @@ See [ADR 0001](../decisions/0001-user-identity-and-management.md) for the ration
 | `is_active` | boolean | no | Default `true`. Inactive users keep data but cannot sign in. |
 | `last_login_at` | timestamp | yes | Stamped on each successful login. |
 | `password_changed_at` | timestamp | yes | Set on create-with-password and admin reset. |
+| `tour_finished_at` | timestamp | yes | When the first-run tour was finished or skipped ([ADR 0060](../decisions/0060-a-first-run-tour-of-the-app.md)). Null ⇒ the tour is still offered. Not fillable, `#[Hidden]`; written by `ProductTour::finish` without touching `updated_at`. |
+| `tour_outcome` | string(16) | yes | `completed` or `skipped` — the first answer, kept. Null on accounts back-filled by the migration (never offered). Not fillable, `#[Hidden]`. |
 | `remember_token` | string | yes | Laravel auth. |
 | `two_factor_secret` | text | yes | Fortify 2FA. |
 | `two_factor_recovery_codes` | text | yes | Fortify 2FA. |
@@ -35,9 +37,11 @@ See [ADR 0001](../decisions/0001-user-identity-and-management.md) for the ration
 
 - **Fillable:** `first_name, middle_name, last_name, suffix, email, password,
   phone_number, profile_photo, employee_id, is_active, last_login_at, password_changed_at`.
-- **Hidden:** `password, two_factor_secret, two_factor_recovery_codes, remember_token`.
+- **Hidden:** `password, two_factor_secret, two_factor_recovery_codes, remember_token,
+  email_verification_code, tour_finished_at, tour_outcome` (tour state reaches the browser
+  only as the shared `auth.tour`).
 - **Casts:** `email_verified_at`, `two_factor_confirmed_at`, `last_login_at`,
-  `password_changed_at` → `datetime`; `password` → `hashed`; `is_active` → `boolean`.
+  `password_changed_at`, `tour_finished_at` → `datetime`; `password` → `hashed`; `is_active` → `boolean`.
 - **Traits:** `SoftDeletes` (+ Fortify passkey/2FA, Notifiable, HasFactory).
 - **Accessors:** `full_name` (appended) — `"first middle last suffix"` trimmed.
 - **Scopes:** `scopeSearch($term)` — case-insensitive multi-column search.
@@ -50,6 +54,7 @@ See [ADR 0001](../decisions/0001-user-identity-and-management.md) for the ration
 | `2026_06_09_000000_split_users_name_into_parts` | Replaced `name` with `first_name`, `middle_name` (nullable), `last_name`; data-safe backfill (splits the legacy name) + reversible `down()`. |
 | `2026_06_09_000001_add_profile_fields_to_users_table` | Added `suffix`, `phone_number`, `profile_photo`, `employee_id` (unique), `is_active` (default true), `last_login_at`, `password_changed_at`; made `password` nullable. |
 | `2026_06_10_000000_add_soft_deletes_to_users_table` | Added `deleted_at`. |
+| `2026_09_29_000000_add_product_tour_to_users` | Added `tour_finished_at`, `tour_outcome` (ADR 0060); back-filled every existing account as finished (query builder, so `updated_at` is untouched). |
 
 ## Notes
 
