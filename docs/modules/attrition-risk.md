@@ -113,6 +113,35 @@ used**: department, training completions, and departure type (counted against th
 people who left — it is what the organisation's own model learns from). **Not recorded
 anywhere**: engagement, pay against market.
 
+## The assistant
+
+`App\Services\Assistant\Modules\AttritionRiskModule`, on the shared
+`PredictiveModule` ([ADR 0058](../decisions/0058-assistant-attrition-promotion-and-forecast.md)).
+Reads need `analytics.attrition.view`; everything else `analytics.attrition.manage`.
+
+- **Reads:** `attrition_risk_summary` (counts by tier, averages, the change since the
+  previous assessment), `find_attrition_risks` (by tier, department or name, highest
+  first), `get_attrition_risk` (score and tier, confidence, what moves it, the inputs on
+  record and those estimated, the previous assessment), `get_attrition_model_status`.
+- **Pay never reaches the model.** `monthly_salary` is not stated, a factor it drove is
+  left out, and the card says only that pay is one of the inputs.
+- The guidance treats a score as a prompt for a supportive check-in — never grounds for
+  discipline, dismissal or holding someone back, never to be told to the person.
+- **Reads come from the stored runs**, never the live model, so they work while the
+  inference service is off. Reading a named person's score is audited as `viewed`
+  ([ADR 0027](../decisions/0027-assistant-employee-retrieval-and-disclosure-policy.md));
+  lists and summaries are not, and the pre-model topic brief carries counts only, never
+  names.
+- **Writes** go through `App\Support\Ml\AttritionRiskAssessor`, which gained `run($actor, $channel)` and
+  `delete($run, $channel)` — the run controller now calls `delete()` too — and
+  `ModelGraduation` (`train` / `activate` / `revert`, also with `$channel`). Each is
+  audited "… via assistant".
+- **Confirmed:** `delete_attrition_assessment` (the card says which run the page would show next) and
+  `switch_attrition_model` (`own` — the newest model that passed its check — or `general`).
+  `run_attrition_assessment` and `train_attrition_model` run directly: a run is a new snapshot, and training only
+  produces a candidate.
+- Words are the page's (`App\Support\Ml\PredictionWording`).
+
 ## Permissions
 
 `analytics.attrition.view` (the overview & detail), `analytics.attrition.manage` (run /

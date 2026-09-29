@@ -38,9 +38,11 @@ class PromotionReadinessAssessor
     /**
      * Run an assessment across all active employees.
      *
+     * `$channel` is appended to the audit description (" via assistant").
+     *
      * @throws MlException when there is nobody to assess or the service fails.
      */
-    public function run(?User $actor): PromotionReadinessRun
+    public function run(?User $actor, string $channel = ''): PromotionReadinessRun
     {
         $employees = Employee::query()
             ->where('employment_status', 'active')
@@ -139,11 +141,25 @@ class PromotionReadinessAssessor
         ActivityLogger::log(
             event: 'generated',
             description: "Ran a promotion-readiness assessment ({$run->employees_scored} employees, {$run->high_count} high"
-                .($declined > 0 ? ", {$declined} not assessed)" : ')'),
+                .($declined > 0 ? ", {$declined} not assessed)" : ')').$channel,
             subject: $run,
             logName: 'promotion-readiness',
         );
 
         return $run;
+    }
+
+    /**
+     * Delete a historical run, and its scores with it (cascade).
+     */
+    public function delete(PromotionReadinessRun $run, string $channel = ''): void
+    {
+        $run->delete();
+
+        ActivityLogger::log(
+            event: 'deleted',
+            description: 'Deleted a promotion-readiness assessment run'.$channel,
+            logName: 'promotion-readiness',
+        );
     }
 }

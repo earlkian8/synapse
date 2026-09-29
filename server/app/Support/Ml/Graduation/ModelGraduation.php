@@ -97,7 +97,7 @@ class ModelGraduation
      * @throws GraduationException when a requirement is unmet.
      * @throws MlException when the inference service cannot train.
      */
-    public function train(string $model, ?User $actor): LocalModel
+    public function train(string $model, ?User $actor, string $channel = ''): LocalModel
     {
         $surface = $this->surface($model);
         $set = $surface->trainingSet();
@@ -134,7 +134,7 @@ class ModelGraduation
         ActivityLogger::log(
             event: 'trained',
             description: "Trained a {$title} model on the organisation's own records ({$attempt->examples} examples) — "
-                .($passed ? 'it passed its check' : 'it did not pass its check'),
+                .($passed ? 'it passed its check' : 'it did not pass its check').$channel,
             subject: $attempt,
             logName: self::SURFACES[$model]['log'],
         );
@@ -148,7 +148,7 @@ class ModelGraduation
      *
      * @throws GraduationException when it did not pass its check or is already in use.
      */
-    public function activate(LocalModel $candidate, ?User $actor): void
+    public function activate(LocalModel $candidate, ?User $actor, string $channel = ''): void
     {
         if ($candidate->status !== 'ready') {
             throw new GraduationException($candidate->status === 'active'
@@ -165,7 +165,7 @@ class ModelGraduation
 
         ActivityLogger::log(
             event: 'activated',
-            description: 'Switched '.self::SURFACES[$candidate->model]['title']." to the organisation's own model",
+            description: 'Switched '.self::SURFACES[$candidate->model]['title']." to the organisation's own model{$channel}",
             subject: $candidate,
             logName: self::SURFACES[$candidate->model]['log'],
         );
@@ -177,7 +177,7 @@ class ModelGraduation
      *
      * @throws GraduationException when the surface already uses the general model.
      */
-    public function revert(string $model, ?User $actor): LocalModel
+    public function revert(string $model, ?User $actor, string $channel = ''): LocalModel
     {
         $active = LocalModel::activeFor($model);
 
@@ -189,7 +189,7 @@ class ModelGraduation
 
         ActivityLogger::log(
             event: 'retired',
-            description: 'Switched '.self::SURFACES[$model]['title'].' back to the general model',
+            description: 'Switched '.self::SURFACES[$model]['title'].' back to the general model'.$channel,
             subject: $active,
             logName: self::SURFACES[$model]['log'],
         );

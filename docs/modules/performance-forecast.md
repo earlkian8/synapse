@@ -124,6 +124,36 @@ workforce read one cycle shifted (last year's rating → this year's;
 Recorded property of the reference: ratings there drift up about two points a year, so
 forecasts do too. The track record is how an organisation sees whether that holds for it.
 
+## The assistant
+
+`App\Services\Assistant\Modules\PerformanceForecastModule`, on the shared
+`PredictiveModule` ([ADR 0058](../decisions/0058-assistant-attrition-promotion-and-forecast.md)).
+Reads need `analytics.performance.view`; everything else `analytics.performance.manage`.
+
+- **Reads:** `performance_forecast_summary` (the target period, counts by band,
+  averages, and how the forecast did — `ForecastTrackRecord`, with no verdict below 20
+  checked), `find_performance_forecasts` (by band, department or name; `declined: true`
+  for who was left out), `get_performance_forecast` ("74% (likely 66–81) · On track, 71%
+  chance", the appraisals it rests on, the actual result once there is one),
+  `get_forecast_model_status`.
+- The Performance capability's appraisal brief quotes the latest forecast the same way.
+  It used to call it a score "on the 1–5 index"; forecasts are attainment on 0–100.
+- The guidance treats a forecast as a planning aid, never a rating.
+- **Reads come from the stored runs**, never the live model, so they work while the
+  inference service is off. Reading a named person's score is audited as `viewed`
+  ([ADR 0027](../decisions/0027-assistant-employee-retrieval-and-disclosure-policy.md));
+  lists and summaries are not, and the pre-model topic brief carries counts only, never
+  names.
+- **Writes** go through `App\Support\Ml\PerformanceForecaster`, which gained `run($actor, $channel)` and
+  `delete($run, $channel)` — the run controller now calls `delete()` too — and
+  `ModelGraduation` (`train` / `activate` / `revert`, also with `$channel`). Each is
+  audited "… via assistant".
+- **Confirmed:** `delete_performance_forecast` (the card says which run the page would show next) and
+  `switch_forecast_model` (`own` — the newest model that passed its check — or `general`).
+  `run_performance_forecast` and `train_forecast_model` run directly: a run is a new snapshot, and training only
+  produces a candidate.
+- Words are the page's (`App\Support\Ml\PredictionWording`).
+
 ## Permissions
 
 `analytics.performance.view` (the overview & detail), `analytics.performance.manage`

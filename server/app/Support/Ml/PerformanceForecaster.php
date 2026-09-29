@@ -41,9 +41,11 @@ class PerformanceForecaster
     /**
      * Run a forecast across all active employees for the next non-closed period.
      *
+     * `$channel` is appended to the audit description (" via assistant").
+     *
      * @throws MlException when there is nobody to forecast or the service fails.
      */
-    public function run(?User $actor): PerformanceForecastRun
+    public function run(?User $actor, string $channel = ''): PerformanceForecastRun
     {
         $employees = Employee::query()
             ->where('employment_status', 'active')
@@ -155,12 +157,26 @@ class PerformanceForecaster
         ActivityLogger::log(
             event: 'generated',
             description: "Ran a performance forecast ({$run->employees_scored} employees, {$run->exceeds_count} exceeding"
-                .($declined > 0 ? ", {$declined} not forecast)" : ')'),
+                .($declined > 0 ? ", {$declined} not forecast)" : ')').$channel,
             subject: $run,
             logName: 'performance-forecast',
         );
 
         return $run;
+    }
+
+    /**
+     * Delete a historical run, and its scores with it (cascade).
+     */
+    public function delete(PerformanceForecastRun $run, string $channel = ''): void
+    {
+        $run->delete();
+
+        ActivityLogger::log(
+            event: 'deleted',
+            description: 'Deleted a performance-forecast run'.$channel,
+            logName: 'performance-forecast',
+        );
     }
 
     private function clamp(float $rating): float

@@ -7,6 +7,7 @@ use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Modules\ActivityLogsModule;
 use App\Services\Assistant\Modules\AttendanceModule;
 use App\Services\Assistant\Modules\AttendancePoliciesModule;
+use App\Services\Assistant\Modules\AttritionRiskModule;
 use App\Services\Assistant\Modules\AwardsModule;
 use App\Services\Assistant\Modules\AwardTypesModule;
 use App\Services\Assistant\Modules\CompanyProfileModule;
@@ -20,8 +21,10 @@ use App\Services\Assistant\Modules\LocationsModule;
 use App\Services\Assistant\Modules\OffboardingModule;
 use App\Services\Assistant\Modules\OffboardingProgramsModule;
 use App\Services\Assistant\Modules\OnboardingModule;
+use App\Services\Assistant\Modules\PerformanceForecastModule;
 use App\Services\Assistant\Modules\PerformanceFrameworkModule;
 use App\Services\Assistant\Modules\PerformanceModule;
+use App\Services\Assistant\Modules\PromotionReadinessModule;
 use App\Services\Assistant\Modules\RecruitmentModule;
 use App\Services\Assistant\Modules\RecruitmentPipelinesModule;
 use App\Services\Assistant\Modules\ReportsModule;
@@ -104,6 +107,9 @@ class AppServiceProvider extends ServiceProvider
             $app->make(RolesModule::class),
             $app->make(ActivityLogsModule::class),
             $app->make(TrashModule::class),
+            $app->make(AttritionRiskModule::class),
+            $app->make(PromotionReadinessModule::class),
+            $app->make(PerformanceForecastModule::class),
             $app->make(DashboardModule::class),
         ]);
 

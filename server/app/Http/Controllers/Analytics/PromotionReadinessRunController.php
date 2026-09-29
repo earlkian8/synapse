@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Analytics;
 
 use App\Http\Controllers\Controller;
 use App\Models\PromotionReadinessRun;
-use App\Support\ActivityLogger;
 use App\Support\Ml\MlException;
 use App\Support\Ml\PromotionReadinessAssessor;
 use Illuminate\Http\RedirectResponse;
@@ -46,15 +45,9 @@ class PromotionReadinessRunController extends Controller
     /**
      * Delete a historical assessment run (and its scores, via cascade).
      */
-    public function destroy(PromotionReadinessRun $run): RedirectResponse
+    public function destroy(PromotionReadinessRun $run, PromotionReadinessAssessor $assessor): RedirectResponse
     {
-        $run->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: 'Deleted a promotion-readiness assessment run',
-            logName: 'promotion-readiness',
-        );
+        $assessor->delete($run);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Assessment deleted.']);
 

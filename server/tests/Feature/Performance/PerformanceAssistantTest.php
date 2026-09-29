@@ -358,17 +358,17 @@ test('the forecast only reaches someone who may see forecasts', function () {
     PerformanceForecast::create([
         'performance_forecast_run_id' => $run->id,
         'employee_id' => $draft->employee_id,
-        'predicted_rating' => 3.8,
-        'predicted_low' => 3.4,
-        'predicted_high' => 4.2,
-        'confidence' => 0.7,
-        'band' => 'stable',
+        'predicted_rating' => 74,
+        'predicted_low' => 66,
+        'predicted_high' => 81,
+        'confidence' => 0.71,
+        'band' => 'on_track',
     ]);
 
     $withForecasts = actingAsUserWith(['employees.view', 'performance.view', 'analytics.performance.view']);
     $without = actingAsUserWith(['employees.view', 'performance.view']);
 
-    expect(appraisalBrief($withForecasts, 'how is maria santos doing?')->toPrompt())->toContain('Latest performance forecast: 3.8')
+    expect(appraisalBrief($withForecasts, 'how is maria santos doing?')->toPrompt())->toContain('Latest performance forecast: 74% (likely 66–81) · On track, 71% chance.')
         ->and(appraisalBrief($without, 'how is maria santos doing?')->toPrompt())->not->toContain('forecast');
 });
 

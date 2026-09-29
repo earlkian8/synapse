@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Analytics;
 
 use App\Http\Controllers\Controller;
 use App\Models\PerformanceForecastRun;
-use App\Support\ActivityLogger;
 use App\Support\Ml\MlException;
 use App\Support\Ml\PerformanceForecaster;
 use Illuminate\Http\RedirectResponse;
@@ -46,15 +45,9 @@ class PerformanceForecastRunController extends Controller
     /**
      * Delete a historical forecast run (and its lines, via cascade).
      */
-    public function destroy(PerformanceForecastRun $run): RedirectResponse
+    public function destroy(PerformanceForecastRun $run, PerformanceForecaster $forecaster): RedirectResponse
     {
-        $run->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: 'Deleted a performance-forecast run',
-            logName: 'performance-forecast',
-        );
+        $forecaster->delete($run);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Forecast deleted.']);
 

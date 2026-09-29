@@ -16,6 +16,7 @@ use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Retrieval\RetrievedSubject;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
+use App\Support\Ml\PredictionWording;
 use App\Support\Performance\AppraisalException;
 use App\Support\Performance\AppraisalWorkflow;
 use App\Support\Performance\PerformanceCalibration;
@@ -935,14 +936,8 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
             return null;
         }
 
-        return sprintf(
-            'Latest performance forecast: %s on the 1–5 index%s, band %s.',
-            rtrim(rtrim(number_format((float) $forecast->predicted_rating, 2), '0'), '.'),
-            $forecast->predicted_low !== null && $forecast->predicted_high !== null
-                ? ' (likely '.round((float) $forecast->predicted_low, 1).'–'.round((float) $forecast->predicted_high, 1).')'
-                : '',
-            (string) $forecast->band,
-        );
+        // Ratings are attainment on 0–100 since ADR 0045 — never the old 1–5 index.
+        return 'Latest performance forecast: '.PredictionWording::forecast($forecast).'.';
     }
 
     private function resultText(PerformanceEvaluation $e): string

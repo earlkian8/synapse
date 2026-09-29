@@ -50,9 +50,11 @@ class AttritionRiskAssessor
     /**
      * Run an assessment across all active employees.
      *
+     * `$channel` is appended to the audit description (" via assistant").
+     *
      * @throws MlException when there is nobody to assess or the service fails.
      */
-    public function run(?User $actor): AttritionRiskRun
+    public function run(?User $actor, string $channel = ''): AttritionRiskRun
     {
         $since = today()->subDays(AttritionFeatureMapper::WINDOW_DAYS)->toDateString();
         $until = today()->toDateString();
@@ -148,12 +150,26 @@ class AttritionRiskAssessor
 
         ActivityLogger::log(
             event: 'generated',
-            description: "Ran an attrition-risk assessment ({$run->employees_scored} employees, {$run->high_count} high risk)",
+            description: "Ran an attrition-risk assessment ({$run->employees_scored} employees, {$run->high_count} high risk){$channel}",
             subject: $run,
             logName: 'attrition-risk',
         );
 
         return $run;
+    }
+
+    /**
+     * Delete a historical run, and its scores with it (cascade).
+     */
+    public function delete(AttritionRiskRun $run, string $channel = ''): void
+    {
+        $run->delete();
+
+        ActivityLogger::log(
+            event: 'deleted',
+            description: 'Deleted an attrition-risk assessment run'.$channel,
+            logName: 'attrition-risk',
+        );
     }
 
     /**

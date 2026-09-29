@@ -85,7 +85,7 @@ class Assistant
         'recognize', 'grade', 'drop', 'reschedule', 'offboard', 'complete', 'reopen', 'flag', 'clear', 'apply',
         'rename', 'restore', 'nest', 'declare', 'turn', 'enable', 'disable', 'require', 'base', 'retire',
         'reactivate', 'copy', 'grant', 'revoke', 'activate', 'deactivate', 'resend', 'take', 'permanently',
-        'purge',
+        'purge', 'run', 'rerun', 'train', 'switch', 'assess', 'rescore',
     ];
 
     /**

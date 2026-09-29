@@ -21,6 +21,9 @@ class PromotionReadinessRun extends Model
 
     public const STATUSES = ['completed', 'failed'];
 
+    /** The promotion rate of the reference workforce the general model learned from. */
+    public const REFERENCE_RATE = 0.1;
+
     protected $fillable = [
         'organization_id',
         'generated_by',
@@ -75,6 +78,20 @@ class PromotionReadinessRun extends Model
     public function generator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
+    }
+
+    /**
+     * The "average" this run's tiers and odds are against: the promotion rate of
+     * the history its model learned from — the organisation's own when its own
+     * model scored the run (ADR 0046); null for the general model, whose rate is
+     * the reference workforce's ({@see self::REFERENCE_RATE}).
+     */
+    public function baseRate(): ?float
+    {
+        $counts = $this->local_model_id !== null ? ($this->localModel?->counts ?? []) : [];
+        $examples = ($counts['promoted'] ?? 0) + ($counts['not_promoted'] ?? 0);
+
+        return $examples > 0 ? round($counts['promoted'] / $examples, 4) : null;
     }
 
     /**

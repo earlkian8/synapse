@@ -131,6 +131,34 @@ readiness; rescoring is identical; no score is ever produced for a record the mo
 cannot see. Recorded property of the reference: a consistently high performer with no
 improvement reads as *Low* — the factors show exactly that.
 
+## The assistant
+
+`App\Services\Assistant\Modules\PromotionReadinessModule`, on the shared
+`PredictiveModule` ([ADR 0058](../decisions/0058-assistant-attrition-promotion-and-forecast.md)).
+Reads need `analytics.promotion.view`; everything else `analytics.promotion.manage`.
+
+- **Reads:** `promotion_readiness_summary` (counts by tier, the average, who was left
+  out by reason, the change since the previous assessment), `find_promotion_readiness`
+  (by tier, department or name; `declined: true` lists who the model left out and what
+  would include them), `get_promotion_readiness` (score and tier, the odds against the
+  right average — `PromotionReadinessRun::baseRate()`, now on the model — the basis, the
+  factors in readiness points, the appraisals), `get_promotion_model_status`.
+- The guidance treats readiness as one input to a human decision, never the decision.
+- **Reads come from the stored runs**, never the live model, so they work while the
+  inference service is off. Reading a named person's score is audited as `viewed`
+  ([ADR 0027](../decisions/0027-assistant-employee-retrieval-and-disclosure-policy.md));
+  lists and summaries are not, and the pre-model topic brief carries counts only, never
+  names.
+- **Writes** go through `App\Support\Ml\PromotionReadinessAssessor`, which gained `run($actor, $channel)` and
+  `delete($run, $channel)` — the run controller now calls `delete()` too — and
+  `ModelGraduation` (`train` / `activate` / `revert`, also with `$channel`). Each is
+  audited "… via assistant".
+- **Confirmed:** `delete_promotion_assessment` (the card says which run the page would show next) and
+  `switch_promotion_model` (`own` — the newest model that passed its check — or `general`).
+  `run_promotion_assessment` and `train_promotion_model` run directly: a run is a new snapshot, and training only
+  produces a candidate.
+- Words are the page's (`App\Support\Ml\PredictionWording`).
+
 ## Permissions
 
 `analytics.promotion.view` (the overview & detail), `analytics.promotion.manage` (run /

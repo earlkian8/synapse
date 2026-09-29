@@ -52,6 +52,9 @@ const ASSISTANT_PERMISSIONS = [
     'activity-logs.view',
     'users.view',
     'roles.view',
+    'analytics.attrition.view',
+    'analytics.promotion.view',
+    'analytics.performance.view',
 ] as const;
 
 const draftKey = (id: number | null) =>

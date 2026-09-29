@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Analytics;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttritionRiskRun;
-use App\Support\ActivityLogger;
 use App\Support\Ml\AttritionRiskAssessor;
 use App\Support\Ml\MlException;
 use Illuminate\Http\RedirectResponse;
@@ -43,15 +42,9 @@ class AttritionRiskRunController extends Controller
     /**
      * Delete a historical assessment run (and its scores, via cascade).
      */
-    public function destroy(AttritionRiskRun $run): RedirectResponse
+    public function destroy(AttritionRiskRun $run, AttritionRiskAssessor $assessor): RedirectResponse
     {
-        $run->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: 'Deleted an attrition-risk assessment run',
-            logName: 'attrition-risk',
-        );
+        $assessor->delete($run);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Assessment deleted.']);
 

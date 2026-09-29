@@ -68,6 +68,18 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'What changed in the activity log this week?',
         permission: 'activity-logs.view',
     },
+    {
+        prompt: 'Who is at risk of leaving?',
+        permission: 'analytics.attrition.view',
+    },
+    {
+        prompt: 'Who is ready for promotion?',
+        permission: 'analytics.promotion.view',
+    },
+    {
+        prompt: 'Who is forecast below target next cycle?',
+        permission: 'analytics.performance.view',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',
