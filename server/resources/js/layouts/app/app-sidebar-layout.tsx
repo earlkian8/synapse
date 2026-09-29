@@ -4,6 +4,7 @@ import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
 import { Assistant } from '@/features/assistant/components/assistant';
+import { ProductTour } from '@/features/product-tour/components/product-tour';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppSidebarLayout({
@@ -20,6 +21,8 @@ export default function AppSidebarLayout({
             </AppContent>
             {/* Persistent agentic assistant — mounted once for the whole app. */}
             <Assistant />
+            {/* The first-run tour (ADR 0060) — offered once, replayed from Help. */}
+            <ProductTour />
         </AppShell>
     );
 }

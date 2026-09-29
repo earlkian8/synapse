@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Http\Resources\NotificationResource;
 use App\Models\Organization;
+use App\Support\ProductTour;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -62,6 +63,9 @@ class HandleInertiaRequests extends Middleware
                 'roles' => $user ? $user->roles->pluck('name')->all() : [],
                 'permissions' => $user ? $user->permissionNames()->all() : [],
                 'is_super_admin' => $user?->isSuperAdmin() ?? false,
+                // Whether the first-run tour is still to be offered (ADR 0060).
+                // The app shell starts it; pages without the shell never do.
+                'tour' => $user ? ['owed' => ProductTour::owes($user)] : null,
             ],
             'notifications' => $user ? [
                 'items' => NotificationResource::collection(

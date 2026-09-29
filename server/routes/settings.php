@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\ProductTourController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -24,4 +25,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+
+    // The first-run tour closing — finished or skipped (ADR 0060). A background
+    // call from the tour, so the page it closes over is left alone.
+    Route::post('settings/tour', [ProductTourController::class, 'finish'])->name('tour.finish');
 });

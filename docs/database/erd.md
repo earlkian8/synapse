@@ -94,6 +94,8 @@ erDiagram
         boolean is_active
         datetime email_verified_at
         datetime last_login_at
+        datetime tour_finished_at "null = first-run tour still offered"
+        string tour_outcome "completed | skipped"
         datetime deleted_at
     }
     ROLE {

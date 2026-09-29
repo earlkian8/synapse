@@ -18,6 +18,7 @@ import {
 } from '@/features/notifications/constants';
 import { notificationRoutes } from '@/features/notifications/routes';
 import type { AppNotification } from '@/features/notifications/types';
+import { tourTarget } from '@/features/product-tour/targets';
 import { cn } from '@/lib/utils';
 
 /** Refresh the shared bell payload on an interval so it stays close to live. */
@@ -75,6 +76,7 @@ export function NotificationsDropdown() {
                             size="icon"
                             aria-label="Notifications"
                             className="relative size-8 text-muted-foreground hover:text-foreground"
+                            {...tourTarget('notifications')}
                         >
                             <Bell className="size-[18px]" />
                             {unreadCount > 0 && (
