@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * The canonical catalogue of every permission in the system.
@@ -186,5 +187,57 @@ class PermissionRegistry
     public static function groupFor(string $permission): ?string
     {
         return self::all()->get($permission)['group'] ?? null;
+    }
+
+    /**
+     * The permissions a phrase names — for the assistant, where people say
+     * "approve leave" rather than `leave.manage`. In order of preference: a key
+     * ("leave.manage"), a label ("Approve / reject leave & set balances"), a
+     * whole group ("Leave Management"), then the one permission whose key or
+     * label holds every word of the phrase. Returns the names and, when there are none, why.
+     *
+     * @return array{0: list<string>, 1: string}
+     */
+    public static function lookup(string $needle): array
+    {
+        $needle = trim($needle);
+        $lower = Str::lower($needle);
+
+        if ($needle === '') {
+            return [[], 'Say which permission.'];
+        }
+
+        $all = self::all();
+
+        if ($all->has($lower)) {
+            return [[$lower], ''];
+        }
+
+        $byLabel = $all->filter(fn (array $p): bool => Str::lower($p['label']) === $lower)->keys()->all();
+
+        if ($byLabel !== []) {
+            return [$byLabel, ''];
+        }
+
+        $group = collect(self::GROUPS)->first(fn (array $permissions, string $name): bool => Str::lower($name) === $lower);
+
+        if ($group !== null) {
+            return [array_keys($group), ''];
+        }
+
+        // Every word of the phrase, in the key or label: "approve leave" finds
+        // "Approve / reject leave & set balances".
+        $words = preg_split('/\s+/', $lower) ?: [];
+        $partial = $all->filter(function (array $p, string $name) use ($words): bool {
+            $haystack = $name.' '.Str::lower($p['label']);
+
+            return collect($words)->every(fn (string $word): bool => str_contains($haystack, $word));
+        })->keys()->all();
+
+        return match (count($partial)) {
+            0 => [[], 'No permission is called “'.Str::limit($needle, 60).'”.'],
+            1 => [$partial, ''],
+            default => [[], 'More than one permission matches “'.Str::limit($needle, 60).'”: '.implode(', ', array_slice($partial, 0, 6)).(count($partial) > 6 ? ', …' : '').'. Name one.'],
+        };
     }
 }

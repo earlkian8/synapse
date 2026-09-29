@@ -62,6 +62,9 @@ test('it deletes a single log entry', function () {
     $this->delete(route('system.activity-logs.destroy', $log))->assertSessionHasNoErrors();
 
     $this->assertDatabaseMissing('activity_logs', ['id' => $log->id]);
+
+    // Erasing the trail is itself on the trail.
+    expect(ActivityLog::query()->where('log_name', 'activity_logs')->where('description', 'like', 'Deleted an activity log entry:%')->exists())->toBeTrue();
 });
 
 test('it bulk deletes log entries', function () {
@@ -72,7 +75,8 @@ test('it bulk deletes log entries', function () {
         'ids' => $logs->pluck('id')->all(),
     ])->assertSessionHasNoErrors();
 
-    expect(ActivityLog::count())->toBe(0);
+    expect(ActivityLog::query()->whereKey($logs->pluck('id'))->count())->toBe(0)
+        ->and(ActivityLog::query()->sole()->description)->toBe('Deleted 3 activity log entries');
 });
 
 test('it clears the entire activity log', function () {
@@ -81,7 +85,11 @@ test('it clears the entire activity log', function () {
 
     $this->delete(route('system.activity-logs.clear'))->assertSessionHasNoErrors();
 
-    expect(ActivityLog::count())->toBe(0);
+    // Only the record of the clearing is left — with who did it.
+    $trace = ActivityLog::query()->sole();
+
+    expect($trace->description)->toBe('Cleared the activity log — 2 entries deleted')
+        ->and($trace->causer_id)->toBe(auth()->id());
 });
 
 test('it exports logs as a csv download', function () {

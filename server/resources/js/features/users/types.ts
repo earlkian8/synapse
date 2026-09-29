@@ -4,6 +4,8 @@ export type UserRole = {
     id: number;
     name: string;
     label: string;
+    /** Whether the viewer may give (or take) this role — see ADR 0057. */
+    givable?: boolean;
 };
 
 export type ManagedUser = {
@@ -19,6 +21,10 @@ export type ManagedUser = {
     profile_photo: string | null;
     employee_id: string | null;
     roles: UserRole[];
+    /** Belongs to another workspace too: only its roles here can change. */
+    shared_account: boolean;
+    /** False when the account has access the viewer doesn't. */
+    manageable: boolean;
     is_active: boolean;
     status: UserStatus;
     email_verified: boolean;

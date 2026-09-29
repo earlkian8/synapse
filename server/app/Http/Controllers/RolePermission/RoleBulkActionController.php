@@ -4,8 +4,7 @@ namespace App\Http\Controllers\RolePermission;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RolePermission\BulkRoleActionRequest;
-use App\Models\Role;
-use App\Support\ActivityLogger;
+use App\Support\Roles\RoleWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -15,21 +14,18 @@ class RoleBulkActionController extends Controller
     /**
      * Apply an action to a batch of roles.
      */
-    public function __invoke(BulkRoleActionRequest $request): RedirectResponse
+    public function __invoke(BulkRoleActionRequest $request, RoleWorkflow $workflow): RedirectResponse
     {
         $action = $request->validated('action');
 
         // Each bulk action requires the same permission as its single-row form.
         Gate::authorize($this->permissionFor($action));
 
-        $requested = Role::whereIn('id', $request->validated('ids'))->get();
-
         // Built-in (system / super-admin) roles can never be removed in a sweep.
-        $roles = $requested->where('is_system', false)->values();
-        $protected = $requested->count() - $roles->count();
+        ['deleted' => $deleted, 'protected' => $protected] = $workflow->deleteMany($request->validated('ids'));
 
         // All selected roles were protected — nothing to do, but still confirm it.
-        if ($roles->isEmpty()) {
+        if ($deleted === []) {
             Inertia::flash('toast', [
                 'type' => 'warning',
                 'message' => $protected === 1
@@ -40,18 +36,7 @@ class RoleBulkActionController extends Controller
             return back();
         }
 
-        $labels = $roles->pluck('label')->all();
-        $count = $roles->count();
-
-        Role::whereKey($roles->pluck('id'))->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: 'Bulk deleted '.$count.' '.($count === 1 ? 'role' : 'roles'),
-            properties: ['action' => $action, 'count' => $count, 'roles' => $labels, 'protected' => $protected],
-            logName: 'roles',
-        );
-
+        $count = count($deleted);
         $noun = $count === 1 ? 'role' : 'roles';
         $message = "{$count} {$noun} deleted.";
 

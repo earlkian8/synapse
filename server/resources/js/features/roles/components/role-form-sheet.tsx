@@ -21,11 +21,18 @@ import { PermissionMatrix } from './permission-matrix';
 type Props = {
     role: ManagedRole | null;
     groups: PermissionGroup[];
+    grantable: string[] | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 };
 
-export function RoleFormSheet({ role, groups, open, onOpenChange }: Props) {
+export function RoleFormSheet({
+    role,
+    groups,
+    grantable,
+    open,
+    onOpenChange,
+}: Props) {
     const isEditing = Boolean(role);
 
     return (
@@ -50,6 +57,7 @@ export function RoleFormSheet({ role, groups, open, onOpenChange }: Props) {
                         key={role?.id ?? 'new'}
                         role={role}
                         groups={groups}
+                        grantable={grantable}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -69,10 +77,12 @@ function slugify(value: string): string {
 function RoleFormBody({
     role,
     groups,
+    grantable,
     onDone,
 }: {
     role: ManagedRole | null;
     groups: PermissionGroup[];
+    grantable: string[] | null;
     onDone: () => void;
 }) {
     const isEditing = Boolean(role);
@@ -220,6 +230,7 @@ function RoleFormBody({
 
                     <PermissionMatrix
                         groups={groups}
+                        grantable={grantable}
                         value={data.permissions}
                         onChange={(permissions) =>
                             setData('permissions', permissions)

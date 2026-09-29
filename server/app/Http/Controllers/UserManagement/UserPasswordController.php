@@ -5,7 +5,8 @@ namespace App\Http\Controllers\UserManagement;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\UpdateUserPasswordRequest;
 use App\Models\User;
-use App\Support\ActivityLogger;
+use App\Support\Users\UserAccountException;
+use App\Support\Users\UserAccounts;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
@@ -14,20 +15,15 @@ class UserPasswordController extends Controller
     /**
      * Administratively reset a user's password.
      */
-    public function update(UpdateUserPasswordRequest $request, User $user): RedirectResponse
+    public function update(UpdateUserPasswordRequest $request, User $user, UserAccounts $accounts): RedirectResponse
     {
-        $user->update([
-            'password' => $request->validated('password'),
-            'password_changed_at' => now(),
-        ]);
+        try {
+            $accounts->resetPassword($user, $request->validated('password'), $request->user());
+        } catch (UserAccountException $e) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $e->getMessage()]);
 
-        ActivityLogger::log(
-            event: 'password_reset',
-            description: "Reset password for {$user->full_name}",
-            subject: $user,
-            logName: 'user_management',
-            subjectLabel: $user->full_name,
-        );
+            return back();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Password reset for {$user->full_name}."]);
 

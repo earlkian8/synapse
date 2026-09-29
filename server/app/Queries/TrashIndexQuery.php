@@ -43,7 +43,7 @@ class TrashIndexQuery
         $rows = new Collection;
 
         foreach ($this->scannedTypes($type, $actor) as $key => $definition) {
-            $this->trashedQuery($definition['model'], $search)
+            $this->trashedQuery($key, $definition['model'], $search)
                 ->get()
                 ->each(function (Model $model) use ($key, $actor, $rows): void {
                     $rows->push([
@@ -79,7 +79,7 @@ class TrashIndexQuery
 
         foreach (TrashRegistry::viewableTypes($actor) as $key) {
             $definition = TrashRegistry::definition($key);
-            $count = $definition['model']::onlyTrashed()->count();
+            $count = TrashRegistry::trashed($key)->count();
             $total += $count;
 
             $types[] = [
@@ -128,15 +128,15 @@ class TrashIndexQuery
     }
 
     /**
-     * A trashed-only query for one model with the optional search applied.
+     * A trashed-only query for one type, confined to this workspace, with the
+     * optional search applied.
      *
      * @param  class-string  $model
      * @return Builder<covariant Model>
      */
-    private function trashedQuery(string $model, string $search): Builder
+    private function trashedQuery(string $type, string $model, string $search): Builder
     {
-        /** @var Builder<Model> $query */
-        $query = $model::onlyTrashed();
+        $query = TrashRegistry::trashed($type);
 
         return $query->when(
             $search !== '' && method_exists($model, 'scopeSearch'),

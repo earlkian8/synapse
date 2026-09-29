@@ -11,6 +11,11 @@ type Props = {
     readOnly?: boolean;
     /** When set, every permission renders as granted (for the super-admin role). */
     grantAll?: boolean;
+    /**
+     * The permissions the editor may add — null or absent for any. One they
+     * could not grant stays removable but cannot be (re-)added (ADR 0057).
+     */
+    grantable?: string[] | null;
 };
 
 /**
@@ -23,9 +28,12 @@ export function PermissionMatrix({
     onChange,
     readOnly = false,
     grantAll = false,
+    grantable = null,
 }: Props) {
     const selected = new Set(value);
+    const allowed = grantable === null ? null : new Set(grantable);
     const isGranted = (name: string) => grantAll || selected.has(name);
+    const canAdd = (name: string) => allowed === null || allowed.has(name);
 
     const setMany = (names: string[], granted: boolean) => {
         if (!onChange) {
@@ -33,7 +41,13 @@ export function PermissionMatrix({
         }
 
         const next = new Set(selected);
-        names.forEach((name) => (granted ? next.add(name) : next.delete(name)));
+        names.forEach((name) => {
+            if (!granted) {
+                next.delete(name);
+            } else if (canAdd(name)) {
+                next.add(name);
+            }
+        });
         onChange([...next]);
     };
 
@@ -124,6 +138,16 @@ export function PermissionMatrix({
                                         ) : (
                                             <Checkbox
                                                 checked={granted}
+                                                disabled={
+                                                    !granted &&
+                                                    !canAdd(permission.name)
+                                                }
+                                                title={
+                                                    !granted &&
+                                                    !canAdd(permission.name)
+                                                        ? 'You can only grant access you have yourself.'
+                                                        : undefined
+                                                }
                                                 onCheckedChange={(checked) =>
                                                     setMany(
                                                         [permission.name],

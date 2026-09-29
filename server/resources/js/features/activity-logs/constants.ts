@@ -6,6 +6,7 @@ export const EVENT_FILTERS = [
     { value: 'deactivated', label: 'Deactivated' },
     { value: 'password_reset', label: 'Password reset' },
     { value: 'archived', label: 'Archived' },
+    { value: 'removed', label: 'Removed' },
     { value: 'restored', label: 'Restored' },
     { value: 'deleted', label: 'Deleted' },
 ] as const;
@@ -58,6 +59,12 @@ export const EVENT_META: Record<string, EventStyle> = {
     },
     archived: {
         label: 'Archived',
+        text: 'text-amber-700 dark:text-amber-400',
+        bg: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
+        dot: 'bg-amber-500',
+    },
+    removed: {
+        label: 'Removed',
         text: 'text-amber-700 dark:text-amber-400',
         bg: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
         dot: 'bg-amber-500',

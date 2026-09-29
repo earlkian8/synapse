@@ -117,8 +117,30 @@ app/
     └── PermissionSyncer.php          # registry → permissions table
 ```
 
-Each mutation records an `ActivityLogger::log(..., logName: 'roles')` entry
-(created / updated / deleted), so role changes show up in Activity Logs.
+Every write goes through **`App\Support\Roles\RoleWorkflow`** — the controllers,
+role assignment on the Users screen, and the assistant. Each mutation records an
+`ActivityLogger::log(..., logName: 'roles')` entry (created / updated with the
+permissions added and removed / deleted with its holder count), so role changes show
+up in Activity Logs. Refusals are `RoleException`, flashed as an error toast.
+
+### You can only give what you hold (ADR 0057)
+
+`App\Support\Roles\GrantRules` is the one rule, asked by the role editor, the Users
+form's role picker, the bulk "assign role", the CSV importer and the assistant:
+
+- a permission is **added** to a role only by someone who holds it (ones the role
+  already grants may stay or go);
+- a role is **given** only by someone who holds everything it grants;
+- the **HR Manager** role is given or taken only by an HR Manager, and the workspace's
+  last active HR Manager cannot lose it;
+- `outranks()` — whether somebody holds access the actor lacks — also decides whose
+  *account* the actor may change (see User Management).
+
+The index passes `grantable` (null for an HR Manager); the permission matrix disables
+what the editor cannot add. Labels are unique per workspace in any case, and the key
+is unique **within the workspace** (`TenantRule::unique`) — it used to collide with,
+and reveal, other companies' roles. `RoleStatistics` counts this workspace's members
+only.
 
 ---
 
@@ -191,6 +213,25 @@ The seeded account (`DatabaseSeeder::ACCOUNT_EMAIL`) is granted **Super Admin** 
 
 ---
 
+## The assistant
+
+`App\Services\Assistant\Modules\RolesModule`, available with `roles.view`
+([ADR 0057](../decisions/0057-assistant-users-roles-activity-and-trash.md)). Writes go
+through `RoleWorkflow`.
+
+- Permissions are named the way people say them — `PermissionRegistry::lookup()` takes
+  a key, a label, a whole group, or the one permission whose key or label holds every
+  word ("approve leave" → `leave.manage`); anything else is refused as unknown or
+  ambiguous.
+- **Reads:** `find_roles` (optionally those granting a permission, HR Manager
+  included), `get_role` (permissions by group, holders), `find_permissions` (what
+  exists for a need, and which roles grant it).
+- **Writes:** `create_role` (from permissions and/or `copy_from` — never the HR
+  Manager role), `update_role` (label, description).
+- **Confirmed:** `grant_role_permissions`, `revoke_role_permissions`, `delete_role`;
+  the card says how many hold the role and what they would gain or lose.
+- Who holds a role is the Users capability (`give_user_role`, `take_user_role`).
+
 ## 8. Testing
 
 `tests/Feature/RolePermission/RolePermissionTest.php` — role CRUD, slug derivation,
@@ -201,6 +242,10 @@ super-admin bypass, role assignment through User Management).
 
 `tests/Unit/PermissionRegistryTest.php` — catalogue integrity (DB-free, runs
 locally).
+
+`tests/Feature/RolePermission/RolesAssistantTest.php` — permission lookup, the
+assistant module, and that nothing in another workspace is found or changed. The
+grant rules on the screens are in `tests/Feature/UserManagement/AccountGuardsTest.php`.
 
 Shared Pest helpers live in `tests/Pest.php`: `actingAsSuperAdmin()`,
 `actingAsUserWith([...])`, `makeRole()`, `seedPermissions()`.

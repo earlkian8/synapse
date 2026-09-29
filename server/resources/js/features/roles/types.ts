@@ -75,5 +75,7 @@ export type RolesPageProps = {
     roles: Paginated<ManagedRole>;
     stats: RoleStats;
     permissionGroups: PermissionGroup[];
+    /** What the viewer may add to a role; null when anything (ADR 0057). */
+    grantable: string[] | null;
     filters: RolesFilters;
 };

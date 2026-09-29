@@ -27,7 +27,7 @@ type ConfirmConfig = {
 };
 
 export default function RolesIndex() {
-    const { roles, stats, permissionGroups, filters } =
+    const { roles, stats, permissionGroups, grantable, filters } =
         usePage<RolesPageProps>().props;
     const { can } = usePermissions();
     const { setSearch, setType, setPerPage, setPage, toggleSort, reset } =
@@ -238,6 +238,7 @@ export default function RolesIndex() {
             <RoleFormSheet
                 role={formRole}
                 groups={permissionGroups}
+                grantable={grantable}
                 open={formOpen}
                 onOpenChange={setFormOpen}
             />

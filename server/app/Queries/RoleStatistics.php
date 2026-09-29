@@ -5,7 +5,6 @@ namespace App\Queries;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\PermissionRegistry;
-use Illuminate\Support\Facades\DB;
 
 class RoleStatistics
 {
@@ -21,8 +20,10 @@ class RoleStatistics
             'system' => Role::where('is_system', true)->count(),
             'custom' => Role::where('is_system', false)->count(),
             'permissions' => count(PermissionRegistry::names()),
-            'assigned_users' => DB::table('role_user')->distinct()->count('user_id'),
-            'unassigned_users' => User::whereDoesntHave('roles')->count(),
+            // Members of this workspace only: `role_user` and `users` span every
+            // company on the instance (ADR 0023), and `roles` here is this one's.
+            'assigned_users' => User::query()->inCurrentOrganization()->whereHas('roles')->count(),
+            'unassigned_users' => User::query()->inCurrentOrganization()->whereDoesntHave('roles')->count(),
         ];
     }
 }

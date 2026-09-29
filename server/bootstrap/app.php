@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequireCompanySetup;
@@ -27,6 +28,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             HandleAppearance::class,
+            // A deactivated account's session ends here, before any tenant is bound.
+            EnsureAccountIsActive::class,
             SetCurrentOrganization::class,
             // Reads the tenant the line above bound, so it must follow it: a
             // company that has never been set up sends its owner to the wizard.
@@ -38,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Token-authenticated mobile API: bind the tenant after auth:sanctum
         // resolves the token's user, so every tenant-owned query stays isolated.
         $middleware->api(append: [
+            EnsureAccountIsActive::class,
             SetCurrentOrganization::class,
         ]);
     })

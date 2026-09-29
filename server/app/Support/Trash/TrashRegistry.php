@@ -6,6 +6,8 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * The canonical catalogue of soft-deletable ("archivable") entities the Trash
@@ -79,6 +81,43 @@ class TrashRegistry
     public static function definition(string $type): ?array
     {
         return self::types()[$type] ?? null;
+    }
+
+    /**
+     * The archived records of a type in this workspace.
+     *
+     * Tenant-owned models are confined by their global scope. Users are not
+     * tenant rows — an identity is shared across workspaces (ADR 0023) — so
+     * without the membership filter the bin would list, count, restore and purge
+     * the archived accounts of every company on the instance.
+     *
+     * @return Builder<Model>
+     */
+    public static function trashed(string $type): Builder
+    {
+        $model = self::types()[$type]['model'];
+        $query = $model::onlyTrashed();
+
+        return $model === User::class ? $query->inCurrentOrganization() : $query;
+    }
+
+    /**
+     * One archived record of a type in this workspace, by id.
+     */
+    public static function find(string $type, int $id): ?Model
+    {
+        return self::definition($type) === null ? null : self::trashed($type)->find($id);
+    }
+
+    /**
+     * Whether the actor may see the type and do the given thing to it —
+     * "restore" or "forceDelete" — by the owning module's own permissions.
+     */
+    public static function allows(User $actor, string $type, string $ability): bool
+    {
+        $definition = self::definition($type);
+
+        return $definition !== null && $actor->can($definition['view']) && $actor->can($definition[$ability]);
     }
 
     /**

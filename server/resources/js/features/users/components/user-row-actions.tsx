@@ -45,6 +45,9 @@ export function UserRowActions({
     onDelete,
 }: Props) {
     const isArchived = user.status === 'archived';
+    // The account's sign-in is not this workspace's to change when another
+    // workspace shares it, nor the viewer's when it has more access (ADR 0057).
+    const ownsSignIn = !user.shared_account && user.manageable;
 
     return (
         <DropdownMenu>
@@ -75,7 +78,7 @@ export function UserRowActions({
                                 Edit
                             </DropdownMenuItem>
                         )}
-                        {can.manageStatus && (
+                        {can.manageStatus && ownsSignIn && (
                             <DropdownMenuItem
                                 onSelect={() => onToggleStatus(user)}
                             >
@@ -83,7 +86,7 @@ export function UserRowActions({
                                 {user.is_active ? 'Deactivate' : 'Activate'}
                             </DropdownMenuItem>
                         )}
-                        {can.resetPassword && (
+                        {can.resetPassword && ownsSignIn && (
                             <DropdownMenuItem
                                 onSelect={() => onResetPassword(user)}
                             >
@@ -99,7 +102,7 @@ export function UserRowActions({
                                 Resend verification
                             </DropdownMenuItem>
                         )}
-                        {can.delete && (
+                        {can.delete && user.manageable && (
                             <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -107,7 +110,9 @@ export function UserRowActions({
                                     variant="destructive"
                                 >
                                     <Trash2 className="size-4" />
-                                    Archive
+                                    {user.shared_account
+                                        ? 'Remove from workspace'
+                                        : 'Archive'}
                                 </DropdownMenuItem>
                             </>
                         )}
@@ -122,7 +127,7 @@ export function UserRowActions({
                                 Restore
                             </DropdownMenuItem>
                         )}
-                        {can.forceDelete && (
+                        {can.forceDelete && ownsSignIn && (
                             <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

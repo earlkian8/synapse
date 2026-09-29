@@ -104,7 +104,7 @@ Every mutating action in User Management now records an entry:
 | --- | --- |
 | `UserController@store` | `created` |
 | `UserController@update` | `updated` (+ `properties.changed`) |
-| `UserController@destroy` | `archived` |
+| `UserController@destroy` | `archived` — or `removed` when the account belongs to another workspace too (ADR 0057) |
 | `UserController@restore` | `restored` |
 | `UserController@forceDelete` | `deleted` |
 | `UserStatusController@update` | `activated` / `deactivated` |
@@ -112,6 +112,27 @@ Every mutating action in User Management now records an entry:
 | `UserBulkActionController` | one summary entry per sweep (`properties.count`, `ids`) |
 
 Failed self-action guards (e.g. archiving your own account) do **not** log.
+
+### Deleting entries is itself recorded (ADR 0057)
+
+Deleting one entry, a selection, or clearing the whole log writes an entry of its own
+(`log_name` `activity_logs`, event `deleted`) naming who did it and what went — the
+entry's description, or how many. The trail can be pruned; it cannot be emptied
+without saying so.
+
+## The assistant
+
+`App\Services\Assistant\Modules\ActivityLogsModule`, available with
+`activity-logs.view` ([ADR 0057](../decisions/0057-assistant-users-roles-activity-and-trash.md)).
+**Read-only on purpose**: the assistant reads untrusted text every turn, and an audit
+trail a prompt-injected model could erase is not one.
+
+- `find_activity` — by words in the entry, who did it (resolved among this workspace's
+  accounts, archived included), event, area (`log_name`), and dates on the
+  organisation's clock; newest first, at most 15.
+- `activity_summary` — a period (the last 7 days by default) by area, event and person.
+- IP address, browser and change payloads are never passed to the model.
+- The Dashboard capability's `get_recent_activity` stays the quick "what changed lately?".
 
 ---
 
@@ -140,7 +161,9 @@ Query params: `search`, `event`, `sort` (`event` | `created_at`), `direction`,
 ## 6. Testing
 
 `tests/Feature/ActivityLog/ActivityLogTest.php` — index render, event filter,
-search, single/bulk delete, clear, CSV export, and that User Management actions
-(create, archive, password reset, bulk) write the expected log entries.
+search, single/bulk delete (and the entry each leaves), clear, CSV export, and that
+User Management actions (create, archive, password reset, bulk) write the expected
+log entries. `ActivityLogsAssistantTest.php` covers the assistant module, including
+that no request details reach it.
 
 (Feature suite needs `pdo_sqlite` / CI; see the User Management doc for the local note.)

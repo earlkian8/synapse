@@ -84,7 +84,8 @@ class Assistant
         'submit', 'acknowledge', 'launch', 'sign', 'enroll', 'enrol', 'invite', 'give', 'award', 'recognise',
         'recognize', 'grade', 'drop', 'reschedule', 'offboard', 'complete', 'reopen', 'flag', 'clear', 'apply',
         'rename', 'restore', 'nest', 'declare', 'turn', 'enable', 'disable', 'require', 'base', 'retire',
-        'reactivate', 'copy',
+        'reactivate', 'copy', 'grant', 'revoke', 'activate', 'deactivate', 'resend', 'take', 'permanently',
+        'purge',
     ];
 
     /**

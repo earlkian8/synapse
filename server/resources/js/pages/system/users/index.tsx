@@ -148,11 +148,18 @@ export default function UsersIndex() {
             return;
         }
 
+        // An account another workspace shares is removed from this one, not
+        // archived: the person keeps their other workspaces (ADR 0057).
         askConfirm({
-            title: `Archive ${user.full_name}?`,
-            description:
-                'The account will be deactivated and hidden from the main list. You can restore it later from the Archived filter.',
-            confirmLabel: 'Archive user',
+            title: user.shared_account
+                ? `Remove ${user.full_name} from this workspace?`
+                : `Archive ${user.full_name}?`,
+            description: user.shared_account
+                ? 'Their account also belongs to another workspace, so it stays. They lose their roles here and can no longer open this workspace.'
+                : 'The account will be deactivated and hidden from the main list. You can restore it later from the Archived filter.',
+            confirmLabel: user.shared_account
+                ? 'Remove from workspace'
+                : 'Archive user',
             destructive: true,
             run: () =>
                 router.delete(userRoutes.destroy(user.id), withProcessing),

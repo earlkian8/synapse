@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Roles\GrantRules;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -62,6 +63,9 @@ class UserImporter
         $canAssignRoles = $actor->can('roles.assign');
         $roleLookup = $canAssignRoles ? $this->roleLookup() : collect();
 
+        // A role the importer could not give by hand is refused here too (ADR 0057).
+        $refusals = $roleLookup->map(fn (Role $role): ?string => GrantRules::whyNotGive($actor, $role))->filter();
+
         // Track emails already seen in THIS file so an in-file duplicate is caught
         // even before the database unique rule would (the first row still imports).
         $seenEmails = [];
@@ -72,7 +76,7 @@ class UserImporter
             $data = $entry['data'];
             $email = $data['email'] !== '' ? Str::lower($data['email']) : null;
 
-            $messages = $this->validateRow($data, $line, $seenEmails, $canAssignRoles, $roleLookup);
+            $messages = $this->validateRow($data, $line, $seenEmails, $canAssignRoles, $roleLookup, $refusals);
 
             if ($messages !== []) {
                 $result['failed']++;
@@ -117,9 +121,10 @@ class UserImporter
      * @param  array<string, string>  $data
      * @param  array<string, bool>  $seenEmails
      * @param  Collection<string, Role>  $roleLookup
+     * @param  Collection<string, string>  $refusals  Why a role in the lookup may not be given, by the same key.
      * @return list<string>
      */
-    private function validateRow(array $data, int $line, array $seenEmails, bool $canAssignRoles, $roleLookup): array
+    private function validateRow(array $data, int $line, array $seenEmails, bool $canAssignRoles, $roleLookup, Collection $refusals): array
     {
         $validator = Validator::make($data, [
             'first_name' => ['required', 'string', 'max:255'],
@@ -160,6 +165,10 @@ class UserImporter
         // Role column: only meaningful when the importer may assign roles.
         if ($data['role'] !== '' && $canAssignRoles && ! $roleLookup->has(Str::lower($data['role']))) {
             $messages->push("The role \"{$data['role']}\" does not exist.");
+        }
+
+        if ($data['role'] !== '' && $canAssignRoles && $refusals->has(Str::lower($data['role']))) {
+            $messages->push($refusals->get(Str::lower($data['role'])));
         }
 
         return $messages->unique()->values()->all();

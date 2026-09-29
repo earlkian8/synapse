@@ -7,8 +7,10 @@ use App\Http\Resources\ActivityLogResource;
 use App\Models\ActivityLog;
 use App\Queries\ActivityLogsIndexQuery;
 use App\Queries\ActivityLogStatistics;
+use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,6 +43,15 @@ class ActivityLogController extends Controller
     {
         $activityLog->delete();
 
+        // Erasing the trail is itself on the trail: whoever deletes an entry
+        // leaves one saying so.
+        ActivityLogger::log(
+            event: 'deleted',
+            description: 'Deleted an activity log entry: '.Str::limit((string) $activityLog->description, 160),
+            properties: ['entry' => $activityLog->id],
+            logName: 'activity_logs',
+        );
+
         return $this->respond('Log entry deleted.');
     }
 
@@ -49,7 +60,14 @@ class ActivityLogController extends Controller
      */
     public function clear(): RedirectResponse
     {
-        ActivityLog::query()->delete();
+        $count = ActivityLog::query()->delete();
+
+        ActivityLogger::log(
+            event: 'deleted',
+            description: "Cleared the activity log — {$count} ".Str::plural('entry', $count).' deleted',
+            properties: ['count' => $count],
+            logName: 'activity_logs',
+        );
 
         return $this->respond('Activity log cleared.');
     }

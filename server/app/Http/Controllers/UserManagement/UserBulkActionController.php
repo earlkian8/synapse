@@ -5,8 +5,8 @@ namespace App\Http\Controllers\UserManagement;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\BulkUserActionRequest;
 use App\Models\Role;
-use App\Models\User;
-use App\Support\ActivityLogger;
+use App\Support\Roles\RoleException;
+use App\Support\Users\UserAccounts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -16,7 +16,7 @@ class UserBulkActionController extends Controller
     /**
      * Apply an action to a batch of users.
      */
-    public function __invoke(BulkUserActionRequest $request): RedirectResponse
+    public function __invoke(BulkUserActionRequest $request, UserAccounts $accounts): RedirectResponse
     {
         $action = $request->validated('action');
 
@@ -34,55 +34,34 @@ class UserBulkActionController extends Controller
             return back();
         }
 
-        // Confine every sweep to members of the active tenant — ids come from the
-        // client and users are global identities now (ADR 0023).
-        $affected = match ($action) {
-            'activate' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->update(['is_active' => true]),
-            'deactivate' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->update(['is_active' => false]),
-            'archive' => User::query()->inCurrentOrganization()->whereIn('id', $ids)->delete(),
-            'restore' => User::onlyTrashed()->inCurrentOrganization()->whereIn('id', $ids)->restore(),
-            'delete' => User::withTrashed()->inCurrentOrganization()->whereIn('id', $ids)->forceDelete(),
-            'assign-role' => $this->assignRole($ids->all(), (int) $request->validated('role_id')),
-        };
+        // Every sweep is confined to members of the active tenant — ids come from
+        // the client and users are global identities (ADR 0023) — and each account
+        // passes the same rules as its single-row action (ADR 0057).
+        try {
+            $result = $accounts->bulk(
+                $action,
+                $ids->map(fn ($id): int => (int) $id)->all(),
+                $request->user(),
+                $action === 'assign-role' ? Role::findOrFail((int) $request->validated('role_id')) : null,
+            );
+        } catch (RoleException $e) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => $e->getMessage()]);
 
-        ActivityLogger::log(
-            event: $this->eventFor($action),
-            description: 'Bulk '.$this->eventFor($action)." {$affected} ".((int) $affected === 1 ? 'user' : 'users'),
-            properties: ['action' => $action, 'count' => (int) $affected, 'ids' => $ids->all()],
-            logName: 'user_management',
-        );
+            return back();
+        }
+
+        $message = $this->message($action, $result['affected']);
+
+        if ($result['skipped'] > 0) {
+            $message .= " {$result['skipped']} skipped: {$result['reason']}";
+        }
 
         Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => $this->message($action, (int) $affected),
+            'type' => $result['skipped'] > 0 ? 'warning' : 'success',
+            'message' => $message,
         ]);
 
         return back();
-    }
-
-    /**
-     * Attach a role to each of the given users without disturbing the roles they
-     * already hold, then forget any cached permissions so access reflects the
-     * change immediately. Returns how many users gained the role.
-     *
-     * @param  list<int>  $ids
-     */
-    private function assignRole(array $ids, int $roleId): int
-    {
-        $role = Role::findOrFail($roleId);
-        $affected = 0;
-
-        User::query()->inCurrentOrganization()->whereIn('id', $ids)->with('roles:id')->each(function (User $user) use ($role, &$affected) {
-            if ($user->roles->contains($role->id)) {
-                return;
-            }
-
-            $user->roles()->syncWithoutDetaching([$role->id]);
-            $user->forgetCachedPermissions();
-            $affected++;
-        });
-
-        return $affected;
     }
 
     /**
@@ -96,21 +75,6 @@ class UserBulkActionController extends Controller
             'restore' => 'users.restore',
             'delete' => 'users.force-delete',
             'assign-role' => 'roles.assign',
-        };
-    }
-
-    /**
-     * Map a bulk action to its canonical activity-log event.
-     */
-    private function eventFor(string $action): string
-    {
-        return match ($action) {
-            'activate' => 'activated',
-            'deactivate' => 'deactivated',
-            'archive' => 'archived',
-            'restore' => 'restored',
-            'delete' => 'deleted',
-            'assign-role' => 'updated',
         };
     }
 

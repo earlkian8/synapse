@@ -4,12 +4,15 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
@@ -41,6 +44,24 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+
+        // Fortify's own credential check, plus the one it lacks: a deactivated
+        // account is refused at the door, in the words the phone app uses
+        // (ADR 0057). Only after the password matched, so the message never
+        // tells a stranger which addresses are deactivated.
+        Fortify::authenticateUsing(function (Request $request): ?User {
+            $user = User::where(Fortify::username(), $request->input(Fortify::username()))->first();
+
+            if ($user === null || ! Hash::check((string) $request->input('password'), (string) $user->password)) {
+                return null;
+            }
+
+            if (! $user->is_active) {
+                throw ValidationException::withMessages([Fortify::username() => 'This account is inactive.']);
+            }
+
+            return $user;
+        });
     }
 
     /**

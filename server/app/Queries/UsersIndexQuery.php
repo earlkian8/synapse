@@ -4,6 +4,7 @@ namespace App\Queries;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Tenancy;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -54,9 +55,15 @@ class UsersIndexQuery
         $role = $this->role($request);
         [$sort, $direction] = $this->sort($request);
 
+        $organizationId = app(Tenancy::class)->id();
+
         return User::query()
             ->inCurrentOrganization()
-            ->with('roles:id,name,label')
+            // Permissions too: whether the viewer may change an account depends on
+            // what it can do (GrantRules::outranks), and a shared account is the
+            // holder's to manage (ADR 0057).
+            ->with('roles:id,name,label', 'roles.permissions:id,name')
+            ->withCount(['memberships as other_workspaces_count' => fn (Builder $q) => $q->where('organizations.id', '!=', $organizationId)])
             ->when($status === 'archived', fn (Builder $query) => $query->onlyTrashed())
             ->when($status === 'active', fn (Builder $query) => $query->where('is_active', true))
             ->when($status === 'inactive', fn (Builder $query) => $query->where('is_active', false))

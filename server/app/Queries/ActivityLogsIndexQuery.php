@@ -29,6 +29,7 @@ class ActivityLogsIndexQuery
         'deactivated',
         'password_reset',
         'archived',
+        'removed',
         'restored',
         'deleted',
     ];

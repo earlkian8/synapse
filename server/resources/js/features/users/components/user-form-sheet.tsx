@@ -1,6 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import {
     Check,
+    Lock,
     MailCheck,
     RefreshCw,
     ShieldCheck,
@@ -103,6 +104,17 @@ function UserFormBody({
 
     const showRoles = canAssignRoles && assignableRoles.length > 0;
 
+    // An account another workspace shares — or one with access the viewer
+    // doesn't have — keeps its details; only its roles here can change (ADR 0057).
+    const lockedReason = !user
+        ? null
+        : user.shared_account
+          ? 'This account also belongs to another workspace. Its name, email, photo and sign-in are its holder’s to change — only its roles here can be changed.'
+          : !user.manageable
+            ? 'This person has access you don’t, so you can’t change their account — only the roles you could give yourself.'
+            : null;
+    const locked = lockedReason !== null;
+
     const { data, setData, post, patch, processing, errors } = useForm({
         first_name: user?.first_name ?? '',
         middle_name: user?.middle_name ?? '',
@@ -185,6 +197,13 @@ function UserFormBody({
     return (
         <form onSubmit={submit} className="flex h-full flex-col">
             <div className="flex-1 space-y-8 px-6 py-6">
+                {lockedReason && (
+                    <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                        <Lock className="mt-0.5 size-4 shrink-0" />
+                        <p>{lockedReason}</p>
+                    </div>
+                )}
+
                 <div className="flex items-center gap-4">
                     <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0F2044] text-lg font-semibold text-white ring-1 ring-border">
                         {photoPreview ? (
@@ -204,6 +223,7 @@ function UserFormBody({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => fileInput.current?.click()}
+                                disabled={locked}
                             >
                                 <Upload className="size-4" />
                                 {photoPreview ? 'Change photo' : 'Upload photo'}
@@ -214,6 +234,7 @@ function UserFormBody({
                                     variant="ghost"
                                     size="sm"
                                     onClick={clearPhoto}
+                                    disabled={locked}
                                     className="text-destructive hover:text-destructive"
                                 >
                                     <Trash2 className="size-4" />
@@ -250,6 +271,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="first_name"
+                                disabled={locked}
                                 value={data.first_name}
                                 onChange={(e) =>
                                     setData('first_name', e.target.value)
@@ -266,6 +288,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="last_name"
+                                disabled={locked}
                                 value={data.last_name}
                                 onChange={(e) =>
                                     setData('last_name', e.target.value)
@@ -281,6 +304,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="middle_name"
+                                disabled={locked}
                                 value={data.middle_name}
                                 onChange={(e) =>
                                     setData('middle_name', e.target.value)
@@ -295,6 +319,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="suffix"
+                                disabled={locked}
                                 value={data.suffix}
                                 onChange={(e) =>
                                     setData('suffix', e.target.value)
@@ -319,6 +344,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="email"
+                                disabled={locked}
                                 type="email"
                                 value={data.email}
                                 onChange={(e) =>
@@ -336,6 +362,7 @@ function UserFormBody({
                         >
                             <Input
                                 id="phone_number"
+                                disabled={locked}
                                 value={data.phone_number}
                                 onChange={(e) =>
                                     setData('phone_number', e.target.value)
@@ -361,6 +388,7 @@ function UserFormBody({
                         </div>
                         <Switch
                             checked={data.is_active}
+                            disabled={locked}
                             onCheckedChange={(value) =>
                                 setData('is_active', value)
                             }
@@ -436,6 +464,9 @@ function UserFormBody({
                         <div className="grid gap-2 sm:grid-cols-2">
                             {assignableRoles.map((role) => {
                                 const checked = data.roles.includes(role.id);
+                                // A role granting access the assigner lacks is
+                                // shown, but can neither be given nor taken here.
+                                const givable = role.givable !== false;
 
                                 return (
                                     <button
@@ -443,8 +474,14 @@ function UserFormBody({
                                         key={role.id}
                                         onClick={() => toggleRole(role.id)}
                                         aria-pressed={checked}
+                                        disabled={!givable}
+                                        title={
+                                            givable
+                                                ? undefined
+                                                : 'This role grants access you don’t have, so you can’t give or take it.'
+                                        }
                                         className={cn(
-                                            'flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                                            'flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                                             checked
                                                 ? 'border-[#0ABFBF]/50 bg-[#0ABFBF]/5'
                                                 : 'border-border bg-muted/20 hover:bg-muted/40',

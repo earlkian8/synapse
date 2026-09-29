@@ -6,15 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RolePermission\StoreRoleRequest;
 use App\Http\Requests\RolePermission\UpdateRoleRequest;
 use App\Http\Resources\RoleResource;
-use App\Models\Permission;
 use App\Models\Role;
 use App\Queries\RolesIndexQuery;
 use App\Queries\RoleStatistics;
-use App\Support\ActivityLogger;
 use App\Support\PermissionRegistry;
+use App\Support\Roles\GrantRules;
+use App\Support\Roles\RoleException;
+use App\Support\Roles\RoleWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,6 +31,8 @@ class RoleController extends Controller
             'roles' => RoleResource::collection($query->paginate($request)),
             'stats' => $statistics->toArray(),
             'permissionGroups' => PermissionRegistry::groups(),
+            // What this editor may add to a role (null: anything) — see GrantRules.
+            'grantable' => GrantRules::grantable($request->user())?->values()->all(),
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'type' => $query->type($request),
@@ -44,26 +46,15 @@ class RoleController extends Controller
     /**
      * Store a newly created role.
      */
-    public function store(StoreRoleRequest $request): RedirectResponse
+    public function store(StoreRoleRequest $request, RoleWorkflow $workflow): RedirectResponse
     {
         $validated = $request->validated();
 
-        $role = Role::create([
-            'name' => $validated['name'],
-            'label' => $validated['label'],
-            'description' => $validated['description'] ?? null,
-        ]);
-
-        $role->permissions()->sync($this->permissionIds($validated['permissions'] ?? []));
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created role {$role->label}",
-            subject: $role,
-            properties: ['permissions' => $validated['permissions'] ?? []],
-            logName: 'roles',
-            subjectLabel: $role->label,
-        );
+        try {
+            $workflow->create($validated['label'], $validated['name'], $validated['description'] ?? null, $validated['permissions'] ?? [], $request->user());
+        } catch (RoleException $e) {
+            return $this->respond($e->getMessage(), 'error');
+        }
 
         return $this->respond('Role created.');
     }
@@ -71,29 +62,15 @@ class RoleController extends Controller
     /**
      * Update the given role and its granted permissions.
      */
-    public function update(UpdateRoleRequest $request, Role $role): RedirectResponse
+    public function update(UpdateRoleRequest $request, Role $role, RoleWorkflow $workflow): RedirectResponse
     {
-        if ($role->isSuperAdmin()) {
-            return $this->respond('The Super Admin role cannot be modified.', 'error');
-        }
-
         $validated = $request->validated();
 
-        $role->update([
-            'label' => $validated['label'],
-            'description' => $validated['description'] ?? null,
-        ]);
-
-        $role->permissions()->sync($this->permissionIds($validated['permissions'] ?? []));
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated role {$role->label}",
-            subject: $role,
-            properties: ['permissions' => $validated['permissions'] ?? []],
-            logName: 'roles',
-            subjectLabel: $role->label,
-        );
+        try {
+            $workflow->update($role, $validated['label'], $validated['description'] ?? null, $validated['permissions'] ?? [], $request->user());
+        } catch (RoleException $e) {
+            return $this->respond($e->getMessage(), 'error');
+        }
 
         return $this->respond('Role updated.');
     }
@@ -101,34 +78,15 @@ class RoleController extends Controller
     /**
      * Delete the given role.
      */
-    public function destroy(Role $role): RedirectResponse
+    public function destroy(Role $role, RoleWorkflow $workflow): RedirectResponse
     {
-        if ($role->is_system) {
-            return $this->respond('Built-in system roles cannot be deleted.', 'error');
+        try {
+            $workflow->delete($role);
+        } catch (RoleException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
 
-        $label = $role->label;
-        $role->delete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Deleted role {$label}",
-            logName: 'roles',
-            subjectLabel: $label,
-        );
-
         return $this->respond('Role deleted.');
-    }
-
-    /**
-     * Resolve permission ids from a list of permission names.
-     *
-     * @param  list<string>  $names
-     * @return Collection<int, int>
-     */
-    private function permissionIds(array $names): Collection
-    {
-        return Permission::whereIn('name', $names)->pluck('id');
     }
 
     /**

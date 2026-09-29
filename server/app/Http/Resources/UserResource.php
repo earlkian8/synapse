@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\User;
+use App\Support\Roles\GrantRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
@@ -42,6 +43,12 @@ class UserResource extends JsonResource
                 ])->values()->all(),
                 [],
             ),
+            // Belongs to another workspace too: its details and sign-in are its
+            // holder's, and archiving removes it from this workspace (ADR 0057).
+            'shared_account' => $this->whenHas('other_workspaces_count', fn (): bool => (int) $this->other_workspaces_count > 0, false),
+            // Whether the viewer may change this account at all — not when it has
+            // access they don't (GrantRules::outranks).
+            'manageable' => $request->user() !== null && ! GrantRules::outranks($this->resource, $request->user()),
             'is_active' => (bool) $this->is_active,
             'status' => $this->resolveStatus(),
             'email_verified' => $this->email_verified_at !== null,

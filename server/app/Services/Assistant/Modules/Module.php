@@ -3,6 +3,7 @@
 namespace App\Services\Assistant\Modules;
 
 use App\Models\Employee;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\Assistant\Contracts\AssistantModule;
 use App\Services\Assistant\Security\UntrustedText;
@@ -287,6 +288,81 @@ abstract class Module implements AssistantModule
             0 => [null, 'No active user in this workspace is called “'.Str::limit($name, 60).'”.'],
             1 => [$matches->first(), ''],
             default => [null, 'More than one user matches “'.Str::limit($name, 60).'”. Use their full name or email.'],
+        };
+    }
+
+    /**
+     * Exactly one account of this workspace — active or not, and archived ones
+     * too when asked — by email or name, or why not. For managing the accounts
+     * themselves, where a deactivated person is exactly who is being looked for;
+     * {@see resolveMember()} is for handing somebody work.
+     *
+     * @return array{0: User|null, 1: string}
+     */
+    protected function resolveAccount(string $needle, bool $archived = false): array
+    {
+        $needle = trim($needle);
+
+        if ($needle === '') {
+            return [null, 'Say who.'];
+        }
+
+        $query = fn (): Builder => ($archived ? User::withTrashed() : User::query())->inCurrentOrganization();
+
+        $byEmail = $query()->whereRaw('lower(email) = ?', [Str::lower($needle)])->first();
+
+        if ($byEmail !== null) {
+            return [$byEmail, ''];
+        }
+
+        $matches = $this->matchByTokens($query(), $needle)->limit(10)->get();
+
+        if ($matches->count() > 1) {
+            $typed = Str::lower(preg_replace('/\s+/', ' ', $needle) ?? $needle);
+            $exact = $matches->filter(fn (User $u): bool => in_array($typed, [
+                Str::lower((string) $u->full_name),
+                Str::lower(trim($u->first_name.' '.$u->last_name)),
+            ], true));
+
+            if ($exact->count() === 1) {
+                return [$exact->first(), ''];
+            }
+        }
+
+        return match ($matches->count()) {
+            0 => [null, 'No user in this workspace is called “'.Str::limit($needle, 60).'”.'],
+            1 => [$matches->first(), ''],
+            default => [null, 'More than one user matches “'.Str::limit($needle, 60).'”. Use their full name or email.'],
+        };
+    }
+
+    /**
+     * Exactly one role of this workspace, by its label or key, or why not.
+     *
+     * @return array{0: Role|null, 1: string}
+     */
+    protected function resolveRole(string $needle): array
+    {
+        $needle = trim($needle);
+
+        if ($needle === '') {
+            return [null, 'Say which role.'];
+        }
+
+        $exact = Role::query()
+            ->where(fn (Builder $q) => $q->whereRaw('lower(label) = ?', [Str::lower($needle)])->orWhereRaw('lower(name) = ?', [Str::lower($needle)]))
+            ->get();
+
+        if ($exact->count() === 1) {
+            return [$exact->first(), ''];
+        }
+
+        $matches = $exact->isEmpty() ? Role::query()->search($needle)->limit(10)->get() : $exact;
+
+        return match ($matches->count()) {
+            0 => [null, 'No role is called “'.Str::limit($needle, 60).'”. Roles: '.$this->catalog(Role::query()->orderBy('label')->pluck('label')).'.'],
+            1 => [$matches->first(), ''],
+            default => [null, 'More than one role matches “'.Str::limit($needle, 60).'”: '.$this->catalog($matches->pluck('label')).'.'],
         };
     }
 

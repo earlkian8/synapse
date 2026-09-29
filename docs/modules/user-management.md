@@ -134,11 +134,35 @@ total, from, to, links[]} }` — matched by the `Paginated<T>` TS type.
 `AppServiceProvider::recordLastLogin()` listens for `Illuminate\Auth\Events\Login`
 and stamps `last_login_at` with `saveQuietly()` (no model events / no `updated_at` churn).
 
-### Self-protection
+### One workflow, and whose account it is (ADR 0057)
 
-`destroy`, `forceDelete`, `UserStatusController` (deactivate), and
-`UserBulkActionController` all reject operations targeting the authenticated user,
-flashing an error toast instead.
+Every write goes through **`App\Support\Users\UserAccounts`** — the controllers,
+the Trash Bin (`TrashBin`) and the assistant alike. Refusals are
+`UserAccountException`, flashed as an error toast. Role changes go through
+`App\Support\Roles\RoleWorkflow` (see [Roles & Permissions](./roles-permissions.md)).
+
+- **Self-protection.** Nobody deactivates (by the status toggle *or* the edit form's
+  switch), archives or permanently deletes their own account.
+- **A shared account is its holder's.** A user is an identity shared across workspaces
+  ([ADR 0023](../decisions/0023-identity-and-organization-membership.md)). When the
+  account also belongs to another workspace, this one may change only its **roles
+  here**: name, email, phone, photo, password and active state are refused, and
+  permanent delete is refused. **Archiving removes them from this workspace** — this
+  workspace's roles (by id) and the membership go, as do phone tokens bound to it —
+  and the account stays. It is logged as `removed`.
+- **Nobody changes the account of someone with more access** (`GrantRules::outranks`):
+  details, sign-in, status, archive, delete.
+- **Deactivation takes effect.** The web login refuses an inactive account
+  (`Fortify::authenticateUsing`), `EnsureAccountIsActive` ends an open web session or
+  API token on its next request, and deactivating, archiving or resetting a password
+  revokes the phone tokens at once.
+- **Bulk actions** apply the same rules per account, skip the refused ones, and report
+  how many and why; one summary entry is still logged per sweep.
+
+`UserResource` carries `shared_account` and `manageable` (computed in
+`UsersIndexQuery`), and each assignable role carries `givable`. The form locks what
+cannot change and says why; the row menu hides what would be refused and calls the
+shared-account archive "Remove from workspace".
 
 ---
 
@@ -247,11 +271,42 @@ configured in `.env` (`MAIL_*`).
 
 ---
 
+## The assistant
+
+`App\Services\Assistant\Modules\UsersModule`, available with `users.view`; each tool
+needs the screen's own permission for it
+([ADR 0057](../decisions/0057-assistant-users-roles-activity-and-trash.md)). Every
+write goes through `UserAccounts` / `RoleWorkflow`, so the rules above hold word for
+word.
+
+- **Reads:** `find_users` — by name/email, status (active, inactive, unverified,
+  archived), role, or a permission they hold ("who can approve leave?", HR Managers
+  included); `get_user` — roles here, access by permission group, last sign-in,
+  linked employee, whether it is shared or has access the asker lacks.
+- **Writes:** `create_user` (verification email; roles only with `roles.assign`, and
+  only roles the asker could give), `update_user` (name parts, phone),
+  `resend_user_verification`.
+- **Confirmed:** `create_user`, `change_user_email`, `set_user_active`,
+  `give_user_role`, `take_user_role`, `archive_user`. The card says what changes
+  hands: "Jon Doe would gain 2 permissions: …", "they would be removed from this one
+  (and lose its roles); the account itself stays".
+- **Never here:** passwords (a password would reach the model and the transcript),
+  photos, import/export; restoring and permanent deletion are the Trash Bin's.
+- **Retrieval:** "how many user accounts do we have?" carries the counts by status and
+  the HR Managers.
+
 ## 6. Testing
 
 - `server/tests/Feature/UserManagement/UserManagementTest.php` — HTTP-level coverage of
   listing, filtering, sorting, CRUD, status toggle, password reset, archive/restore/force-delete,
   bulk actions, the self-protection guards, and CSV export.
+- `server/tests/Feature/UserManagement/AccountGuardsTest.php` — the ADR 0057 walls: a
+  shared account cannot be taken over, archiving it removes it from this workspace
+  only, nobody changes a higher-ranked account, nobody grants what they lack (form,
+  bulk, importer), the last HR Manager stays, role keys are per workspace, and a
+  deactivated account is signed out and refused at login.
+- `server/tests/Feature/UserManagement/UsersAssistantTest.php` — the assistant module,
+  including a held `give_user_role` confirmed end to end.
 - `server/tests/Unit/UserModelTest.php` — DB-free checks of the `full_name` accessor and
   `is_active` boolean cast.
 

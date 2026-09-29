@@ -50,6 +50,8 @@ const ASSISTANT_PERMISSIONS = [
     'recruitment.configure-pipelines',
     'offboarding.manage-programs',
     'activity-logs.view',
+    'users.view',
+    'roles.view',
 ] as const;
 
 const draftKey = (id: number | null) =>

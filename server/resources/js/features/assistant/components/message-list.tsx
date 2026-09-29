@@ -59,6 +59,15 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'What is on our exit clearance checklist?',
         permission: 'offboarding.manage-programs',
     },
+    {
+        prompt: 'Who hasn’t verified their email yet?',
+        permission: 'users.view',
+    },
+    { prompt: 'Which roles can approve leave?', permission: 'roles.view' },
+    {
+        prompt: 'What changed in the activity log this week?',
+        permission: 'activity-logs.view',
+    },
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',

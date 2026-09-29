@@ -42,6 +42,29 @@ ones, so it can't be used to escalate:
 There is **no `trash.*` permission** and nothing to seed — capability is derived
 from what the user can already do in each module.
 
+### This workspace's records, by the owning module's rules (ADR 0057)
+
+- Records are found through **`TrashRegistry::trashed($type)`**. Tenant-owned models
+  are confined by their global scope; users are not tenant rows, so they are confined
+  by membership. Before this, the bin listed, counted, restored and purged the
+  archived accounts of **every** company on the instance — "Empty trash" included.
+- Restoring and deleting go through **`App\Support\Trash\TrashBin`**, shared with the
+  assistant. An account goes through `UserAccounts`, so the bin cannot delete what the
+  Users screen would refuse (your own account, one another workspace shares, one with
+  more access than yours); a sweep or "Empty trash" skips those.
+
+## The assistant
+
+`App\Services\Assistant\Modules\TrashModule`, available to anyone who can view at
+least one trashable type ([ADR 0057](../decisions/0057-assistant-users-roles-activity-and-trash.md)).
+
+- `find_trash` — archived records of the types the user may view, by type and name.
+- `restore_from_trash` and `delete_from_trash` — one record at a time, each by its
+  module's own permission, and **both wait for Confirm**. The card says what follows:
+  an account could sign in again; an employee's permanent delete takes their
+  attendance, leave, reviews and documents with it.
+- Emptying the whole bin stays on the screen.
+
 ---
 
 ## 3. Routes
@@ -106,9 +129,11 @@ selection.
 
 [`server/tests/Feature/Trash/TrashTest.php`](../../server/tests/Feature/Trash/TrashTest.php)
 covers rendering, cross-type listing, the type filter, restore / permanent-delete,
-bulk restore, empty, the guest redirect, and the RBAC guards (a user only sees
+bulk restore, empty, the guest redirect, the RBAC guards (a user only sees
 viewable types; restore is denied without the owning permission; the page 403s
-when no type is viewable).
+when no type is viewable), and that another company's archived accounts are out of
+reach and a higher-ranked account cannot be purged. `TrashAssistantTest.php` covers
+the assistant module.
 
 > ⚠️ The Feature suite runs on SQLite `:memory:`; the local PHP build lacks
 > `pdo_sqlite`, so these run in CI.

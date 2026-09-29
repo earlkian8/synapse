@@ -15,6 +15,17 @@ class StoreUserRequest extends FormRequest
      */
     public function rules(): array
     {
+        return self::rulesFor();
+    }
+
+    /**
+     * The rules a new account is held to — by the screen and the assistant
+     * alike.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(): array
+    {
         return [
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],

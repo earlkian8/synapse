@@ -16,7 +16,18 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        $userId = $this->route('user')->id;
+        return self::rulesFor($this->route('user'));
+    }
+
+    /**
+     * The rules an account's details are held to — by the screen and the
+     * assistant alike.
+     *
+     * @return array<string, mixed>
+     */
+    public static function rulesFor(User $user): array
+    {
+        $userId = $user->id;
 
         return [
             'first_name' => ['required', 'string', 'max:255'],

@@ -10,14 +10,13 @@ use App\Models\Role;
 use App\Models\User;
 use App\Queries\UsersIndexQuery;
 use App\Queries\UserStatistics;
-use App\Support\ActivityLogger;
-use App\Support\Notifier;
-use App\Support\OrganizationProvisioner;
-use App\Support\Tenancy;
+use App\Support\Roles\GrantRules;
+use App\Support\Roles\RoleException;
+use App\Support\Users\UserAccountException;
+use App\Support\Users\UserAccounts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -40,7 +39,11 @@ class UserController extends Controller
             'users' => UserResource::collection($query->paginate($request)),
             'stats' => $statistics->toArray(),
             'roles' => $roles,
-            'assignableRoles' => $canAssignRoles ? $roles : [],
+            // Every role stays listed — one the assigner could not give is shown
+            // locked (ADR 0057), so saving the form never drops it silently.
+            'assignableRoles' => $canAssignRoles
+                ? $roles->map(fn (Role $role): array => [...$role->only(['id', 'name', 'label']), 'givable' => GrantRules::canGive($request->user(), $role)])->values()
+                : [],
             'can' => [
                 'create' => $request->user()->can('users.create'),
                 'update' => $request->user()->can('users.update'),
@@ -66,153 +69,47 @@ class UserController extends Controller
     /**
      * Store a newly created user.
      */
-    public function store(StoreUserRequest $request): RedirectResponse
+    public function store(StoreUserRequest $request, UserAccounts $accounts): RedirectResponse
     {
-        $organization = app(Tenancy::class)->organization();
-
-        // Users are global identities now (ADR 0023): if the email already belongs to
-        // someone (they work for another company), link that identity into this
-        // organisation instead of creating a duplicate account.
-        $existing = User::where('email', $request->validated('email'))->first();
-
-        if ($existing !== null) {
-            if ($existing->isMemberOf($organization)) {
-                return $this->respond('That email already belongs to a user in this organisation.', 'error');
-            }
-
-            OrganizationProvisioner::addMember($organization, $existing);
-            $this->syncRoles($request, $existing);
-
-            Notifier::toUser(
-                $existing,
-                "You've been added to {$organization->name}",
-                "Your SYNAPSE account now has access to {$organization->name}. Switch to it from the account menu.",
-                url: '/dashboard',
-                level: 'success',
-                category: 'account',
-                actor: $request->user(),
+        try {
+            $result = $accounts->create(
+                Arr::except($request->validated(), ['photo', 'roles']),
+                $this->roleIds($request),
+                $request->user(),
+                $request->file('photo'),
             );
-
-            ActivityLogger::log(
-                event: 'created',
-                description: "Added existing user {$existing->full_name} to the organisation",
-                subject: $existing,
-                logName: 'user_management',
-                subjectLabel: $existing->full_name,
-            );
-
-            return $this->respond("{$existing->email} already had an account and was added to this organisation.");
+        } catch (UserAccountException|RoleException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
 
-        $user = new User(Arr::except($request->validated(), [
-            'password', 'photo', 'roles',
-        ]));
-
-        if (filled($request->validated('password'))) {
-            $user->password = $request->validated('password');
-            $user->password_changed_at = now();
+        if ($result['linked']) {
+            return $this->respond("{$result['user']->email} already had an account and was added to this organisation.");
         }
 
-        if ($request->hasFile('photo')) {
-            $user->profile_photo = $request->file('photo')->store('profile-photos', 'public');
-        }
-
-        $user->save();
-
-        // The new identity's first (and so default) membership is this organisation.
-        OrganizationProvisioner::addMember($organization, $user, default: true);
-
-        $this->syncRoles($request, $user);
-
-        // New accounts start unverified — email a confirmation link so the holder
-        // proves ownership of the address before they can sign in.
-        $sent = $this->sendVerification($user);
-
-        // Auto-notify the new account holder (in-app + email/push if enabled).
-        Notifier::toUser(
-            $user,
-            'Welcome to SYNAPSE',
-            'Your account has been created. Please check your inbox to verify your email address, then sign in to get started.',
-            url: '/dashboard',
-            level: 'success',
-            category: 'account',
-            actor: $request->user(),
-        );
-
-        ActivityLogger::log(
-            event: 'created',
-            description: "Created user {$user->full_name}",
-            subject: $user,
-            logName: 'user_management',
-            subjectLabel: $user->full_name,
-        );
-
-        return $sent
-            ? $this->respond("User created. A verification email was sent to {$user->email}.")
+        return $result['verification_sent']
+            ? $this->respond("User created. A verification email was sent to {$result['user']->email}.")
             : $this->respond('User created, but the verification email could not be sent — you can resend it from the user’s actions.', 'warning');
     }
 
     /**
      * Update the given user.
      */
-    public function update(UpdateUserRequest $request, User $user): RedirectResponse
+    public function update(UpdateUserRequest $request, User $user, UserAccounts $accounts): RedirectResponse
     {
-        $user->fill(Arr::except($request->validated(), [
-            'photo', 'remove_photo', 'roles',
-        ]));
-
-        // A changed email must be re-confirmed: drop the verified state now and
-        // send a fresh confirmation link to the new address after saving.
-        $emailChanged = $user->isDirty('email');
-
-        if ($emailChanged) {
-            $user->email_verified_at = null;
-        }
-
-        if ($request->boolean('remove_photo')) {
-            $this->deletePhoto($user);
-        }
-
-        if ($request->hasFile('photo')) {
-            $this->deletePhoto($user);
-            $user->profile_photo = $request->file('photo')->store('profile-photos', 'public');
-        }
-
-        $changed = array_values(array_diff(array_keys($user->getDirty()), ['updated_at']));
-
-        $user->save();
-
-        $changes = $this->syncRoles($request, $user);
-
-        if ($emailChanged) {
-            $this->sendVerification($user);
-        }
-
-        // Let the user know when they've been granted new role(s).
-        if (! empty($changes['attached'])) {
-            $roles = Role::whereIn('id', $changes['attached'])->pluck('label')->implode(', ');
-
-            Notifier::toUser(
+        try {
+            $result = $accounts->update(
                 $user,
-                'Your access has changed',
-                "You've been granted the following role(s): {$roles}.",
-                url: '/dashboard',
-                level: 'info',
-                category: 'account',
-                actor: $request->user(),
+                Arr::except($request->validated(), ['photo', 'remove_photo', 'roles']),
+                $this->roleIds($request),
+                $request->user(),
+                $request->file('photo'),
+                $request->boolean('remove_photo'),
             );
+        } catch (UserAccountException|RoleException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
 
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Updated user {$user->full_name}",
-            subject: $user,
-            properties: $changed !== [] ? ['changed' => $changed] : [],
-            logName: 'user_management',
-            subjectLabel: $user->full_name,
-        );
-
-        return $this->respond($emailChanged
+        return $this->respond($result['email_changed']
             ? 'User updated. A verification email was sent to the new address.'
             : 'User updated.');
     }
@@ -220,64 +117,43 @@ class UserController extends Controller
     /**
      * Resend the email-verification (confirmation) link to an unverified user.
      */
-    public function resendVerification(Request $request, User $user): RedirectResponse
+    public function resendVerification(User $user, UserAccounts $accounts): RedirectResponse
     {
-        if ($user->hasVerifiedEmail()) {
-            return $this->respond('This email address is already verified.', 'error');
+        try {
+            $accounts->resendVerification($user);
+        } catch (UserAccountException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
-
-        if (! $this->sendVerification($user)) {
-            return $this->respond('The verification email could not be sent. Please try again.', 'error');
-        }
-
-        ActivityLogger::log(
-            event: 'verification_sent',
-            description: "Resent the email verification link to {$user->full_name}",
-            subject: $user,
-            logName: 'user_management',
-            subjectLabel: $user->full_name,
-        );
 
         return $this->respond("Verification email sent to {$user->email}.");
     }
 
     /**
-     * Archive (soft delete) the given user.
+     * Archive (soft delete) the given user — or, when their account belongs to
+     * another workspace too, remove them from this one.
      */
-    public function destroy(Request $request, User $user): RedirectResponse
+    public function destroy(Request $request, User $user, UserAccounts $accounts): RedirectResponse
     {
-        if ($user->is($request->user())) {
-            return $this->respond('You cannot archive your own account.', 'error');
+        try {
+            $outcome = $accounts->archive($user, $request->user());
+        } catch (UserAccountException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
 
-        $user->delete();
-
-        ActivityLogger::log(
-            event: 'archived',
-            description: "Archived user {$user->full_name}",
-            subject: $user,
-            logName: 'user_management',
-            subjectLabel: $user->full_name,
-        );
-
-        return $this->respond('User archived.');
+        return $this->respond($outcome === 'removed'
+            ? "{$user->full_name} was removed from this organisation. Their account belongs to another workspace too, so it stays."
+            : 'User archived.');
     }
 
     /**
      * Restore a previously archived user.
      */
-    public function restore(int $user): RedirectResponse
+    public function restore(int $user, UserAccounts $accounts): RedirectResponse
     {
-        $model = User::onlyTrashed()->inCurrentOrganization()->findOrFail($user);
-        $model->restore();
+        $model = UserAccounts::findArchived($user);
+        abort_if($model === null, 404);
 
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored user {$model->full_name}",
-            subject: $model,
-            logName: 'user_management',
-            subjectLabel: $model->full_name,
-        );
+        $accounts->restore($model);
 
         return $this->respond('User restored.');
     }
@@ -285,105 +161,37 @@ class UserController extends Controller
     /**
      * Permanently delete a user.
      */
-    public function forceDelete(Request $request, int $user): RedirectResponse
+    public function forceDelete(Request $request, int $user, UserAccounts $accounts): RedirectResponse
     {
         $model = User::withTrashed()->inCurrentOrganization()->findOrFail($user);
 
-        if ($model->is($request->user())) {
-            return $this->respond('You cannot delete your own account.', 'error');
+        try {
+            $accounts->forceDelete($model, $request->user());
+        } catch (UserAccountException $e) {
+            return $this->respond($e->getMessage(), 'error');
         }
-
-        $label = $model->full_name;
-
-        $this->deletePhoto($model);
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted user {$label}",
-            logName: 'user_management',
-            subjectLabel: $label,
-        );
 
         return $this->respond('User permanently deleted.');
     }
 
     /**
-     * Sync the user's role assignments, but only if the actor is permitted to.
+     * The roles the form sets, or null to leave them alone.
      *
-     * The role assignment is silently ignored when the actor lacks the
-     * `roles.assign` permission, so a tampered payload cannot escalate access.
+     * Role assignment is ignored when the actor lacks `roles.assign`, so a
+     * tampered payload cannot escalate access; the `manage_roles` flag is set by
+     * the form whenever the role picker is shown, so an empty selection can
+     * intentionally clear all roles. Which roles may change hands is
+     * {@see GrantRules}'s to say.
      *
-     * @return array{attached?: list<int>, detached?: list<int>, updated?: list<int>}
+     * @return list<int>|null
      */
-    private function syncRoles(Request $request, User $user): array
+    private function roleIds(Request $request): ?array
     {
-        // The `manage_roles` flag is set by the form whenever the role picker is
-        // shown, so an empty selection can intentionally clear all roles.
         if (! $request->user()->can('roles.assign') || ! $request->boolean('manage_roles')) {
-            return [];
+            return null;
         }
 
-        // Roles are organisation-scoped and `role_user` is global, so a plain sync()
-        // would wipe the user's roles in their *other* organisations. Reconcile only
-        // within the active organisation's roles (which also blocks attaching a
-        // foreign org's role id from a tampered payload).
-        $orgRoleIds = Role::pluck('id');
-        $selected = collect($request->validated('roles') ?? [])
-            ->map(fn ($id): int => (int) $id)
-            ->intersect($orgRoleIds);
-        $current = $user->roles()->whereIn('roles.id', $orgRoleIds)->pluck('roles.id');
-
-        $detach = $current->diff($selected);
-        $attach = $selected->diff($current);
-
-        if ($detach->isNotEmpty()) {
-            $user->roles()->detach($detach->all());
-        }
-
-        if ($attach->isNotEmpty()) {
-            $user->roles()->attach($attach->all());
-        }
-
-        $user->forgetCachedPermissions();
-
-        return ['attached' => $attach->values()->all(), 'detached' => $detach->values()->all()];
-    }
-
-    /**
-     * Email the verification (confirmation) link to a user.
-     *
-     * Sent synchronously so delivery doesn't depend on a running queue worker —
-     * with verification enforced, a silently-dropped email would lock the user
-     * out. Transport failures are swallowed (and reported) so a mail outage
-     * never breaks the create/update itself. Returns whether it was dispatched.
-     */
-    private function sendVerification(User $user): bool
-    {
-        if ($user->hasVerifiedEmail()) {
-            return false;
-        }
-
-        try {
-            $user->sendEmailVerificationNotification();
-
-            return true;
-        } catch (\Throwable $e) {
-            report($e);
-
-            return false;
-        }
-    }
-
-    /**
-     * Remove a user's stored profile photo from disk, if any.
-     */
-    private function deletePhoto(User $user): void
-    {
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete($user->profile_photo);
-            $user->profile_photo = null;
-        }
+        return array_map('intval', $request->validated('roles') ?? []);
     }
 
     /**

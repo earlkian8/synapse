@@ -5,13 +5,12 @@ namespace App\Http\Controllers\System;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TrashItemResource;
 use App\Queries\TrashIndexQuery;
-use App\Support\ActivityLogger;
-use App\Support\Trash\TrashPresenter;
+use App\Support\Trash\TrashBin;
+use App\Support\Trash\TrashException;
 use App\Support\Trash\TrashRegistry;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,20 +50,11 @@ class TrashController extends Controller
     /**
      * Restore a single archived record.
      */
-    public function restore(Request $request): RedirectResponse
+    public function restore(Request $request, TrashBin $bin): RedirectResponse
     {
         [$type, $definition, $model] = $this->resolve($request, 'restore');
 
-        $label = TrashPresenter::present($type, $model, $request->user())['title'];
-        $model->restore();
-
-        ActivityLogger::log(
-            event: 'restored',
-            description: "Restored {$definition['label']} {$label} from the trash",
-            subject: $model,
-            logName: 'trash',
-            subjectLabel: $label,
-        );
+        $bin->restore($type, $model);
 
         return $this->respond("{$definition['label']} restored.");
     }
@@ -72,20 +62,15 @@ class TrashController extends Controller
     /**
      * Permanently delete a single archived record.
      */
-    public function forceDelete(Request $request): RedirectResponse
+    public function forceDelete(Request $request, TrashBin $bin): RedirectResponse
     {
         [$type, $definition, $model] = $this->resolve($request, 'forceDelete');
 
-        $label = TrashPresenter::present($type, $model, $request->user())['title'];
-        $this->cleanupFiles($type, $model);
-        $model->forceDelete();
-
-        ActivityLogger::log(
-            event: 'deleted',
-            description: "Permanently deleted {$definition['label']} {$label}",
-            logName: 'trash',
-            subjectLabel: $label,
-        );
+        try {
+            $bin->forceDelete($type, $model, $request->user());
+        } catch (TrashException $e) {
+            return $this->respond($e->getMessage(), 'error');
+        }
 
         return $this->respond("{$definition['label']} permanently deleted.");
     }
@@ -94,7 +79,7 @@ class TrashController extends Controller
      * Restore or permanently delete a batch of selected records, re-authorising
      * each item by its own type so a tampered payload can't escalate.
      */
-    public function bulk(Request $request): RedirectResponse
+    public function bulk(Request $request, TrashBin $bin): RedirectResponse
     {
         $validated = $request->validate([
             'action' => ['required', Rule::in(['restore', 'delete'])],
@@ -104,44 +89,7 @@ class TrashController extends Controller
         ]);
 
         $restoring = $validated['action'] === 'restore';
-        $ability = $restoring ? 'restore' : 'forceDelete';
-        $user = $request->user();
-        $count = 0;
-
-        foreach ($validated['items'] as $item) {
-            $definition = TrashRegistry::definition($item['type']);
-
-            if ($definition === null
-                || ! $user->can($definition['view'])
-                || ! $user->can($definition[$ability])) {
-                continue;
-            }
-
-            $model = $definition['model']::onlyTrashed()->find($item['id']);
-
-            if ($model === null) {
-                continue;
-            }
-
-            if ($restoring) {
-                $model->restore();
-            } else {
-                $this->cleanupFiles($item['type'], $model);
-                $model->forceDelete();
-            }
-
-            $count++;
-        }
-
-        if ($count > 0) {
-            ActivityLogger::log(
-                event: $restoring ? 'restored' : 'deleted',
-                description: ($restoring ? 'Restored' : 'Permanently deleted')." {$count} item(s) from the trash",
-                logName: 'trash',
-                subjectLabel: "{$count} item(s)",
-            );
-        }
-
+        $count = $bin->bulk($restoring, $validated['items'], $request->user());
         $verb = $restoring ? 'restored' : 'permanently deleted';
 
         return $this->respond(
@@ -153,31 +101,9 @@ class TrashController extends Controller
     /**
      * Permanently delete everything the actor is allowed to force-delete.
      */
-    public function empty(Request $request): RedirectResponse
+    public function empty(Request $request, TrashBin $bin): RedirectResponse
     {
-        $user = $request->user();
-        $count = 0;
-
-        foreach (TrashRegistry::types() as $type => $definition) {
-            if (! $user->can($definition['view']) || ! $user->can($definition['forceDelete'])) {
-                continue;
-            }
-
-            $definition['model']::onlyTrashed()->get()->each(function (Model $model) use ($type, &$count): void {
-                $this->cleanupFiles($type, $model);
-                $model->forceDelete();
-                $count++;
-            });
-        }
-
-        if ($count > 0) {
-            ActivityLogger::log(
-                event: 'deleted',
-                description: "Emptied the trash — {$count} item(s) permanently deleted",
-                logName: 'trash',
-                subjectLabel: "{$count} item(s)",
-            );
-        }
+        $count = $bin->empty($request->user());
 
         return $this->respond(
             $count > 0 ? "Trash emptied — {$count} item(s) permanently deleted." : 'The trash is already empty.',
@@ -187,7 +113,7 @@ class TrashController extends Controller
 
     /**
      * Validate the {type, id} payload, authorise the ability for that type, and
-     * return [type, definition, trashed model].
+     * return [type, definition, trashed model] — found in this workspace only.
      *
      * @return array{0: string, 1: array<string, mixed>, 2: Model}
      */
@@ -200,31 +126,12 @@ class TrashController extends Controller
 
         $definition = TrashRegistry::definition($validated['type']);
         abort_if($definition === null, 404);
+        abort_unless(TrashRegistry::allows($request->user(), $validated['type'], $ability), 403);
 
-        $user = $request->user();
-        abort_unless($user->can($definition['view']) && $user->can($definition[$ability]), 403);
-
-        $model = $definition['model']::onlyTrashed()->find($validated['id']);
+        $model = TrashRegistry::find($validated['type'], (int) $validated['id']);
         abort_if($model === null, 404);
 
         return [$validated['type'], $definition, $model];
-    }
-
-    /**
-     * Best-effort cleanup of files a record owns on disk before it is purged,
-     * so permanent deletion doesn't orphan uploaded photos.
-     */
-    private function cleanupFiles(string $type, Model $model): void
-    {
-        $path = match ($type) {
-            'user' => $model->profile_photo,
-            'employee' => $model->photo,
-            default => null,
-        };
-
-        if ($path) {
-            Storage::disk('public')->delete($path);
-        }
     }
 
     /**
