@@ -2,23 +2,29 @@
 
 namespace App\Services\Assistant\Modules;
 
+use App\Http\Requests\Attendance\ReapplyScheduleRequest;
 use App\Models\AttendanceRecord;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Queries\AttendanceRangeQuery;
 use App\Queries\AttendanceRecordsIndexQuery;
 use App\Services\Assistant\Contracts\ContributesContext;
+use App\Services\Assistant\Contracts\ExplainsConsequences;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Retrieval\RetrievedSubject;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
+use App\Support\Attendance\AttendanceException;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Attendance\AttendanceReview;
 use App\Support\Attendance\ResolvedShift;
 use App\Support\Attendance\RosterWriter;
 use App\Support\Attendance\ShiftResolver;
 use App\Support\OrganizationClock;
+use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 
@@ -31,12 +37,15 @@ use Illuminate\Support\Carbon;
  * {@see RosterWriter} — the same engine and writer the web and mobile API use —
  * so totals, status and history stay correct whoever asked for the change.
  */
-class AttendanceModule extends Module implements ContributesContext
+class AttendanceModule extends Module implements ContributesContext, ExplainsConsequences
 {
+    private const CHANNEL = ' via assistant';
+
     public function __construct(
         private readonly AttendanceClock $clock,
         private readonly ShiftResolver $shifts,
         private readonly RosterWriter $roster,
+        private readonly AttendanceReview $review,
     ) {}
 
     public function key(): string
@@ -62,7 +71,18 @@ class AttendanceModule extends Module implements ContributesContext
             'find_shifts' => 'findShifts',
             'set_roster_entry' => 'setRosterEntry',
             'find_attendance_exceptions' => 'findExceptions',
+            'find_pending_sign_offs' => 'findPending',
+            'sign_off_attendance' => 'signOff',
+            'sign_off_pending_attendance' => 'signOffPending',
+            'reapply_attendance_rules' => 'reapply',
         ];
+    }
+
+    protected function confirmTools(): array
+    {
+        // A sign-off grants the overtime a day shows; re-applying re-judges
+        // days that may already be counted on.
+        return ['sign_off_attendance', 'sign_off_pending_attendance', 'reapply_attendance_rules'];
     }
 
     /**
@@ -74,11 +94,25 @@ class AttendanceModule extends Module implements ContributesContext
             'record_punch' => 'attendance.manage',
             'set_roster_entry' => 'setup.roster.manage',
             'find_attendance_exceptions' => 'attendance.view',
+            'find_pending_sign_offs' => 'attendance.view',
+            'sign_off_attendance' => 'attendance.manage',
+            'sign_off_pending_attendance' => 'attendance.manage',
+            'reapply_attendance_rules' => 'attendance.manage',
         ];
     }
 
     public function run(User $user, string $tool, array $args): ToolResult
     {
+        if (! app(Tenancy::class)->check()) {
+            return ToolResult::error('Checked the workspace', 'No workspace is selected.');
+        }
+
+        $permission = $this->permissionMap()[$tool] ?? null;
+
+        if ($permission !== null && $user->cannot($permission)) {
+            return $this->denied('do that with attendance');
+        }
+
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
@@ -252,6 +286,7 @@ class AttendanceModule extends Module implements ContributesContext
         - find_shifts answers "who works Saturday?" and "what is Ana's shift next week?" — it reads the roster (the plan), not the records (what happened). Pass `date` for one day, or `from` and `to` for a range; pass `employee` to narrow it to one person. Each shift says where it came from: a one-off roster override, a dated assignment, a department or company default, or the built-in Mon–Fri fallback.
         - set_roster_entry puts one person on different hours for one date — a swap, a Saturday call-in, or a day off. Either name a `schedule` to borrow for that day, or give `start` and `end` times, or set `rest_day` to true. It overwrites any existing override for that person and date.
         - find_attendance_exceptions answers "who hasn't clocked in?", "who is missing a clock-out?", "who punched outside the office this week?". `kind` is not_clocked_in (today only: the shift has started and there is no clock-in, not on leave or a holiday), missing_clock_out, outside_geofence, auto_closed (the end-of-day job wrote the clock-out), absent (no punches and no leave — past days only, today's are not final), clock_skew, or all. Give `date`, or `from` and `to` (up to 31 days); it defaults to today.
+        - find_pending_sign_offs lists days awaiting a sign-off (overtime that needs approval). sign_off_attendance signs off one person's day, which grants the overtime it shows; sign_off_pending_attendance signs off every pending day (optionally one person's, or a date range); reapply_attendance_rules re-judges recorded days in a range (at most 62 days) by today's schedules and policies. All three wait for the user's confirmation, and nobody signs off their own day.
         - Pass `employee` as a name or employee number.
         TXT;
     }
@@ -327,6 +362,41 @@ class AttendanceModule extends Module implements ContributesContext
                         'employee' => ['type' => 'STRING', 'description' => 'Employee name or number, to narrow it to one person (optional).'],
                     ],
                 ],
+            ],
+            [
+                'name' => 'find_pending_sign_offs',
+                'description' => 'Days awaiting a sign-off (overtime that needs approval), optionally one person\'s or a date range.',
+                'parameters' => ['type' => 'OBJECT', 'properties' => [
+                    'employee' => ['type' => 'STRING'],
+                    'from' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                    'to' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                ]],
+            ],
+            [
+                'name' => 'sign_off_attendance',
+                'description' => "Sign off one person's day, granting the overtime it shows.",
+                'parameters' => ['type' => 'OBJECT', 'properties' => [
+                    'employee' => ['type' => 'STRING'],
+                    'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                ], 'required' => ['employee', 'date']],
+            ],
+            [
+                'name' => 'sign_off_pending_attendance',
+                'description' => 'Sign off every day awaiting it — optionally only one person\'s, or a date range.',
+                'parameters' => ['type' => 'OBJECT', 'properties' => [
+                    'employee' => ['type' => 'STRING'],
+                    'from' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                    'to' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                ]],
+            ],
+            [
+                'name' => 'reapply_attendance_rules',
+                'description' => 'Re-judge recorded days in a range by the current schedules and attendance policies (at most 62 days).',
+                'parameters' => ['type' => 'OBJECT', 'properties' => [
+                    'from' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                    'to' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
+                    'department' => ['type' => 'STRING', 'description' => 'Only this department (name or code).'],
+                ], 'required' => ['from', 'to']],
             ],
         ]);
     }
@@ -653,6 +723,177 @@ class AttendanceModule extends Module implements ContributesContext
      * @param  array<string, mixed>  $args
      */
     /**
+     * @param  array<string, mixed>  $args
+     */
+    private function findPending(User $user, array $args): ToolResult
+    {
+        [$employeeId, $from, $to, $error] = $this->pendingScope($args);
+
+        if ($error !== null) {
+            return ToolResult::error('Listed days awaiting sign-off', $error);
+        }
+
+        $query = $this->review->pending($employeeId, $from, $to);
+        $total = (clone $query)->count();
+        $minutes = (int) (clone $query)->sum('overtime_minutes');
+
+        $cards = $query->with('employee:id,first_name,middle_name,last_name,suffix,employee_no')
+            ->orderBy('work_date')->limit(20)->get()
+            ->map(fn (AttendanceRecord $r): array => $this->card(
+                kind: 'find',
+                tone: 'warning',
+                badge: 'Awaiting sign-off',
+                title: $r->employee?->full_name ?? 'Employee',
+                subtitle: $r->work_date->format('D, M j, Y'),
+                meta: [(int) $r->overtime_minutes > 0 ? 'Overtime '.$this->hours((int) $r->overtime_minutes) : null],
+                id: $r->id,
+            ))
+            ->all();
+
+        return ToolResult::found('Listed days awaiting sign-off', $total === 0 ? 'None' : "{$total} ".($total === 1 ? 'day' : 'days').', '.$this->hours($minutes).' of overtime in all', $cards);
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function signOff(User $user, array $args): ToolResult
+    {
+        $employee = $this->locateEmployee($args);
+        $date = $this->date($args['date'] ?? null);
+
+        if ($employee === null || $date === null) {
+            return ToolResult::error('Signed off the day', $employee === null ? 'No single employee matches that name.' : 'Give the date as YYYY-MM-DD.');
+        }
+
+        $record = AttendanceRecord::query()->where('employee_id', $employee->id)->whereDate('work_date', $date)->first();
+
+        if ($record === null) {
+            return ToolResult::error('Signed off the day', "{$employee->full_name} has no attendance record on {$date}.");
+        }
+
+        try {
+            $this->review->signOff($record, $user, self::CHANNEL);
+        } catch (AttendanceException $e) {
+            return ToolResult::error('Signed off the day', $e->getMessage());
+        }
+
+        return ToolResult::ok("Signed off {$employee->full_name}'s {$record->work_date->format('M j')}", (int) $record->approved_overtime_minutes > 0 ? $this->hours((int) $record->approved_overtime_minutes).' of overtime granted.' : null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function signOffPending(User $user, array $args): ToolResult
+    {
+        [$employeeId, $from, $to, $error] = $this->pendingScope($args);
+
+        if ($error !== null) {
+            return ToolResult::error('Signed off pending days', $error);
+        }
+
+        ['signed' => $signed, 'skipped' => $skipped] = $this->review->signOffPending($user, $employeeId, $from, $to, self::CHANNEL);
+
+        return $signed === 0 && $skipped === 0
+            ? ToolResult::error('Signed off pending days', 'Nothing is awaiting a sign-off there.')
+            : ToolResult::ok("Signed off {$signed} ".($signed === 1 ? 'day' : 'days'), $skipped > 0 ? "{$skipped} left — your own days, which someone else signs off." : null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function reapply(User $user, array $args): ToolResult
+    {
+        $data = ['from' => $this->date($args['from'] ?? null), 'to' => $this->date($args['to'] ?? null), 'department' => null];
+
+        if (filled($args['department'] ?? null)) {
+            $needle = strtolower(trim((string) $args['department']));
+            $data['department'] = Department::query()->where(fn ($q) => $q->whereRaw('lower(name) = ?', [$needle])->orWhereRaw('lower(code) = ?', [$needle]))->value('id');
+
+            if ($data['department'] === null) {
+                return ToolResult::error('Re-applied the rules', 'No department is called “'.trim((string) $args['department']).'”.');
+            }
+        }
+
+        $problem = $this->invalid($data, (new ReapplyScheduleRequest)->rules(), [], [], function ($validator) use ($data): void {
+            if ($validator->errors()->isEmpty() && CarbonImmutable::parse($data['from'])->diffInDays(CarbonImmutable::parse($data['to'])) + 1 > ReapplyScheduleRequest::MAX_DAYS) {
+                $validator->errors()->add('to', 'Re-apply schedules to at most '.ReapplyScheduleRequest::MAX_DAYS.' days at a time.');
+            }
+        });
+
+        if ($problem !== null) {
+            return ToolResult::error('Re-applied the rules', $problem);
+        }
+
+        ['total' => $total, 'changed' => $changed] = $this->review->reapplyRange($data['from'], $data['to'], $data['department'], self::CHANNEL);
+
+        return $total === 0
+            ? ToolResult::error('Re-applied the rules', 'No recorded days in that period.')
+            : ToolResult::ok("Re-applied the rules to {$total} ".($total === 1 ? 'day' : 'days'), "{$changed} changed.");
+    }
+
+    public function consequence(User $user, string $tool, array $args): ?string
+    {
+        if ($tool === 'reapply_attendance_rules') {
+            $from = $this->date($args['from'] ?? null);
+            $to = $this->date($args['to'] ?? null);
+
+            return $from === null || $to === null ? null
+                : AttendanceRecord::query()->whereBetween('work_date', [$from, $to])->count()." recorded days from {$from} to {$to} would be re-judged by today's schedules and policies; lateness, overtime and night minutes may change.";
+        }
+
+        if ($tool === 'sign_off_pending_attendance') {
+            [$employeeId, $from, $to, $error] = $this->pendingScope($args);
+
+            if ($error !== null) {
+                return null;
+            }
+
+            $query = $this->review->pending($employeeId, $from, $to);
+
+            return (clone $query)->count().' days awaiting sign-off would be signed off, granting '.$this->hours((int) $query->sum('overtime_minutes')).' of overtime in all. Your own days are left for someone else.';
+        }
+
+        if ($tool === 'sign_off_attendance') {
+            $employee = $this->locateEmployee($args);
+            $date = $this->date($args['date'] ?? null);
+            $record = $employee && $date ? AttendanceRecord::query()->where('employee_id', $employee->id)->whereDate('work_date', $date)->first() : null;
+
+            return $record === null ? null : 'It would grant the '.$this->hours((int) $record->overtime_minutes)." of overtime {$employee->full_name}'s day shows.";
+        }
+
+        return null;
+    }
+
+    /**
+     * Who and when a pending sweep covers, or why not.
+     *
+     * @param  array<string, mixed>  $args
+     * @return array{0: int|null, 1: string|null, 2: string|null, 3: string|null}
+     */
+    private function pendingScope(array $args): array
+    {
+        $employeeId = null;
+
+        if (filled($args['employee'] ?? null)) {
+            [$employee, $error] = $this->resolveEmployee((string) $args['employee']);
+
+            if ($employee === null) {
+                return [null, null, null, $error];
+            }
+
+            $employeeId = $employee->id;
+        }
+
+        foreach (['from', 'to'] as $key) {
+            if (filled($args[$key] ?? null) && $this->date($args[$key]) === null) {
+                return [null, null, null, 'Give dates as YYYY-MM-DD.'];
+            }
+        }
+
+        return [$employeeId, $this->date($args['from'] ?? null), $this->date($args['to'] ?? null), null];
+    }
+
+    /**
      * The asker's own roster line, when the arguments name them (or name nobody).
      * False when they name anybody else — decided by matching the name against
      * the asker's row only, so the directory is never searched on behalf of
@@ -681,7 +922,8 @@ class AttendanceModule extends Module implements ContributesContext
     {
         $needle = $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']);
 
-        return $needle ? $this->matchByTokens(Employee::query(), $needle)->first() : null;
+        // Exactly one — an ambiguous name acts on nobody, never on the first match.
+        return $needle ? $this->resolveEmployee($needle)[0] : null;
     }
 
     /**

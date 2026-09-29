@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Setup;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
-use App\Support\ActivityLogger;
+use App\Support\Setup\JoinCodeSettings;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,18 +26,9 @@ class JoinCodeController extends Controller
     /**
      * Issue a fresh code, invalidating the current one.
      */
-    public function rotate(): RedirectResponse
+    public function rotate(JoinCodeSettings $settings): RedirectResponse
     {
-        $organization = $this->organization();
-        $organization->rotateJoinCode();
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: 'Generated a new company join code',
-            subject: $organization,
-            logName: 'company-setup',
-            subjectLabel: $organization->name,
-        );
+        $settings->rotate($this->organization());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'A new join code was generated. The previous one no longer works.']);
 
@@ -48,22 +39,13 @@ class JoinCodeController extends Controller
      * Turn code entry on or off. Outstanding invitations are unaffected — they name
      * a specific person and do not depend on the code.
      */
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request, JoinCodeSettings $settings): RedirectResponse
     {
         $validated = $request->validate([
             'enabled' => ['required', 'boolean'],
         ]);
 
-        $organization = $this->organization();
-        $organization->update(['join_code_enabled' => $validated['enabled']]);
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: $validated['enabled'] ? 'Enabled joining by company code' : 'Disabled joining by company code',
-            subject: $organization,
-            logName: 'company-setup',
-            subjectLabel: $organization->name,
-        );
+        $settings->setEnabled($this->organization(), (bool) $validated['enabled']);
 
         Inertia::flash('toast', [
             'type' => 'success',

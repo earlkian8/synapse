@@ -382,6 +382,19 @@ The agent's **Attendance** capability (available with `attendance.view` or
 The 30-day brief also counts days punched away from the site, closed automatically, and
 still missing a clock-out after closing.
 
+**Review in chat** ([ADR 0059](../decisions/0059-assistant-covers-the-whole-system.md)). Signing days off and re-applying rules go
+through `App\Support\Attendance\AttendanceReview`, which the Attendance screen's
+approve, approve-all and re-apply actions now call too:
+
+- **`find_pending_sign_offs`** — days awaiting a sign-off, with the overtime in all
+  (`attendance.view`).
+- **`sign_off_attendance`**, **`sign_off_pending_attendance`** (optionally one person or a
+  date range) and **`reapply_attendance_rules`** (a range of at most 62 days, optionally
+  one department) — `attendance.manage`, each **waiting for Confirm**; the card says how
+  much overtime a sign-off grants or how many days would be re-judged. Nobody signs off
+  their own day.
+- The module resolves a person exactly: an ambiguous name acts on nobody.
+
 Punches route through `AttendanceClock` and overrides through `RosterWriter`, so totals,
 status, the shift a night punch belongs to, and the history left behind are the same
 whoever asked. Card times are shown on the organisation's clock.

@@ -246,6 +246,23 @@ spends Gemini quota.
 
 ---
 
+## 5c. App access and records in the assistant (ADR 0059)
+
+- **`WorkspaceAccessModule`** (`employees.invite`) — the App access screen in chat:
+  pending join requests, unused invitations, employees without the app, and whether
+  joining by code is on. Approving (onto a roster line) and declining a request, and
+  inviting, **wait for Confirm**; revoking runs directly. Turning the join code on or
+  off, or replacing it, waits for Confirm and needs `setup.company.manage`
+  (`App\Support\Setup\JoinCodeSettings`, which the screen uses too). An invitation goes
+  **only to the address on the 201 file**, and the join code itself is never read out.
+- **`EmployeeRecordsModule`** — certifications: one person's, or everyone's expiring
+  within some days (`employees.view`); add, and remove behind a Confirm
+  (`employees.manage-documents`), through `App\Support\Employees\EmployeeCertifications`
+  and `StoreEmployeeCertificationRequest`, which the profile now uses — removal is now
+  audited. A person's documents are listed by title and type only
+  (`employees.manage-documents`), audited as `viewed`; files are never opened or
+  uploaded in chat.
+
 ## 6. Permissions & roles
 
 A new **Employee Management** permission group in `PermissionRegistry`:

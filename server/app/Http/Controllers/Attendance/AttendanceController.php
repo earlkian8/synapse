@@ -18,9 +18,7 @@ use App\Queries\AttendanceWeeklyQuery;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendanceException;
-use App\Support\HolidayCalendar;
-use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\Attendance\AttendanceReview;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -172,24 +170,13 @@ class AttendanceController extends Controller
      * Sign a day off: what was awaiting review on it — overtime that
      * needs approval — is approved as it stands.
      */
-    public function approve(Request $request, AttendanceRecord $attendanceRecord): RedirectResponse
+    public function approve(Request $request, AttendanceRecord $attendanceRecord, AttendanceReview $review): RedirectResponse
     {
         try {
-            $this->clock->signOff($attendanceRecord, $request->user());
+            $review->signOff($attendanceRecord, $request->user());
         } catch (AttendanceException $e) {
             return $this->respond($e->getMessage(), 'warning');
         }
-
-        $attendanceRecord->load('employee:id,first_name,middle_name,last_name,suffix');
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Signed off attendance for {$attendanceRecord->employee?->full_name} on {$attendanceRecord->work_date->format('M j')}",
-            subject: $attendanceRecord,
-            properties: ['approved_overtime_minutes' => $attendanceRecord->approved_overtime_minutes],
-            logName: 'attendance',
-            subjectLabel: $attendanceRecord->employee?->full_name ?? 'employee',
-        );
 
         return $this->respond('Day signed off.');
     }
@@ -231,41 +218,13 @@ class AttendanceController extends Controller
      * a holiday added late. Walked in date order, because weekly overtime and a
      * monthly grace allowance read the days before each one.
      */
-    public function reapplyRange(ReapplyScheduleRequest $request): RedirectResponse
+    public function reapplyRange(ReapplyScheduleRequest $request, AttendanceReview $review): RedirectResponse
     {
-        $from = $request->date('from')->toDateString();
-        $to = $request->date('to')->toDateString();
-        $department = $request->integer('department') ?: null;
-
-        $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
-        $total = 0;
-        $changed = 0;
-
-        AttendanceRecord::query()
-            ->whereBetween('work_date', [$from, $to])
-            ->when($department, fn (Builder $query) => $query->whereHas(
-                'employee',
-                fn (Builder $employee) => $employee->where('department_id', $department),
-            ))
-            ->with('employee')
-            ->orderBy('work_date')
-            ->orderBy('id')
-            ->chunk(200, function ($records) use ($holidays, &$total, &$changed): void {
-                $changed += $this->clock->reapplyMany($records, $holidays);
-                $total += $records->count();
-            });
-
-        $period = CarbonImmutable::parse($from)->format('M j').($from === $to ? '' : ' – '.CarbonImmutable::parse($to)->format('M j'));
-
-        if ($total > 0) {
-            ActivityLogger::log(
-                event: 'updated',
-                description: "Re-applied current schedules and policies to {$total} attendance ".str('record')->plural($total)." ({$period})",
-                properties: ['from' => $from, 'to' => $to, 'department' => $department, 'records' => $total, 'changed' => $changed],
-                logName: 'attendance',
-                subjectLabel: 'Attendance',
-            );
-        }
+        ['total' => $total, 'changed' => $changed] = $review->reapplyRange(
+            $request->date('from')->toDateString(),
+            $request->date('to')->toDateString(),
+            $request->integer('department') ?: null,
+        );
 
         return $this->respond(
             $total > 0
@@ -280,33 +239,9 @@ class AttendanceController extends Controller
      * instead of one day at a time. Only pending days are touched; each goes
      * through the engine, so the signer's own day is left and counted.
      */
-    public function approveAll(Request $request): RedirectResponse
+    public function approveAll(Request $request, AttendanceReview $review): RedirectResponse
     {
-        $count = 0;
-        $skipped = 0;
-
-        AttendanceRecord::query()
-            ->where('approval_status', 'pending')
-            ->with('employee:id,user_id')
-            ->chunkById(200, function ($records) use ($request, &$count, &$skipped): void {
-                foreach ($records as $record) {
-                    try {
-                        $this->clock->signOff($record, $request->user());
-                        $count++;
-                    } catch (AttendanceException) {
-                        $skipped++;
-                    }
-                }
-            });
-
-        if ($count > 0) {
-            ActivityLogger::log(
-                event: 'updated',
-                description: "Bulk-approved {$count} pending attendance record".($count === 1 ? '' : 's'),
-                logName: 'attendance',
-                subjectLabel: 'Attendance',
-            );
-        }
+        ['signed' => $count, 'skipped' => $skipped] = $review->signOffPending($request->user());
 
         $left = $skipped > 0 ? " {$skipped} left — your own." : '';
 

@@ -6,10 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Leave\StoreLeaveBalanceRequest;
 use App\Models\Department;
 use App\Models\Employee;
-use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use App\Queries\LeaveBalanceService;
-use App\Support\ActivityLogger;
+use App\Support\Leave\LeaveEntitlements;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -72,28 +71,12 @@ class LeaveBalanceController extends Controller
     /**
      * Set an employee's entitlements for a year (upserts the allocation rows).
      */
-    public function store(StoreLeaveBalanceRequest $request): RedirectResponse
+    public function store(StoreLeaveBalanceRequest $request, LeaveEntitlements $entitlements): RedirectResponse
     {
-        $employee = Employee::findOrFail($request->integer('employee_id'));
-        $year = $request->integer('year');
-
-        foreach ($request->input('balances') as $row) {
-            LeaveBalance::updateOrCreate(
-                [
-                    'employee_id' => $employee->id,
-                    'leave_type_id' => $row['leave_type_id'],
-                    'year' => $year,
-                ],
-                ['entitled_days' => $row['entitled_days']],
-            );
-        }
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: "Set {$year} leave entitlements for {$employee->full_name}",
-            subject: $employee,
-            logName: 'leave',
-            subjectLabel: $employee->full_name,
+        $entitlements->set(
+            Employee::findOrFail($request->integer('employee_id')),
+            $request->integer('year'),
+            array_values($request->input('balances')),
         );
 
         return $this->respond('Entitlements saved.');

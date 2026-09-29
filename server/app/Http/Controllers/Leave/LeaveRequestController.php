@@ -3,23 +3,24 @@
 namespace App\Http\Controllers\Leave;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leave\ReviewLeaveRequestRequest;
 use App\Http\Requests\Leave\StoreLeaveRequestRequest;
 use App\Http\Resources\LeaveRequestResource;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\User;
 use App\Queries\LeaveBalanceService;
 use App\Queries\LeaveRequestsIndexQuery;
 use App\Queries\LeaveStatistics;
 use App\Support\ActivityLogger;
 use App\Support\HolidayCalendar;
+use App\Support\Leave\LeaveAccess;
+use App\Support\Leave\LeaveReview;
 use App\Support\LeaveCalculator;
 use App\Support\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -124,6 +125,9 @@ class LeaveRequestController extends Controller
      */
     public function update(StoreLeaveRequestRequest $request, LeaveRequest $leaveRequest): RedirectResponse
     {
+        // Without leave.manage, only your own request (ADR 0059).
+        abort_unless(LeaveAccess::mayActFor($request->user(), $leaveRequest->employee_id), 403);
+
         if (! $leaveRequest->isPending()) {
             return $this->respond('Only pending requests can be edited.', 'warning');
         }
@@ -153,37 +157,14 @@ class LeaveRequestController extends Controller
     /**
      * Approve or reject a pending request.
      */
-    public function review(Request $request, LeaveRequest $leaveRequest): RedirectResponse
+    public function review(ReviewLeaveRequestRequest $request, LeaveRequest $leaveRequest, LeaveReview $review): RedirectResponse
     {
-        $validated = $request->validate([
-            'action' => ['required', Rule::in(['approve', 'reject'])],
-            'review_note' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        if (! $leaveRequest->isPending()) {
-            return $this->respond('This request has already been reviewed.', 'warning');
-        }
-
+        $validated = $request->validated();
         $approved = $validated['action'] === 'approve';
 
-        $leaveRequest->update([
-            'status' => $approved ? 'approved' : 'rejected',
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-            'review_note' => $validated['review_note'] ?? null,
-        ]);
-
-        $leaveRequest->load('employee:id,user_id,first_name,middle_name,last_name,suffix', 'type:id,name');
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: ($approved ? 'Approved ' : 'Rejected ')."{$leaveRequest->type->name} for {$leaveRequest->employee->full_name}",
-            subject: $leaveRequest,
-            logName: 'leave',
-            subjectLabel: $leaveRequest->employee->full_name,
-        );
-
-        $this->notifyOutcome($leaveRequest, $approved);
+        if (! $review->decide($leaveRequest, $approved, $validated['review_note'] ?? null, $request->user())) {
+            return $this->respond('This request has already been reviewed.', 'warning');
+        }
 
         return $this->respond($approved ? 'Leave approved.' : 'Leave rejected.');
     }
@@ -191,8 +172,11 @@ class LeaveRequestController extends Controller
     /**
      * Cancel a pending or approved request.
      */
-    public function cancel(LeaveRequest $leaveRequest): RedirectResponse
+    public function cancel(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
+        // Without leave.manage, only your own request (ADR 0059).
+        abort_unless(LeaveAccess::mayActFor($request->user(), $leaveRequest->employee_id), 403);
+
         if (! in_array($leaveRequest->status, ['pending', 'approved'], true)) {
             return $this->respond('This request cannot be cancelled.', 'warning');
         }
@@ -282,31 +266,6 @@ class LeaveRequestController extends Controller
             category: 'leave',
             actor: request()->user(),
         );
-    }
-
-    /**
-     * Tell the employee (and whoever filed it) the decision.
-     */
-    private function notifyOutcome(LeaveRequest $leave, bool $approved): void
-    {
-        $title = $approved ? 'Leave approved' : 'Leave rejected';
-        $body = "Your {$leave->type->name} on {$leave->start_date->format('M j')} was ".($approved ? 'approved.' : 'rejected.');
-
-        if ($leave->employee->user_id) {
-            $employeeUser = User::find($leave->employee->user_id);
-
-            if ($employeeUser) {
-                Notifier::toUser(
-                    $employeeUser,
-                    $title,
-                    $body,
-                    url: '/leave',
-                    level: $approved ? 'success' : 'warning',
-                    category: 'leave',
-                    actor: request()->user(),
-                );
-            }
-        }
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

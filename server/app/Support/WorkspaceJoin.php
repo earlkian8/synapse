@@ -126,7 +126,7 @@ class WorkspaceJoin
      *
      * @throws RuntimeException when the line is taken or belongs elsewhere.
      */
-    public static function approve(OrganizationJoinRequest $request, Employee $employee, User $reviewer): void
+    public static function approve(OrganizationJoinRequest $request, Employee $employee, User $reviewer, string $channel = ''): void
     {
         if ($request->status !== OrganizationJoinRequest::PENDING) {
             throw new RuntimeException('This request has already been reviewed.');
@@ -162,7 +162,7 @@ class WorkspaceJoin
 
         ActivityLogger::log(
             event: 'updated',
-            description: "Approved {$user->full_name}'s request to join and linked them to {$employee->full_name}",
+            description: "Approved {$user->full_name}'s request to join and linked them to {$employee->full_name}{$channel}",
             subject: $employee,
             logName: 'employees',
             subjectLabel: $employee->full_name,
@@ -172,7 +172,7 @@ class WorkspaceJoin
     /**
      * Turn a pending request down, optionally saying why.
      */
-    public static function decline(OrganizationJoinRequest $request, User $reviewer, ?string $reason = null): void
+    public static function decline(OrganizationJoinRequest $request, User $reviewer, ?string $reason = null, string $channel = ''): void
     {
         if ($request->status !== OrganizationJoinRequest::PENDING) {
             throw new RuntimeException('This request has already been reviewed.');
@@ -194,7 +194,7 @@ class WorkspaceJoin
 
         ActivityLogger::log(
             event: 'updated',
-            description: 'Declined '.($user?->full_name ?? 'a').' request to join',
+            description: ($user !== null ? "Declined {$user->full_name}'s request to join" : 'Declined a request to join').$channel,
             logName: 'employees',
             subjectLabel: $user?->full_name,
         );

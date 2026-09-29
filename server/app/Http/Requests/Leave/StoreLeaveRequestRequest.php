@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Leave;
 
 use App\Models\LeaveType;
+use App\Support\Leave\LeaveAccess;
 use App\Support\Tenancy;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -47,6 +48,17 @@ class StoreLeaveRequestRequest extends FormRequest
      */
     public function withValidator(Validator $validator): void
     {
+        // Without leave.manage, only your own leave (ADR 0059).
+        $validator->after(function (Validator $validator) {
+            if ($validator->errors()->has('employee_id') || $this->user() === null) {
+                return;
+            }
+
+            if (! LeaveAccess::mayActFor($this->user(), $this->integer('employee_id'))) {
+                $validator->errors()->add('employee_id', 'You can only file leave for yourself.');
+            }
+        });
+
         $validator->after(function (Validator $validator) {
             if (! $this->boolean('is_half_day')) {
                 return;

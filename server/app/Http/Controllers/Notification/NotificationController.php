@@ -7,8 +7,7 @@ use App\Http\Requests\Notification\SendNotificationRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Role;
 use App\Models\User;
-use App\Support\ActivityLogger;
-use App\Support\Notifier;
+use App\Support\Notifications\Announcements;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -58,31 +57,19 @@ class NotificationController extends Controller
     /**
      * Compose & broadcast a notification to a chosen audience.
      */
-    public function store(SendNotificationRequest $request): RedirectResponse
+    public function store(SendNotificationRequest $request, Announcements $announcements): RedirectResponse
     {
         $data = $request->validated();
-        $actor = $request->user();
 
-        $count = match ($data['audience']) {
-            'user' => Notifier::toUser(
-                User::query()->inCurrentOrganization()->findOrFail($data['user_id']),
-                $data['title'], $data['body'], $data['url'] ?? null, $data['level'], 'announcement', $actor,
-            ),
-            'role' => Notifier::toRole(
-                Role::findOrFail($data['role_id']),
-                $data['title'], $data['body'], $data['url'] ?? null, $data['level'], 'announcement', $actor,
-            ),
-            default => Notifier::toAll(
-                $data['title'], $data['body'], $data['url'] ?? null, $data['level'], 'announcement', $actor,
-            ),
-        };
-
-        ActivityLogger::log(
-            event: 'sent',
-            description: "Sent a notification to {$count} ".($count === 1 ? 'recipient' : 'recipients'),
-            properties: ['audience' => $data['audience'], 'title' => $data['title'], 'count' => $count],
-            logName: 'notifications',
-            subjectLabel: $data['title'],
+        $count = $announcements->send(
+            $data['audience'],
+            $data['audience'] === 'user' ? User::query()->inCurrentOrganization()->findOrFail($data['user_id']) : null,
+            $data['audience'] === 'role' ? Role::findOrFail($data['role_id']) : null,
+            $data['title'],
+            $data['body'],
+            $data['url'] ?? null,
+            $data['level'],
+            $request->user(),
         );
 
         return $this->respond(

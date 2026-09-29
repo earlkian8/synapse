@@ -3,6 +3,8 @@
 namespace App\Services\Assistant\Modules;
 
 use App\Http\Controllers\Leave\LeaveRequestController;
+use App\Http\Requests\Leave\ReviewLeaveRequestRequest;
+use App\Http\Requests\Leave\StoreLeaveBalanceRequest;
 use App\Http\Requests\Leave\StoreLeaveRequestRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
@@ -10,13 +12,18 @@ use App\Models\LeaveType;
 use App\Models\User;
 use App\Queries\LeaveBalanceService;
 use App\Services\Assistant\Contracts\ContributesContext;
+use App\Services\Assistant\Contracts\ExplainsConsequences;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Retrieval\RetrievedSubject;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\HolidayCalendar;
+use App\Support\Leave\LeaveAccess;
+use App\Support\Leave\LeaveEntitlements;
+use App\Support\Leave\LeaveReview;
 use App\Support\LeaveCalculator;
 use App\Support\Notifier;
+use App\Support\Tenancy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 
@@ -25,16 +32,24 @@ use Illuminate\Support\Facades\Validator;
  * requests. Chargeable days are always computed server-side (never trusted from
  * the model), mirroring {@see LeaveRequestController}.
  */
-class LeaveModule extends Module implements ContributesContext
+class LeaveModule extends Module implements ContributesContext, ExplainsConsequences
 {
+    private const CHANNEL = ' via assistant';
+
+    /** Words that mean the asker. */
+    private const SELF = ['me', 'myself', 'my', 'mine', 'i', 'self'];
+
     public function key(): string
     {
         return 'leave';
     }
 
+    /**
+     * Anybody who may see leave, or file their own (self-service, ADR 0059).
+     */
     public function isAvailable(User $user): bool
     {
-        return $user->can('leave.view');
+        return $user->can('leave.view') || $user->can('leave.request');
     }
 
     /** How many recent requests a read-out lists before it stops. */
@@ -112,6 +127,18 @@ class LeaveModule extends Module implements ContributesContext
         // Cancelling withdraws leave somebody is counting on.
         return [
             'cancel_leave_request',
+            // Changes what somebody may take for a whole year.
+            'set_leave_entitlement',
+        ];
+    }
+
+    protected function permissionMap(): array
+    {
+        return [
+            'file_leave_request' => 'leave.request',
+            'cancel_leave_request' => 'leave.request',
+            'review_leave_request' => 'leave.manage',
+            'set_leave_entitlement' => 'leave.manage',
         ];
     }
 
@@ -122,11 +149,17 @@ class LeaveModule extends Module implements ContributesContext
             'file_leave_request' => 'fileRequest',
             'review_leave_request' => 'reviewRequest',
             'cancel_leave_request' => 'cancelRequest',
+            'get_leave_balances' => 'balances',
+            'set_leave_entitlement' => 'setEntitlement',
         ];
     }
 
     public function run(User $user, string $tool, array $args): ToolResult
     {
+        if (! app(Tenancy::class)->check()) {
+            return ToolResult::error('Checked the workspace', 'No workspace is selected.');
+        }
+
         return $this->{$this->toolMap()[$tool]}($user, $args);
     }
 
@@ -139,14 +172,16 @@ class LeaveModule extends Module implements ContributesContext
         LEAVE — time-off requests with an approval lifecycle (pending → approved/rejected, or cancelled).
         - file_leave_request files for an employee; working days are computed server-side and a half day must be a single day. A type that does not require approval is auto-approved.
         - review_leave_request and cancel_leave_request act on the employee's most recent matching request — confirm you have the right person.
-        - Pass `employee` as a name or employee number and `leave_type` as a type name or code.
+        - Pass `employee` as a name or employee number, or "me" for the user themselves, and `leave_type` as a type name or code.
           Leave types: {$types}
+        - get_leave_balances reads entitlement, used, pending and remaining days by type — the user's own, or (with leave access) anybody's. set_leave_entitlement sets a year's allocation for one type and waits for confirmation.
+        - Without leave management rights a user files, cancels and sees only their own leave.
         TXT;
     }
 
     public function tools(User $user): array
     {
-        return [
+        return $this->permitted($user, [
             [
                 'name' => 'find_leave_requests',
                 'description' => 'List leave requests, optionally filtered by employee name and/or status.',
@@ -199,7 +234,32 @@ class LeaveModule extends Module implements ContributesContext
                     'required' => ['employee'],
                 ],
             ],
-        ];
+            [
+                'name' => 'get_leave_balances',
+                'description' => 'Leave balances by type for a year: entitled, used, pending, remaining. Defaults to the user themselves and this year.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or number, or "me".'],
+                        'year' => ['type' => 'INTEGER'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'set_leave_entitlement',
+                'description' => 'Set how many days of one leave type an employee is entitled to in a year.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Employee name or employee number.'],
+                        'leave_type' => ['type' => 'STRING', 'description' => 'Leave type name or code.'],
+                        'days' => ['type' => 'NUMBER'],
+                        'year' => ['type' => 'INTEGER'],
+                    ],
+                    'required' => ['employee', 'leave_type', 'days'],
+                ],
+            ],
+        ]);
     }
 
     // ── Tools ────────────────────────────────────────────────────────────────
@@ -212,8 +272,22 @@ class LeaveModule extends Module implements ContributesContext
         $query = trim((string) $this->firstFilled($args, ['query', 'employee', 'match']));
         $status = $this->normaliseStatus($args['status'] ?? null);
 
+        // Without leave.view, a user sees only their own requests.
+        $own = null;
+
+        if ($user->cannot('leave.view') || in_array(strtolower($query), self::SELF, true)) {
+            $own = LeaveAccess::ownEmployeeId($user);
+
+            if ($own === null) {
+                return ToolResult::error('Looked up your leave', 'Your account is not linked to an employee record here.');
+            }
+
+            $query = '';
+        }
+
         $requests = LeaveRequest::query()
             ->with(['employee.department', 'employee.position', 'type'])
+            ->when($own !== null, fn ($q) => $q->where('employee_id', $own))
             ->when($query !== '', fn ($q) => $q->whereHas('employee', fn ($e) => $this->matchByTokens($e, $query)))
             ->when($status, fn ($q) => $q->where('status', $status))
             ->latest('start_date')
@@ -236,9 +310,13 @@ class LeaveModule extends Module implements ContributesContext
             return $this->denied('file leave requests');
         }
 
-        $employee = $this->locateEmployee($args);
+        [$employee, $error] = $this->subject($user, $args);
         if (! $employee) {
-            return ToolResult::error('Looked up the employee', 'No matching employee found.');
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        if (! LeaveAccess::mayActFor($user, $employee->id)) {
+            return ToolResult::error('Filed the leave request', 'You can only file leave for yourself.');
         }
 
         $type = $this->locateType($args);
@@ -341,29 +419,28 @@ class LeaveModule extends Module implements ContributesContext
             return ToolResult::error('Reviewed the leave request', 'Action must be approve or reject.');
         }
 
-        $leave = $this->locateRequest($args, ['pending']);
+        [$employee, $error] = $this->resolveEmployee((string) $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']));
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        $leave = $this->latestRequest($employee, ['pending']);
         if (! $leave) {
             return ToolResult::error('Looked up the leave request', 'No pending request found for that employee.');
         }
 
+        $note = filled($args['review_note'] ?? null) ? trim((string) $args['review_note']) : null;
+        $problem = $this->invalid(['action' => $action, 'review_note' => $note], ReviewLeaveRequestRequest::rulesFor());
+
+        if ($problem !== null) {
+            return ToolResult::error('Reviewed the leave request', $problem);
+        }
+
         $approved = $action === 'approve';
 
-        $leave->update([
-            'status' => $approved ? 'approved' : 'rejected',
-            'reviewed_by' => $user->id,
-            'reviewed_at' => now(),
-            'review_note' => $args['review_note'] ?? null,
-        ]);
-
-        ActivityLogger::log(
-            event: 'updated',
-            description: ($approved ? 'Approved ' : 'Rejected ')."{$leave->type->name} for {$leave->employee->full_name} via assistant",
-            subject: $leave,
-            logName: 'leave',
-            subjectLabel: $leave->employee->full_name,
-        );
-
-        $this->notifyOutcome($leave, $approved, $user);
+        if (! app(LeaveReview::class)->decide($leave, $approved, $note, $user, self::CHANNEL)) {
+            return ToolResult::error('Reviewed the leave request', 'That request has already been reviewed.');
+        }
 
         return ToolResult::ok(
             ($approved ? 'Approved ' : 'Rejected ')."{$leave->employee->full_name}'s {$leave->type->name}",
@@ -381,7 +458,16 @@ class LeaveModule extends Module implements ContributesContext
             return $this->denied('cancel leave requests');
         }
 
-        $leave = $this->locateRequest($args, ['pending', 'approved']);
+        [$employee, $error] = $this->subject($user, $args);
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        if (! LeaveAccess::mayActFor($user, $employee->id)) {
+            return ToolResult::error('Cancelled the leave request', 'You can only cancel your own leave.');
+        }
+
+        $leave = $this->latestRequest($employee, ['pending', 'approved']);
         if (! $leave) {
             return ToolResult::error('Looked up the leave request', 'No pending or approved request found for that employee.');
         }
@@ -403,16 +489,130 @@ class LeaveModule extends Module implements ContributesContext
         );
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function balances(User $user, array $args): ToolResult
+    {
+        [$employee, $error] = $this->subject($user, [...$args, 'employee' => $args['employee'] ?? 'me']);
+
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        if ($employee->id !== LeaveAccess::ownEmployeeId($user) && $user->cannot('leave.view')) {
+            return $this->denied("see other people's leave balances");
+        }
+
+        $year = is_int($args['year'] ?? null) && $args['year'] >= 2000 && $args['year'] <= 2100 ? $args['year'] : (int) Carbon::today()->year;
+        $types = LeaveType::where('is_active', true)->orderBy('name')->get();
+        $rows = $types->isEmpty() ? [] : (app(LeaveBalanceService::class)->forEmployees(collect([$employee]), $types, $year)[$employee->id] ?? []);
+
+        $card = $this->card(
+            kind: 'insight',
+            tone: 'info',
+            badge: (string) $year,
+            title: "{$employee->full_name}'s leave",
+            subtitle: $employee->employee_no,
+            meta: $rows === [] ? ['No active leave types'] : array_map(
+                fn (array $r): string => "{$r['name']}: {$this->days($r['remaining'])} left of {$this->days($r['entitled'])}"
+                    .($r['used'] > 0 ? ", {$this->days($r['used'])} used" : '')
+                    .($r['pending'] > 0 ? ", {$this->days($r['pending'])} pending" : ''),
+                $rows,
+            ),
+            id: $employee->id,
+        );
+
+        return ToolResult::found("Read {$employee->full_name}'s leave balances", null, [$card]);
+    }
 
     /**
      * @param  array<string, mixed>  $args
      */
-    private function locateEmployee(array $args): ?Employee
+    private function setEntitlement(User $user, array $args): ToolResult
     {
-        $needle = $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']);
+        if ($user->cannot('leave.manage')) {
+            return $this->denied('set leave entitlements');
+        }
 
-        return $needle ? $this->matchByTokens(Employee::query(), $needle)->first() : null;
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''));
+
+        if (! $employee) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        $type = $this->locateType($args);
+
+        if (! $type) {
+            return ToolResult::error('Looked up the leave type', 'No active leave type matched.');
+        }
+
+        $year = is_int($args['year'] ?? null) ? $args['year'] : (int) Carbon::today()->year;
+        $data = ['employee_id' => $employee->id, 'year' => $year, 'balances' => [['leave_type_id' => $type->id, 'entitled_days' => $args['days'] ?? null]]];
+        $problem = $this->invalid($data, (new StoreLeaveBalanceRequest)->rules(), [], ['balances.0.entitled_days' => 'days']);
+
+        if ($problem !== null) {
+            return ToolResult::error('Set the entitlement', $problem);
+        }
+
+        app(LeaveEntitlements::class)->set($employee, $year, $data['balances'], self::CHANNEL);
+
+        $row = app(LeaveBalanceService::class)->snapshot($employee->id, $type, $year);
+
+        return ToolResult::ok(
+            "Set {$employee->full_name}'s {$type->name} to {$this->days((float) $args['days'])} for {$year}",
+            "{$this->days($row['remaining'])} left after {$this->days($row['used'])} used.",
+        );
+    }
+
+    public function consequence(User $user, string $tool, array $args): ?string
+    {
+        if ($tool !== 'set_leave_entitlement') {
+            return null;
+        }
+
+        [$employee] = $this->resolveEmployee((string) ($args['employee'] ?? ''));
+        $type = $this->locateType($args);
+
+        if ($employee === null || $type === null || ! is_numeric($args['days'] ?? null)) {
+            return null;
+        }
+
+        $year = is_int($args['year'] ?? null) ? $args['year'] : (int) Carbon::today()->year;
+        $row = app(LeaveBalanceService::class)->snapshot($employee->id, $type, $year);
+
+        return "{$employee->full_name}'s {$type->name} for {$year} would go from {$this->days($row['entitled'])} to {$this->days((float) $args['days'])} days; with {$this->days($row['used'])} used, "
+            .$this->days((float) $args['days'] - $row['used']).' would be left.';
+    }
+
+    private function days(float|int $days): string
+    {
+        return rtrim(rtrim(number_format((float) $days, 1, '.', ''), '0'), '.');
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * The employee a call is about: the user themselves for "me" (or when
+     * nobody is named and they may only act for themselves), else exactly one
+     * employee by name or number — never "the first Maria".
+     *
+     * @param  array<string, mixed>  $args
+     * @return array{0: Employee|null, 1: string}
+     */
+    private function subject(User $user, array $args): array
+    {
+        $needle = trim((string) $this->firstFilled($args, ['employee', 'match', 'employee_name', 'name']));
+
+        if ($needle === '' || in_array(strtolower($needle), self::SELF, true)) {
+            $own = LeaveAccess::ownEmployeeId($user);
+
+            return $own === null
+                ? [null, $needle === '' ? 'Say whose leave.' : 'Your account is not linked to an employee record here.']
+                : [Employee::query()->find($own), ''];
+        }
+
+        return $this->resolveEmployee($needle);
     }
 
     /**
@@ -428,19 +628,12 @@ class LeaveModule extends Module implements ContributesContext
     }
 
     /**
-     * Find the employee's most recent request in one of the allowed statuses.
+     * The employee's most recent request in one of the allowed statuses.
      *
-     * @param  array<string, mixed>  $args
      * @param  list<string>  $statuses
      */
-    private function locateRequest(array $args, array $statuses): ?LeaveRequest
+    private function latestRequest(Employee $employee, array $statuses): ?LeaveRequest
     {
-        $employee = $this->locateEmployee($args);
-
-        if (! $employee) {
-            return null;
-        }
-
         return LeaveRequest::query()
             ->with(['employee', 'type'])
             ->where('employee_id', $employee->id)
@@ -469,29 +662,6 @@ class LeaveModule extends Module implements ContributesContext
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    private function notifyOutcome(LeaveRequest $leave, bool $approved, User $actor): void
-    {
-        if (! $leave->employee->user_id) {
-            return;
-        }
-
-        $employeeUser = User::find($leave->employee->user_id);
-
-        if (! $employeeUser) {
-            return;
-        }
-
-        Notifier::toUser(
-            $employeeUser,
-            $approved ? 'Leave approved' : 'Leave rejected',
-            "Your {$leave->type->name} on {$leave->start_date->format('M j')} was ".($approved ? 'approved.' : 'rejected.'),
-            url: '/leave',
-            level: $approved ? 'success' : 'warning',
-            category: 'leave',
-            actor: $actor,
-        );
     }
 
     /**

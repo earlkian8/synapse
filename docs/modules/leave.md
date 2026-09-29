@@ -97,6 +97,28 @@ quoted in chat is the figure the balances screen shows), the last five requests,
 many are waiting on a decision. Both paths need `leave.view`; see
 [ADR 0035](../decisions/0035-assistant-answers-from-a-retrieved-brief.md).
 
+### Self-service and balances (ADR 0059)
+
+- **Your own leave, unless you manage leave.** `App\Support\Leave\LeaveAccess`: without
+  `leave.manage`, a user files, edits and cancels only their own leave. The web request
+  (`StoreLeaveRequestRequest`), the edit and cancel actions, and the assistant all ask it.
+  The web routes gated on `leave.request` used to accept any employee — a member of staff
+  could file (and auto-approve) or cancel a colleague's leave; the phone app was already
+  confined ([ADR 0059](../decisions/0059-assistant-covers-the-whole-system.md)).
+- The capability is offered to `leave.request` holders too: "me" means yourself, and
+  without `leave.view` a list shows only your own requests.
+- **`get_leave_balances`** — entitled, used, pending and remaining by type for a year;
+  your own, or anyone's with `leave.view`.
+- **`set_leave_entitlement`** (`leave.manage`, waits for Confirm) goes through
+  `App\Support\Leave\LeaveEntitlements`, which the balances screen now uses; the card
+  says what would be left.
+- **Approving or rejecting** goes through `App\Support\Leave\LeaveReview`, which the
+  inbox's review action and `review_leave_request` both use: the same status change,
+  audit line (" via assistant" in chat) and message to the employee, and the note is held
+  to `ReviewLeaveRequestRequest::rulesFor()` either way. Chat used to carry its own copy,
+  with an unchecked note.
+- People are resolved exactly — an ambiguous name acts on nobody.
+
 ### Leave types in the assistant
 
 `App\Services\Assistant\Modules\LeaveTypesModule` keeps the catalogue

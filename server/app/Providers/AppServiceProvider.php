@@ -14,10 +14,12 @@ use App\Services\Assistant\Modules\CompanyProfileModule;
 use App\Services\Assistant\Modules\DashboardModule;
 use App\Services\Assistant\Modules\DepartmentsModule;
 use App\Services\Assistant\Modules\EmployeeModule;
+use App\Services\Assistant\Modules\EmployeeRecordsModule;
 use App\Services\Assistant\Modules\EventsModule;
 use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\LeaveTypesModule;
 use App\Services\Assistant\Modules\LocationsModule;
+use App\Services\Assistant\Modules\NotificationsModule;
 use App\Services\Assistant\Modules\OffboardingModule;
 use App\Services\Assistant\Modules\OffboardingProgramsModule;
 use App\Services\Assistant\Modules\OnboardingModule;
@@ -30,9 +32,11 @@ use App\Services\Assistant\Modules\RecruitmentPipelinesModule;
 use App\Services\Assistant\Modules\ReportsModule;
 use App\Services\Assistant\Modules\RolesModule;
 use App\Services\Assistant\Modules\SchedulesModule;
+use App\Services\Assistant\Modules\SystemGuideModule;
 use App\Services\Assistant\Modules\TrainingModule;
 use App\Services\Assistant\Modules\TrashModule;
 use App\Services\Assistant\Modules\UsersModule;
+use App\Services\Assistant\Modules\WorkspaceAccessModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
 use App\Services\Assistant\Security\PendingActions;
@@ -110,6 +114,10 @@ class AppServiceProvider extends ServiceProvider
             $app->make(AttritionRiskModule::class),
             $app->make(PromotionReadinessModule::class),
             $app->make(PerformanceForecastModule::class),
+            $app->make(EmployeeRecordsModule::class),
+            $app->make(WorkspaceAccessModule::class),
+            $app->make(NotificationsModule::class),
+            $app->make(SystemGuideModule::class),
             $app->make(DashboardModule::class),
         ]);
 

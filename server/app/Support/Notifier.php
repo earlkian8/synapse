@@ -53,7 +53,9 @@ class Notifier
             return 0;
         }
 
-        $recipients = $role->users()->where('is_active', true)->get();
+        // Members of this workspace only: `role_user` is global (ADR 0023), and a
+        // stale row must not reach somebody who has left it.
+        $recipients = $role->users()->where('is_active', true)->inCurrentOrganization()->get();
 
         return self::deliver($recipients, $title, $body, $url, $level, $category, $actor);
     }

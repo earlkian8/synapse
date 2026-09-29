@@ -22,6 +22,9 @@ class SendNotificationRequest extends FormRequest
      */
     public const LEVELS = ['info', 'success', 'warning', 'error'];
 
+    /** A path on this site: one leading slash, no scheme, no second slash, no spaces. */
+    public const IN_APP_PATH = '#^/(?![/\\\\])[^\s]*$#';
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -35,8 +38,18 @@ class SendNotificationRequest extends FormRequest
             'user_id' => ['required_if:audience,user', 'nullable', 'integer', TenantRule::member()],
             'title' => ['required', 'string', 'max:120'],
             'body' => ['required', 'string', 'max:1000'],
-            'url' => ['nullable', 'string', 'max:300'],
+            // A path inside the app ("/leave"), never an address elsewhere: the
+            // link is followed from every recipient's inbox and push alert.
+            'url' => ['nullable', 'string', 'max:300', 'regex:'.self::IN_APP_PATH],
             'level' => ['required', 'string', Rule::in(self::LEVELS)],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return ['url.regex' => 'The link must be a page in the app, starting with "/" — for example /leave.'];
     }
 }

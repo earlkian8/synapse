@@ -193,6 +193,24 @@ Brevo sender/domain verification, not the queue.
 
 ---
 
+## The assistant
+
+`App\Services\Assistant\Modules\NotificationsModule`, available to everyone — the inbox
+is their own ([ADR 0059](../decisions/0059-assistant-covers-the-whole-system.md)):
+
+- `find_my_notifications`, `mark_my_notifications_read`, `get_my_notification_settings`,
+  `set_my_notification_settings` (email / push). Notification text is cleaned as record
+  data and reported, never followed.
+- `send_notification` (`notifications.send`) to one member, a role or everyone —
+  **always waits for Confirm**, says how many people it reaches, and never carries a
+  link. It goes through `App\Support\Notifications\Announcements`, which the compose
+  form now uses too.
+
+A composed notification's link must be a **path in the app** (`/leave`), never an
+address elsewhere — it is followed from every recipient's inbox and push alert
+(`SendNotificationRequest::IN_APP_PATH`). `Notifier::toRole()` reaches current members of
+the workspace only.
+
 ## 10. Testing
 
 `tests/Feature/Notification/NotificationTest.php` covers the centre (render, own

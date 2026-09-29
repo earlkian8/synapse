@@ -51,7 +51,7 @@ class EmployeeInvitations
      *
      * @throws RuntimeException when the line is already claimed or has no address.
      */
-    public static function invite(Employee $employee, User $actor, ?string $email = null): EmployeeInvitation
+    public static function invite(Employee $employee, User $actor, ?string $email = null, string $channel = ''): EmployeeInvitation
     {
         if ($employee->user_id !== null) {
             throw new RuntimeException("{$employee->full_name} already has app access.");
@@ -100,7 +100,7 @@ class EmployeeInvitations
 
         ActivityLogger::log(
             event: 'created',
-            description: "Invited {$employee->full_name} to the SYNAPSE app",
+            description: "Invited {$employee->full_name} to the SYNAPSE app{$channel}",
             subject: $employee,
             properties: ['email' => $address],
             logName: 'employees',
@@ -114,14 +114,14 @@ class EmployeeInvitations
      * Withdraw the outstanding invitation on a roster line. Returns whether there
      * was one to withdraw.
      */
-    public static function revoke(Employee $employee): bool
+    public static function revoke(Employee $employee, string $channel = ''): bool
     {
         $revoked = $employee->invitations()->outstanding()->update(['revoked_at' => now()]) > 0;
 
         if ($revoked) {
             ActivityLogger::log(
                 event: 'updated',
-                description: "Revoked the app invitation for {$employee->full_name}",
+                description: "Revoked the app invitation for {$employee->full_name}{$channel}",
                 subject: $employee,
                 logName: 'employees',
                 subjectLabel: $employee->full_name,
