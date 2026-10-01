@@ -370,7 +370,21 @@ export function ApplicationForm({
                 </div>
             </Section>
 
-            <div className="flex items-center justify-end border-t border-slate-200 pt-6">
+            <div className="flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-md text-xs leading-relaxed text-slate-500">
+                    {organization.name} will use what you send to consider you
+                    for this role, as the{' '}
+                    <a
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener"
+                        className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900"
+                    >
+                        Privacy Policy
+                    </a>{' '}
+                    explains. Please don’t include information the posting
+                    doesn’t ask for.
+                </p>
                 <Button
                     type="submit"
                     disabled={processing}

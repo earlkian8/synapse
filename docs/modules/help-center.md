@@ -37,13 +37,13 @@ reader — it opens with "About “<article>”: " typed, never sent), *Take the
 
 ## The content
 
-54 articles in 11 topics, written for the reader (second person, the screen's own
+55 articles in 11 topics, written for the reader (second person, the screen's own
 labels in bold, numbered steps for procedures):
 
 | Topic | Articles |
 | --- | --- |
 | Getting started | Welcome, Finding your way around, Your dashboard, Setting up your company, Inviting your people |
-| Your account | Signing in and out, Profile and appearance, Password / two-factor / passkeys, Notifications, More than one company |
+| Your account | Signing in and out, Profile and appearance, Password / two-factor / passkeys, Notifications, More than one company, Privacy and your data |
 | Talent acquisition | Job postings, Candidates and the pipeline, Interviews and hiring, The careers page, Onboarding new hires |
 | Workforce | Employee records, Reviewing attendance, Correcting and signing off attendance, Clocking in and out, Managing leave, Filing your own leave, Appraisals, Training, Awards, Events |
 | Offboarding | Offboarding an employee |
@@ -125,8 +125,9 @@ pipeline*, and `/setup/wizard/departments` is *Setting up your company*.
 - `use-help-search.ts` (submit on Enter; live, debounced partial reloads on the
   results page) and `use-active-heading.ts` (which section is being read);
 - components: `help-hero`, `help-search-box`, `category-card`, `article-list`,
-  `article-body` (react-markdown + remark-gfm, the app's type scale, in-app links as
-  Inertia visits, external links in a new tab, no images), `article-toc`,
+  `article-body` (react-markdown + remark-gfm, the app's type scale, in-page anchors
+  kept on the page, in-app links as Inertia visits, external links in a new tab, no
+  images — also used by the [Privacy Policy and Terms](./legal-documents.md)), `article-toc`,
   `article-pager`, `help-nav` / `help-nav-sheet`, `help-shell`, `highlighted`,
   `still-need-help`.
 

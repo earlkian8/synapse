@@ -24,6 +24,10 @@ createInertiaApp({
             // anywhere yet (ADR 0026) — it cannot assume the app shell.
             case name === 'invite':
                 return null;
+            // The Privacy Policy and the Terms of Service are public, and read
+            // before anybody has an account (ADR 0063).
+            case name.startsWith('legal/'):
+                return null;
             // Company setup is pre-dashboard chrome: a brand-new company has
             // nothing for the sidebar to link to yet, and the wizard carries its
             // own rail. See RequireCompanySetup.

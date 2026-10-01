@@ -247,6 +247,28 @@ export default function Register({ passwordRules }: Props) {
                                 </div>
                             </div>
 
+                            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                                By creating an account, you agree to the{' '}
+                                <a
+                                    href="/terms"
+                                    target="_blank"
+                                    rel="noopener"
+                                    className="underline underline-offset-2 hover:text-foreground"
+                                >
+                                    Terms of Service
+                                </a>{' '}
+                                and confirm you have read the{' '}
+                                <a
+                                    href="/privacy"
+                                    target="_blank"
+                                    rel="noopener"
+                                    className="underline underline-offset-2 hover:text-foreground"
+                                >
+                                    Privacy Policy
+                                </a>
+                                .
+                            </p>
+
                             <div className="text-center text-sm text-muted-foreground">
                                 Already have an account?{' '}
                                 <TextLink href={login()} tabIndex={9}>

@@ -66,6 +66,7 @@ class RequireCompanySetup
         'home',
         'careers.',
         'invite.',
+        'legal.',
     ];
 
     public function __construct(private readonly Tenancy $tenancy) {}

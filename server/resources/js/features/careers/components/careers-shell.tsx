@@ -46,7 +46,14 @@ export function CareersShell({
 
             <footer className="border-t border-slate-200 py-6">
                 <p className="text-center text-xs text-slate-400">
-                    {organization.name} careers · Powered by SYNAPSE
+                    {organization.name} careers · Powered by SYNAPSE ·{' '}
+                    <a href="/privacy" className="hover:text-slate-600">
+                        Privacy
+                    </a>{' '}
+                    ·{' '}
+                    <a href="/terms" className="hover:text-slate-600">
+                        Terms
+                    </a>
                 </p>
             </footer>
         </div>

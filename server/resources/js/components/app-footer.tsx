@@ -9,8 +9,8 @@ import {
 const APP_VERSION = 'v1.0.0';
 
 const footerLinks = [
-    { label: 'Privacy', href: '#' },
-    { label: 'Terms', href: '#' },
+    { label: 'Privacy', href: '/privacy' },
+    { label: 'Terms', href: '/terms' },
     { label: 'Support', href: '#' },
     { label: 'Docs', href: '/help' },
 ];

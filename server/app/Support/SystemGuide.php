@@ -307,6 +307,13 @@ final class SystemGuide
             'assistant' => 'Point you to the article that answers your question.',
             'keywords' => ['help center', 'manual', 'user manual', 'guide', 'documentation', 'docs', 'article', 'instructions', 'knowledge base'],
         ],
+        'legal' => [
+            'title' => 'Privacy Policy and Terms of Service', 'menu' => 'The links in the footer of every page', 'path' => '/privacy', 'any' => [],
+            'about' => 'How personal information is handled in SYNAPSE and the rights people have over it (/privacy), and the terms of using the service (/terms).',
+            'tasks' => ['Read the Privacy Policy', 'Read the Terms of Service'],
+            'assistant' => 'Point you to them; privacy requests about your HR records go to your employer, or to the privacy contact in the policy.',
+            'keywords' => ['privacy', 'privacy policy', 'terms', 'terms of service', 'personal data', 'data privacy', 'legal'],
+        ],
         'tour' => [
             'title' => 'The product tour', 'menu' => 'Help (the question mark in the top bar) → Take the tour', 'path' => '', 'any' => [],
             'about' => 'A one-minute walk around the app — the sidebar sections you can open, notifications, your account menu and this assistant — shown once on your first visit, and any time again from the Help menu.',

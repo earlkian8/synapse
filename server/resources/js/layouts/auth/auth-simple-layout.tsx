@@ -184,10 +184,16 @@ export default function AuthSimpleLayout({
                         </p>
                         <div className="flex items-center gap-4">
                             <a
-                                href="#"
+                                href="/privacy"
                                 className="text-[11px] text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
                             >
                                 Privacy Policy
+                            </a>
+                            <a
+                                href="/terms"
+                                className="text-[11px] text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
+                            >
+                                Terms of Service
                             </a>
                             <a
                                 href="#"

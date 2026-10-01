@@ -86,8 +86,8 @@ function Heading({
 /**
  * How an article reads: the app's own type scale and colours, a heading anchor
  * for every section, callouts for notes, tips and warnings, and tables that
- * scroll on a narrow screen. Links to SYNAPSE's own pages are Inertia visits;
- * anything else opens in a new tab. Articles are written by us, not by users,
+ * scroll on a narrow screen. Links to a section stay on the page, links to
+ * SYNAPSE's own pages are Inertia visits, and anything else opens in a new tab. Articles are written by us, not by users,
  * but images are still not drawn — the manual describes screens in words, and
  * a picture would go stale the first time a screen changes.
  */
@@ -114,7 +114,14 @@ const COMPONENTS: Components = {
         <p className="my-3.5 leading-7 text-foreground/85">{children}</p>
     ),
     a: ({ href, children }) =>
-        isInternal(href) ? (
+        href?.startsWith('#') ? (
+            <a
+                href={href}
+                className="font-medium text-[#0A9E9E] underline decoration-[#0ABFBF]/40 underline-offset-[3px] transition-colors hover:decoration-[#0ABFBF] dark:text-[#0ABFBF]"
+            >
+                {children}
+            </a>
+        ) : isInternal(href) ? (
             <Link
                 href={href}
                 className="font-medium text-[#0A9E9E] underline decoration-[#0ABFBF]/40 underline-offset-[3px] transition-colors hover:decoration-[#0ABFBF] dark:text-[#0ABFBF]"

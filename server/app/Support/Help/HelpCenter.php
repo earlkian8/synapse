@@ -186,6 +186,14 @@ final class HelpCenter
             'related' => ['signing-in', 'joining-your-company-on-mobile'],
         ],
 
+        'privacy-and-your-data' => [
+            'category' => 'your-account', 'title' => 'Privacy and your data',
+            'summary' => 'Who is responsible for your information, what you can ask for, and where the Privacy Policy and Terms of Service are.',
+            'any' => [],
+            'keywords' => ['privacy', 'privacy policy', 'terms', 'terms of service', 'data', 'personal information', 'data privacy act', 'delete my data', 'download my data', 'dpo', 'consent'],
+            'related' => ['your-profile', 'assistant-privacy-and-confirmations'],
+        ],
+
         // ── Talent acquisition ───────────────────────────────────────────────
         'job-postings' => [
             'category' => 'talent-acquisition', 'title' => 'Job postings',

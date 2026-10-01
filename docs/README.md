@@ -50,6 +50,7 @@ commit history rather than repeating them.
 - [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided walk-through a brand-new company gets before its dashboard: a step for every Company Setup screen, each carrying that screen's editors, with suggestions to start from.
 - [Product Tour](./modules/product-tour.md) — the first-run walk around the app, offered once to everyone and replayable from Help: a spotlight on each part of the screen their role can use, then where to start.
 - [Help Center](./modules/help-center.md) — the user manual in the app: an article for every screen, searchable, with help for the page you are on — read for the reader, so nobody is shown a screen they cannot open.
+- [Privacy Policy and Terms of Service](./modules/legal-documents.md) — the public `/privacy` and `/terms`, written from what the system does under the Data Privacy Act, naming the deployment's operator from configuration.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Work Locations (Company Setup)](./modules/work-locations.md) — sites drawn on a map, the fences punches are checked against, and who is based where.
@@ -152,6 +153,7 @@ commit history rather than repeating them.
 - [0060 — A first-run tour of the app, offered once, for what your role can reach](./decisions/0060-a-first-run-tour-of-the-app.md)
 - [0061 — One container image, with Supabase for the database and the files](./decisions/0061-one-container-image-with-supabase-for-data-and-files.md)
 - [0062 — A Help Center in the app, written as Markdown and read for the reader](./decisions/0062-a-help-center-read-for-the-reader.md)
+- [0063 — A Privacy Policy and Terms of Service that describe the system and name its operator](./decisions/0063-privacy-policy-and-terms-of-service.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -264,3 +266,4 @@ commit history rather than repeating them.
 - [2026-10-01 — One Docker image for the whole system](./changelog/2026-10-01-02-docker-image.md)
 - [2026-10-01 — The docs catch up with the code](./changelog/2026-10-01-03-docs-catch-up.md)
 - [2026-10-01 — A Help Center: the user manual, in the app](./changelog/2026-10-01-04-help-center.md)
+- [2026-10-01 — A Privacy Policy and Terms of Service](./changelog/2026-10-01-05-privacy-policy-and-terms.md)

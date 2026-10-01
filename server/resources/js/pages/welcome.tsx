@@ -133,9 +133,19 @@ export default function Welcome() {
                     </main>
                 </div>
 
-                <footer className="mt-8 text-center text-xs text-white/30">
-                    &copy; {new Date().getFullYear()} SYNAPSE. Built for
-                    Philippine institutions.
+                <footer className="mt-8 flex flex-col items-center gap-2 text-center text-xs text-white/30">
+                    <p>
+                        &copy; {new Date().getFullYear()} SYNAPSE. Built for
+                        Philippine institutions.
+                    </p>
+                    <nav aria-label="Legal" className="flex gap-4">
+                        <Link href="/privacy" className="hover:text-white/60">
+                            Privacy Policy
+                        </Link>
+                        <Link href="/terms" className="hover:text-white/60">
+                            Terms of Service
+                        </Link>
+                    </nav>
                 </footer>
             </div>
         </>
