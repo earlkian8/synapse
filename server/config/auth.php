@@ -92,6 +92,23 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | This app confirms an address with a one-time code rather than a signed link
+    | (see App\Support\EmailVerificationCode). `code_expire` is how many minutes
+    | a code stays valid — deliberately much shorter than the hour a link gets,
+    | because the code is typed on the screen that asked for it.
+    |
+    */
+
+    'verification' => [
+        'expire' => 60,
+        'code_expire' => 10,
+    ],
+
     'passwords' => [
         'users' => [
             'provider' => 'users',

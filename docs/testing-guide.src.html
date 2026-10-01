@@ -1,0 +1,690 @@
+<!--
+  Source for TESTING-GUIDE.docx. Edit this file, then regenerate:
+
+    soffice --headless --infilter="HTML (StarWriter)" \
+            --convert-to 'docx:MS Word 2007 XML' --outdir . docs/testing-guide.src.html
+    mv testing-guide.src.docx TESTING-GUIDE.docx
+
+  The --infilter matters: without it LibreOffice imports as a Writer/Web document and
+  the result carries no real Word heading styles. Table columns are declared with
+  <colgroup> and width="100%" because LibreOffice sizes columns from their content
+  otherwise, which starves a short label column beside a long one. Callout cells carry
+  inline styles rather than classes, which the HTML import drops.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>SYNAPSE — Testing &amp; Understanding Guide</title>
+<style>
+  body { font-family: Calibri, sans-serif; font-size: 11pt; line-height: 1.45; }
+  h1 { font-family: Calibri, sans-serif; font-size: 20pt; color: #0F2044; margin-top: 26pt; margin-bottom: 8pt; }
+  h2 { font-family: Calibri, sans-serif; font-size: 14pt; color: #0F2044; margin-top: 18pt; margin-bottom: 6pt; }
+  h3 { font-family: Calibri, sans-serif; font-size: 12pt; color: #14304f; margin-top: 14pt; margin-bottom: 4pt; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; }
+  th { background: #0F2044; color: #ffffff; text-align: left; padding: 5pt 7pt; font-size: 10pt; }
+  td { border: 0.5pt solid #c8ced8; padding: 5pt 7pt; font-size: 10pt; vertical-align: top; }
+  code { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 10pt; background: #f2f4f7; }
+  pre { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 9.5pt; background: #f2f4f7;
+        border-left: 3pt solid #0ABFBF; padding: 6pt 9pt; }
+  .note td { background: #eefafa; border: 0.5pt solid #0ABFBF; }
+  .warn td { background: #fff6e8; border: 0.5pt solid #e0a03a; }
+  .math td { background: #f6f7f9; border: 0.5pt solid #c8ced8; font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 10pt; }
+  .lead { font-size: 11.5pt; color: #40506a; }
+</style>
+</head>
+<body>
+
+<h1>SYNAPSE — Testing &amp; Understanding Guide</h1>
+
+<p class="lead">A walkthrough for testing the system by hand, written in plain language.
+You do not need to know Laravel, React or machine learning to follow it.</p>
+
+<p><b>Two parts of this guide go deeper than the rest:</b> Part 3 (Performance
+Management) and Part 4 (Predictive Analytics). Those are the parts where the system is
+doing something you cannot check by eye, so they explain the arithmetic and how to read
+what comes out — not just which buttons to press.</p>
+
+<p><i>Tip: this document uses real Word heading styles — in Word, <b>References → Table
+of Contents</b> builds a clickable contents page from them, and the navigation pane
+(<b>View → Navigation Pane</b>) lets you jump between parts.</i></p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Part</th><th>What it covers</th><th>Time</th></tr>
+  <tr><td>1</td><td>Getting everything running</td><td>10 min</td></tr>
+  <tr><td>2</td><td>A quick tour that proves the system works</td><td>20 min</td></tr>
+  <tr><td><b>3</b></td><td><b>Performance Management — how it works, in full</b></td><td>45 min</td></tr>
+  <tr><td><b>4</b></td><td><b>Predictive Analytics — how it works and how to read it</b></td><td>45 min</td></tr>
+  <tr><td>5</td><td>Every other module, as short checklists</td><td>60 min</td></tr>
+  <tr><td>6</td><td>Known gaps — things that are meant to be missing</td><td>—</td></tr>
+</table>
+
+<h1>Part 1 — Before you start</h1>
+
+<h2>1.1 What the system is made of</h2>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="19%"><col width="27%"><col width="27%"><col width="27%"></colgroup>
+  <tr><th>Piece</th><th>Folder</th><th>What it is</th><th>Do you need it?</th></tr>
+  <tr><td>Web app</td><td><code>server/</code></td><td>The HR system, in a browser</td><td><b>Yes</b></td></tr>
+  <tr><td>Database</td><td>PostgreSQL</td><td>Where everything is stored</td><td><b>Yes</b></td></tr>
+  <tr><td>Prediction service</td><td><code>model/</code></td><td>A small Python program that produces the predictions</td><td>Only for Part 4</td></tr>
+  <tr><td>Mobile app</td><td><code>mobile/</code></td><td>Phone app for staff to clock in and file leave</td><td>Only for Part 5.9</td></tr>
+</table>
+
+<h2>1.2 Start it up</h2>
+
+<p><b>Step 1 — check the database is running.</b></p>
+<pre>pg_isready</pre>
+<p>If it is not running, start it the way you normally do
+(<code>sudo systemctl start postgresql</code>).</p>
+
+<p><b>Step 2 — load the demo data.</b> Do this once. It wipes the database and fills it
+with a realistic sample company. Takes 30–60 seconds.</p>
+<pre>cd server
+php artisan migrate:fresh --seed</pre>
+
+<p>You end up with two companies (SYNAPSE Demo Co and SYNAPSE Labs), 50 employees, job
+postings and applicants, about six weeks of clock-in history, plus leave, appraisals,
+trainings, awards, events and exits.</p>
+
+<p><b>Step 3 — start the web app.</b> One command starts the web server, the background
+job runner and the page builder. Leave the terminal open.</p>
+<pre>cd server
+composer dev</pre>
+
+<p>Then open <b>http://localhost:8000</b>.</p>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><b>If <code>composer dev</code> fails</b>, run the three
+pieces in separate terminals instead: <code>php artisan serve</code>,
+<code>php artisan queue:listen --tries=1</code>, and <code>npm run dev</code>.</td></tr></table>
+
+<h2>1.3 Your login</h2>
+
+<p>There is <b>one</b> account. Everything else in the system is data, not a login.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Email</th><td><code>earlkian.dev@gmail.com</code></td></tr>
+  <tr><th>Password</th><td><code>password</code></td></tr>
+</table>
+
+<p>This account is an <b>HR Manager</b> — the highest level of access, which is what you
+want for testing.</p>
+
+<h2>1.4 The prediction service (needed for Part 4)</h2>
+
+<p>Promotion Readiness and Performance Forecast call a separate Python service. Without
+it those two pages still load, but the <b>Run</b> button is disabled and a banner says
+predictions are temporarily unavailable — that is the correct behaviour, not a crash.</p>
+
+<pre>cd model
+python -m api</pre>
+
+<p>Leave it running in its own terminal. Attrition Risk does <b>not</b> need it (see 4.5).</p>
+
+<h1>Part 2 — A 20-minute tour</h1>
+
+<p>The shortest path that proves the whole system is alive. Each step should just work;
+if one does not, that is where to look.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>#</th><th>Do this</th><th>You should see</th></tr>
+  <tr><td>1</td><td>Sign in at <code>/login</code></td><td>The dashboard, with a navy greeting band and live counts</td></tr>
+  <tr><td>2</td><td><b>Employees</b> → open anyone</td><td>A centred profile modal with tabs (profile, performance, training, awards…)</td></tr>
+  <tr><td>3</td><td><b>Attendance</b> → Today's Log → click a row</td><td>A centred day modal: totals band, punch timeline, verification photos if any</td></tr>
+  <tr><td>4</td><td><b>Leave Management</b> → approve a pending request</td><td>The balance drops by the number of days approved</td></tr>
+  <tr><td>5</td><td><b>Recruitment</b> → open a job posting → open a candidate</td><td>A candidate modal with a pipeline stepper and a fit score</td></tr>
+  <tr><td>6</td><td><b>Performance Management</b> → open an appraisal</td><td>A scorecard with sections, weights and a live result — this is Part 3</td></tr>
+  <tr><td>7</td><td><b>Promotion Readiness</b> → Run assessment</td><td>A ranked roster of everyone, with scores and tiers — this is Part 4</td></tr>
+  <tr><td>8</td><td>Click the teal button, bottom-right</td><td>The AI assistant. Ask it: <i>"how many employees are in Sales?"</i></td></tr>
+  <tr><td>9</td><td>Top-left company name → switch workspace</td><td>The whole app reloads as SYNAPSE Labs, with different data</td></tr>
+</table>
+
+<h1>Part 3 — Performance Management</h1>
+
+<p class="lead">This is the module most worth understanding properly, because it produces
+a single number that decides things about people — and that number is <i>not</i> a simple
+average.</p>
+
+<h2>3.1 What the module is for, in one paragraph</h2>
+
+<p>Every company appraises staff differently: different things measured, measured on
+different scales, weighted differently, and reported in the company's own words
+("Outstanding", "Meets Expectations") rather than a universal 1–5. SYNAPSE lets each
+company define its own appraisal form — the <b>framework</b> — and then scores every
+appraisal against whichever framework it was opened under. Two employees on two different
+frameworks both end up with a comparable <b>attainment percentage</b>, even though nothing
+about their forms matched.</p>
+
+<h2>3.2 The four building blocks</h2>
+
+<p>Everything in this module is one of four things. Learn these and the rest follows.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Block</th><th>Decides</th><th>Example</th></tr>
+  <tr><td><b>Rating scale</b></td><td><i>How</i> something is measured</td>
+      <td>"1–5 numeric", or "0–100 %", or named levels like <i>Needs work / Solid / Exceptional</i></td></tr>
+  <tr><td><b>Criterion</b></td><td><i>What</i> can be measured</td>
+      <td>"Quality of Work", using the 1–5 scale, default weight 2</td></tr>
+  <tr><td><b>Framework</b></td><td><i>Who</i> is reviewed, on <i>which</i> weighted sections and criteria</td>
+      <td>"Support Team Appraisal" — applies to the Customer Support department</td></tr>
+  <tr><td><b>Rating model</b></td><td>The <i>words</i> the result is reported in</td>
+      <td>90+ = Outstanding, 75+ = Exceeds, 60+ = Meets, below = Needs Improvement</td></tr>
+</table>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><b>Which framework applies to whom?</b> A framework carries an
+eligibility rule — everyone, a department, a position, or an employment type. When HR
+opens an appraisal, the system picks the <b>narrowest</b> match: position beats department
+beats employment type beats everyone, with the company default breaking ties. It is only a
+suggestion — HR can always choose a different one.</td></tr></table>
+
+<h2>3.3 Build a framework yourself</h2>
+
+<p>Go to <b>Company Setup → Performance Framework</b> (<code>/setup/kpi</code>). Build
+this one; Part 3.6 scores it by hand so you can check the system's arithmetic.</p>
+
+<p><b>a) Make a rating scale</b> — call it <code>Standard 1–5</code>, numeric, minimum 1,
+maximum 5, step 1.</p>
+
+<p><b>b) Make four criteria</b>, all on that scale:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Criterion</th><th>Default weight</th></tr>
+  <tr><td>Quality of Work</td><td>2</td></tr>
+  <tr><td>Reliability</td><td>1</td></tr>
+  <tr><td>Customer Communication</td><td>1</td></tr>
+  <tr><td>Initiative</td><td>1</td></tr>
+</table>
+
+<p><b>c) Make a framework</b> called <code>Support Team Appraisal</code>, applying to the
+<b>Customer Support</b> department, with two weighted sections:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Section</th><th>Section weight</th><th>Criteria in it (with weights)</th></tr>
+  <tr><td>Delivery</td><td>60</td><td>Quality of Work (2), Reliability (1)</td></tr>
+  <tr><td>Behaviour</td><td>40</td><td>Customer Communication (1), Initiative (1)</td></tr>
+</table>
+
+<p><b>d) Give it a rating model</b> — the bands the result is reported in:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Label</th><th>From</th></tr>
+  <tr><td>Outstanding</td><td>90</td></tr>
+  <tr><td>Exceeds Expectations</td><td>75</td></tr>
+  <tr><td>Meets Expectations</td><td>60</td></tr>
+  <tr><td>Needs Improvement</td><td>0</td></tr>
+</table>
+
+<h2>3.4 Launch a review cycle</h2>
+
+<p>Go to <b>Performance Management</b> → <b>Launch cycle</b>. A cycle creates one blank
+appraisal for many people at once.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Field</th><th>Value</th></tr>
+  <tr><td>Review period</td><td><code>H1 2026 Review</code></td></tr>
+  <tr><td>Framework</td><td><code>Support Team Appraisal</code></td></tr>
+  <tr><td>Scope</td><td><code>departments</code></td></tr>
+  <tr><td>Departments</td><td>Customer Support</td></tr>
+</table>
+
+<p><b>Expect:</b> one blank appraisal per active employee in that department. Run it again
+with scope <code>all</code> on a different period and everybody gets one.</p>
+
+<h2>3.5 Score an appraisal</h2>
+
+<p>Open one. Rate each criterion. Use exactly these scores so you can check the maths
+in 3.6:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Section</th><th>Criterion</th><th>Score (1–5)</th></tr>
+  <tr><td rowspan="2">Delivery</td><td>Quality of Work</td><td>4</td></tr>
+  <tr><td>Reliability</td><td>5</td></tr>
+  <tr><td rowspan="2">Behaviour</td><td>Customer Communication</td><td>4</td></tr>
+  <tr><td>Initiative</td><td>3</td></tr>
+</table>
+
+<p><b>Watch the result move as you type.</b> A draft carries a live running result,
+because only the criteria you have actually rated are counted — an unrated section is left
+out entirely rather than dragged to zero.</p>
+
+<p>Then: <b>Submit</b> (locks it once every criterion is rated) → <b>Sign off</b> →
+<b>Acknowledge</b>. An acknowledged appraisal is final.</p>
+
+<h2>3.6 How the number is actually calculated</h2>
+
+<p class="lead">This is the part worth reading twice. The result is <b>not</b> the average
+of 4, 5, 4, 3. It is computed in two levels, because that is how appraisal forms are
+written.</p>
+
+<h3>Level 1 — each score becomes a position on its own scale</h3>
+
+<p>A raw score means nothing until you know the scale it sits on. A 4 out of 5 and a 4 out
+of 10 are different achievements. So each score is first converted to a <b>fraction
+between 0 and 1</b>:</p>
+
+<table class="math" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#F2F4F7; border:1pt solid #C8CED8; padding:7pt 9pt; font-family:'DejaVu Sans Mono',Consolas,monospace;">
+position = (score − scale minimum) ÷ (scale maximum − scale minimum)
+</td></tr></table>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="19%"><col width="27%"><col width="27%"><col width="27%"></colgroup>
+  <tr><th>Criterion</th><th>Score</th><th>Working</th><th>Position</th></tr>
+  <tr><td>Quality of Work</td><td>4</td><td>(4 − 1) ÷ (5 − 1)</td><td>0.75</td></tr>
+  <tr><td>Reliability</td><td>5</td><td>(5 − 1) ÷ (5 − 1)</td><td>1.00</td></tr>
+  <tr><td>Customer Communication</td><td>4</td><td>(4 − 1) ÷ (5 − 1)</td><td>0.75</td></tr>
+  <tr><td>Initiative</td><td>3</td><td>(3 − 1) ÷ (5 − 1)</td><td>0.50</td></tr>
+</table>
+
+<h3>Level 2a — criteria are weighted inside their own section</h3>
+
+<table class="math" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#F2F4F7; border:1pt solid #C8CED8; padding:7pt 9pt; font-family:'DejaVu Sans Mono',Consolas,monospace;">
+section attainment = Σ(position × criterion weight) ÷ Σ(criterion weight)
+</td></tr></table>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Section</th><th>Working</th><th>Attainment</th></tr>
+  <tr><td>Delivery</td><td>(0.75 × 2 + 1.00 × 1) ÷ (2 + 1) = 2.50 ÷ 3</td><td><b>83.33%</b></td></tr>
+  <tr><td>Behaviour</td><td>(0.75 × 1 + 0.50 × 1) ÷ (1 + 1) = 1.25 ÷ 2</td><td><b>62.50%</b></td></tr>
+</table>
+
+<h3>Level 2b — sections are weighted against each other</h3>
+
+<table class="math" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#F2F4F7; border:1pt solid #C8CED8; padding:7pt 9pt; font-family:'DejaVu Sans Mono',Consolas,monospace;">
+overall = Σ(section attainment × section weight) ÷ Σ(section weight)
+</td></tr></table>
+
+<table class="math" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#F2F4F7; border:1pt solid #C8CED8; padding:7pt 9pt; font-family:'DejaVu Sans Mono',Consolas,monospace;">
+overall = (83.33 × 60 + 62.50 × 40) ÷ (60 + 40) = 7500 ÷ 100 = <b>75.0%</b>
+</td></tr></table>
+
+<p>Note that the plain average of 4, 5, 4, 3 is 4.0 out of 5, which is 75% — the same here
+only by coincidence of the weights. Change Quality of Work to weight 3 and the two answers
+part company. <b>Check this on screen: the appraisal should read 75%.</b></p>
+
+<h3>The two numbers the system keeps</h3>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>Number</th><th>What it is</th><th>Why it exists</th></tr>
+  <tr><td><b>Attainment %</b><br>(0–100)</td><td>The canonical result. 75.0 in our example.</td>
+      <td>It is what the rating model bands are read from, and the only figure that compares fairly across different frameworks.</td></tr>
+  <tr><td><b>Overall score</b><br>(1–5)</td><td>The same figure stretched onto 1–5:<br>
+      <code>1 + (75 ÷ 100) × 4 = 4.00</code></td>
+      <td>The forecast model, the promotion pipeline and the awards nominator were all built on a 1–5 number. Keeping it means those keep working.</td></tr>
+</table>
+
+<h3>Reading the band</h3>
+
+<p>75.0% is read against your rating model top-down — the first band whose "From" is at or
+below 75. <b>Outstanding</b> needs 90, so no. <b>Exceeds Expectations</b> needs 75 — yes.
+The appraisal reports <b>Exceeds Expectations</b>.</p>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><b>Try this to prove it to yourself:</b> change Initiative from
+3 to 4. Behaviour becomes (0.75 + 0.75) ÷ 2 = 75%, and the overall becomes
+(83.33 × 60 + 75 × 40) ÷ 100 = <b>80.0%</b> — still "Exceeds Expectations", but you can
+watch it move.</td></tr></table>
+
+<h2>3.7 Reading the cycle overview</h2>
+
+<p>The <code>/performance</code> landing page is about the <i>cycle</i>, not the person.
+Four things worth understanding:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>What you see</th><th>What it means</th><th>What to do about it</th></tr>
+  <tr><td><b>Coverage</b></td><td>How many active staff have an appraisal in this cycle</td>
+      <td>Below 100% means people were missed when the cycle was launched</td></tr>
+  <tr><td><b>Awaiting sign-off</b></td><td>Scored and submitted, but nobody has approved it</td>
+      <td>This is the queue managers need to clear</td></tr>
+  <tr><td><b>Result spread</b></td><td>How many people landed in each of your own bands</td>
+      <td>If almost everyone is in one band, your bands are not discriminating</td></tr>
+  <tr><td><b>Per-department calibration</b></td><td>Each department's average as a deviation from the company average</td>
+      <td>A department consistently +15 is usually a lenient reviewer, not better staff</td></tr>
+</table>
+
+<h2>3.8 Why an old appraisal never changes</h2>
+
+<p>When an appraisal is opened it <b>freezes</b> the framework it was opened under — the
+name, the sections, their weights, every criterion's own weight and its full rating scale,
+and the rating model. Retuning a framework, retiring a criterion or changing a scale
+therefore changes the <b>next</b> appraisal and never a past one.</p>
+
+<p><b>Test it:</b> score and submit an appraisal, then go back to
+<code>/setup/kpi</code> and change the Delivery section's weight from 60 to 80. Re-open
+the submitted appraisal — the result must be unchanged. Now launch a new cycle: the new
+appraisals use 80.</p>
+
+<h2>3.9 Performance test checklist</h2>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>#</th><th>Check</th><th>Pass looks like</th></tr>
+  <tr><td>1</td><td>Framework auto-selection</td><td>Opening an appraisal for a Customer Support employee suggests Support Team Appraisal</td></tr>
+  <tr><td>2</td><td>Live running result</td><td>Rating one criterion moves the result immediately; unrated sections are excluded</td></tr>
+  <tr><td>3</td><td>The arithmetic</td><td>4/5/4/3 on the framework in 3.3 gives exactly 75.0%</td></tr>
+  <tr><td>4</td><td>Band lookup</td><td>75.0% reports as "Exceeds Expectations"</td></tr>
+  <tr><td>5</td><td>Submit lock</td><td>Submit is refused until every criterion is rated; after submitting, scores cannot be edited</td></tr>
+  <tr><td>6</td><td>Status flow</td><td>draft → submitted → signed off → acknowledged</td></tr>
+  <tr><td>7</td><td>Snapshot</td><td>Changing the framework does not change a submitted appraisal</td></tr>
+  <tr><td>8</td><td>Scale enforcement</td><td>A named-level scale refuses a value it does not define</td></tr>
+  <tr><td>9</td><td>AI insights</td><td>On a completed appraisal, produces a written summary of strengths and development actions</td></tr>
+  <tr><td>10</td><td>Export</td><td>Export produces a CSV of the cycle</td></tr>
+</table>
+
+<h1>Part 4 — Predictive Analytics</h1>
+
+<p class="lead">Three pages sit under <b>Analytics &amp; AI</b>. They look alike and are
+not alike. Understanding the difference is the single most important thing in this
+guide.</p>
+
+<h2>4.1 The three surfaces at a glance</h2>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="19%"><col width="27%"><col width="27%"><col width="27%"></colgroup>
+  <tr><th>Surface</th><th>Predicts</th><th>Behind it</th><th>Is it real?</th></tr>
+  <tr><td><b>Promotion Readiness</b></td><td>How ready each person is for promotion (0–100)</td>
+      <td>A trained Logistic Regression model, served by the Python service</td>
+      <td><b>Real model</b>, trained on a general public workforce dataset</td></tr>
+  <tr><td><b>Performance Forecast</b></td><td>Each person's next-period rating (0–100)</td>
+      <td>A trained Gradient Boosting model, same service</td>
+      <td><b>Real model</b>, same general dataset</td></tr>
+  <tr><td><b>Attrition Risk</b></td><td>Who might leave</td>
+      <td>Nothing. Numbers are invented in your browser.</td>
+      <td><b>Demonstration only</b> — the page says so itself</td></tr>
+</table>
+
+<table class="warn" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#FFF4E3; border:1pt solid #E0A03A; padding:7pt 9pt;"><b>The honest headline.</b> The two real models were trained on
+a general public workforce dataset, not on this company's history. (One of its columns is
+an Indian metropolitan classification — it is plainly not Philippine data.) They are
+demonstrating that the pipeline works end to end. The system says this on every page and
+refuses to retrain until it has enough of your own data — that mechanism is Part 4.6, and
+it is the most interesting thing here.</td></tr></table>
+
+<h2>4.2 Promotion Readiness — how to read it</h2>
+
+<p>Go to <b>Analytics &amp; AI → Promotion Readiness</b> and click <b>Run assessment</b>.
+Every active employee is scored in one batch.</p>
+
+<h3>What you get</h3>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Thing</th><th>What it is</th></tr>
+  <tr><td><b>Readiness score</b></td><td>0–100. It is the model's probability that this person is promotion-ready, multiplied by 100. A score of 72 means the model puts them at 72% probability.</td></tr>
+  <tr><td><b>Tier</b></td><td>The score bucketed. The cut-offs are fixed:</td></tr>
+</table>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Tier</th><th>Score range</th></tr>
+  <tr><td>Low</td><td>below 33</td></tr>
+  <tr><td>Medium</td><td>33 to below 66</td></tr>
+  <tr><td>High</td><td>66 and above</td></tr>
+</table>
+
+<h3>The factor bars — the useful part</h3>
+
+<p>Click an employee. You get diverging bars: <b>green pushes toward readiness, red pulls
+away</b>. These are not decoration and not guesses — they are the model's own arithmetic.
+For each input, the model multiplies the person's value by the weight it learned, and the
+bars show the six largest of those products.</p>
+
+<p>So a long red bar on "Years since last promotion" means precisely: <i>this person's
+time since last promotion is, in this model's arithmetic, the biggest single thing holding
+their score down.</i> That is an actionable sentence a manager can use.</p>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><b>Protected attributes are never shown as factors</b> —
+gender, marital status, age, education level and city tier are excluded from the
+explanation, and the HR system never sends them in the first place.</td></tr></table>
+
+<h3>What the score is built from</h3>
+
+<p>Only data the HR system actually holds: <b>tenure</b> (date hired, last promotion),
+<b>performance history</b> (the latest scored appraisals — this is where Part 3 feeds in),
+<b>certifications</b>, <b>salary</b> and <b>employment type</b>. Anything else the model
+expects is filled in by its own averages.</p>
+
+<h2>4.3 Performance Forecast — how to read it</h2>
+
+<p><b>Analytics &amp; AI → Performance Forecast</b> → <b>Run forecast</b>. It predicts
+each person's rating in the <b>next review cycle that is not yet closed</b>.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Thing</th><th>What it is</th></tr>
+  <tr><td><b>Predicted rating</b></td><td>0–100, on the same attainment scale Part 3 produces</td></tr>
+  <tr><td><b>Band</b></td><td>Exceeds = 80 and above · On track = 60 to below 80 · Below = under 60</td></tr>
+  <tr><td><b>Movement</b></td><td>The predicted rating compared with the person's last actual cycle</td></tr>
+  <tr><td><b>Trajectory chart</b></td><td>Their past actual ratings as a solid line, then the forecast as a dashed point</td></tr>
+</table>
+
+<h3>Confidence does not mean what you think it means</h3>
+
+<table class="warn" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#FFF4E3; border:1pt solid #E0A03A; padding:7pt 9pt;"><b>Read this carefully.</b> "Confidence" here is <b>not</b> the
+model's certainty. It is a <b>data-completeness score</b>: the share of the ten key inputs
+that were actually found in that employee's records, rather than filled in with an average.
+<br><br>
+Confidence 100% = all ten were real. Confidence 40% = six were guessed.
+<br><br>
+So low confidence means <i>"we do not know much about this person"</i>, not <i>"the model
+is unsure"</i>. The fix is data entry, not a better model.</td></tr></table>
+
+<p>The ten inputs counted are: performance last year, performance two years ago, manager
+rating, KPI achievement, years at company, years since last promotion, certifications
+count, salary, employment type, department.</p>
+
+<h3>Why this page has no factor bars</h3>
+
+<p>You will notice Promotion Readiness explains <i>why</i> and Performance Forecast does
+not. That is not an oversight. Promotion Readiness uses a <b>linear</b> model, which has
+one weight per input — so a per-person breakdown falls straight out of the arithmetic.
+The forecast uses <b>gradient boosting</b>, which is hundreds of small decision trees and
+has no such weights. The system returns nothing rather than inventing an explanation.</p>
+
+<h2>4.4 When the prediction service is off</h2>
+
+<p>Stop the Python service and reload either page. <b>Expect:</b> the page still loads,
+existing results still show, the Run button is disabled, and a banner reads roughly
+"Assessments are temporarily unavailable… try again shortly, or contact your system
+administrator." <b>You should not see</b> a stack trace, a status code, a model name, or
+an instruction to run a terminal command. That is deliberate — this is an HR screen.</p>
+
+<h2>4.5 Attrition Risk — the honest demo</h2>
+
+<p>This page generates its numbers in your browser. There is no model, no dataset and no
+notebook behind it, and nothing is saved to the database. It exists to show the shape of
+the surface. Its own provenance panel marks it <code>provisional</code> and explains why.</p>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;">Because its runs live in browser storage, re-seeding the
+database will <b>not</b> clear them. To clear: developer tools → Application → Local
+Storage → delete <code>synapse:attrition-risk:runs</code>.</td></tr></table>
+
+<h2>4.6 Model Graduation — the gate</h2>
+
+<p class="lead">This is the most distinctive idea in the system. Read this section even if
+you skip everything else in Part 4.</p>
+
+<p>Under the header of each of the three pages sits a <b>"Where these scores come from"</b>
+panel. Collapsed, it is one line plus a stage badge and an <i>n of m met</i> count.
+Expanded, it shows a three-stage lifecycle with the retraining gate drawn <b>closed</b>.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Stage</th><th>Means</th></tr>
+  <tr><td><b>Provisional</b></td><td>Running on a borrowed model. Your own outcome data is not yet being linked back.</td></tr>
+  <tr><td><b>Collecting</b></td><td>Still on the borrowed model, but every score is now being matched against what actually happened. Time spent here counts.</td></tr>
+  <tr><td><b>Graduated</b></td><td>Enough of your own history exists to train a model on your workforce. The gate opens.</td></tr>
+</table>
+
+<p>Each surface has its <b>own</b> requirements, because they learn from different things:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="19%"><col width="27%"><col width="27%"><col width="27%"></colgroup>
+  <tr><th></th><th>Promotion Readiness</th><th>Performance Forecast</th><th>Attrition Risk</th></tr>
+  <tr><td><b>Learns from</b></td><td>who was promoted</td><td>this cycle's rating vs the last</td><td>who left</td></tr>
+  <tr><td><b>Headline requirement</b></td><td>120 promotions on record</td><td>200 cycle-to-cycle comparisons</td><td>80 departures on record</td></tr>
+  <tr><td><b>Its distinctive one</b></td><td>Balance between promoted and not-promoted — a model shown only successes learns nothing</td><td>30 people with three or more appraisals — two points cannot show a trajectory</td><td>Every departure carrying a reason: a resignation and a redundancy are opposite events</td></tr>
+  <tr><td><b>Current stage</b></td><td>Collecting</td><td>Collecting</td><td>Provisional</td></tr>
+</table>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><b>Why Attrition is the odd one out.</b> Its scores are
+generated in the browser and never stored, so the link between prediction and outcome sits
+at zero. Waiting does not move that requirement — which is exactly why it reads
+<i>provisional</i> where the other two read <i>collecting</i>. The panel is telling the
+truth about its own weakest surface.</td></tr></table>
+
+<h3>How to read the requirement ledger</h3>
+
+<p>Each row is one requirement with a progress figure like <code>18 / 120</code>. Click a
+row and it opens a drill-down explaining <b>why that threshold</b> — usually a rule of
+thumb like 10–20 recorded outcomes per input the model uses. Below the ledger, the panel
+also lists <b>every input the score uses</b>, grouped three ways:</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>State</th><th>Meaning</th><th>What you would do</th></tr>
+  <tr><td><b>Used now</b></td><td>Read from your records and fed into every score</td><td>Nothing — keep the data clean</td></tr>
+  <tr><td><b>Recorded, not used</b></td><td>The system already holds it; wiring it in needs no new data entry</td><td>A development task, not a data task</td></tr>
+  <tr><td><b>Not recorded anywhere</b></td><td>No module produces it</td><td>Would need a new field or module first</td></tr>
+</table>
+
+<h2>4.7 "Can I trust these numbers?" — the answer to give</h2>
+
+<p>If someone asks this in a demo or a defence, the correct answer is not "yes" and not
+"no". It is:</p>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;"><i>"Not yet as predictions about this workforce — and the
+system says so itself rather than hiding it. What is proven today is the full pipeline:
+real HR data mapped to a feature space, scored by a trained model, explained per person
+without touching protected attributes, and persisted with an audit snapshot. What is
+deliberately withheld is the claim that the numbers describe </i>this<i> company. The
+graduation gate names exactly what is missing, how far along it is, and refuses to retrain
+until it is there."</i></td></tr></table>
+
+<p>That is a stronger position than a confident number would be, and it is checkable —
+everything in it is on screen.</p>
+
+<h2>4.8 Predictive test checklist</h2>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="22%"><col width="39%"><col width="39%"></colgroup>
+  <tr><th>#</th><th>Check</th><th>Pass looks like</th></tr>
+  <tr><td>1</td><td>Run an assessment</td><td>Every active employee gets a score, a tier and factors</td></tr>
+  <tr><td>2</td><td>Tier boundaries</td><td>A score of 66+ is High; 33–65 Medium; under 33 Low</td></tr>
+  <tr><td>3</td><td>Factor bars</td><td>Green and red bars appear, and none of them is a protected attribute</td></tr>
+  <tr><td>4</td><td>Run a forecast</td><td>Targets the next non-closed period; bands split at 60 and 80</td></tr>
+  <tr><td>5</td><td>Confidence</td><td>An employee with sparse records shows a visibly lower confidence than a complete one</td></tr>
+  <tr><td>6</td><td>Trajectory</td><td>Past actual ratings as a solid line, forecast as a dashed point</td></tr>
+  <tr><td>7</td><td>Service off</td><td>Graceful banner, Run disabled, no technical detail leaked</td></tr>
+  <tr><td>8</td><td>History</td><td>Past runs are selectable and deletable</td></tr>
+  <tr><td>9</td><td>Provenance panel</td><td>Present on all three pages, with the correct stage per surface</td></tr>
+  <tr><td>10</td><td>Attrition honesty</td><td>Marked provisional, and the page admits it is a demo</td></tr>
+</table>
+
+<h1>Part 5 — Everything else, as checklists</h1>
+
+<p>These modules behave the way you would expect. Each is a short list of what to try and
+what should happen.</p>
+
+<h2>5.1 Company setup</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Edit the company profile</td><td>Name, logo and details save and show in the sidebar</td></tr>
+  <tr><td>Add a department and a position</td><td>Both become selectable when creating an employee</td></tr>
+  <tr><td>Set a work schedule and add a holiday</td><td>Attendance uses the schedule to judge lateness; the holiday shows on the calendar</td></tr>
+</table>
+
+<h2>5.2 Employees</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Create an employee</td><td>Appears in the list with an auto-generated employee number</td></tr>
+  <tr><td>Open one</td><td>A centred modal with tabs: profile, performance, training, awards, events, documents, history</td></tr>
+  <tr><td>Archive one</td><td>Drops out of active lists; still reachable via the archived filter</td></tr>
+  <tr><td>Import from CSV</td><td>Valid rows import; invalid rows are reported, not silently dropped</td></tr>
+</table>
+
+<h2>5.3 Recruitment</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Create a job posting and publish it</td><td>Appears on the public careers page</td></tr>
+  <tr><td>Apply through the careers page</td><td>The applicant lands in the pipeline at "Applied"</td></tr>
+  <tr><td>Open a candidate</td><td>Fit score, AI insights, stage stepper, interviews</td></tr>
+  <tr><td>Advance to Offer, then hire</td><td>Hiring creates a real employee record</td></tr>
+</table>
+
+<h2>5.4 Onboarding</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Create a programme with tasks</td><td>Tasks carry owners and due offsets</td></tr>
+  <tr><td>Start onboarding for a new hire</td><td>A case is created with every task instantiated against real dates</td></tr>
+  <tr><td>Complete tasks</td><td>Progress advances; overdue tasks are flagged</td></tr>
+</table>
+
+<h2>5.5 Attendance</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Today's Log → open a row</td><td>Centred modal: totals band, punch timeline, verification photos, remarks</td></tr>
+  <tr><td>Manual entry</td><td>Four punches on one row; blank times mark the day absent</td></tr>
+  <tr><td>Correct a record</td><td>Worked hours, lateness and overtime recompute against the schedule</td></tr>
+  <tr><td>Weekly / Monthly tabs</td><td>Weekly matrix and per-employee monthly summary with a sparkline</td></tr>
+</table>
+
+<h2>5.6 Leave</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>File a request</td><td>Working days are counted excluding weekends and holidays</td></tr>
+  <tr><td>Approve it</td><td>The balance drops by exactly that number of days</td></tr>
+  <tr><td>Reject with a note</td><td>The note is visible to the requester; the balance is untouched</td></tr>
+</table>
+
+<h2>5.7 Training, Awards, Events, Offboarding</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Create a training and enrol staff</td><td>Roster with attendance and completion</td></tr>
+  <tr><td>Grant an award</td><td>Appears on the employee's profile and on their phone</td></tr>
+  <tr><td>Create an event</td><td>Invitations; the ICS download opens in a calendar app</td></tr>
+  <tr><td>Start an offboarding case</td><td>Clearance checklist; the employee is deactivated on completion</td></tr>
+</table>
+
+<h2>5.8 The AI assistant</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Ask it</th><th>Expect</th></tr>
+  <tr><td>"How many employees are in Sales?"</td><td>A number, with a card showing the people counted</td></tr>
+  <tr><td>"Who is on leave next week?"</td><td>A list drawn from real leave records</td></tr>
+  <tr><td>"File a leave request for me next Monday"</td><td>It actually creates one — the assistant can write, not just read</td></tr>
+  <tr><td>Ask something out of scope</td><td>It politely declines; it only does HR-system things</td></tr>
+  <tr><td>Sign in as someone with fewer permissions</td><td>Tools they cannot use are not offered at all</td></tr>
+</table>
+
+<h2>5.9 The mobile app</h2>
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Try</th><th>Expect</th></tr>
+  <tr><td>Sign in with the same account</td><td>The app finds the employee record behind the login</td></tr>
+  <tr><td>Clock in, with a selfie</td><td>The punch appears in the ERP's attendance log with its photo and GPS</td></tr>
+  <tr><td>File leave from the phone</td><td>Appears in the ERP for approval</td></tr>
+  <tr><td>Switch workspace</td><td>Every screen refetches against the other company</td></tr>
+</table>
+
+<table class="note" width="100%" cellspacing="0" cellpadding="6"><tr><td style="background-color:#E6F7F7; border:1pt solid #0ABFBF; padding:7pt 9pt;">The phone must reach your computer over the network. Set
+<code>EXPO_PUBLIC_API_URL</code> in <code>mobile/.env</code> to your machine's LAN IP (not
+<code>localhost</code>), run the server with
+<code>php artisan serve --host=0.0.0.0</code>, and allow the port through your firewall
+(<code>sudo ufw allow 8000/tcp</code>). Restart Expo after editing <code>.env</code> —
+that value is baked in at build time.</td></tr></table>
+
+<h1>Part 6 — Known gaps</h1>
+
+<p>These are meant to be missing. Finding them is not finding a bug.</p>
+
+<table width="100%" cellspacing="0" cellpadding="6"><colgroup><col width="24%"><col width="76%"></colgroup>
+  <tr><th>Gap</th><th>Detail</th></tr>
+  <tr><td>Two dead sidebar links</td><td>Company Setup → Email &amp; Notifications, and System → Data Backup &amp; Export. Both error; there is no page behind them yet.</td></tr>
+  <tr><td>Attrition Risk is a demo</td><td>No model, no dataset, browser-only. The page says so.</td></tr>
+  <tr><td>The two real models are borrowed</td><td>Trained on a general workforce dataset, not this company's history. See Part 4.6.</td></tr>
+  <tr><td>No payroll or benefits</td><td>Removed deliberately. Government ID fields are stored but nothing computes with them.</td></tr>
+  <tr><td>AI features need internet</td><td>The assistant and insights need a working Gemini API key. Without one you should get a graceful error, not a crash.</td></tr>
+  <tr><td>Emails need valid SMTP</td><td>If the Brevo credentials have expired, set <code>MAIL_MAILER=log</code> in <code>server/.env</code> and read them in <code>server/storage/logs/laravel.log</code>.</td></tr>
+</table>
+
+<h1>Part 7 — Starting over</h1>
+
+<p>If you break something, or want a clean demo again:</p>
+
+<pre>cd server
+php artisan migrate:fresh --seed</pre>
+
+<p>This wipes everything and rebuilds the demo company. Your login does not change.</p>
+
+<p><b>One exception:</b> Attrition Risk runs live in browser storage, so re-seeding will
+not clear them — delete <code>synapse:attrition-risk:runs</code> from Local Storage as
+described in 4.5.</p>
+
+</body>
+</html>

@@ -35,4 +35,27 @@ return [
         ],
     ],
 
+    /*
+    | Google Gemini — powers the in-app agentic assistant. The key is read
+    | server-side only and must never be exposed to the browser.
+    */
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+    ],
+
+    /*
+    | Synapse ML inference service (FastAPI) — serves the trained promotion /
+    | performance models. Called server-side only; the URL points at
+    | the local FastAPI process (see model/api). When it is unreachable the
+    | Predictive Analytics surfaces degrade gracefully.
+    */
+    'ml' => [
+        'url' => env('ML_SERVICE_URL', 'http://127.0.0.1:8002'),
+        'timeout' => (int) env('ML_SERVICE_TIMEOUT', 30),
+        // Training on an organisation's own records (model graduation, ADR 0046)
+        // fits the model several times over to check it, so it is given longer.
+        'train_timeout' => (int) env('ML_SERVICE_TRAIN_TIMEOUT', 300),
+    ],
+
 ];

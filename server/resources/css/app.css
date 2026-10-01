@@ -141,3 +141,196 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* ── Toast (Sonner) ──────────────────────────────────────────────────────────
+   Professional, restrained colour: a tinted card + a coloured left accent bar
+   and icon per status, rather than a fully saturated background. */
+[data-sonner-toaster] {
+    --toast-success: #10b981; /* emerald */
+    --toast-error: #ef4444; /* red */
+    --toast-warning: #f59e0b; /* amber */
+    --toast-info: #0abfbf; /* brand teal */
+}
+
+[data-sonner-toast] {
+    --toast-accent: var(--border);
+    border-inline-start: 3px solid var(--toast-accent) !important;
+    background: color-mix(
+        in oklab,
+        var(--toast-accent) 8%,
+        var(--popover)
+    ) !important;
+}
+
+[data-sonner-toast][data-type='success'] {
+    --toast-accent: var(--toast-success);
+}
+
+[data-sonner-toast][data-type='error'] {
+    --toast-accent: var(--toast-error);
+}
+
+[data-sonner-toast][data-type='warning'] {
+    --toast-accent: var(--toast-warning);
+}
+
+[data-sonner-toast][data-type='info'] {
+    --toast-accent: var(--toast-info);
+}
+
+[data-sonner-toast] [data-icon] {
+    color: var(--toast-accent);
+}
+
+[data-sonner-toast] [data-title] {
+    font-weight: 600;
+}
+
+[data-sonner-toast] [data-close-button] {
+    color: var(--popover-foreground);
+    background: var(--popover);
+    border-color: var(--border);
+}
+
+/* ── Sidebar scrollbar ───────────────────────────────────────────────────────
+   Slim, rounded, theme-aware scrollbar for the (now overflowing) sidebar nav.
+   Subtle by default, brightens to the brand teal on hover. */
+[data-slot='sidebar-content'] {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(
+            in oklab,
+            var(--sidebar-foreground) 22%,
+            transparent
+        )
+        transparent;
+}
+
+[data-slot='sidebar-content']::-webkit-scrollbar {
+    width: 8px;
+}
+
+[data-slot='sidebar-content']::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+[data-slot='sidebar-content']::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    background-color: color-mix(
+        in oklab,
+        var(--sidebar-foreground) 22%,
+        transparent
+    );
+    transition: background-color 150ms ease;
+}
+
+[data-slot='sidebar-content']:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(
+        in oklab,
+        var(--sidebar-foreground) 32%,
+        transparent
+    );
+}
+
+[data-slot='sidebar-content']::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, #0abfbf 65%, transparent);
+}
+
+/* ── Agentic assistant animations ─────────────────────────────────────────── */
+@keyframes assistant-pop {
+    0% {
+        transform: scale(0.6);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.08);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes assistant-sheen {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+/* Brief flash on a table row the assistant just created or updated. */
+@keyframes synapse-row-flash {
+    0% {
+        background-color: color-mix(in oklab, #0abfbf 22%, transparent);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.synapse-row-flash {
+    animation: synapse-row-flash 2.4s ease-out;
+}
+
+/* ── SynapseField backdrop (workspace picker + auth screens) ────────────────
+   A slow pulse on each node of the neural-network backdrop. */
+@keyframes synapse-node {
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 0.85;
+    }
+}
+
+.synapse-node {
+    animation: synapse-node 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .synapse-node {
+        animation: none;
+    }
+}
+
+/*
+ * Maps on Company Setup → Locations (ADR 0040). The pin is drawn in CSS so no
+ * marker image has to be served, and dark mode dims OpenStreetMap's tiles
+ * rather than swapping to another provider.
+ */
+.fence-map {
+    background: var(--muted);
+    font: inherit;
+}
+
+.fence-map .fence-pin span {
+    display: block;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: #0abfbf;
+    border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+    cursor: grab;
+}
+
+.fence-map .fence-pin:focus-visible span {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.fence-map .fence-tooltip {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.dark .fence-map .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
+
+.dark .fence-map .leaflet-control-attribution,
+.dark .fence-map .leaflet-bar a {
+    background: var(--card);
+    color: var(--muted-foreground);
+}

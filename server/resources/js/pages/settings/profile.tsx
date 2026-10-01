@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { edit } from '@/routes/profile';
-import { send } from '@/routes/verification';
+import { notice } from '@/routes/verification';
 import type { Auth } from '@/types';
 
 type PageProps = {
@@ -17,10 +17,8 @@ type PageProps = {
 
 export default function Profile({
     mustVerifyEmail,
-    status,
 }: {
     mustVerifyEmail: boolean;
-    status?: string;
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -47,21 +45,63 @@ export default function Profile({
                     {({ processing, errors }) => (
                         <>
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                                <Label htmlFor="first_name">First name</Label>
 
                                 <Input
-                                    id="name"
+                                    id="first_name"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
-                                    name="name"
+                                    defaultValue={auth.user.first_name}
+                                    name="first_name"
                                     required
-                                    autoComplete="name"
-                                    placeholder="Full name"
+                                    autoComplete="given-name"
+                                    placeholder="First name"
                                 />
 
                                 <InputError
                                     className="mt-2"
-                                    message={errors.name}
+                                    message={errors.first_name}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="middle_name">
+                                    Middle name{' '}
+                                    <span className="text-muted-foreground">
+                                        (optional)
+                                    </span>
+                                </Label>
+
+                                <Input
+                                    id="middle_name"
+                                    className="mt-1 block w-full"
+                                    defaultValue={auth.user.middle_name ?? ''}
+                                    name="middle_name"
+                                    autoComplete="additional-name"
+                                    placeholder="Middle name"
+                                />
+
+                                <InputError
+                                    className="mt-2"
+                                    message={errors.middle_name}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="last_name">Last name</Label>
+
+                                <Input
+                                    id="last_name"
+                                    className="mt-1 block w-full"
+                                    defaultValue={auth.user.last_name}
+                                    name="last_name"
+                                    required
+                                    autoComplete="family-name"
+                                    placeholder="Last name"
+                                />
+
+                                <InputError
+                                    className="mt-2"
+                                    message={errors.last_name}
                                 />
                             </div>
 
@@ -87,27 +127,17 @@ export default function Profile({
 
                             {mustVerifyEmail &&
                                 auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            Your email address is unverified.{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                Click here to re-send the
-                                                verification email.
-                                            </Link>
-                                        </p>
-
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                A new verification link has been
-                                                sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
+                                    <p className="-mt-4 text-sm text-muted-foreground">
+                                        Your email address is unverified.{' '}
+                                        <Link
+                                            href={notice()}
+                                            className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                                        >
+                                            Enter your verification code
+                                        </Link>{' '}
+                                        — that screen can also send you a new
+                                        one.
+                                    </p>
                                 )}
 
                             <div className="flex items-center gap-4">

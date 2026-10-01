@@ -1,7 +1,16 @@
 export type User = {
     id: number;
-    name: string;
+    first_name: string;
+    middle_name: string | null;
+    last_name: string;
+    suffix: string | null;
+    full_name: string;
     email: string;
+    phone_number: string | null;
+    profile_photo: string | null;
+    employee_id: string | null;
+    is_active: boolean;
+    last_login_at: string | null;
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
@@ -10,8 +19,27 @@ export type User = {
     [key: string]: unknown;
 };
 
+export type Organization = {
+    id: number;
+    name: string;
+    logo_url: string | null;
+    initials: string;
+    /** The IANA zone attendance is judged and shown on, e.g. "Asia/Manila". */
+    timezone: string;
+};
+
 export type Auth = {
     user: User;
+    organization: Organization | null;
+    /** Every organisation the identity belongs to, for the workspace switcher. */
+    organizations: Organization[];
+    roles: string[];
+    permissions: string[];
+    is_super_admin: boolean;
+    /** The first-run tour (ADR 0060): whether it is still to be offered. */
+    tour: { owed: boolean } | null;
+    /** Whether the assistant is offered in this workspace (AssistantAccess). */
+    assistant: boolean;
 };
 
 /* @chisel-passkeys */

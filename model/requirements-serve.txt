@@ -1,0 +1,28 @@
+# Runtime-only dependencies for the inference service (api/), pinned to the same
+# versions as requirements.txt so the joblib artifacts load exactly as trained.
+# Used by the Docker image; requirements.txt stays the full notebook environment.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+click==8.5.0
+fastapi==0.141.1
+h11==0.16.0
+httptools==0.8.0
+idna==3.19
+joblib==1.6.0
+numpy==2.5.2
+pandas==2.3.3
+pydantic==2.13.5
+pydantic_core==2.46.5
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+scikit-learn==1.9.0
+scipy==1.18.1
+six==1.17.0
+starlette==1.6.0
+threadpoolctl==3.6.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzdata==2026.3
+uvicorn==0.52.4
+uvloop==0.22.1

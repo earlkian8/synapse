@@ -1,0 +1,39 @@
+# Build context is the repo root; only server/ and model/ go into the image.
+.git
+**/.git
+docs
+mobile
+docker/*.md
+
+# --- server: rebuilt inside the image ---
+server/node_modules
+server/vendor
+server/.env
+server/.env.*
+server/public/build
+server/public/hot
+server/public/storage
+server/storage
+server/bootstrap/cache/*.php
+server/bootstrap/ssr
+server/resources/js/actions
+server/resources/js/routes
+server/resources/js/wayfinder
+server/.phpunit.cache
+server/tests
+
+# --- model: only api/, synapse_ml/ and the reference artifacts are served ---
+model/.venv
+model/venv
+model/data
+model/logs
+model/notebooks
+model/tests
+model/scripts
+model/artifacts/local
+model/MODEL-JUSTIFICATION.md
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.ipynb_checkpoints

@@ -45,6 +45,10 @@ class ProfileController extends Controller
 
     /**
      * Delete the user's profile.
+     *
+     * Deliberately silent: the session is invalidated on the way out, so a flash
+     * toast would be written to a session nobody reads again. The landing page
+     * the person arrives on is the confirmation.
      */
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {

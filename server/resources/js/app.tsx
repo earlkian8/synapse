@@ -6,13 +6,32 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'SYNAPSE';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+                return null;
+            // The workspace picker is pre-workspace chrome — it brings its own
+            // full-screen layout rather than the app shell.
+            case name === 'workspaces':
+                return null;
+            case name.startsWith('careers/'):
+                return null;
+            // The invitation landing page is answered by people with no account
+            // anywhere yet (ADR 0026) — it cannot assume the app shell.
+            case name === 'invite':
+                return null;
+            // The Privacy Policy and the Terms of Service are public, and read
+            // before anybody has an account (ADR 0063).
+            case name.startsWith('legal/'):
+                return null;
+            // Company setup is pre-dashboard chrome: a brand-new company has
+            // nothing for the sidebar to link to yet, and the wizard carries its
+            // own rail. See RequireCompanySetup.
+            case name === 'setup/wizard':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

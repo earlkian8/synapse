@@ -1,0 +1,131 @@
+<?php
+
+namespace App\Http\Controllers\Setup;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Setup\AttendancePolicyPreviewRequest;
+use App\Http\Requests\Setup\AttendancePolicyRequest;
+use App\Models\AttendancePolicy;
+use App\Queries\Setup\AttendancePoliciesScreen;
+use App\Support\Attendance\AttendancePolicySettings;
+use App\Support\Attendance\WorkedExample;
+use App\Support\Hashid;
+use App\Support\Setup\AttendancePolicyException;
+use App\Support\Setup\AttendancePolicyWorkflow;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * Company Setup → Attendance Policies (ADR 0038): how a day is judged — grace,
+ * rounding, lateness thresholds, overtime, breaks, night differential — chosen
+ * from a preset and adjusted through typed options.
+ *
+ * Addressed by hashid; restore / force-delete take it as a string. Archived
+ * rather than hard-deleted, so a schedule or department that points at one keeps
+ * resolving. Editing a policy never re-judges a day already recorded — HR
+ * re-applies it from the attendance board when that is what they mean. Thin
+ * controller: validation lives in {@see AttendancePolicyRequest}, every write in
+ * {@see AttendancePolicyWorkflow} (which the assistant uses too), the example in
+ * {@see WorkedExample}.
+ */
+class AttendancePolicyController extends Controller
+{
+    public function __construct(private readonly AttendancePolicyWorkflow $workflow) {}
+
+    public function index(Request $request, AttendancePoliciesScreen $screen): Response
+    {
+        return Inertia::render('setup/attendance-policies', $screen->toArray($request));
+    }
+
+    public function store(AttendancePolicyRequest $request): RedirectResponse
+    {
+        $this->workflow->create($request->policyAttributes());
+
+        return $this->respond('Attendance policy created.');
+    }
+
+    public function update(AttendancePolicyRequest $request, AttendancePolicy $attendancePolicy): RedirectResponse
+    {
+        $this->workflow->update($attendancePolicy, $request->policyAttributes());
+
+        return $this->respond('Attendance policy updated. Days already recorded keep the rules they were judged by.');
+    }
+
+    /**
+     * Make a policy the company default — what anyone whose assignment, schedule
+     * and department name none is judged by — or, when it already is, clear it,
+     * which drops those people back to the built-in fallback.
+     */
+    public function setDefault(AttendancePolicy $attendancePolicy): RedirectResponse
+    {
+        $making = ! $attendancePolicy->is_default;
+
+        $this->workflow->setDefault($attendancePolicy, $making);
+
+        return $this->respond($making
+            ? "\"{$attendancePolicy->name}\" is now the company default."
+            : 'Company default cleared — the built-in rules apply to anyone without a policy.');
+    }
+
+    public function destroy(AttendancePolicy $attendancePolicy): RedirectResponse
+    {
+        $this->workflow->archive($attendancePolicy);
+
+        return $this->respond('Attendance policy archived.');
+    }
+
+    public function restore(string $attendancePolicy): RedirectResponse
+    {
+        try {
+            $this->workflow->restore($this->findTrashed($attendancePolicy));
+        } catch (AttendancePolicyException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
+
+        return $this->respond('Attendance policy restored.');
+    }
+
+    public function forceDelete(string $attendancePolicy): RedirectResponse
+    {
+        try {
+            $this->workflow->forceDelete($this->findTrashed($attendancePolicy));
+        } catch (AttendancePolicyException $e) {
+            return $this->respond($e->getMessage(), 'warning');
+        }
+
+        return $this->respond('Attendance policy permanently deleted.');
+    }
+
+    /**
+     * The worked example: a sample day judged by the settings on screen, before
+     * they are saved. Writes nothing.
+     */
+    public function preview(AttendancePolicyPreviewRequest $request): JsonResponse
+    {
+        return response()->json([
+            'result' => WorkedExample::evaluate(
+                AttendancePolicySettings::fromArray((array) $request->validated('settings')),
+                (array) $request->validated('sample'),
+            ),
+        ]);
+    }
+
+    private function findTrashed(string $hashid): AttendancePolicy
+    {
+        $id = Hashid::decode($hashid);
+
+        abort_if($id === null, 404);
+
+        return AttendancePolicy::onlyTrashed()->findOrFail($id);
+    }
+
+    private function respond(string $message, string $type = 'success'): RedirectResponse
+    {
+        Inertia::flash('toast', ['type' => $type, 'message' => $message]);
+
+        return back();
+    }
+}

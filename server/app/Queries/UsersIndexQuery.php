@@ -1,0 +1,121 @@
+<?php
+
+namespace App\Queries;
+
+use App\Models\Role;
+use App\Models\User;
+use App\Support\Tenancy;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
+
+class UsersIndexQuery
+{
+    /**
+     * Columns that may be sorted on from the client.
+     *
+     * @var list<string>
+     */
+    public const SORTABLE = ['first_name', 'last_name', 'email', 'employee_id', 'last_login_at', 'created_at'];
+
+    /**
+     * Statuses the index may be filtered by.
+     *
+     * @var list<string>
+     */
+    public const STATUSES = ['all', 'active', 'inactive', 'archived', 'unverified'];
+
+    /**
+     * Allowed page sizes.
+     *
+     * @var list<int>
+     */
+    public const PER_PAGE = [10, 15, 25, 50, 100];
+
+    /**
+     * Build the filtered, sorted and paginated user listing for the request.
+     *
+     * @return LengthAwarePaginator<int, User>
+     */
+    public function paginate(Request $request): LengthAwarePaginator
+    {
+        return $this->build($request)
+            ->paginate($this->perPage($request))
+            ->withQueryString();
+    }
+
+    /**
+     * Compose the base query from the request filters.
+     *
+     * @return Builder<User>
+     */
+    public function build(Request $request): Builder
+    {
+        $status = $this->status($request);
+        $role = $this->role($request);
+        [$sort, $direction] = $this->sort($request);
+
+        $organizationId = app(Tenancy::class)->id();
+
+        return User::query()
+            ->inCurrentOrganization()
+            // Permissions too: whether the viewer may change an account depends on
+            // what it can do (GrantRules::outranks), and a shared account is the
+            // holder's to manage (ADR 0057).
+            ->with('roles:id,name,label', 'roles.permissions:id,name')
+            ->withCount(['memberships as other_workspaces_count' => fn (Builder $q) => $q->where('organizations.id', '!=', $organizationId)])
+            ->when($status === 'archived', fn (Builder $query) => $query->onlyTrashed())
+            ->when($status === 'active', fn (Builder $query) => $query->where('is_active', true))
+            ->when($status === 'inactive', fn (Builder $query) => $query->where('is_active', false))
+            ->when($status === 'unverified', fn (Builder $query) => $query->whereNull('email_verified_at'))
+            ->when($role !== null, fn (Builder $query) => $query->whereHas(
+                'roles',
+                fn (Builder $roles) => $roles->where('roles.id', $role),
+            ))
+            ->search($request->string('search')->toString())
+            ->orderBy($sort, $direction)
+            ->orderBy('id', 'desc');
+    }
+
+    /**
+     * The role id the index is filtered by, or null for "all roles". Validated
+     * against the tenant's roles so a stale/foreign id is ignored.
+     */
+    public function role(Request $request): ?int
+    {
+        $role = $request->integer('role');
+
+        if ($role <= 0) {
+            return null;
+        }
+
+        return Role::whereKey($role)->exists() ? $role : null;
+    }
+
+    public function status(Request $request): string
+    {
+        $status = $request->string('status')->toString();
+
+        return in_array($status, self::STATUSES, true) ? $status : 'all';
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    public function sort(Request $request): array
+    {
+        $sort = $request->string('sort')->toString();
+        $sort = in_array($sort, self::SORTABLE, true) ? $sort : 'created_at';
+
+        $direction = $request->string('direction')->lower()->toString() === 'asc' ? 'asc' : 'desc';
+
+        return [$sort, $direction];
+    }
+
+    public function perPage(Request $request): int
+    {
+        $perPage = $request->integer('per_page', 10);
+
+        return in_array($perPage, self::PER_PAGE, true) ? $perPage : 10;
+    }
+}

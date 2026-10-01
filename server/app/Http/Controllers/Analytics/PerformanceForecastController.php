@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Http\Controllers\Analytics;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\PerformanceForecastRunResource;
+use App\Models\PerformanceForecastRun;
+use App\Support\Ml\ForecastTrackRecord;
+use App\Support\Ml\Graduation\ModelGraduation;
+use App\Support\Ml\MlClient;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * Performance Forecast — a Predictive Workforce Analytics surface. Shows the
+ * latest (or a chosen historical) forecast run: every active employee ranked by a
+ * model-projected next-period rating, bucketed into Below / On track / Exceeds
+ * bands with a confidence and the trajectory behind each. HR triggers new runs
+ * from here. Reading needs `analytics.performance.view`; running needs
+ * `analytics.performance.manage`.
+ */
+class PerformanceForecastController extends Controller
+{
+    public function index(Request $request, MlClient $ml, ModelGraduation $graduation, ForecastTrackRecord $trackRecord): Response
+    {
+        // Lightweight list of every run, for the history selector.
+        $runs = PerformanceForecastRun::query()->latestFirst()->get();
+
+        // The run being viewed: the one named in ?run=, else the newest.
+        $current = $request->filled('run')
+            ? $runs->firstWhere('hashid', $request->string('run')->toString())
+            : $runs->first();
+
+        if ($current) {
+            $current->load([
+                'generator:id,first_name,last_name',
+                'targetPeriod:id,name,start_date,end_date',
+                'forecasts' => fn ($query) => $query->ranked(),
+                'forecasts.employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id',
+                'forecasts.employee.department:id,name',
+                'forecasts.employee.position:id,title',
+            ]);
+        }
+
+        // Whether the inference service can forecast right now: reachable, with the
+        // performance model loaded.
+        $health = $ml->health();
+
+        return Inertia::render('analytics/performance-forecast', [
+            'run' => $current ? (new PerformanceForecastRunResource($current))->resolve($request) : null,
+            'runs' => $runs->map(fn (PerformanceForecastRun $run): array => [
+                'hashid' => $run->hashid,
+                'created_at' => $run->created_at?->toIso8601String(),
+                'employees_scored' => (int) $run->employees_scored,
+                'exceeds_count' => (int) $run->exceeds_count,
+                'average_rating' => $run->average_rating === null ? null : (float) $run->average_rating,
+            ])->all(),
+            // Liveness only. The model's version and accuracy metrics stay
+            // server-side: they are for whoever tunes the model, not for the HR
+            // user reading this page.
+            // How the viewed run did, once its period has completed appraisals.
+            'track_record' => $current ? $trackRecord->for($current) : null,
+            'service' => ['connected' => isset($health['models']['performance'])],
+            // Model graduation (ADR 0046): where this surface stands on moving from
+            // the general model to one trained on the organisation's own records.
+            'graduation' => $graduation->check('performance', isset($health['models']['performance'])),
+            'can' => ['manage' => $request->user()->can('analytics.performance.manage')],
+        ]);
+    }
+}
