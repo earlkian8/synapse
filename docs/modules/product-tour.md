@@ -34,7 +34,7 @@ what that person's role can open.
 | 7 | Company setup | the section | 〃 (Email & Notifications does not count, see below) |
 | 8 | System | the section | 〃 (Data Backup & Export does not count) |
 | 9 | Notifications | the bell | always |
-| 10 | Help | the question mark | always; mentions the Setup Guide to `setup.company.manage` |
+| 10 | Help | the question mark | always; points at the [Help Center](./help-center.md), and mentions the Setup Guide to `setup.company.manage` |
 | 11 | Your account | the avatar | always |
 | 12 | Assistant | the sparkle launcher | the assistant is offered to the person |
 | — | **Send-off** | centred | always: up to three places to start, and where the tour lives now |
@@ -152,7 +152,8 @@ login is therefore offered the tour once.
   the lit area, falling back to a centred dialog. `tour-welcome.tsx` and
   `tour-finish.tsx` are the centred cards on the brand's navy field (`SynapseField`).
   `tour-dialog.tsx` is their shared modal shell. `help-menu.tsx` is Help & resources in
-  the top bar.
+  the top bar: *Help Center* and *Help for this page* (ADR 0062), *Take the tour*, and
+  the *Setup Guide* for `setup.company.manage`.
 
 Around it:
 
@@ -174,6 +175,8 @@ Around it:
 - **Sidebar**: one definition shared with the tour. A screen added to the sidebar is
   picked up by the tour automatically. Give it a `summary` if it should be listed.
 - **Assistant**: a tour stop, and the tour is a `SystemGuide` entry.
+- **Help Center** ([module doc](./help-center.md)): reached from the same Help menu,
+  and its *Still need help?* panel replays the tour.
 - **Tests**: `Settings/ProductTourTest` covers the owed flag in the shared props, the
   flag kept off the user payload, finishing, skipping, the first answer standing,
   `updated_at` left alone, validation, guests, a new registration owing the tour, the

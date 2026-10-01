@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import {
     History,
     Maximize2,
@@ -10,53 +10,13 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { tourTarget } from '@/features/product-tour/targets';
-import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
+import { assistantLauncher } from '../launcher';
 import type { AgentCard } from '../types';
 import { useAssistant } from '../use-assistant';
 import { Composer } from './composer';
 import { ConversationList } from './conversation-list';
 import { MessageList } from './message-list';
-
-/**
- * Who sees the assistant: anyone with a module it can read for them — the
- * directory, leave, attendance, onboarding, offboarding, recruitment,
- * performance, training, awards, events, the org structure, the company
- * profile, schedules and holidays, attendance policies, work locations, leave
- * types, award types, the performance framework, recruitment pipelines,
- * clearance templates, or any block of the dashboard (reports follow the same
- * module permissions). Self-service alone does not open it: every turn spends
- * model quota.
- */
-const ASSISTANT_PERMISSIONS = [
-    'employees.view',
-    'leave.view',
-    'leave.manage',
-    'attendance.view',
-    'onboarding.view',
-    'offboarding.view',
-    'recruitment.view',
-    'performance.view',
-    'training.view',
-    'awards.view',
-    'events.view',
-    'setup.departments.view',
-    'setup.company.view',
-    'setup.schedule.view',
-    'setup.attendance-policies.view',
-    'setup.locations.view',
-    'setup.leave-types.view',
-    'setup.award-types.view',
-    'setup.kpi.view',
-    'recruitment.configure-pipelines',
-    'offboarding.manage-programs',
-    'activity-logs.view',
-    'users.view',
-    'roles.view',
-    'analytics.attrition.view',
-    'analytics.promotion.view',
-    'analytics.performance.view',
-] as const;
 
 const draftKey = (id: number | null) =>
     `synapse.assistant.draft.${id ?? 'new'}`;
@@ -68,7 +28,10 @@ const draftKey = (id: number | null) =>
  * attachments, and live HR actions across the modules the user can access.
  */
 export function Assistant() {
-    const { can } = usePermissions();
+    // Who is offered the assistant is decided on the server (AssistantAccess):
+    // anyone with a module it can read for them. Self-service alone does not
+    // open it — every turn spends model quota.
+    const offered = usePage().props.auth.assistant;
     const assistant = useAssistant();
 
     const [open, setOpen] = useState(false);
@@ -80,6 +43,21 @@ export function Assistant() {
     const processed = useRef<Set<number | string>>(new Set());
 
     const { activeId, messages, conversations } = assistant;
+
+    // Opened from elsewhere in the app (the Help Center's "Ask the assistant"),
+    // perhaps with a question to finish. It is typed, never sent.
+    useEffect(
+        () =>
+            assistantLauncher.subscribe(({ prompt }) => {
+                setOpen(true);
+                setShowHistory(false);
+
+                if (prompt !== '') {
+                    setInput(prompt);
+                }
+            }),
+        [],
+    );
 
     // Restore the saved draft when the active conversation changes. This is an
     // intentional external (localStorage) → state sync keyed on the thread.
@@ -119,7 +97,7 @@ export function Assistant() {
         }
     }, [messages]);
 
-    if (!ASSISTANT_PERMISSIONS.some((permission) => can(permission))) {
+    if (!offered) {
         return null;
     }
 

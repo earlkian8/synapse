@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Http\Resources\NotificationResource;
 use App\Models\Organization;
+use App\Services\Assistant\AssistantAccess;
 use App\Support\ProductTour;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
@@ -66,6 +67,9 @@ class HandleInertiaRequests extends Middleware
                 // Whether the first-run tour is still to be offered (ADR 0060).
                 // The app shell starts it; pages without the shell never do.
                 'tour' => $user ? ['owed' => ProductTour::owes($user)] : null,
+                // Whether the assistant is offered here at all — the launcher, and
+                // the Help Center's articles about it, read this one answer.
+                'assistant' => $user !== null && AssistantAccess::offeredTo($user),
             ],
             'notifications' => $user ? [
                 'items' => NotificationResource::collection(

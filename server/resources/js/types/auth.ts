@@ -38,6 +38,8 @@ export type Auth = {
     is_super_admin: boolean;
     /** The first-run tour (ADR 0060): whether it is still to be offered. */
     tour: { owed: boolean } | null;
+    /** Whether the assistant is offered in this workspace (AssistantAccess). */
+    assistant: boolean;
 };
 
 /* @chisel-passkeys */

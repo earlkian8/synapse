@@ -18,11 +18,17 @@ offered only to the people whose role allows it. It runs on Google Gemini, serve
 
 ## Who sees it
 
-The launcher is shown to anyone who holds at least one permission in the client's
-`ASSISTANT_PERMISSIONS` list (`features/assistant/components/assistant.tsx`): a view
-permission of any module the assistant reads. Self-service alone does not open it,
-because every turn spends model quota. The built-in **Staff** role (`attendance.clock`
-and `leave.request`) does not see it.
+The launcher is shown to anyone who holds at least one permission in
+`App\Services\Assistant\AssistantAccess::PERMISSIONS`: a view permission of any module
+the assistant reads. The server decides and shares the answer as `auth.assistant`, which
+the launcher and the [Help Center](./help-center.md)'s articles about the assistant both
+read (ADR 0062 — the list used to live in the browser). Self-service alone does not open
+it, because every turn spends model quota. The built-in **Staff** role
+(`attendance.clock` and `leave.request`) does not see it.
+
+Any page can open it with a question typed through `features/assistant/launcher.ts`
+(the Help Center's *Ask the assistant* does). The question waits in the composer; it is
+never sent on the person's behalf.
 
 Inside the chat, what a person can do is decided per module and per tool by their
 permissions (see [Modules](#modules)).

@@ -12,7 +12,7 @@ const footerLinks = [
     { label: 'Privacy', href: '#' },
     { label: 'Terms', href: '#' },
     { label: 'Support', href: '#' },
-    { label: 'Docs', href: '#' },
+    { label: 'Docs', href: '/help' },
 ];
 
 export function AppFooter() {

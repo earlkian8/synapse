@@ -75,3 +75,4 @@ require __DIR__.'/events.php';
 require __DIR__.'/offboarding.php';
 require __DIR__.'/reports.php';
 require __DIR__.'/setup.php';
+require __DIR__.'/help.php';

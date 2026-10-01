@@ -8,6 +8,7 @@ use App\Services\Assistant\Contracts\ContributesTopicContext;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Security\UntrustedText;
 use App\Services\Assistant\ToolResult;
+use App\Support\Help\HelpCenter;
 use App\Support\PermissionRegistry;
 use App\Support\Setup\CompanySetup;
 use App\Support\SystemGuide;
@@ -71,8 +72,9 @@ class SystemGuideModule extends Module implements ContributesTopicContext
     public function guidance(User $user): string
     {
         return <<<'TXT'
-        SYSTEM GUIDE — how SYNAPSE works and where things are, for this user. find_help answers "how do I…/where is…" with the screen, its menu path and address, and what the assistant can do there; get_my_access says what this user can do here; list_my_workspaces lists their companies; get_setup_progress says which company setup steps are done.
+        SYSTEM GUIDE — how SYNAPSE works and where things are, for this user. find_help answers "how do I…/where is…" with the screen, its menu path and address, what the assistant can do there, and the Help Center article that explains it step by step; get_my_access says what this user can do here; list_my_workspaces lists their companies; get_setup_progress says which company setup steps are done.
         - Describe only screens the guide returns for this user. If they ask about something they cannot open, say they do not have access to it and to ask an administrator — do not describe it.
+        - When find_help returns a Help Center article, link it by its address for the full steps.
         - When the assistant itself can do the task, offer to do it.
         TXT;
     }
@@ -113,7 +115,7 @@ class SystemGuideModule extends Module implements ContributesTopicContext
 
         return ContextSection::of('System guide', [
             'Screens this user can open: '.$screens.'.',
-            'Use find_help for the steps on any of them.',
+            'Use find_help for the steps on any of them. The Help Center (/help) has a step-by-step article for each.',
         ]);
     }
 
@@ -130,10 +132,17 @@ class SystemGuideModule extends Module implements ContributesTopicContext
             return ToolResult::error('Looked it up', 'Say what you want to do.');
         }
 
-        $cards = SystemGuide::search($user, $question)
-            ->map(fn (array $s): array => $this->screenCard($s))
-            ->values()
-            ->all();
+        $screens = SystemGuide::search($user, $question)
+            ->map(fn (array $s): array => $this->screenCard($s));
+
+        // The manual's own answer, when an article matches every word of the
+        // question — read for the same user, so it never names a screen the
+        // guide above would not.
+        $found = HelpCenter::search($user, $question, 2);
+        $articles = $found['partial'] ? collect() : $found['results']
+            ->map(fn (array $article): array => $this->articleCard($article));
+
+        $cards = $screens->concat($articles)->values()->all();
 
         return ToolResult::found(
             'Looked it up',
@@ -221,6 +230,27 @@ class SystemGuideModule extends Module implements ContributesTopicContext
         );
 
         return ToolResult::found('Read the setup progress', null, [$card]);
+    }
+
+    /**
+     * A Help Center article that answers the question (ADR 0062).
+     *
+     * @param  array<string, mixed>  $article
+     * @return array<string, mixed>
+     */
+    private function articleCard(array $article): array
+    {
+        return $this->card(
+            kind: 'insight',
+            tone: 'neutral',
+            badge: 'Help Center',
+            title: $article['title'],
+            subtitle: $article['href'],
+            meta: [
+                $article['summary'],
+                'Step by step in the Help Center: '.$article['href'],
+            ],
+        );
     }
 
     /**

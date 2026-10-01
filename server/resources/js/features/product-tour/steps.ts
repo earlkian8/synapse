@@ -199,8 +199,8 @@ export function buildTourStops(context: TourContext): TourStop[] {
         icon: CircleHelp,
         title: 'Help, whenever you need it',
         body: can('setup.company.manage')
-            ? 'Replay this tour any time from here, or reopen the Setup Guide to finish a step you skipped.'
-            : 'Replay this tour any time from here.',
+            ? 'The Help Center has a guide for every screen you can use — including the one you are on. Replay this tour, or reopen the Setup Guide to finish a step you skipped.'
+            : 'The Help Center has a guide for every screen you can use — including the one you are on. You can replay this tour from here too.',
         ...TOP_BAR_PLACEMENT,
         radius: 10,
     });

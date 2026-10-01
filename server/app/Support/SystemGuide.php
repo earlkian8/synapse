@@ -300,6 +300,13 @@ final class SystemGuide
             'assistant' => 'It cannot see pay, government ID numbers, bank details, home addresses, birth dates or passwords.',
             'keywords' => ['assistant', 'chat', 'ai', 'copilot', 'what can you do'],
         ],
+        'help-center' => [
+            'title' => 'Help Center', 'menu' => 'Help (the question mark in the top bar) → Help Center', 'path' => '/help', 'any' => [],
+            'about' => 'The user manual: a step-by-step article for every screen you can open, searchable, with "Help for this page" in the Help menu for the screen you are on.',
+            'tasks' => ['Search for how to do something', 'Read the guide to a screen', 'Open the article for the page you are on'],
+            'assistant' => 'Point you to the article that answers your question.',
+            'keywords' => ['help center', 'manual', 'user manual', 'guide', 'documentation', 'docs', 'article', 'instructions', 'knowledge base'],
+        ],
         'tour' => [
             'title' => 'The product tour', 'menu' => 'Help (the question mark in the top bar) → Take the tour', 'path' => '', 'any' => [],
             'about' => 'A one-minute walk around the app — the sidebar sections you can open, notifications, your account menu and this assistant — shown once on your first visit, and any time again from the Help menu.',
