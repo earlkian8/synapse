@@ -38,7 +38,24 @@ return [
             'report' => false,
         ],
 
-        'public' => [
+        // Every upload (photos, résumés, documents, logos) lives on this disk.
+        // It is Supabase Storage when SUPABASE_STORAGE_BUCKET is set in .env,
+        // and storage/app/public otherwise — comment the Supabase block out
+        // to fall back to local files.
+        'public' => env('SUPABASE_STORAGE_BUCKET') ? [
+            'driver' => 's3',
+            'key' => env('SUPABASE_STORAGE_KEY'),
+            'secret' => env('SUPABASE_STORAGE_SECRET'),
+            'region' => env('SUPABASE_STORAGE_REGION', 'us-east-1'),
+            'bucket' => env('SUPABASE_STORAGE_BUCKET'),
+            'endpoint' => env('SUPABASE_STORAGE_ENDPOINT'),
+            'url' => env('SUPABASE_STORAGE_URL'),
+            'use_path_style_endpoint' => true,
+            // Supabase has no object ACLs; the bucket itself must be public.
+            'retain_visibility' => false,
+            'throw' => false,
+            'report' => false,
+        ] : [
             'driver' => 'local',
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
