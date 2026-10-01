@@ -49,7 +49,7 @@ line so the mobile self-service app resolves a self record on first sign-in.
 `dev@synapse.com` and the four `mock.*@synapse.test` accounts are gone. Handing
 alpha testers a set of credentials nobody owns was never worth what it bought:
 User Management is demoable through the one account plus the invitation and
-join-code flows ([ADR 0026](../decisions/0026-workspace-join-and-invitations.md)),
+join-code flows ([ADR 0026](../decisions/0026-self-served-identity-and-workspace-join.md)),
 which is how real people get in anyway. The address lives in one place —
 `DatabaseSeeder::ACCOUNT_EMAIL` — and `RolePermissionSeeder` reads it from there,
 so the Super Admin grant can't drift from the account it's meant for.

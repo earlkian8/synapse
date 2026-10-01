@@ -49,7 +49,7 @@ the system generates a **payslip** per active employee, computing basic / overti
 
 ## Docs
 
-- [Payroll module](../modules/payroll.md), [payroll tables](../database/payroll-tables.md);
+- the Payroll module doc and payroll tables doc (both since removed with the module — see [ADR 0019](../decisions/0019-remove-payroll-and-benefits.md));
   ERD §7 marked built.
 
 ## Notes

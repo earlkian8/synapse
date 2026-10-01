@@ -169,7 +169,9 @@ invented promotion is never given to someone with an appraisal history.
   `Analytics\ModelGraduationController`. `MlClient::train()` and `predict(…, $variant)`.
   Each surface's index controller passes the `graduation` prop.
 - **Inference service** — `model/synapse_ml/local/` (`training.py`: examples, minimums,
-  out-of-fold check, verdict and wording; `store.py`: per-organisation storage);
+  out-of-fold check, verdict and wording; `store.py`: per-organisation storage under
+  `model/artifacts/local/<tenant>/`, which a container redeploy does not keep — see
+  [Deployment](../deployment.md));
   `model/api`: `POST /train/{model}`, and `variant` on `POST /predict/{model}`.
 - **Frontend** — `resources/js/features/model-graduation/`:
   - `GraduationPanel`: the strip on the page, and the switch confirmations.

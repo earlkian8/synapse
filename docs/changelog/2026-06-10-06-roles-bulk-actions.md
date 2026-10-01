@@ -1,6 +1,6 @@
 # 2026-06-10 — Roles & Permissions: row selection & bulk delete
 
-A follow-up to the [Roles & Permissions module](./2026-06-10-roles-and-permissions.md):
+A follow-up to the [Roles & Permissions module](./2026-06-10-05-roles-and-permissions.md):
 the roles table gains row selection and a bulk-delete action, replacing the
 decorative per-row icon.
 

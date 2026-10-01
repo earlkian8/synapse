@@ -93,6 +93,8 @@ single path that records membership, grants the baseline role, and links the emp
 (`EmployeeInvitations`, `WorkspaceJoin`) are the only code in the system that reads
 past `OrganizationScope` with `withoutGlobalScopes()`, because a code is issued inside
 a tenant and answered from outside it; don't copy that escape elsewhere.
+The tables are described in
+[identity & membership tables](../database/identity-and-membership-tables.md).
 
 Because users are global, admin queries over users must scope by membership —
 use `User::inCurrentOrganization()` (the model also guards route-model binding to the

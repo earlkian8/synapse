@@ -18,6 +18,7 @@ Soft-deletes.
 | `logo` | string, nullable | Stored on the `public` disk; exposed as `logo_url`. |
 | `email` / `phone` / `address` | string/text, nullable | |
 | `timezone` | string(64), default `Asia/Manila` | IANA zone attendance is judged on — see [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md). Existing organisations were back-filled by the default. |
+| `default_work_schedule_id` | FK → work_schedules, nullable | The company's default hours: the last fallback when an employee has no roster override, assignment, location or department schedule ([ADR 0037](../decisions/0037-schedules-are-templates-assignments-are-dated-a-resolver-decides-the-day.md)). Null on delete. |
 | `attendance_closed_from` | date, nullable | The first date the end-of-day job ever closed ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md)). A change of leave, holiday or roster never writes a missing day before it, so the first run after deploy does not back-fill history. |
 | `attendance_closed_through` | date, nullable | The last date the job closed: records written for everybody due at work, forgotten clock-outs handled, the digest sent. Advances over contiguous dates only; the next run starts the day after (at most seven days back). |
 | `tin` / `sss_employer_no` / `philhealth_employer_no` / `pagibig_employer_no` | string, nullable | Employer government IDs. |
@@ -32,18 +33,27 @@ Soft-deletes.
 
 ## The `organization_id` column
 
-Added to every tenant-owned table, indexed, FK → `organizations` with
-`cascadeOnDelete`:
+Every tenant-owned table carries it: indexed, FK → `organizations` with
+`cascadeOnDelete`, and stamped on create by the `BelongsToOrganization` trait. The
+`…_add_multi_tenancy` migration added it to the tables that existed then (`roles`,
+`employees`, `departments`, `positions`, `work_schedules`, `employee_documents`,
+`employee_certifications`, `employee_promotions`, `activity_logs`, and at the time
+`users`); every module table created since has it from the start. It is **non-null**
+everywhere except:
 
-`users`, `roles`, `employees`, `departments`, `positions`, `work_schedules`,
-`employee_documents`, `employee_certifications`, `employee_promotions` — **non-null**.
+- `activity_logs` — **nullable** (system events may have no tenant);
+- `personal_access_tokens` — **nullable**, added by ADR 0023 to bind a mobile token to
+  its active workspace (see [identity & membership tables](./identity-and-membership-tables.md)).
 
-`activity_logs` — **nullable** (system events may have no tenant).
+**`users` no longer has the column.** ADR 0023 dropped it: a user is a global
+identity, and belongs to organisations through the `organization_user` membership
+pivot.
 
-> Permissions, the `permission_role` / `role_user` pivots, and the framework
-> `notifications` / `push_subscriptions` tables are **not** stamped: permissions are
-> global; the pivots inherit isolation from their already-scoped sides; notifications
-> are reached only through their (scoped) notifiable user.
+> Not stamped at all: `users`, `permissions`, the `permission_role` / `role_user`
+> pivots, `employee_work_locations`, `passkeys`, and the framework `notifications` /
+> `push_subscriptions` tables. Permissions are global; the pivots inherit isolation
+> from their already-scoped sides; notifications, push subscriptions and passkeys are
+> reached only through their user. The [ERD](./erd.md) lists every table.
 
 ## Per-tenant uniqueness
 
@@ -57,6 +67,11 @@ so the same value may recur across tenants:
 | `employees` | `employee_no` | `(organization_id, employee_no)` |
 
 `users.email` stays **globally** unique — login resolves a user without a tenant hint.
+
+Later modules follow the same rule: a code or name that must be unique is unique per
+organisation (`leave_types.code`, `roles.name`, `employees.user_id`, …). Two are
+unique **globally** on purpose, because they are typed before any tenant is known:
+`organizations.join_code` and `employee_invitations.code`.
 
 ## Existing data
 

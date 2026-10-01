@@ -115,6 +115,9 @@ require approval — identical to the web `LeaveRequestController`.
    `EXPO_PUBLIC_API_URL`. (Find your IP with `ipconfig`.)
 3. **App:** in `mobile/`, `npx expo start`, then open in Expo Go on the phone.
 
+Against a deployed server ([Deployment](../deployment.md)), set
+`EXPO_PUBLIC_API_URL=https://<your-domain>/api` in `mobile/.env` instead.
+
 ## Conventions
 
 - `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing).
