@@ -1,29 +1,33 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
+import { EmptyState, ErrorState } from '@/components/ui/empty-state';
+import { ListSection } from '@/components/ui/list';
+import { BarTextButton, Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
-import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
+import { ToneWell } from '@/components/ui/tone-well';
 import { attendanceApi } from '@/features/attendance/api';
 import { PUNCH_META, PUNCH_TIMELINE_LABEL } from '@/features/attendance/punch-meta';
 import { useAuth } from '@/lib/auth';
-import { formatClock, formatDate, formatMinutes, formatTime } from '@/lib/format';
+import { formatClock, formatDate, formatMinutes, formatTime, formatWeekday } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
-import type { Paginated, AttendanceRecord, Punch } from '@/types/api';
+import type { AttendanceRecord, Paginated, Punch } from '@/types/api';
 
 export default function AttendanceDayScreen() {
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
   const { organization } = useAuth();
+  const router = useRouter();
 
-  const { data, loading } = useQuery<Paginated<AttendanceRecord>>(
+  const { data, loading, error, reload } = useQuery<Paginated<AttendanceRecord>>(
     () => attendanceApi.records(date, date),
     [date],
   );
@@ -33,120 +37,151 @@ export default function AttendanceDayScreen() {
   const punches = record?.punches ?? [];
   const selfie = punches.find((p) => p.photo)?.photo ?? null;
 
+  const metrics = record
+    ? [
+        { label: 'Worked', value: record.worked_minutes },
+        { label: 'Late', value: record.late_minutes },
+        { label: 'Undertime', value: record.undertime_minutes },
+        { label: 'Overtime', value: record.overtime_minutes },
+      ]
+    : [];
+
   return (
-    <Screen edges={['top', 'bottom']}>
-      <ScreenHeader title={formatDate(date)} subtitle="Daily time record" back />
-
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <Skeleton height={120} radius={18} />
-        ) : !record ? (
-          <EmptyState icon="document-outline" title="No record" message="Nothing was recorded for this day." />
-        ) : (
-          <>
-            <Card elevated>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Page
+      title={formatDate(date)}
+      largeTitle={false}
+      modal
+      right={<BarTextButton label="Done" emphasized onPress={() => router.back()} />}
+    >
+      {loading ? (
+        <>
+          <Skeleton height={200} radius={20} />
+          <Skeleton height={180} radius={20} />
+        </>
+      ) : error && !data ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : !record ? (
+        <EmptyState icon="calendar" title="No record" message="Nothing was recorded for this day." />
+      ) : (
+        <>
+          <Animated.View entering={enter(0)}>
+            <Card style={styles.hero}>
+              <View style={styles.heroTop}>
+                <View style={styles.flex}>
+                  <AppText variant="footnote" weight="semibold" tone="secondary">
+                    {formatWeekday(date).toUpperCase()}
+                  </AppText>
+                  <AppText variant="title2">{formatDate(date)}</AppText>
+                </View>
                 {meta && <Pill label={meta.label} color={meta.color} dot />}
-                <AppText variant="caption" muted>
-                  {record.scheduled_start ? `Shift ${formatClock(record.scheduled_start)}–${formatClock(record.scheduled_end)}` : 'No shift'}
-                </AppText>
               </View>
+              <AppText variant="subheadline" tone="secondary">
+                {record.scheduled_start
+                  ? `Shift ${formatClock(record.scheduled_start)} – ${formatClock(record.scheduled_end)}`
+                  : 'No shift scheduled'}
+              </AppText>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.lg }}>
-                <Metric label="Worked" value={formatMinutes(record.worked_minutes)} />
-                <Metric label="Late" value={formatMinutes(record.late_minutes)} />
-                <Metric label="Undertime" value={formatMinutes(record.undertime_minutes)} />
-                <Metric label="Overtime" value={formatMinutes(record.overtime_minutes)} />
+              <View style={styles.metrics}>
+                {metrics.map((metric) => (
+                  <View
+                    key={metric.label}
+                    style={[styles.metric, { backgroundColor: colors.fill }]}
+                    accessible
+                    accessibilityLabel={`${metric.label}: ${formatMinutes(metric.value)}`}
+                  >
+                    <AppText variant="caption" tone="secondary">
+                      {metric.label}
+                    </AppText>
+                    <AppText variant="headline" numeric tone={metric.value > 0 ? 'primary' : 'secondary'}>
+                      {formatMinutes(metric.value)}
+                    </AppText>
+                  </View>
+                ))}
               </View>
             </Card>
+          </Animated.View>
 
-            {/* Punch timeline */}
-            <View style={{ gap: spacing.sm }}>
-              <AppText variant="overline" muted>
-                Punches
-              </AppText>
+          {/* Punch timeline */}
+          <Animated.View entering={enter(1)}>
+            <ListSection header="Punches">
               {punches.length === 0 ? (
-                <Card>
-                  <AppText variant="body" muted>
+                <View style={styles.note}>
+                  <AppText variant="body" tone="secondary">
                     No punches recorded for this day.
                   </AppText>
-                </Card>
+                </View>
               ) : (
-                <Card>
+                <View style={styles.timeline}>
                   {punches.map((punch, index) => (
-                    <View
+                    <TimelineItem
                       key={punch.id}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: spacing.md,
-                        paddingVertical: 10,
-                        borderTopWidth: index === 0 ? 0 : 1,
-                        borderTopColor: colors.hairline,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 18,
-                          backgroundColor: colors.accentSoft,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Ionicons name={PUNCH_META[punch.type].icon} size={18} color={colors.accentText} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <AppText variant="label">{PUNCH_TIMELINE_LABEL[punch.type]}</AppText>
-                        {(punch.latitude != null || punch.note || punch.location || punch.offline) && (
-                          <AppText variant="caption" faint numberOfLines={2}>
-                            {punchDetail(punch)}
-                          </AppText>
-                        )}
-                      </View>
-                      <AppText variant="label" muted style={{ fontVariant: ['tabular-nums'] }}>
-                        {formatTime(punch.punched_at, organization?.timezone)}
-                      </AppText>
-                    </View>
+                      punch={punch}
+                      time={formatTime(punch.punched_at, organization?.timezone)}
+                      last={index === punches.length - 1}
+                    />
                   ))}
-                </Card>
+                </View>
               )}
-            </View>
+            </ListSection>
+          </Animated.View>
 
-            {selfie && (
-              <View style={{ gap: spacing.sm }}>
-                <AppText variant="overline" muted>
-                  Verification photo
-                </AppText>
-                <Image source={{ uri: selfie }} style={{ width: '100%', height: 220, borderRadius: 18 }} contentFit="cover" />
-              </View>
-            )}
+          {selfie && (
+            <Animated.View entering={enter(2)}>
+              <ListSection header="Verification photo">
+                <Image
+                  source={{ uri: selfie }}
+                  style={styles.photo}
+                  contentFit="cover"
+                  transition={250}
+                  accessibilityLabel="Verification selfie"
+                />
+              </ListSection>
+            </Animated.View>
+          )}
 
-            {record.remarks && (
-              <Card>
-                <AppText variant="overline" muted>
-                  Remarks
-                </AppText>
-                <AppText variant="body" style={{ marginTop: 4 }}>
-                  {record.remarks}
-                </AppText>
-              </Card>
-            )}
-          </>
-        )}
-      </ScrollView>
-    </Screen>
+          {record.remarks && (
+            <Animated.View entering={enter(3)}>
+              <ListSection header="Remarks">
+                <View style={styles.note}>
+                  <AppText variant="body" selectable>
+                    {record.remarks}
+                  </AppText>
+                </View>
+              </ListSection>
+            </Animated.View>
+          )}
+        </>
+      )}
+    </Page>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+/** One punch on the day's timeline: a node in the punch's colour, joined to the next. */
+function TimelineItem({ punch, time, last }: { punch: Punch; time: string; last: boolean }) {
+  const { colors } = useTheme();
+  const detail = punchDetail(punch);
+
   return (
-    <View style={{ alignItems: 'center', flex: 1 }}>
-      <AppText variant="label">{value}</AppText>
-      <AppText variant="caption" faint style={{ textAlign: 'center' }}>
-        {label}
-      </AppText>
+    <View style={styles.item} accessible accessibilityLabel={`${PUNCH_TIMELINE_LABEL[punch.type]} at ${time}. ${detail}`}>
+      <View style={styles.rail}>
+        <ToneWell icon={PUNCH_META[punch.type].icon} color={PUNCH_META[punch.type].color} size={32} />
+        {!last && <View style={[styles.connector, { backgroundColor: colors.separator }]} />}
+      </View>
+      <View style={[styles.itemBody, !last && styles.itemGap]}>
+        <View style={styles.itemTitle}>
+          <AppText variant="headline" style={styles.flex}>
+            {PUNCH_TIMELINE_LABEL[punch.type]}
+          </AppText>
+          <AppText variant="subheadline" weight="medium" tone="secondary" numeric>
+            {time}
+          </AppText>
+        </View>
+        {detail !== '' && (
+          <AppText variant="footnote" tone="secondary" numberOfLines={2}>
+            {detail}
+          </AppText>
+        )}
+      </View>
     </View>
   );
 }
@@ -173,3 +208,20 @@ function punchDetail(punch: Punch): string {
 
   return [punch.note, place, punch.offline ? 'Sent after being offline' : null].filter(Boolean).join(' · ');
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  hero: { gap: 12 },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  metric: { width: '47%', flexGrow: 1, borderRadius: 14, borderCurve: 'continuous', padding: 12, gap: 2 },
+  note: { padding: 16 },
+  timeline: { paddingHorizontal: 16, paddingVertical: 14 },
+  item: { flexDirection: 'row', gap: 12 },
+  rail: { alignItems: 'center' },
+  connector: { width: 2, flex: 1, borderRadius: 1, marginVertical: 3, minHeight: 14 },
+  itemBody: { flex: 1, paddingTop: 5, gap: 2 },
+  itemGap: { paddingBottom: 18 },
+  itemTitle: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  photo: { width: '100%', aspectRatio: 4 / 3 },
+});

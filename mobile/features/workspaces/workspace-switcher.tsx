@@ -6,53 +6,57 @@
  * tap — the server issues a token bound to the chosen company; no re-auth.
  *
  * Visual language: companies render as rounded *squares* to set them apart from
- * people, who are always *circles* (avatars) elsewhere. The active workspace is the
- * one ringed and tinted in teal — the same job teal does on the ERP's sidebar.
+ * people, who are always *circles* (avatars) elsewhere. The active workspace carries
+ * the checkmark in a pick-one list, as iOS marks a chosen row.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { Icon } from '@/components/ui/icon';
+import { ListRow, ListSection } from '@/components/ui/list';
 import { Sheet } from '@/components/ui/sheet';
-import { useToast } from '@/components/ui/toast';
 import { AppText } from '@/components/ui/text';
+import { Touchable } from '@/components/ui/touchable';
+import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth';
+import { palette } from '@/theme/tokens';
 import { useTheme } from '@/theme/theme';
 import type { AuthOrganization } from '@/types/api';
 
-/** A company mark — rounded square with an initials fallback (cf. round avatars for people). */
+/** A company mark — a rounded square with an initials fallback (cf. round avatars for people). */
 export function CompanyLogo({
   uri,
   initials,
-  size = 44,
-  active,
+  size = 40,
 }: {
   uri?: string | null;
   initials?: string;
   size?: number;
-  active?: boolean;
 }) {
-  const { colors, radius } = useTheme();
-
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: radius.md,
-        backgroundColor: colors.accentSoft,
+        borderRadius: size * 0.26,
+        borderCurve: 'continuous',
+        // The brand navy, whatever the scheme: a company's monogram is a brand mark.
+        backgroundColor: palette.navy,
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        borderWidth: active ? 2 : 0,
-        borderColor: colors.accent,
       }}
     >
       {uri ? (
         <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
       ) : (
-        <AppText variant="label" style={{ color: colors.accentText, fontSize: size * 0.34 }}>
+        <AppText
+          weight="semibold"
+          color={palette.white}
+          maxFontSizeMultiplier={1}
+          style={{ fontSize: size * 0.36, lineHeight: size * 0.44, letterSpacing: 0.4 }}
+        >
           {(initials ?? '??').toUpperCase()}
         </AppText>
       )}
@@ -60,50 +64,36 @@ export function CompanyLogo({
   );
 }
 
-/** Compact tappable company badge for screen headers; hints at switching when more than one organisation exists. */
+/** Compact tappable company badge for a page header; hints at switching when more than one organisation exists. */
 export function WorkspaceChip({ onPress }: { onPress: () => void }) {
   const { organization, organizations } = useAuth();
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
 
   if (!organization) return null;
 
   return (
-    <Pressable
+    <Touchable
       onPress={onPress}
+      haptic="light"
+      scaleTo={0.95}
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={`Workspace: ${organization.name}`}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 5,
-        paddingLeft: 5,
-        paddingRight: 10,
-        borderRadius: radius.pill,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
-        opacity: pressed ? 0.9 : 1,
-      })}
+      accessibilityHint={organizations.length > 1 ? 'Switches to another company' : undefined}
+      style={[styles.chip, { backgroundColor: colors.fill }]}
     >
-      <CompanyLogo uri={organization.logo} initials={organization.initials} size={26} />
-      <AppText variant="caption" style={{ fontWeight: '700', maxWidth: 130 }} numberOfLines={1}>
+      <CompanyLogo uri={organization.logo} initials={organization.initials} size={22} />
+      <AppText variant="footnote" weight="semibold" numberOfLines={1} style={styles.chipName}>
         {organization.name}
       </AppText>
-      <Ionicons
-        name={organizations.length > 1 ? 'swap-horizontal' : 'chevron-down'}
-        size={14}
-        color={colors.textMuted}
-      />
-    </Pressable>
+      <Icon name="chevronDown" size={11} color={colors.textSecondary} weight="bold" />
+    </Touchable>
   );
 }
 
 /** The full workspace list, as a bottom sheet. */
 export function WorkspaceSwitcher({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { organization, organizations, switchTo } = useAuth();
-  const { colors, spacing, radius } = useTheme();
   const toast = useToast();
   const [switching, setSwitching] = useState<number | null>(null);
 
@@ -124,45 +114,48 @@ export function WorkspaceSwitcher({ visible, onClose }: { visible: boolean; onCl
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Your companies">
-      <View style={{ gap: spacing.sm }}>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      dismissible={switching === null}
+      title="Your companies"
+      message={
+        organizations.length > 1
+          ? 'Switch the company you are working in. Your sign-in stays the same.'
+          : 'This account belongs to one company.'
+      }
+    >
+      <ListSection raised leadingWidth={36}>
         {organizations.map((org) => {
           const active = org.id === organization?.id;
-          const busy = switching === org.id;
 
           return (
-            <Pressable
+            <ListRow
               key={org.id}
+              title={org.name}
+              subtitle={active ? 'Current workspace' : undefined}
+              leading={<CompanyLogo uri={org.logo} initials={org.initials} size={36} />}
               onPress={() => onSwitch(org)}
-              disabled={active || switching !== null}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: spacing.md,
-                padding: spacing.md,
-                borderRadius: radius.lg,
-                borderWidth: 1,
-                borderColor: active ? colors.accent : colors.border,
-                backgroundColor: active ? colors.accentSoft : colors.card,
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-            >
-              <CompanyLogo uri={org.logo} initials={org.initials} active={active} />
-              <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
-                {org.name}
-              </AppText>
-              {busy ? (
-                <ActivityIndicator color={colors.accentText} />
-              ) : active ? (
-                <Ionicons name="checkmark-circle" size={22} color={colors.accentText} />
-              ) : (
-                <Ionicons name="swap-horizontal" size={20} color={colors.textFaint} />
-              )}
-            </Pressable>
+              selected={active}
+              accessory={switching === org.id ? <ActivityIndicator /> : undefined}
+            />
           );
         })}
-      </View>
+      </ListSection>
     </Sheet>
   );
 }
+
+const styles = StyleSheet.create({
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 7,
+    paddingVertical: 5,
+    paddingLeft: 5,
+    paddingRight: 10,
+    borderRadius: 999,
+  },
+  chipName: { maxWidth: 170 },
+});

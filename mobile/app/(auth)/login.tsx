@@ -1,34 +1,33 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
-import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  View,
-} from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { useRef, useState } from 'react';
+import { StyleSheet, View, type TextInput } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
-import { BrandLockup, EntryScreen, entryColors as colors } from '@/components/ui/entry-screen';
+import { BrandLockup, EntryScreen, entryColors } from '@/components/ui/entry-screen';
 import { Input } from '@/components/ui/input';
 import { AppText } from '@/components/ui/text';
+import { Touchable } from '@/components/ui/touchable';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { enter } from '@/lib/motion';
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const toast = useToast();
+  const passwordRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
+  const ready = email.trim() !== '' && password !== '';
+
   const onSubmit = async () => {
+    if (!ready || submitting) return;
+
     setErrors({});
     setSubmitting(true);
 
@@ -52,94 +51,87 @@ export default function LoginScreen() {
 
   return (
     <EntryScreen>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Animated.View entering={FadeIn.duration(500)} style={{ marginBottom: 40 }}>
-            <BrandLockup markWidth={168} tagline="Intelligent HR Management" />
-          </Animated.View>
+      <Animated.View entering={enter(0)} style={styles.brand}>
+        <BrandLockup markWidth={112} />
+      </Animated.View>
 
-          <Animated.View entering={FadeIn.duration(500).delay(150)} style={{ gap: 16 }}>
-            <View style={{ gap: 4 }}>
-              <AppText variant="heading">Welcome back</AppText>
-              <AppText variant="caption" muted>
-                Sign in to your SYNAPSE account.
-              </AppText>
-            </View>
+      <Animated.View entering={enter(1)} style={styles.heading}>
+        <AppText variant="title1" center>
+          Welcome back
+        </AppText>
+        <AppText variant="body" tone="secondary" center>
+          Sign in to clock in, file leave and see your records.
+        </AppText>
+      </Animated.View>
 
-            <Input
-              label="Email"
-              placeholder="you@company.com"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              value={email}
-              onChangeText={setEmail}
-              error={errors.email}
-              editable={!submitting}
-            />
+      <Animated.View entering={enter(2)} style={styles.form}>
+        <Input
+          label="Email"
+          icon="mail"
+          placeholder="you@company.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          autoComplete="email"
+          textContentType="username"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          value={email}
+          onChangeText={setEmail}
+          error={errors.email}
+          editable={!submitting}
+        />
 
-            <View style={{ position: 'relative' }}>
-              <Input
-                label="Password"
-                placeholder="••••••••"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                error={errors.password}
-                editable={!submitting}
-                onSubmitEditing={onSubmit}
-                returnKeyType="go"
-              />
-              <Pressable
-                onPress={() => setShowPassword((v) => !v)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                style={{ position: 'absolute', right: 14, top: 38 }}
-              >
-                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={colors.textFaint} />
-              </Pressable>
-            </View>
+        <Input
+          ref={passwordRef}
+          label="Password"
+          icon="lock"
+          placeholder="Your password"
+          secureToggle
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={onSubmit}
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+          editable={!submitting}
+        />
 
-            <Button
-              label="Sign in"
-              variant="secondary"
-              onPress={onSubmit}
-              loading={submitting}
-              disabled={!email || !password}
-              size="lg"
-              style={{ marginTop: 4 }}
-            />
-          </Animated.View>
+        <Button
+          label="Sign in"
+          onPress={onSubmit}
+          loading={submitting}
+          disabled={!ready}
+          size="lg"
+          style={styles.submit}
+        />
+      </Animated.View>
 
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 28,
-            }}
-          >
-            <AppText variant="caption" color={colors.textMuted}>
-              New here?
+      <View style={styles.spacer} />
+
+      <Animated.View entering={enter(3)} style={styles.footer}>
+        <AppText variant="subheadline" tone="secondary">
+          New to SYNAPSE?
+        </AppText>
+        <Link href="/(auth)/register" replace asChild>
+          <Touchable feedback="opacity" hitSlop={10} accessibilityRole="link">
+            <AppText variant="subheadline" weight="semibold" color={entryColors.brandText}>
+              Create an account
             </AppText>
-            <Link href="/(auth)/register" replace asChild>
-              <Pressable hitSlop={8}>
-                <AppText variant="caption" color={colors.secondaryText} style={{ fontWeight: '700' }}>
-                  Create an account
-                </AppText>
-              </Pressable>
-            </Link>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </Touchable>
+        </Link>
+      </Animated.View>
     </EntryScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  brand: { alignItems: 'center', marginTop: 28, marginBottom: 36 },
+  heading: { gap: 6, marginBottom: 28 },
+  form: { gap: 16 },
+  submit: { marginTop: 8 },
+  spacer: { flexGrow: 1, minHeight: 32 },
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+});

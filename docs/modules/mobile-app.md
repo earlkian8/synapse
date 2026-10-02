@@ -1,6 +1,6 @@
 # Mobile app (employee companion)
 
-The employee-facing companion to the web ERP, living in `mobile/` (Expo SDK 54 +
+The employee-facing companion to the web ERP, living in `mobile/` (Expo SDK 57 +
 expo-router + TypeScript). It talks to the same backend over the
 token-authenticated API in `server/routes/api.php` (Sanctum personal access
 tokens), and mirrors the web brand so the two read as one product. See
@@ -60,11 +60,16 @@ every `useQuery` screen refetches against the new company's tenant context.
   that, a single code field takes either an invitation code or the company join
   code (it tries the more specific one first). Pending requests are shown so nobody
   asks twice. Company creation is deliberately absent — that lives on the web app.
-- **Home** — greeting, today's clock state, quick actions, leave-balance
-  mini-cards, latest award, pending-request badge.
-- **Clock (DTR, the hero)** — live clock, today's shift, a state-driven primary
+- **Home** — the date and a greeting as the large title, the workspace chip, and
+  today on a navy card: where the day stands, hours worked against the shift, and the
+  next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards),
+  requests awaiting approval, a snapping carousel of leave balances, and the latest
+  award.
+- **Clock (DTR, the hero)** — a clock face: a ring that fills as the shift is worked,
+  around the live time and the running time on the clock, then a state-driven primary
   button (Time In → Break → Time Out) driven by the server's `allowed` /
-  `next_expected`. Captures real GPS (`expo-location`) and an optional selfie
+  `next_expected`, today's in/out/worked, and the shift. Confirming a punch is a sheet
+  (location, optional selfie), and a recorded punch lands with a full-screen check. Captures real GPS (`expo-location`) and an optional selfie
   (`expo-image-picker`), submitted as multipart to `POST /attendance/punch`
   through the canonical `AttendanceClock`. Live worked-hours counter + status chip.
   **Punching offline** (ADR 0040): a punch that cannot reach the server — or any punch
@@ -78,14 +83,17 @@ every `useQuery` screen refetches against the new company's tenant context.
   enters it instead. A resend is harmless: the same client id returns
   `duplicate`. The day screen shows each punch's site and distance, and whether it was
   sent offline.
-- **Attendance** — month calendar with status dots + legend, a metrics summary
-  card (present/late/absent, hours rendered, late/OT minutes) from
-  `GET /attendance/summary`, a list view, and a per-day punch-timeline detail.
-- **Leave** — balances per type, a file-leave form (type → dates → half-day →
-  reason) with server-computed days and inline 422 errors, history with status
-  pills, and a detail screen with cancel.
-- **Profile + Awards** — the 201 profile (government IDs masked, salary omitted)
-  and the employee's recognitions.
+- **Attendance** — a month switcher (swipe the calendar sideways to turn the month), a
+  summary card (a bar of on-time/late/absent/on-leave days, hours rendered, late and
+  overtime) from `GET /attendance/summary`, a calendar whose recorded days sit on a wash
+  of their status colour, a list view, and a per-day sheet with the punch timeline.
+- **Leave** — balances per type with bars, a file-leave form sheet (type → dates →
+  half-day → reason; iOS's compact date picker inline, Android's calendar dialog) with
+  server-computed days and inline 422 errors, history filtered by a segmented control,
+  and a detail screen whose cancel is confirmed by a system alert.
+- **Profile + Awards** — the 201 profile as inset grouped lists (government IDs
+  masked, salary omitted), the workspace, appearance (light, dark, match phone), and
+  sign-out behind a system alert; and the employee's recognitions.
 
 ## API (all behind `auth:sanctum`, self-scoped)
 
@@ -125,27 +133,53 @@ Against a deployed server ([Deployment](../deployment.md)), set
   `/me` on boot. `login` / `switchTo` / `logout` / `refresh`; `switchTo` swaps in a
   token bound to the chosen company. `lib/active-workspace.ts` republishes the active
   org id so `lib/use-query.ts` refetches on a switch.
-- `theme/` — design tokens, light + dark, kept in lock-step with the web app's
-  `resources/css/app.css`. **White is the app's primary colour**, as it is in the ERP's
-  signed-in shell: white page and cards separated by the ERP's own neutral hairlines
-  (its `oklch()` greys converted to sRGB — the Tailwind `neutral` ramp), near-black
-  `primary` for anything you press, and the brand teal `#0ABFBF` held back for one job,
-  marking what is active. Navy `#0F2044` is the **secondary** colour (`secondary` /
-  `onSecondary` / `secondaryText`, lifted to `#4064A8` / `#A8B9E6` after dark): the
-  SYNAPSE wordmark, and the main action and links on the entry screens. No screen is a
-  navy field any more.
-  `theme/color.ts` carries the colour maths: sRGB ⇄ OKLCH, WCAG contrast, and
+- `theme/` — design tokens, light + dark ([ADR 0064](../decisions/0064-the-mobile-app-is-designed-as-an-ios-app.md)).
+  **The structure is iOS's, the colours are the brand's.** Content sits on the grouped
+  background (`#F2F2F7` by day, true black at night) in cards with continuous corners
+  and no edge (`squircle`), and the dark scheme is iOS's (`#1C1C1E` cards, `#2C2C2E`
+  raised). Navy `#0F2044` is the brand's weight: the one `hero` surface on a screen and
+  the `primary` action (teal at night, where navy on black disappears). Teal `#0ABFBF`
+  is the `tint`: links, selection, switches, progress, the punch button. Status tones are
+  Apple's system colours. Every reading colour clears WCAG AA on page and card;
+  `textTertiary` is for glyphs and placeholders only (3:1). Type is the HIG scale set in
+  Inter (`fonts`, `typography`), a point under Apple's sizes with Inter's own tracking
+  curve. `theme/color.ts` carries the colour maths: sRGB ⇄ OKLCH, WCAG contrast, and
   `readableOn()`, which walks a colour's lightness until it can legibly carry text on a
   given surface. Status tones and the colours HR picks for leave and award types are
-  rendered through `readable()` from `useTheme()` rather than painted raw, so a
-  tenant-chosen colour can never land as 2.5:1 text on a white card. `FixedScheme` pins
-  one subtree to a scheme — `EntryScreen` uses it.
-- `components/ui/` — the shared kit (Button, Card, Pill, Input, Sheet, Toast, …), plus:
-  - `entry-screen.tsx`: `EntryScreen`, the ground of the four entry screens (cold-start
+  rendered through `readable()` from `useTheme()` rather than painted raw. `FixedScheme`
+  pins one subtree to a scheme — `EntryScreen` uses it. The chosen appearance is handed
+  to the platform (`Appearance.setColorScheme`) so the keyboard, alerts and date picker
+  match.
+- `lib/motion.ts` — the motion vocabulary: springs by job (`press`, `snappy`, `gentle`,
+  `pop`), `enter(index)` (a 12pt rise with a 40ms stagger), and `fadeIn`. Reanimated
+  follows the phone's Reduce Motion setting.
+- `components/ui/` — the shared kit:
+  - `page.tsx`: `Page`, every screen. A large title that collapses into a frosted
+    navigation bar as it scrolls under it, pull to refresh, `back`, `left`/`right` bar
+    items (`BarButton`, `BarTextButton`), `modal` for sheets, and `tabInset` to clear the
+    floating tab bar. Its scroll view is `react-native-keyboard-controller`'s
+    `KeyboardAwareScrollView`: a focused field is lifted clear of the keyboard on iOS and
+    Android, and dragging the page dismisses the keyboard.
+  - `tab-bar.tsx`: the floating capsule tab bar (Liquid Glass on iOS 26, blur before it,
+    a fill on Android) with a sliding selection pill and the queued-punch badge;
+    `useTabBarInset()`.
+  - `list.tsx`: `ListSection` / `ListRow`, inset grouped lists (headers, footers, icon
+    wells, values, chevrons, checkmarks, highlight on press, `raised` inside sheets).
+  - `text.tsx` (`AppText`: HIG variants, `tone`, `weight`, `numeric`; maps any
+    `fontWeight` to its Inter file), `icon.tsx` (`Icon`: one name → an SF Symbol on iOS
+    and a Material Symbol on Android, via `expo-symbols`), `touchable.tsx` (the spring
+    press and haptics behind everything pressable), `material.tsx` (glass/blur/fill).
+  - `button.tsx` (iOS button styles: `primary`, `tint`, `tinted`, `gray`, `plain`,
+    `destructive`), `input.tsx` (filled field, animated focus edge, `secureToggle`,
+    `ref` for focus chaining), `sheet.tsx` (springs up, drag down to dismiss,
+    keyboard-aware), `toast.tsx` (a frosted banner dropped from the top; flick it away),
+    `segmented.tsx` (sliding thumb), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
+    `EmptyState`/`ErrorState`, `ProgressBar`, `Section`, `ToneWell`.
+  - `entry-screen.tsx`: `EntryScreen`, the ground of the entry screens (cold-start
     splash, sign-in, register, workspace picker). It is white and light-scheme whatever
-    the phone is set to, with dark status-bar icons. `BrandLockup` is the mark over the
-    navy wordmark, and `entryColors` gives the light palette to a screen reading colours
-    outside the ground. The main action there is `Button variant="secondary"` (navy).
+    the phone is set to, keyboard-aware, with dark status-bar icons. `BrandLockup` is
+    the mark over the navy wordmark, and `entryColors` gives the light palette to a
+    screen reading colours outside the ground.
   - `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep
     navy and vanishes on a dark ground, so `Logo` takes the original on light surfaces
     and a reversed one (white figure, teal network) on dark; the entry screens pass

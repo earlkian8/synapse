@@ -5,20 +5,22 @@
  * org-scoped token) and the root navigator drops into the app shell.
  *
  * Companies render as rounded squares here, the system-wide mark for an
- * organisation (people are always circles). Visual language matches the sign-in
- * screen: the white entry ground, navy second — here the workspace tile — and teal
- * marking the workspace already open, as teal marks the active thing everywhere.
+ * organisation (people are always circles), in an inset grouped list on the
+ * entry screens' light ground, with the workspace already open marked as current.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { EntryScreen, entryColors as colors } from '@/components/ui/entry-screen';
-import { useToast } from '@/components/ui/toast';
+import { Icon } from '@/components/ui/icon';
+import { ListRow, ListSection } from '@/components/ui/list';
 import { AppText } from '@/components/ui/text';
+import { Touchable } from '@/components/ui/touchable';
+import { useToast } from '@/components/ui/toast';
 import { CompanyLogo } from '@/features/workspaces/workspace-switcher';
 import { useAuth } from '@/lib/auth';
+import { enter } from '@/lib/motion';
 import type { AuthOrganization } from '@/types/api';
 
 export default function SelectWorkspaceScreen() {
@@ -41,89 +43,70 @@ export default function SelectWorkspaceScreen() {
   };
 
   return (
-    <EntryScreen>
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
-      >
-        <Animated.View entering={FadeIn.duration(450)} style={{ marginBottom: 28 }}>
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 18,
-              backgroundColor: colors.secondary,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 18,
-            }}
-          >
-            <Ionicons name="grid" size={26} color={colors.onSecondary} />
-          </View>
-          <AppText variant="title">Choose a workspace</AppText>
-          <AppText variant="caption" muted style={{ marginTop: 6 }}>
-            Pick the company you’d like to work in. You can switch anytime from your
-            profile.
-          </AppText>
-        </Animated.View>
+    <EntryScreen grouped contentStyle={styles.content}>
+      <Animated.View entering={enter(0)} style={styles.heading}>
+        <View style={[styles.mark, { backgroundColor: colors.primary }]}>
+          <Icon name="company" size={26} color={colors.onPrimary} />
+        </View>
+        <AppText variant="title1" center>
+          Choose a workspace
+        </AppText>
+        <AppText variant="body" tone="secondary" center>
+          Pick the company you’d like to work in. You can switch anytime from Home or your profile.
+        </AppText>
+      </Animated.View>
 
-        <Animated.View entering={FadeIn.duration(450).delay(120)} style={{ gap: 10 }}>
+      <Animated.View entering={enter(1)}>
+        <ListSection leadingWidth={40} footer={`${organizations.length} companies on this account`}>
           {organizations.map((org) => {
-            const active = org.id === organization?.id;
             const busy = entering === org.id;
 
             return (
-              <Pressable
+              <ListRow
                 key={org.id}
-                onPress={() => onEnter(org)}
-                disabled={entering !== null}
-                accessibilityRole="button"
+                title={org.name}
+                subtitle={org.id === organization?.id ? 'Current workspace' : undefined}
+                leading={<CompanyLogo uri={org.logo} initials={org.initials} size={40} />}
+                onPress={entering === null ? () => onEnter(org) : undefined}
+                chevron={!busy}
+                accessory={busy ? <ActivityIndicator color={colors.textSecondary} /> : undefined}
                 accessibilityLabel={`Open ${org.name}`}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: 14,
-                  borderRadius: 18,
-                  // The ERP separates a card from the page by its edge, not a shade.
-                  backgroundColor: pressed ? colors.cardAlt : colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: entering !== null && !busy ? 0.6 : 1,
-                })}
-              >
-                <CompanyLogo uri={org.logo} initials={org.initials} active={active} />
-                <View style={{ flex: 1 }}>
-                  <AppText variant="label" numberOfLines={1}>
-                    {org.name}
-                  </AppText>
-                  {active && (
-                    <AppText variant="caption" color={colors.accentText} style={{ marginTop: 2 }}>
-                      Current workspace
-                    </AppText>
-                  )}
-                </View>
-                {busy ? (
-                  <ActivityIndicator color={colors.secondaryText} />
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
-                )}
-              </Pressable>
+              />
             );
           })}
-        </Animated.View>
+        </ListSection>
+      </Animated.View>
 
-        <Pressable
-          onPress={logout}
-          hitSlop={10}
-          disabled={entering !== null}
-          accessibilityRole="button"
-          style={{ marginTop: 28, alignSelf: 'center' }}
-        >
-          <AppText variant="caption" muted style={{ fontWeight: '600' }}>
-            Sign out
-          </AppText>
-        </Pressable>
-      </ScrollView>
+      <View style={styles.spacer} />
+
+      <Touchable
+        feedback="opacity"
+        onPress={logout}
+        hitSlop={10}
+        disabled={entering !== null}
+        accessibilityRole="button"
+        style={styles.signOut}
+      >
+        <AppText variant="subheadline" weight="medium" tone="secondary">
+          Sign out
+        </AppText>
+      </Touchable>
     </EntryScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: 16 },
+  heading: { alignItems: 'center', gap: 6, marginTop: 32, marginBottom: 28, paddingHorizontal: 12 },
+  mark: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  spacer: { flexGrow: 1, minHeight: 32 },
+  signOut: { alignSelf: 'center' },
+});

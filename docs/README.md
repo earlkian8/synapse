@@ -154,6 +154,7 @@ commit history rather than repeating them.
 - [0061 — One container image, with Supabase for the database and the files](./decisions/0061-one-container-image-with-supabase-for-data-and-files.md)
 - [0062 — A Help Center in the app, written as Markdown and read for the reader](./decisions/0062-a-help-center-read-for-the-reader.md)
 - [0063 — A Privacy Policy and Terms of Service that describe the system and name its operator](./decisions/0063-privacy-policy-and-terms-of-service.md)
+- [0064 — The mobile app is designed as an iOS app, in the brand's colours](./decisions/0064-the-mobile-app-is-designed-as-an-ios-app.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -267,3 +268,4 @@ commit history rather than repeating them.
 - [2026-10-01 — The docs catch up with the code](./changelog/2026-10-01-03-docs-catch-up.md)
 - [2026-10-01 — A Help Center: the user manual, in the app](./changelog/2026-10-01-04-help-center.md)
 - [2026-10-01 — A Privacy Policy and Terms of Service](./changelog/2026-10-01-05-privacy-policy-and-terms.md)
+- [2026-10-02 — The mobile app, redesigned as an iOS app](./changelog/2026-10-02-01-mobile-ios-redesign.md)

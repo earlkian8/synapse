@@ -1,25 +1,31 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Directions, Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
+import { EmptyState, ErrorState } from '@/components/ui/empty-state';
+import { Icon } from '@/components/ui/icon';
+import { ListRow, ListSection } from '@/components/ui/list';
+import { Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
-import { Screen, ScreenHeader } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
+import { Touchable } from '@/components/ui/touchable';
 import { attendanceApi } from '@/features/attendance/api';
 import { MonthCalendar } from '@/features/attendance/components/month-calendar';
 import { useAuth } from '@/lib/auth';
-import { formatMinutes, formatShortDate, formatTime } from '@/lib/format';
+import { formatMinutes, formatMonthYear, formatTime, parseDateOnly } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
 import type { AttendanceRecord, AttendanceStatus, AttendanceSummary } from '@/types/api';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const SHORT_DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 function monthRange(month: Date) {
   const y = month.getFullYear();
@@ -45,7 +51,7 @@ export default function AttendanceScreen() {
   const { from, to } = monthRange(month);
   const monthKey = `${month.getFullYear()}-${month.getMonth()}`;
 
-  const { data, loading, refreshing, refresh } = useQuery<AttData>(async () => {
+  const { data, loading, refreshing, refresh, error, reload } = useQuery<AttData>(async () => {
     const [records, summary] = await Promise.all([attendanceApi.records(from, to), attendanceApi.summary(from, to)]);
     return { records: records.data, summary };
   }, [monthKey]);
@@ -60,165 +66,233 @@ export default function AttendanceScreen() {
     return month.getFullYear() === t.getFullYear() && month.getMonth() === t.getMonth();
   })();
 
-  const shiftMonth = (delta: number) => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+  const shiftMonth = (delta: number) => {
+    if (delta > 0 && isCurrentMonth) return;
+    setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
+  };
+
+  const thisMonth = () => {
+    const t = new Date();
+    setMonth(new Date(t.getFullYear(), t.getMonth(), 1));
+  };
+
+  // Swipe the calendar sideways to turn the month, as in Calendar.
+  const turn = Gesture.Exclusive(
+    Gesture.Fling().direction(Directions.LEFT).runOnJS(true).onEnd(() => shiftMonth(1)),
+    Gesture.Fling().direction(Directions.RIGHT).runOnJS(true).onEnd(() => shiftMonth(-1)),
+  );
 
   const summary = data?.summary;
   const metrics = summary
     ? [
-        { label: 'Present', value: summary.status_counts.present + summary.status_counts.late, color: status.present },
+        { label: 'On time', value: summary.status_counts.present, color: status.present },
         { label: 'Late', value: summary.status_counts.late, color: status.late },
         { label: 'Absent', value: summary.status_counts.absent, color: status.absent },
-        { label: 'On Leave', value: summary.status_counts.on_leave, color: status.leave },
+        { label: 'On leave', value: summary.status_counts.on_leave, color: status.leave },
       ]
     : [];
+  const total = metrics.reduce((sum, metric) => sum + metric.value, 0);
+
+  const openDay = (date: string) => router.push({ pathname: '/attendance/[date]', params: { date } });
 
   return (
-    <Screen>
-      <ScreenHeader title="Attendance" subtitle="Your daily time records" />
-
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
-      >
-        {/* Month switcher */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <NavButton icon="chevron-back" onPress={() => shiftMonth(-1)} />
-          <AppText variant="heading">
-            {MONTHS[month.getMonth()]} {month.getFullYear()}
-          </AppText>
-          <NavButton icon="chevron-forward" onPress={() => shiftMonth(1)} disabled={isCurrentMonth} />
+    <Page title="Attendance" refreshing={refreshing} onRefresh={refresh} tabInset>
+      {/* Month switcher */}
+      <View style={styles.switcher}>
+        <AppText variant="title3" accessibilityRole="header" accessibilityLiveRegion="polite">
+          {formatMonthYear(month)}
+        </AppText>
+        <View style={styles.switcherActions}>
+          {!isCurrentMonth && <Button label="Today" variant="tinted" size="sm" fullWidth={false} onPress={thisMonth} />}
+          <StepButton icon="chevronLeft" label="Previous month" onPress={() => shiftMonth(-1)} />
+          <StepButton icon="chevronRight" label="Next month" onPress={() => shiftMonth(1)} disabled={isCurrentMonth} />
         </View>
+      </View>
 
-        {/* Metrics summary */}
-        {loading ? (
-          <Skeleton height={150} radius={18} />
-        ) : (
-          <Card elevated>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {metrics.map((metric) => (
-                <View key={metric.label} style={{ alignItems: 'center', flex: 1 }}>
-                  <AppText variant="title" style={{ color: readable(metric.color), fontVariant: ['tabular-nums'] }}>
-                    {metric.value}
-                  </AppText>
-                  <AppText variant="caption" muted>
-                    {metric.label}
-                  </AppText>
-                </View>
-              ))}
-            </View>
-            <View style={{ height: 1, backgroundColor: colors.hairline, marginVertical: spacing.md }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <MiniStat label="Hours rendered" value={formatMinutes(summary?.worked_minutes ?? 0)} />
-              <MiniStat label="Late" value={formatMinutes(summary?.late_minutes ?? 0)} />
-              <MiniStat label="Overtime" value={formatMinutes(summary?.overtime_minutes ?? 0)} />
-            </View>
-          </Card>
-        )}
+      {error && !data ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : !data ? (
+        <>
+          <Skeleton height={168} radius={20} />
+          <Skeleton height={34} radius={10} />
+          <Skeleton height={330} radius={20} />
+        </>
+      ) : (
+        <View style={[styles.stack, { opacity: loading ? 0.55 : 1 }]}>
+          {/* Metrics summary */}
+          <Animated.View entering={enter(0)}>
+            <Card style={{ gap: spacing.lg }}>
+              <View
+                style={[styles.distribution, { backgroundColor: colors.fill }]}
+                accessibilityRole="image"
+                accessibilityLabel={metrics.map((metric) => `${metric.value} ${metric.label}`).join(', ')}
+              >
+                {total > 0 &&
+                  metrics
+                    .filter((metric) => metric.value > 0)
+                    .map((metric) => (
+                      <View
+                        key={metric.label}
+                        style={{ flex: metric.value, backgroundColor: readable(metric.color, colors.card, 3) }}
+                      />
+                    ))}
+              </View>
 
-        <Segmented
-          options={[
-            { value: 'calendar', label: 'Calendar' },
-            { value: 'list', label: 'List' },
-          ]}
-          value={view}
-          onChange={setView}
-        />
+              <View style={styles.metrics}>
+                {metrics.map((metric) => (
+                  <View key={metric.label} style={styles.metric}>
+                    <AppText variant="title2" numeric>
+                      {metric.value}
+                    </AppText>
+                    <View style={styles.metricLabel}>
+                      <View style={[styles.dot, { backgroundColor: readable(metric.color, colors.card, 3) }]} />
+                      <AppText variant="caption" tone="secondary" numberOfLines={1}>
+                        {metric.label}
+                      </AppText>
+                    </View>
+                  </View>
+                ))}
+              </View>
 
-        {loading ? (
-          <Skeleton height={280} radius={18} />
-        ) : view === 'calendar' ? (
-          <Card>
-            <MonthCalendar
-              month={month}
-              byDate={byDate}
-              onSelectDay={(date) => router.push({ pathname: '/attendance/[date]', params: { date } })}
-            />
-            <View style={{ height: 1, backgroundColor: colors.hairline, marginVertical: spacing.md }} />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {(['present', 'late', 'absent', 'on_leave', 'holiday', 'day_off'] as AttendanceStatus[]).map((s) => {
-                const meta = attendanceMeta(s);
-                return (
-                  <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <View
-                      style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: readable(meta.color, colors.card, 3) }}
-                    />
-                    <AppText variant="caption" muted>
-                      {meta.label}
-                    </AppText>
+              <View style={[styles.hairline, { backgroundColor: colors.separator }]} />
+
+              <View style={styles.metrics}>
+                <MiniStat label="Hours rendered" value={formatMinutes(summary?.worked_minutes ?? 0)} />
+                <MiniStat label="Late" value={formatMinutes(summary?.late_minutes ?? 0)} />
+                <MiniStat label="Overtime" value={formatMinutes(summary?.overtime_minutes ?? 0)} />
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Segmented
+            options={[
+              { value: 'calendar', label: 'Calendar' },
+              { value: 'list', label: 'List' },
+            ]}
+            value={view}
+            onChange={setView}
+            accessibilityLabel="View"
+          />
+
+          {view === 'calendar' ? (
+            <Animated.View key="calendar" entering={FadeIn.duration(220)}>
+              <GestureDetector gesture={turn}>
+                <Card>
+                  <MonthCalendar month={month} byDate={byDate} onSelectDay={openDay} />
+                  <View style={[styles.hairline, { backgroundColor: colors.separator, marginVertical: spacing.md }]} />
+                  <View style={styles.legend}>
+                    {(['present', 'late', 'absent', 'on_leave', 'holiday', 'day_off'] as AttendanceStatus[]).map((s) => {
+                      const meta = attendanceMeta(s);
+                      return (
+                        <View key={s} style={styles.legendItem}>
+                          <View style={[styles.dot, { backgroundColor: readable(meta.color, colors.card, 3) }]} />
+                          <AppText variant="caption" tone="secondary">
+                            {meta.label}
+                          </AppText>
+                        </View>
+                      );
+                    })}
                   </View>
-                );
-              })}
-            </View>
-          </Card>
-        ) : (data?.records.length ?? 0) === 0 ? (
-          <EmptyState icon="calendar-outline" title="No records" message="No attendance was recorded this month." />
-        ) : (
-          <View style={{ gap: spacing.md }}>
-            {data?.records.map((record) => {
-              const meta = attendanceMeta(record.status);
-              return (
-                <Card
-                  key={record.work_date}
-                  onPress={() => router.push({ pathname: '/attendance/[date]', params: { date: record.work_date ?? '' } })}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-                >
-                  <View style={{ width: 46, alignItems: 'center' }}>
-                    <AppText variant="overline" faint>
-                      {formatShortDate(record.work_date).split(' ')[0]}
-                    </AppText>
-                    <AppText variant="title">{formatShortDate(record.work_date).split(' ')[1]}</AppText>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Pill label={meta.label} color={meta.color} dot />
-                    <AppText variant="caption" muted style={{ marginTop: 4 }}>
-                      {record.first_in_at ? `${formatTime(record.first_in_at, organization?.timezone)} – ${formatTime(record.last_out_at, organization?.timezone)}` : 'No punches'}
-                    </AppText>
-                  </View>
-                  <AppText variant="label" muted>
-                    {formatMinutes(record.worked_minutes)}
-                  </AppText>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
                 </Card>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-    </Screen>
+              </GestureDetector>
+            </Animated.View>
+          ) : data.records.length === 0 ? (
+            <EmptyState icon="calendar" title="No records" message="No attendance was recorded this month." />
+          ) : (
+            <Animated.View key="list" entering={FadeIn.duration(220)}>
+              <ListSection leadingWidth={38}>
+                {data.records.map((record) => {
+                  const meta = attendanceMeta(record.status);
+                  const date = record.work_date ? parseDateOnly(record.work_date) : null;
+
+                  return (
+                    <ListRow
+                      key={record.work_date}
+                      leading={
+                        <View style={styles.dateBlock}>
+                          <AppText variant="caption2" weight="semibold" tone="secondary">
+                            {date ? SHORT_DAYS[date.getDay()] : '—'}
+                          </AppText>
+                          <AppText variant="title3" numeric>
+                            {date ? date.getDate() : ''}
+                          </AppText>
+                        </View>
+                      }
+                      title={
+                        record.first_in_at
+                          ? `${formatTime(record.first_in_at, organization?.timezone)} – ${formatTime(record.last_out_at, organization?.timezone)}`
+                          : 'No punches'
+                      }
+                      subtitle={`${formatMinutes(record.worked_minutes)} worked`}
+                      accessory={<Pill label={meta.label} color={meta.color} />}
+                      onPress={() => openDay(record.work_date ?? '')}
+                    />
+                  );
+                })}
+              </ListSection>
+            </Animated.View>
+          )}
+        </View>
+      )}
+    </Page>
   );
 }
 
-function NavButton({ icon, onPress, disabled }: { icon: keyof typeof Ionicons.glyphMap; onPress: () => void; disabled?: boolean }) {
+function StepButton({
+  icon,
+  label,
+  onPress,
+  disabled,
+}: {
+  icon: 'chevronLeft' | 'chevronRight';
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
   const { colors } = useTheme();
+
   return (
-    <Pressable
+    <Touchable
       onPress={onPress}
       disabled={disabled}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: disabled ? 0.4 : 1,
-      }}
+      haptic="selection"
+      scaleTo={0.88}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      style={[styles.step, { backgroundColor: colors.fill }]}
     >
-      <Ionicons name={icon} size={20} color={colors.text} />
-    </Pressable>
+      <Icon name={icon} size={14} color={disabled ? colors.textTertiary : colors.tintText} weight="bold" />
+    </Touchable>
   );
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ alignItems: 'center', flex: 1 }}>
-      <AppText variant="label">{value}</AppText>
-      <AppText variant="caption" faint>
+    <View style={styles.metric} accessible accessibilityLabel={`${label}: ${value}`}>
+      <AppText variant="headline" numeric numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </AppText>
+      <AppText variant="caption" tone="secondary" numberOfLines={1}>
         {label}
       </AppText>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  stack: { gap: 24 },
+  switcher: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -6 },
+  switcherActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  step: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  distribution: { height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row', gap: 2 },
+  metrics: { flexDirection: 'row' },
+  metric: { flex: 1, alignItems: 'center', gap: 2 },
+  metricLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  hairline: { height: StyleSheet.hairlineWidth },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 8, justifyContent: 'center' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dateBlock: { width: 38, alignItems: 'center' },
+});

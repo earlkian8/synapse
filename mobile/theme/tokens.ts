@@ -1,108 +1,105 @@
 /**
- * SYNAPSE design tokens, in lock-step with the web ERP's `resources/css/app.css`.
+ * SYNAPSE design tokens: the brand's colours, laid out the way iOS lays out an app.
  *
- * The ERP is a white product. Its signed-in shell is `--background: oklch(1 0 0)` with
- * a neutral (zero-chroma) grey ramp for ink and hairlines, a near-black `--primary` for
- * anything you press, and the brand teal held back for one job: showing which thing is
- * active. Navy is the brand's **secondary** colour — the SYNAPSE wordmark and the main
- * action on the entry screens (sign-in, register, workspace picker, splash), which are
- * white like everything else, as the ERP's own sign-in is on a phone.
+ * The brand is the ERP's: navy `#0F2044` and teal `#0ABFBF`. The *structure* is Apple's
+ * Human Interface Guidelines. Content sits on a grouped background (`#F2F2F7` by day,
+ * true black at night), in white cards with continuous corners and no edge. Lists are
+ * inset and grouped, hairlines are the platform's own, and type follows the HIG scale,
+ * set in Inter (see `typography` below). A web app's habits make a phone app feel like
+ * a web page: white-on-white cards held apart by grey borders, heavy 800 headings,
+ * uppercase labels over everything. Those habits are gone.
  *
- * This app used to invert that: navy slabs on Home and Awards, a navy field behind
- * sign-in, teal as the fill for every primary control, and 500-level status colours set
- * as text on white (~2.5:1). It now follows the ERP. White is the surface; ink is the
- * type and the primary action; navy is second; teal marks selection; colour appears
- * only where it carries meaning.
+ * Colour is spent where it carries meaning:
+ * - **Navy** is the brand's weight. It fills the one hero surface on a screen (today's
+ *   card on Home, the clock face) and the main action on the entry screens.
+ * - **Teal** is the tint, the iOS idea of one interactive colour. Links, selection,
+ *   switches and progress are teal, and the punch button is filled with it.
+ * - **Status tones** are Apple's system colours, so a late day is the same orange the
+ *   phone uses everywhere else.
  *
- * Every value below is checked against WCAG AA (4.5:1 for text, 3:1 for a shape that
- * carries meaning on its own) on the surface it is used on. Colours that arrive from
- * the server — leave types, award types — can't be checked ahead of time, so they go
- * through `readable()` from {@link useTheme} instead. See ./color.ts.
+ * Every *reading* colour clears WCAG AA (4.5:1) on both the page and the card it sits
+ * on. `textTertiary` is the exception by design: it is for glyphs, placeholders and
+ * disabled labels, the job iOS gives tertiaryLabel, and it clears the 3:1 that
+ * non-text contrast asks for. Colours that arrive from the server (leave types,
+ * award types) can't be checked ahead of time, so they go through `readable()` from
+ * {@link useTheme} instead. See ./color.ts.
  */
-
-/**
- * The ERP's neutral ramp, converted from the `oklch()` values in `app.css`. These are
- * the same greys the web app paints with, to the byte.
- */
-const neutral = {
-  0: '#FFFFFF', //   oklch(1     0 0)  page and card
-  50: '#FAFAFA', //  oklch(0.985 0 0)  inverted ink
-  100: '#F5F5F5', // oklch(0.97  0 0)  recessed surface
-  150: '#EEEEEE', // oklch(0.95  0 0)  hairline inside a card
-  200: '#E5E5E5', // oklch(0.922 0 0)  card edge
-  400: '#A1A1A1', // oklch(0.708 0 0)  muted ink, dark scheme
-  500: '#737373', // oklch(0.556 0 0)  faint ink, light scheme
-  600: '#525252', // oklch(0.439 0 0)  muted ink, light scheme
-  800: '#262626', // oklch(0.269 0 0)  card edge, dark scheme
-  900: '#171717', // oklch(0.205 0 0)  primary; card, dark scheme
-  950: '#0A0A0A', // oklch(0.145 0 0)  ink; page, dark scheme
-} as const;
 
 export const palette = {
-  /** The brand navy — the secondary colour (16:1 on white). See `secondary` below. */
+  /** The brand navy (16:1 against white). */
   navy: '#0F2044',
-  /** Brand teal. A fill and a marker — it is too light to carry text on white. */
+  /** The navy hero's lighter corner, for its gradient. */
+  navyLift: '#1B3770',
+  /** Brand teal. A fill and a marker: too light to carry text on white. */
   teal: '#0ABFBF',
-  /** Teal deepened until a shape filled with it is visible on white (3:1) — the light
-   *  scheme's fill, since the brand teal on white is a 2.3:1 edge nobody can find. */
-  tealDeep: '#00A5A6',
-  /** Teal darkened until it clears 4.5:1 on a white card *and* on its own 12% tint. */
+  /** Teal darkened until a shape filled with it shows on the grouped page (3:1). */
+  tealDeep: '#009C9D',
+  /** Teal darkened until it clears 4.5:1 as type on the page and on a card. */
   tealInk: '#007C7D',
   white: '#FFFFFF',
-  neutral,
 } as const;
 
 /**
- * Status tones. These are fills and dots; nothing sets one as text directly — `Pill`
- * and the screens run them through `readable()` so the label darkens (light scheme) or
- * lifts (dark scheme) to stay legible on whatever it sits on.
+ * Status tones: Apple's system colours. These are fills and dots, and nothing sets one
+ * as text directly. `Pill` and the screens run them through `readable()`, so a label
+ * darkens (light scheme) or lifts (dark scheme) until it is legible on its surface.
  */
 export const status = {
-  present: '#10B981',
-  late: '#F59E0B',
-  absent: '#F43F5E',
-  leave: '#6366F1',
-  rest: '#94A3B8',
-  holiday: '#0EA5E9',
-  incomplete: '#F59E0B',
-  undertime: '#F59E0B',
+  present: '#34C759',
+  late: '#FF9500',
+  absent: '#FF3B30',
+  leave: '#5856D6',
+  rest: '#8E8E93',
+  holiday: '#32ADE6',
+  incomplete: '#FF9500',
+  undertime: '#FF9500',
   /** A day the company's attendance policy judged a half day (ADR 0038). */
-  halfDay: '#D946EF',
+  halfDay: '#AF52DE',
   overtime: '#0ABFBF',
 } as const;
 
 export type StatusKey = keyof typeof status;
 
 export type ColorScheme = {
-  /** Surfaces, lightest first. `background` and `card` match in the light scheme — the
-   *  ERP separates a card from the page with its edge, not with a shade. */
+  /** The grouped page: iOS's systemGroupedBackground. */
   background: string;
+  /** A card or list on that page: secondarySystemGroupedBackground. */
   card: string;
-  /** The recessed surface: segmented-control tracks, skeletons. Always *away* from `card`. */
-  cardAlt: string;
-  border: string;
-  hairline: string;
+  /** A surface raised above a card: sheets, the tab bar's fallback, popovers. */
+  elevated: string;
+  /** A translucent fill: segmented-control tracks, text fields, icon wells, skeletons. */
+  fill: string;
+  /** A stronger fill, for a pressed row or a selected well. */
+  fillStrong: string;
+  /** The platform hairline between rows and above bars. */
+  separator: string;
 
   text: string;
-  textMuted: string;
-  textFaint: string;
+  /** Secondary reading text: subtitles, values, captions (4.5:1+). */
+  textSecondary: string;
+  /** Glyphs, placeholders, chevrons and disabled labels only (3:1+), never reading text. */
+  textTertiary: string;
 
-  /** The thing you press. Near-black on white, inverting in the dark scheme — `--primary`. */
+  /** The interactive colour: links, selection, switches, focus (teal). */
+  tint: string;
+  /** The tint as type (4.5:1 on page and card). */
+  tintText: string;
+  /** A wash of the tint to sit an icon or initials on. */
+  tintSoft: string;
+  /** What goes on top of a `tint` fill. */
+  onTint: string;
+
+  /** The main action: navy by day, teal at night, where navy on black disappears. */
   primary: string;
   onPrimary: string;
 
-  /** The brand navy, second to white: a fill for the entry screens' main action, and
-   *  the wordmark and links as type. Lifted in the dark scheme, where navy on near-black
-   *  is a shape nobody can find. */
-  secondary: string; //     a fill — always visible on the surface (3:1)
-  onSecondary: string; //   what goes on top of a `secondary` fill
-  secondaryText: string; // navy as type (4.5:1)
+  /** The brand navy as type: the wordmark and the entry screens' links. */
+  brandText: string;
 
-  /** Teal, split by job. */
-  accent: string; //     fills, edges and rings — always visible on the surface (3:1)
-  accentSoft: string; // a tint to sit an icon or initials on
-  accentText: string; // teal as type (4.5:1)
-  onAccent: string; //   what goes on top of an `accent` fill
+  /** The hero surface's gradient, its type, and its secondary type. */
+  hero: readonly [string, string];
+  onHero: string;
+  onHeroSecondary: string;
 
   danger: string;
   onDanger: string;
@@ -112,97 +109,145 @@ export type ColorScheme = {
 };
 
 const light: ColorScheme = {
-  background: neutral[0],
-  card: neutral[0],
-  cardAlt: neutral[100],
-  border: neutral[200],
-  hairline: neutral[150],
+  background: '#F2F2F7',
+  card: '#FFFFFF',
+  elevated: '#FFFFFF',
+  fill: 'rgba(118, 118, 128, 0.12)',
+  fillStrong: 'rgba(118, 118, 128, 0.2)',
+  separator: '#C6C6C8',
 
-  text: neutral[950], //  19.8:1
-  textMuted: neutral[600], // 7.8:1
-  textFaint: neutral[500], //  4.7:1
+  text: '#0B0B0F', //          19.6:1 on the card
+  textSecondary: '#6C6C70', // 5.2:1 on the card, 4.7:1 on the page
+  textTertiary: '#8A8A8E', //  3.4:1 on the card, 3.1:1 on the page
 
-  primary: neutral[900], // 17.9:1 on white
-  onPrimary: neutral[50], // 17.2:1 on primary
+  tint: palette.tealDeep, //       3.0:1 as a shape on the page, 3.4:1 on a card
+  tintText: palette.tealInk, //    5.0:1 on the card, 4.5:1 on the page
+  tintSoft: 'rgba(10, 191, 191, 0.14)',
+  onTint: palette.navy, //         7.0:1 on the brand teal
 
-  secondary: palette.navy, // 16.0:1 on white
-  onSecondary: neutral[0], // 16.0:1 on navy
-  secondaryText: palette.navy,
+  primary: palette.navy, //        16:1 on the card
+  onPrimary: palette.white,
 
-  accent: palette.tealDeep, // 3.0:1 on white
-  accentSoft: 'rgba(10, 191, 191, 0.12)',
-  accentText: palette.tealInk, // 4.5:1 on white and on the 12% tint
-  onAccent: palette.navy, // 5.3:1 on the fill — the ERP's own teal/navy pairing
+  brandText: palette.navy,
 
-  danger: '#E12950', // 4.5:1 on white, and carries white type at 4.5:1
-  onDanger: neutral[0],
+  hero: [palette.navyLift, palette.navy],
+  onHero: palette.white,
+  onHeroSecondary: 'rgba(255, 255, 255, 0.72)', // 7.2:1 even at the gradient's light end
 
-  overlay: 'rgba(10, 10, 10, 0.45)',
-  shadow: neutral[950],
+  danger: '#D70015', // 5.4:1 on the card, 4.8:1 on the page; white type on it at 5.4:1
+  onDanger: palette.white,
+
+  overlay: 'rgba(0, 0, 0, 0.32)',
+  shadow: '#000000',
 };
 
 /**
- * The dark scheme is neutral too — the ERP's `.dark` block has zero chroma, so this is
- * not a navy app after dark either. `card` sits one rung above the page because a phone
- * has no hover state and RN shadows don't read on black; the edge alone isn't enough.
+ * The dark scheme is iOS's: a true-black page (which an OLED panel switches off),
+ * cards one step up at `#1C1C1E`, and sheets a step above that. Navy can't hold the
+ * main action on black, so teal takes it, with the brand's own navy type on top.
  */
 const dark: ColorScheme = {
-  background: neutral[950],
-  card: neutral[900],
-  cardAlt: neutral[950],
-  border: neutral[800],
-  hairline: '#212121',
+  background: '#000000',
+  card: '#1C1C1E',
+  elevated: '#2C2C2E',
+  fill: 'rgba(118, 118, 128, 0.24)',
+  fillStrong: 'rgba(118, 118, 128, 0.36)',
+  separator: '#38383A',
 
-  text: neutral[50], //   17.2:1
-  textMuted: neutral[400], // 6.9:1
-  textFaint: '#8C8C8C', //  5.3:1
+  text: '#FFFFFF', //          17.0:1 on the card
+  textSecondary: '#98989F', // 5.9:1 on the card
+  textTertiary: '#6E6E73', //  3.4:1 on the card
 
-  primary: neutral[50],
-  onPrimary: neutral[900],
+  tint: palette.teal, //       7.5:1 on the card
+  tintText: palette.teal,
+  tintSoft: 'rgba(10, 191, 191, 0.2)',
+  onTint: palette.navy,
 
-  secondary: '#4064A8', // 3.1:1 on the dark card; white type on it at 5.6:1
-  onSecondary: neutral[0],
-  secondaryText: '#A8B9E6', // 9.2:1 on the dark card
+  primary: palette.teal,
+  onPrimary: palette.navy, //  7.0:1
 
-  accent: palette.teal, // 7.9:1 on the dark card — the brand teal needs no help here
-  accentSoft: 'rgba(10, 191, 191, 0.2)',
-  accentText: palette.teal, // 7.9:1
-  onAccent: palette.navy, // 7.0:1
+  brandText: '#A8B9E6', //     8.7:1 on the card
 
-  danger: '#E12950',
-  onDanger: neutral[0],
+  hero: ['#1E3B78', '#0F2044'],
+  onHero: palette.white,
+  onHeroSecondary: 'rgba(255, 255, 255, 0.7)',
 
-  overlay: 'rgba(0, 0, 0, 0.6)',
+  danger: '#FF453A', // 5.0:1 on the card
+  onDanger: palette.white,
+
+  overlay: 'rgba(0, 0, 0, 0.5)',
   shadow: '#000000',
 };
 
 export const schemes = { light, dark };
 
+/** A 4-point grid. `gutter` is the page's side margin, as on every iOS screen. */
 export const spacing = {
+  xxs: 2,
   xs: 4,
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
-  xxl: 32,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+  gutter: 16,
 } as const;
 
+/** Corner radii, drawn with continuous (squircle) curves on iOS. See `squircle`. */
 export const radius = {
+  xs: 8,
   sm: 10,
   md: 14,
-  lg: 18,
-  xl: 24,
+  lg: 20,
+  xl: 28,
   pill: 999,
 } as const;
 
+/** Apple's continuous corner curve. The difference between a web box and an iOS card. */
+export const squircle = { borderCurve: 'continuous' } as const;
+
+/**
+ * Inter, one file per weight. The family name *is* the weight: Android cannot select
+ * a weight inside a custom family, so `AppText` maps any `fontWeight` to its file.
+ */
+export const fonts = {
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;
+
+/**
+ * Inter's own tracking curve (rsms.me/inter/dynmetrics): tighter as type grows, so a
+ * 32pt title sets as snugly as SF Pro Display does and 11pt captions stay open.
+ */
+const track = (size: number): number =>
+  Math.round(size * (-0.0223 + 0.185 * Math.exp(-0.1745 * size)) * 100) / 100;
+
+const type = (fontSize: number, lineHeight: number, fontFamily: string) => ({
+  fontSize,
+  lineHeight,
+  fontFamily,
+  letterSpacing: track(fontSize),
+});
+
+/**
+ * The HIG type scale. Inter has a taller x-height than SF Pro, so each style sits a
+ * point under Apple's size to land at the same optical size.
+ */
 export const typography = {
-  display: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
-  heading: { fontSize: 18, fontWeight: '700' },
-  body: { fontSize: 15, fontWeight: '500' },
-  label: { fontSize: 13, fontWeight: '600' },
-  caption: { fontSize: 12, fontWeight: '500' },
-  overline: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  largeTitle: type(32, 38, fonts.bold),
+  title1: type(26, 32, fonts.bold),
+  title2: type(21, 26, fonts.bold),
+  title3: type(19, 24, fonts.semibold),
+  headline: type(16, 21, fonts.semibold),
+  body: type(16, 22, fonts.regular),
+  callout: type(15, 20, fonts.regular),
+  subheadline: type(14, 19, fonts.regular),
+  footnote: type(13, 18, fonts.regular),
+  caption: type(12, 16, fonts.regular),
+  caption2: type(11, 13, fonts.medium),
 } as const;
 
 export type TypographyVariant = keyof typeof typography;

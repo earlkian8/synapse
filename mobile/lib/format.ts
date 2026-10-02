@@ -78,6 +78,26 @@ export function formatLongDate(d: Date, timeZone?: string | null): string {
   return `${DAYS[weekday]}, ${MONTHS[month]} ${day} ${year}`;
 }
 
+const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const LONG_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "Thursday, October 2" — the line over a page's title, on the given zone's calendar. */
+export function formatDayHeading(d: Date, timeZone?: string | null): string {
+  const { month, day, weekday } = wallClock(d, timeZone);
+  return `${LONG_DAYS[weekday]}, ${LONG_MONTHS[month]} ${day}`;
+}
+
+/** "October 2026" for a month switcher. */
+export function formatMonthYear(d: Date): string {
+  return `${LONG_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** "Thursday" from a "Y-m-d", for a day's heading. */
+export function formatWeekday(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return LONG_DAYS[parseDateOnly(iso).getDay()];
+}
+
 /** Today's "Y-m-d" on the given zone's calendar — the organisation's today, not the phone's. */
 export function todayDateKey(timeZone?: string | null): string {
   const { year, month, day } = wallClock(new Date(), timeZone);
