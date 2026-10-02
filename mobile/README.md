@@ -18,8 +18,8 @@ with metrics, file and track leave, and view their awards and profile.
 - **Designed as an iOS app** (ADR 0064): large titles that collapse into a frosted
   bar, inset grouped lists, a floating tab bar, Inter on the HIG type scale, SF Symbols
   (Material Symbols on Android), restrained spring motion, haptics, light and dark.
-- **Keyboard-aware forms** on iOS and Android: a focused field is lifted clear of the
-  keyboard as it rises.
+- **Keyboard-aware forms** on iOS and Android (ADR 0065): the screen rises with the
+  keyboard so the focused field and the form's button stay in sight.
 
 ## Running it
 

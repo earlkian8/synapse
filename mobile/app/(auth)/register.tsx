@@ -29,6 +29,8 @@ type Errors = Partial<Record<'first_name' | 'last_name' | 'email' | 'password', 
 export default function RegisterScreen() {
   const { register } = useAuth();
   const toast = useToast();
+  // The form's button: it rises above the keyboard with whichever field has focus.
+  const submitRef = useRef<View>(null);
 
   const lastNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -81,7 +83,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <EntryScreen>
+    <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
         <BrandLockup markWidth={88} />
       </Animated.View>
@@ -184,14 +186,16 @@ export default function RegisterScreen() {
           editable={!submitting}
         />
 
-        <Button
-          label="Create account"
-          onPress={onSubmit}
-          loading={submitting}
-          disabled={!complete}
-          size="lg"
-          style={styles.submit}
-        />
+        <View ref={submitRef} collapsable={false}>
+          <Button
+            label="Create account"
+            onPress={onSubmit}
+            loading={submitting}
+            disabled={!complete}
+            size="lg"
+            style={styles.submit}
+          />
+        </View>
       </Animated.View>
 
       <View style={styles.spacer} />

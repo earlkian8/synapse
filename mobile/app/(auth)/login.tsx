@@ -16,6 +16,8 @@ import { enter } from '@/lib/motion';
 export default function LoginScreen() {
   const { login } = useAuth();
   const toast = useToast();
+  // The form's button: it rises above the keyboard with whichever field has focus.
+  const submitRef = useRef<View>(null);
   const passwordRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState('');
@@ -50,7 +52,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <EntryScreen>
+    <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
         <BrandLockup markWidth={112} />
       </Animated.View>
@@ -99,14 +101,16 @@ export default function LoginScreen() {
           editable={!submitting}
         />
 
-        <Button
-          label="Sign in"
-          onPress={onSubmit}
-          loading={submitting}
-          disabled={!ready}
-          size="lg"
-          style={styles.submit}
-        />
+        <View ref={submitRef} collapsable={false}>
+          <Button
+            label="Sign in"
+            onPress={onSubmit}
+            loading={submitting}
+            disabled={!ready}
+            size="lg"
+            style={styles.submit}
+          />
+        </View>
       </Animated.View>
 
       <View style={styles.spacer} />

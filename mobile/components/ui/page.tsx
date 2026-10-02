@@ -1,17 +1,16 @@
 import { useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
 import { Platform, RefreshControl, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated, {
   Extrapolation,
   interpolate,
-  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
+import { KeyboardScroll } from '@/components/ui/keyboard-scroll';
 import { hasLiquidGlass, Material } from '@/components/ui/material';
 import { useTabBarInset } from '@/components/ui/tab-bar';
 import { AppText } from '@/components/ui/text';
@@ -59,10 +58,9 @@ type PageProps = {
  * title grows a touch, as it does in Mail. All of it runs on the UI thread from one
  * scroll value.
  *
- * The scroll view is keyboard-aware (react-native-keyboard-controller): when a field
- * takes focus, the page moves it clear of the keyboard and follows the keyboard's own
- * animation frame by frame, on iOS and Android alike. A drag down the page pulls the
- * keyboard away with it.
+ * The scroll view is keyboard-aware (`KeyboardScroll`): when the keyboard rises, the
+ * page makes room for it and lifts the focused field clear of it, on iOS and Android
+ * alike. A drag down the page pulls the keyboard away with it.
  */
 export function Page({
   title,
@@ -94,10 +92,6 @@ export function Page({
   const scrollY = useSharedValue(0);
   const titleBottom = useSharedValue(48);
 
-  const onScroll = useAnimatedScrollHandler((event) => {
-    scrollY.set(event.contentOffset.y);
-  });
-
   // The bar frosts over as the large title slides under it (or as soon as anything does).
   const barStyle = useAnimatedStyle(() => {
     const y = scrollY.get();
@@ -126,11 +120,10 @@ export function Page({
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.background }]}>
-      <KeyboardAwareScrollView
-        onScroll={onScroll}
-        bottomOffset={spacing.xxl}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+      <KeyboardScroll
+        offset={scrollY}
+        revealOffset={spacing.xxl}
+        topInset={headerHeight}
         scrollIndicatorInsets={{ top: headerHeight - insets.top, bottom: tabInset ? tabBarInset - 24 : 0 }}
         contentContainerStyle={[
           {
@@ -180,7 +173,7 @@ export function Page({
         )}
 
         {children}
-      </KeyboardAwareScrollView>
+      </KeyboardScroll>
 
       {/* The navigation bar, over the content. */}
       <View pointerEvents="box-none" style={[styles.bar, { height: headerHeight }]}>

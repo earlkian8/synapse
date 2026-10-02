@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/components/ui/text';
+import { keyboardEasing, useKeyboardFrame } from '@/lib/keyboard';
 import { easeOut, springs } from '@/lib/motion';
 import { useTheme } from '@/theme/theme';
 
@@ -47,6 +47,15 @@ export function Sheet({ visible, onClose, title, message, dismissible = true, ch
 
   const offset = useSharedValue(screen);
   const panel = useSharedValue(screen);
+
+  // Lifted over the keyboard, on the keyboard's own timing, when a field in it is focused.
+  const keyboard = useKeyboardFrame();
+  const lift = useSharedValue(0);
+  useEffect(() => {
+    const height = keyboard.visible ? Math.max(0, screen - keyboard.top - insets.bottom) : 0;
+    lift.set(withTiming(height, { duration: keyboard.duration, easing: keyboardEasing }));
+  }, [keyboard.visible, keyboard.top, keyboard.duration, screen, insets.bottom, lift]);
+  const liftStyle = useAnimatedStyle(() => ({ paddingBottom: lift.get() }));
 
   useEffect(() => {
     if (!mounted) return;
@@ -103,7 +112,7 @@ export function Sheet({ visible, onClose, title, message, dismissible = true, ch
           />
         </Animated.View>
 
-        <KeyboardAvoidingView behavior="padding" style={styles.dock} pointerEvents="box-none">
+        <Animated.View style={[styles.dock, liftStyle]} pointerEvents="box-none">
           <GestureDetector gesture={drag}>
             <Animated.View
               accessibilityViewIsModal
@@ -140,7 +149,7 @@ export function Sheet({ visible, onClose, title, message, dismissible = true, ch
               {children}
             </Animated.View>
           </GestureDetector>
-        </KeyboardAvoidingView>
+        </Animated.View>
       </GestureHandlerRootView>
     </Modal>
   );

@@ -2,13 +2,13 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
@@ -17,7 +17,11 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 void SplashScreen.preventAutoHideAsync();
-SplashScreen.setOptions({ duration: 280, fade: true });
+// A soft fade off the native splash. Expo Go can't take splash options (it warns), so
+// only builds of the app get it.
+if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+  SplashScreen.setOptions({ duration: 280, fade: true });
+}
 
 export default function RootLayout() {
   // Inter, one file per weight (see theme/tokens.ts). The native splash stays up
@@ -36,15 +40,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <KeyboardProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <ToastProvider>
-                <RootNavigator />
-              </ToastProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </KeyboardProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <RootNavigator />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

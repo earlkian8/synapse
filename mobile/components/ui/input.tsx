@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Icon, type IconName } from '@/components/ui/icon';
+import { useKeyboardReveal } from '@/components/ui/keyboard-scroll';
 import { AppText } from '@/components/ui/text';
 import { Touchable } from '@/components/ui/touchable';
 import { useTheme } from '@/theme/theme';
@@ -42,6 +43,7 @@ export function Input({
   style,
   onFocus,
   onBlur,
+  onContentSizeChange,
   editable = true,
   ref,
   ...rest
@@ -49,6 +51,9 @@ export function Input({
   const { colors, radius, squircle, scheme, typography } = useTheme();
   const [hidden, setHidden] = useState(true);
   const focus = useSharedValue(0);
+  // Moving between fields while the keyboard is up, or a multiline field growing as it
+  // is typed into, brings the field back above the keyboard.
+  const reveal = useKeyboardReveal();
 
   const edgeStyle = useAnimatedStyle(() => ({
     borderColor: error ? colors.danger : interpolateColor(focus.get(), [0, 1], ['transparent', colors.tint]),
@@ -93,6 +98,7 @@ export function Input({
           maxFontSizeMultiplier={1.4}
           onFocus={(event) => {
             focus.set(withTiming(1, { duration: 160 }));
+            if (reveal) setTimeout(reveal, 60);
             onFocus?.(event);
           }}
           onBlur={(event) => {
@@ -111,6 +117,10 @@ export function Input({
             multiline && styles.multiline,
             style,
           ]}
+          onContentSizeChange={(event) => {
+            if (multiline && reveal) reveal();
+            onContentSizeChange?.(event);
+          }}
           {...rest}
         />
         {secureToggle && (

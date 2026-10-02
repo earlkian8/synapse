@@ -157,9 +157,14 @@ Against a deployed server ([Deployment](../deployment.md)), set
   - `page.tsx`: `Page`, every screen. A large title that collapses into a frosted
     navigation bar as it scrolls under it, pull to refresh, `back`, `left`/`right` bar
     items (`BarButton`, `BarTextButton`), `modal` for sheets, and `tabInset` to clear the
-    floating tab bar. Its scroll view is `react-native-keyboard-controller`'s
-    `KeyboardAwareScrollView`: a focused field is lifted clear of the keyboard on iOS and
-    Android, and dragging the page dismisses the keyboard.
+    floating tab bar. Its scroll view is `KeyboardScroll`.
+  - `keyboard-scroll.tsx` + `lib/keyboard.ts`: keyboard handling on React Native's own
+    `Keyboard` events ([ADR 0065](../decisions/0065-keyboard-handling-on-the-core-keyboard-api.md)).
+    When the keyboard rises, the page makes room under the content and scrolls the
+    focused field (and, with `anchor`, the form's button) above it. Everything is
+    measured relative to the scroll view, so it is right on iOS, on Android in Expo Go
+    (window resized, status bar left out of `measureInWindow`) and in edge-to-edge
+    builds. Dragging the page dismisses the keyboard. `Input` reveals itself on focus.
   - `tab-bar.tsx`: the floating capsule tab bar (Liquid Glass on iOS 26, blur before it,
     a fill on Android) with a sliding selection pill and the queued-punch badge;
     `useTabBarInset()`.
@@ -171,13 +176,14 @@ Against a deployed server ([Deployment](../deployment.md)), set
     press and haptics behind everything pressable), `material.tsx` (glass/blur/fill).
   - `button.tsx` (iOS button styles: `primary`, `tint`, `tinted`, `gray`, `plain`,
     `destructive`), `input.tsx` (filled field, animated focus edge, `secureToggle`,
-    `ref` for focus chaining), `sheet.tsx` (springs up, drag down to dismiss,
-    keyboard-aware), `toast.tsx` (a frosted banner dropped from the top; flick it away),
+    `ref` for focus chaining), `sheet.tsx` (springs up, drag down to dismiss, rides
+    above the keyboard), `toast.tsx` (a frosted banner dropped from the top; flick it away),
     `segmented.tsx` (sliding thumb), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
     `EmptyState`/`ErrorState`, `ProgressBar`, `Section`, `ToneWell`.
   - `entry-screen.tsx`: `EntryScreen`, the ground of the entry screens (cold-start
     splash, sign-in, register, workspace picker). It is white and light-scheme whatever
-    the phone is set to, keyboard-aware, with dark status-bar icons. `BrandLockup` is
+    the phone is set to, keyboard-aware (`keyboardAnchor` lifts the form's button with
+    the focused field), with dark status-bar icons. `BrandLockup` is
     the mark over the navy wordmark, and `entryColors` gives the light palette to a
     screen reading colours outside the ground.
   - `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep

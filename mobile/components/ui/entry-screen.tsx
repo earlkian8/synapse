@@ -1,8 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
+import type { RefObject } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardScroll } from '@/components/ui/keyboard-scroll';
 import { Logo } from '@/components/ui/logo';
 import { AppText } from '@/components/ui/text';
 import { FixedScheme, useTheme } from '@/theme/theme';
@@ -21,6 +22,8 @@ type EntryScreenProps = {
   scroll?: boolean;
   /** The grouped grey ground, for a screen that is a list of cards (the workspace picker). */
   grouped?: boolean;
+  /** The form's main button, lifted above the keyboard with the focused field. */
+  keyboardAnchor?: RefObject<View | null>;
   contentStyle?: StyleProp<ViewStyle>;
 };
 
@@ -34,20 +37,20 @@ type EntryScreenProps = {
  * label on a phone set to dark is still ink on white, and the status bar keeps dark
  * icons.
  *
- * The forms here scroll with the keyboard: a focused field is lifted clear of it as
- * the keyboard rises, in step with it, and a drag down the page pulls it away.
+ * The forms here rise with the keyboard: the focused field, and the button below it,
+ * are lifted clear of it as it opens, and a drag down the page pulls it away.
  */
-export function EntryScreen({ children, scroll = true, grouped, contentStyle }: EntryScreenProps) {
+export function EntryScreen({ children, scroll = true, grouped, keyboardAnchor, contentStyle }: EntryScreenProps) {
   return (
     <FixedScheme scheme="light">
-      <Ground scroll={scroll} grouped={grouped} contentStyle={contentStyle}>
+      <Ground scroll={scroll} grouped={grouped} keyboardAnchor={keyboardAnchor} contentStyle={contentStyle}>
         {children}
       </Ground>
     </FixedScheme>
   );
 }
 
-function Ground({ children, scroll, grouped, contentStyle }: EntryScreenProps) {
+function Ground({ children, scroll, grouped, keyboardAnchor, contentStyle }: EntryScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -61,15 +64,18 @@ function Ground({ children, scroll, grouped, contentStyle }: EntryScreenProps) {
     <View style={[styles.fill, { backgroundColor: grouped ? colors.background : colors.card }]}>
       <StatusBar style="dark" />
       {scroll ? (
-        <KeyboardAwareScrollView
-          bottomOffset={28}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
+        // The screen rises to the keyboard: the focused field, and the form's button
+        // below it, are lifted clear of the keyboard as it opens.
+        <KeyboardScroll
+          fill
+          anchor={keyboardAnchor}
+          topInset={insets.top}
+          revealOffset={32}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.grow, padding, contentStyle]}
+          contentContainerStyle={[padding, contentStyle]}
         >
           {children}
-        </KeyboardAwareScrollView>
+        </KeyboardScroll>
       ) : (
         <View style={[styles.fill, padding, contentStyle]}>{children}</View>
       )}
@@ -115,7 +121,6 @@ export function BrandLockup({ markWidth = 152, tagline }: BrandLockupProps) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  grow: { flexGrow: 1 },
   lockup: { alignItems: 'center' },
   tagline: { marginTop: 4 },
 });
