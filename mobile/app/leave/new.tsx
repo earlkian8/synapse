@@ -1,13 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Platform, StyleSheet, Switch, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
-import { Screen, ScreenHeader } from '@/components/ui/screen';
+import { ListRow, ListSection } from '@/components/ui/list';
+import { BarTextButton, Page } from '@/components/ui/page';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
@@ -15,6 +17,7 @@ import { useToast } from '@/components/ui/toast';
 import { leaveApi } from '@/features/leave/api';
 import { ApiError } from '@/lib/api';
 import { formatDate, parseDateOnly } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
 import type { LeaveBalance, LeaveType } from '@/types/api';
@@ -42,12 +45,18 @@ function workingDays(start: string, end: string): number {
   return count;
 }
 
+/**
+ * File a leave request, as an iOS form sheet: Cancel in the bar, the choices in
+ * grouped lists, and the dates set with the platform's own picker (the compact
+ * date button inline on iOS, the calendar dialog on Android). The reason field is
+ * lifted clear of the keyboard as it opens.
+ */
 export default function NewLeaveScreen() {
-  const { colors, spacing, readable } = useTheme();
+  const { colors, readable, scheme, spacing } = useTheme();
   const router = useRouter();
   const toast = useToast();
 
-  const { data, loading } = useQuery<Options>(async () => {
+  const { data, loading, error, reload } = useQuery<Options>(async () => {
     const [types, balances] = await Promise.all([leaveApi.types(), leaveApi.balances()]);
     return { types: types.data, balances: balances.data };
   }, []);
@@ -58,7 +67,6 @@ export default function NewLeaveScreen() {
   const [isHalfDay, setIsHalfDay] = useState(false);
   const [period, setPeriod] = useState<'morning' | 'afternoon'>('morning');
   const [reason, setReason] = useState('');
-  const [showPicker, setShowPicker] = useState<'start' | 'end' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -71,6 +79,23 @@ export default function NewLeaveScreen() {
     if (isHalfDay && sameDay) return 0.5;
     return workingDays(start, end);
   }, [isHalfDay, sameDay, start, end]);
+
+  const pickStart = (date: Date) => {
+    const iso = toIso(date);
+    setStart(iso);
+    if (parseDateOnly(end) < date) setEnd(iso);
+  };
+
+  const pickEnd = (date: Date) => setEnd(toIso(date));
+
+  /** Android has no inline picker: the row opens the system's calendar dialog. */
+  const openAndroidPicker = (which: 'start' | 'end') =>
+    DateTimePickerAndroid.open({
+      value: parseDateOnly(which === 'start' ? start : end),
+      mode: 'date',
+      minimumDate: which === 'end' ? parseDateOnly(start) : undefined,
+      onValueChange: (_event, date) => (which === 'start' ? pickStart(date) : pickEnd(date)),
+    });
 
   const onSubmit = async () => {
     if (!typeId) {
@@ -107,207 +132,187 @@ export default function NewLeaveScreen() {
     }
   };
 
+  const dateControl = (which: 'start' | 'end') =>
+    Platform.OS === 'ios' ? (
+      <DateTimePicker
+        value={parseDateOnly(which === 'start' ? start : end)}
+        mode="date"
+        display="compact"
+        minimumDate={which === 'end' ? parseDateOnly(start) : undefined}
+        accentColor={colors.tint}
+        themeVariant={scheme}
+        onValueChange={(_event, date) => (which === 'start' ? pickStart(date) : pickEnd(date))}
+      />
+    ) : undefined;
+
   return (
-    <Screen edges={['top', 'bottom']}>
-      <ScreenHeader title="File Leave" subtitle="Request time off" back />
-
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40, gap: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {loading ? (
-          <Skeleton height={300} radius={18} />
-        ) : (
-          <>
-            {/* Type */}
-            <View style={{ gap: spacing.sm }}>
-              <AppText variant="overline" muted>
-                Leave Type
-              </AppText>
-              <View style={{ gap: spacing.sm }}>
-                {(data?.types ?? []).map((type) => {
-                  const active = type.id === typeId;
-                  const balance = data?.balances.find((b) => b.leave_type_id === type.id);
-                  return (
-                    <Pressable
-                      key={type.id}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: active }}
-                      onPress={() => {
-                        setTypeId(type.id);
-                        if (!type.allow_half_day) setIsHalfDay(false);
-                      }}
-                    >
-                      <Card
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: spacing.md,
-                          borderColor: active ? colors.accent : colors.border,
-                          borderWidth: active ? 2 : 1,
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: 5,
-                            backgroundColor: readable(type.color ?? colors.accent, colors.card, 3),
-                          }}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <AppText variant="label">{type.name}</AppText>
-                          {balance && (
-                            <AppText variant="caption" faint>
-                              {balance.remaining} of {balance.entitled} days left
-                            </AppText>
-                          )}
-                        </View>
-                        {active && <Ionicons name="checkmark-circle" size={22} color={colors.accentText} />}
-                      </Card>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {errors.leave_type_id && (
-                <AppText variant="caption" style={{ color: colors.danger }}>
-                  {errors.leave_type_id}
-                </AppText>
-              )}
-            </View>
-
-            {/* Dates */}
-            <View style={{ gap: spacing.sm }}>
-              <AppText variant="overline" muted>
-                Dates
-              </AppText>
-              <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                <DateField label="From" value={start} onPress={() => setShowPicker('start')} />
-                <DateField label="To" value={end} onPress={() => setShowPicker('end')} />
-              </View>
-              {(errors.start_date || errors.end_date) && (
-                <AppText variant="caption" style={{ color: colors.danger }}>
-                  {errors.start_date ?? errors.end_date}
-                </AppText>
-              )}
-            </View>
-
-            {/* Half day */}
-            {canHalfDay && (
-              <Card>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="label">Half day</AppText>
-                    <AppText variant="caption" faint>
-                      File only half of this day
-                    </AppText>
-                  </View>
-                  <Switch
-                    value={isHalfDay}
-                    onValueChange={setIsHalfDay}
-                    trackColor={{ true: colors.accent, false: colors.border }}
+    <Page
+      title="New Leave Request"
+      largeTitle={false}
+      modal
+      left={<BarTextButton label="Cancel" onPress={() => router.back()} disabled={submitting} />}
+    >
+      {loading ? (
+        <>
+          <Skeleton height={180} radius={20} />
+          <Skeleton height={100} radius={20} />
+          <Skeleton height={104} radius={14} />
+        </>
+      ) : error && !data ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : (
+        <>
+          {/* Type */}
+          <Animated.View entering={enter(0)}>
+            <ListSection header="Leave type" leadingWidth={10}>
+              {(data?.types ?? []).map((type) => {
+                const balance = data?.balances.find((b) => b.leave_type_id === type.id);
+                return (
+                  <ListRow
+                    key={type.id}
+                    leading={
+                      <View
+                        style={[styles.dot, { backgroundColor: readable(type.color ?? colors.tint, colors.card, 3) }]}
+                      />
+                    }
+                    title={type.name}
+                    subtitle={[
+                      balance ? `${balance.remaining} of ${balance.entitled} days left` : null,
+                      type.is_paid ? null : 'Unpaid',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    selected={type.id === typeId}
+                    onPress={() => {
+                      setTypeId(type.id);
+                      setErrors((current) => ({ ...current, leave_type_id: '' }));
+                      if (!type.allow_half_day) setIsHalfDay(false);
+                    }}
                   />
-                </View>
-                {isHalfDay && (
-                  <View style={{ marginTop: spacing.md }}>
-                    <Segmented
-                      options={[
-                        { value: 'morning', label: 'Morning' },
-                        { value: 'afternoon', label: 'Afternoon' },
-                      ]}
-                      value={period}
-                      onChange={setPeriod}
+                );
+              })}
+            </ListSection>
+            {!!errors.leave_type_id && (
+              <AppText variant="footnote" tone="danger" style={styles.error}>
+                {errors.leave_type_id}
+              </AppText>
+            )}
+          </Animated.View>
+
+          {/* Dates */}
+          <Animated.View entering={enter(1)} style={{ gap: spacing.md }}>
+            <ListSection header="Dates">
+              <ListRow
+                title="Starts"
+                value={Platform.OS === 'ios' ? undefined : formatDate(start)}
+                accessory={dateControl('start')}
+                onPress={Platform.OS === 'ios' ? undefined : () => openAndroidPicker('start')}
+                chevron={false}
+              />
+              <ListRow
+                title="Ends"
+                value={Platform.OS === 'ios' ? undefined : formatDate(end)}
+                accessory={dateControl('end')}
+                onPress={Platform.OS === 'ios' ? undefined : () => openAndroidPicker('end')}
+                chevron={false}
+              />
+              {canHalfDay ? (
+                <ListRow
+                  title="Half day"
+                  subtitle="File only half of this day"
+                  accessory={
+                    <Switch
+                      value={isHalfDay}
+                      onValueChange={setIsHalfDay}
+                      trackColor={{ true: colors.tint, false: colors.fillStrong }}
+                      ios_backgroundColor={colors.fillStrong}
+                      accessibilityLabel="Half day"
                     />
-                  </View>
-                )}
-              </Card>
+                  }
+                />
+              ) : null}
+            </ListSection>
+
+            {canHalfDay && isHalfDay && (
+              <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
+                <Segmented
+                  options={[
+                    { value: 'morning', label: 'Morning' },
+                    { value: 'afternoon', label: 'Afternoon' },
+                  ]}
+                  value={period}
+                  onChange={setPeriod}
+                  accessibilityLabel="Which half"
+                />
+              </Animated.View>
             )}
 
-            {/* Reason */}
+            {!!(errors.start_date || errors.end_date) && (
+              <AppText variant="footnote" tone="danger" style={styles.error}>
+                {errors.start_date ?? errors.end_date}
+              </AppText>
+            )}
+          </Animated.View>
+
+          {/* Reason */}
+          <Animated.View entering={enter(2)}>
             <Input
-              label="Reason (optional)"
-              placeholder="Add a short note for your approver"
+              label="Reason"
+              placeholder="A short note for your approver"
+              hint="Optional"
               value={reason}
               onChangeText={setReason}
               multiline
-              numberOfLines={3}
-              style={{ minHeight: 88, textAlignVertical: 'top' }}
+              maxLength={1000}
               error={errors.reason}
+              editable={!submitting}
             />
+          </Animated.View>
 
-            {/* Summary */}
-            <Card style={{ backgroundColor: colors.accentSoft, borderColor: colors.accent, gap: 6 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <AppText variant="label" muted>
-                  Working days
-                </AppText>
-                <AppText variant="label" style={{ color: colors.accentText }}>
-                  {days} {days === 1 ? 'day' : 'days'}
+          {/* Summary */}
+          <Animated.View entering={enter(3)}>
+            <Card style={styles.summary}>
+              <View style={styles.summaryRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subheadline" tone="secondary">
+                    Working days
+                  </AppText>
+                  <AppText variant="caption" tone="secondary">
+                    Holidays are taken off when you submit.
+                  </AppText>
+                </View>
+                <AppText variant="title1" numeric>
+                  {days}
                 </AppText>
               </View>
               {selectedBalance && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <AppText variant="caption" muted>
-                    Balance after approval
-                  </AppText>
-                  <AppText variant="caption" muted>
-                    {Math.max(0, selectedBalance.remaining - days)} of {selectedBalance.entitled}
-                  </AppText>
-                </View>
+                <>
+                  <View style={[styles.hairline, { backgroundColor: colors.separator }]} />
+                  <View style={styles.summaryRow}>
+                    <AppText variant="subheadline" tone="secondary" style={styles.flex}>
+                      Balance after approval
+                    </AppText>
+                    <AppText variant="headline" numeric>
+                      {Math.max(0, selectedBalance.remaining - days)} of {selectedBalance.entitled}
+                    </AppText>
+                  </View>
+                </>
               )}
             </Card>
+          </Animated.View>
 
-            <Button label="Submit request" onPress={onSubmit} loading={submitting} size="lg" disabled={!typeId} />
-          </>
-        )}
-      </ScrollView>
-
-      {showPicker && (
-        <DateTimePicker
-          value={parseDateOnly(showPicker === 'start' ? start : end)}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(event, date) => {
-            setShowPicker(null);
-            if (event.type === 'dismissed' || !date) return;
-            const iso = toIso(date);
-            if (showPicker === 'start') {
-              setStart(iso);
-              if (parseDateOnly(end) < date) setEnd(iso);
-            } else {
-              setEnd(iso);
-            }
-          }}
-        />
+          <Button label="Submit request" onPress={onSubmit} loading={submitting} size="lg" disabled={!typeId} />
+        </>
       )}
-    </Screen>
+    </Page>
   );
 }
 
-function DateField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
-  const { colors, radius, spacing } = useTheme();
-  return (
-    <Pressable onPress={onPress} style={{ flex: 1, gap: 6 }}>
-      <AppText variant="label" muted>
-        {label}
-      </AppText>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.sm,
-          backgroundColor: colors.card,
-          borderWidth: 1.5,
-          borderColor: colors.border,
-          borderRadius: radius.md,
-          paddingHorizontal: spacing.md,
-          paddingVertical: 13,
-        }}
-      >
-        <Ionicons name="calendar-outline" size={18} color={colors.accentText} />
-        <AppText variant="label">{formatDate(value)}</AppText>
-      </View>
-    </Pressable>
-  );
-}
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  error: { marginTop: 7, marginLeft: 16 },
+  summary: { gap: 14 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  hairline: { height: StyleSheet.hairlineWidth },
+});

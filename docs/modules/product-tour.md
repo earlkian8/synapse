@@ -32,7 +32,7 @@ what that person's role can open.
 | 5 | Offboarding | the section | 〃 |
 | 6 | Analytics & AI | the section | 〃 |
 | 7 | Company setup | the section | 〃 (Email & Notifications does not count, see below) |
-| 8 | System | the section | 〃 (Data Backup & Export does not count) |
+| 8 | System | the section | 〃 |
 | 9 | Notifications | the bell | always |
 | 10 | Help | the question mark | always; points at the [Help Center](./help-center.md), and mentions the Setup Guide to `setup.company.manage` |
 | 11 | Your account | the avatar | always |
@@ -42,7 +42,7 @@ what that person's role can open.
 A section's card lists **the section's screens the person can open**, each with a
 one-line summary: up to six, then "and N more". Those lines come from the sidebar's own
 definition, so the tour cannot describe a screen the sidebar does not show. A link with
-**no screen behind it yet** (*Email & Notifications*, *Data Backup & Export*) has no
+**no screen behind it yet** (*Email & Notifications*) has no
 summary. It is never listed, and a section made only of such links is not a stop. That
 is why Staff get no Company Setup stop.
 

@@ -33,6 +33,20 @@ test('an employee from another organisation cannot be viewed', function () {
     $this->getJson(route('employees.show', $foreign->id))->assertNotFound();
 });
 
+test('a record from another organisation is not reached by its URL on a fresh request', function () {
+    actingAsSuperAdmin();
+
+    $orgB = Organization::factory()->create();
+    $foreign = app(Tenancy::class)->runFor($orgB, fn () => Employee::factory()->create());
+
+    // A real request starts with no tenant bound: the middleware binds it. The
+    // test harness keeps the test's tenant bound, which would hide a route
+    // binding resolved before the middleware runs.
+    app(Tenancy::class)->forget();
+
+    $this->getJson(route('employees.show', $foreign->id))->assertNotFound();
+});
+
 test('roles are scoped per organisation', function () {
     actingAsSuperAdmin();                        // org A gets a super-admin role
 

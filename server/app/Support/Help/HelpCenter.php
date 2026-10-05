@@ -72,7 +72,7 @@ final class HelpCenter
         ],
         'administration' => [
             'title' => 'Administration',
-            'description' => 'Accounts, roles and permissions, the audit trail, archived records and company-wide announcements.',
+            'description' => 'Accounts, roles and permissions, the audit trail, archived records, exporting your data and company-wide announcements.',
             'icon' => 'shield-check',
         ],
         'assistant' => [
@@ -495,6 +495,14 @@ final class HelpCenter
             'keywords' => ['trash', 'archive', 'archived', 'restore', 'deleted', 'recycle bin', 'permanently delete'],
             'screens' => ['/system/trash'],
             'related' => ['user-accounts', 'employee-records'],
+        ],
+        'data-export' => [
+            'category' => 'administration', 'title' => 'Exporting your company\'s data',
+            'summary' => 'Take a copy of your records — every kind you can see — as one archive, to keep or to move to another system.',
+            'any' => ['data-export.view'],
+            'keywords' => ['export', 'data export', 'backup', 'back up', 'download everything', 'archive', 'zip', 'csv', 'json', 'data portability', 'leaving'],
+            'screens' => ['/system/data-export'],
+            'related' => ['activity-logs', 'roles-and-permissions'],
         ],
         'sending-announcements' => [
             'category' => 'administration', 'title' => 'Sending announcements',

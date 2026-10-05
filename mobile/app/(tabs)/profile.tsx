@@ -1,215 +1,171 @@
-import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Avatar } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/empty-state';
+import { ListRow, ListSection } from '@/components/ui/list';
+import { Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
-import { Screen, ScreenHeader } from '@/components/ui/screen';
-import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
+import { useQueuedPunches } from '@/features/attendance/punch-queue';
 import { profileApi } from '@/features/profile/api';
 import { CompanyLogo, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
-import { formatDate, humanize } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
+import { formatDate, humanize } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { useQuery } from '@/lib/use-query';
-import { withAlpha } from '@/theme/color';
-import { status as statusColors } from '@/theme/tokens';
 import { useTheme, type ThemeMode } from '@/theme/theme';
+import { palette } from '@/theme/tokens';
 import type { Profile } from '@/types/api';
 
+const APPEARANCE: { mode: ThemeMode; label: string; icon: 'sun' | 'moon' | 'phoneDevice' }[] = [
+  { mode: 'light', label: 'Light', icon: 'sun' },
+  { mode: 'dark', label: 'Dark', icon: 'moon' },
+  { mode: 'system', label: 'Match phone', icon: 'phoneDevice' },
+];
+
 export default function ProfileScreen() {
-  const { colors, spacing, mode, setMode, readable } = useTheme();
+  const { colors, mode, setMode, status } = useTheme();
   const { logout, organization, organizations } = useAuth();
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const waiting = useQueuedPunches().length;
 
-  const { data, loading, refreshing, refresh } = useQuery<{ data: Profile }>(() => profileApi.show(), []);
+  const { data, loading, refreshing, refresh, error, reload } = useQuery<{ data: Profile }>(() => profileApi.show(), []);
   const profile = data?.data ?? null;
 
-  return (
-    <Screen>
-      <ScreenHeader
-        title="Profile"
-        right={
-          <Ionicons
-            name="trophy-outline"
-            size={24}
-            color={colors.text}
-            onPress={() => router.push('/awards')}
-            accessibilityRole="button"
-            accessibilityLabel="Awards"
-          />
-        }
-      />
+  const confirmSignOut = () => {
+    // Queued punches are kept per account and company (ADR 0040), so signing out loses none.
+    const note =
+      waiting > 0
+        ? `${waiting} ${waiting === 1 ? 'punch is' : 'punches are'} still waiting to send. ${waiting === 1 ? 'It stays' : 'They stay'} on this phone and will be sent when you sign back in to this company.`
+        : undefined;
 
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
-      >
-        {loading ? (
-          <Skeleton height={160} radius={18} />
-        ) : profile ? (
-          <>
-            {/* Identity */}
-            <Card elevated style={{ alignItems: 'center', gap: 6, paddingVertical: spacing.xl }}>
-              <Avatar uri={profile.photo} initials={profile.initials} size={84} ring />
-              <AppText variant="title" center style={{ marginTop: 6 }}>
+    Alert.alert('Sign out of SYNAPSE?', note, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
+    ]);
+  };
+
+  return (
+    <Page title="Profile" refreshing={refreshing} onRefresh={refresh} tabInset gap={28}>
+      {loading ? (
+        <View style={styles.identity}>
+          <Skeleton width={88} height={88} radius={44} />
+          <Skeleton width={180} height={22} />
+          <Skeleton width={140} height={16} />
+        </View>
+      ) : error && !profile ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : profile ? (
+        <>
+          {/* Identity */}
+          <Animated.View entering={enter(0)} style={styles.identity}>
+            <Avatar uri={profile.photo} initials={profile.initials} size={88} />
+            <View style={styles.names}>
+              <AppText variant="title2" center>
                 {profile.full_name}
               </AppText>
-              <AppText variant="body" muted center>
+              <AppText variant="subheadline" tone="secondary" center>
                 {profile.position?.title ?? 'Employee'}
                 {profile.department ? ` · ${profile.department.name}` : ''}
               </AppText>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                <Pill label={profile.employee_no ?? '—'} color={colors.accent} />
-                {profile.employment_status && (
-                  <Pill label={humanize(profile.employment_status)} color={statusColors.present} />
-                )}
-              </View>
-            </Card>
+            </View>
+            <View style={styles.pills}>
+              {profile.employee_no && <Pill label={profile.employee_no} color={palette.teal} on={colors.background} />}
+              {profile.employment_status && (
+                <Pill label={humanize(profile.employment_status)} color={status.present} on={colors.background} dot />
+              )}
+            </View>
+          </Animated.View>
 
-            {/* Awards shortcut */}
-            <Card onPress={() => router.push('/awards')} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
-                  backgroundColor: withAlpha(statusColors.late, 0.14),
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Ionicons name="trophy" size={20} color={readable(statusColors.late)} />
-              </View>
-              <AppText variant="label" style={{ flex: 1 }}>
-                My Awards & Recognition
-              </AppText>
-              <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
-            </Card>
-
-            {/* Workspace — which company this account belongs to, and a way to switch */}
-            {organization && (
-              <View style={{ gap: spacing.sm }}>
-                <AppText variant="overline" muted>
-                  Workspace
-                </AppText>
-                <Card
+          <Animated.View entering={enter(1)}>
+            <ListSection withIcons>
+              <ListRow
+                icon="trophy"
+                iconColor={status.late}
+                title="Awards & recognition"
+                onPress={() => router.push('/awards')}
+              />
+              {organization && (
+                <ListRow
+                  leading={<CompanyLogo uri={organization.logo} initials={organization.initials} size={30} />}
+                  title={organization.name}
+                  subtitle={organizations.length > 1 ? `Switch · ${organizations.length} companies` : 'Your company'}
                   onPress={() => setSwitcherOpen(true)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-                >
-                  <CompanyLogo uri={organization.logo} initials={organization.initials} active />
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="label" numberOfLines={1}>
-                      {organization.name}
-                    </AppText>
-                    <AppText variant="caption" muted>
-                      {organizations.length > 1
-                        ? `Tap to switch · ${organizations.length} companies`
-                        : 'Your only company'}
-                    </AppText>
-                  </View>
-                  {organizations.length > 1 && (
-                    <Ionicons name="swap-horizontal" size={20} color={colors.accentText} />
-                  )}
-                </Card>
-              </View>
-            )}
+                  accessibilityLabel={`Workspace: ${organization.name}`}
+                />
+              )}
+            </ListSection>
+          </Animated.View>
 
-            <Section title="Personal">
-              <InfoRow label="Birth date" value={formatDate(profile.birth_date)} />
-              <InfoRow label="Gender" value={humanize(profile.gender)} />
-              <InfoRow label="Civil status" value={humanize(profile.civil_status)} last />
-            </Section>
+          <Animated.View entering={enter(2)} style={styles.sections}>
+            <ListSection header="Personal">
+              <ListRow title="Birth date" value={formatDate(profile.birth_date)} />
+              <ListRow title="Gender" value={humanize(profile.gender)} />
+              <ListRow title="Civil status" value={humanize(profile.civil_status)} />
+            </ListSection>
 
-            <Section title="Contact">
-              <InfoRow label="Email" value={profile.email ?? '—'} />
-              <InfoRow label="Phone" value={profile.phone ?? '—'} />
-              <InfoRow label="Address" value={profile.address ?? '—'} last />
-            </Section>
+            <ListSection header="Contact">
+              <ListRow title="Email" value={profile.email ?? '—'} />
+              <ListRow title="Phone" value={profile.phone ?? '—'} />
+              <ListRow title="Address" value={profile.address ?? '—'} wrap />
+            </ListSection>
 
-            <Section title="Employment">
-              <InfoRow label="Type" value={humanize(profile.employment_type)} />
-              <InfoRow label="Date hired" value={formatDate(profile.date_hired)} />
-              <InfoRow label="Regularized" value={formatDate(profile.date_regularized)} />
-              <InfoRow label="Manager" value={profile.manager?.full_name ?? '—'} last />
-            </Section>
+            <ListSection header="Employment">
+              <ListRow title="Type" value={humanize(profile.employment_type)} />
+              <ListRow title="Date hired" value={formatDate(profile.date_hired)} />
+              <ListRow title="Regularized" value={formatDate(profile.date_regularized)} />
+              <ListRow title="Manager" value={profile.manager?.full_name ?? '—'} />
+            </ListSection>
 
-            <Section title="Government IDs">
-              <InfoRow label="TIN" value={profile.government_ids.tin ?? '—'} />
-              <InfoRow label="SSS" value={profile.government_ids.sss_no ?? '—'} />
-              <InfoRow label="PhilHealth" value={profile.government_ids.philhealth_no ?? '—'} />
-              <InfoRow label="Pag-IBIG" value={profile.government_ids.pagibig_no ?? '—'} last />
-            </Section>
-          </>
-        ) : null}
+            <ListSection header="Government IDs" footer="Shown masked. Your HR team holds the full numbers.">
+              <ListRow title="TIN" value={profile.government_ids.tin ?? '—'} />
+              <ListRow title="SSS" value={profile.government_ids.sss_no ?? '—'} />
+              <ListRow title="PhilHealth" value={profile.government_ids.philhealth_no ?? '—'} />
+              <ListRow title="Pag-IBIG" value={profile.government_ids.pagibig_no ?? '—'} />
+            </ListSection>
+          </Animated.View>
+        </>
+      ) : null}
 
-        {/* Appearance */}
-        <View style={{ gap: spacing.sm }}>
-          <AppText variant="overline" muted>
-            Appearance
-          </AppText>
-          <Segmented
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-              { value: 'system', label: 'System' },
-            ]}
-            value={mode}
-            onChange={(value) => setMode(value as ThemeMode)}
+      {/* Appearance */}
+      <ListSection header="Appearance" withIcons>
+        {APPEARANCE.map((option) => (
+          <ListRow
+            key={option.mode}
+            icon={option.icon}
+            iconColor={option.mode === 'dark' ? '#5E5CE6' : option.mode === 'light' ? status.late : '#8E8E93'}
+            title={option.label}
+            selected={mode === option.mode}
+            onPress={() => setMode(option.mode)}
           />
-        </View>
+        ))}
+      </ListSection>
 
-        <Button
-          label="Sign out"
-          variant="outline"
-          onPress={() => void logout()}
-          icon={<Ionicons name="log-out-outline" size={20} color={colors.text} />}
-        />
-      </ScrollView>
+      <View style={styles.footer}>
+        <ListSection style={styles.signOut}>
+          <ListRow title="Sign out" destructive onPress={confirmSignOut} chevron={false} />
+        </ListSection>
+        <AppText variant="footnote" tone="secondary" center>
+          SYNAPSE · Version {Constants.expoConfig?.version ?? '1.0.0'}
+        </AppText>
+      </View>
 
       <WorkspaceSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
-    </Screen>
+    </Page>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <AppText variant="overline" muted>
-        {title}
-      </AppText>
-      <Card>{children}</Card>
-    </View>
-  );
-}
-
-function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 11,
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: colors.hairline,
-        gap: 16,
-      }}
-    >
-      <AppText variant="label" muted>
-        {label}
-      </AppText>
-      <AppText variant="label" style={{ flex: 1, textAlign: 'right' }} numberOfLines={1}>
-        {value}
-      </AppText>
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  identity: { alignItems: 'center', gap: 12, marginTop: 4 },
+  names: { gap: 3, alignItems: 'center', paddingHorizontal: 16 },
+  pills: { flexDirection: 'row', gap: 8 },
+  sections: { gap: 28 },
+  footer: { gap: 16 },
+  signOut: { alignSelf: 'stretch' },
+});

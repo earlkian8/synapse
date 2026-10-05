@@ -25,7 +25,7 @@ test('an award type is created, edited, archived and restored', function () {
     $this->patch(route('setup.award-types.restore', $type->hashid));
 
     expect(AwardType::query()->count())->toBe(1)
-        ->and(ActivityLog::query()->where('log_name', 'company-setup')->pluck('description')->all())->toBe([
+        ->and(ActivityLog::query()->where('log_name', 'company-setup')->orderBy('id')->pluck('description')->all())->toBe([
             'Created award type "Perfect Attendance"',
             'Updated award type "Perfect Attendance"',
             'Archived award type "Perfect Attendance"',

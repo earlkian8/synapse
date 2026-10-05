@@ -9,6 +9,7 @@ use App\Http\Controllers\Notification\PushSubscriptionController;
 use App\Http\Controllers\RolePermission\RoleBulkActionController;
 use App\Http\Controllers\RolePermission\RoleController;
 use App\Http\Controllers\RolePermission\RoleExportController;
+use App\Http\Controllers\System\DataExportController;
 use App\Http\Controllers\System\TrashController;
 use App\Http\Controllers\UserManagement\UserBulkActionController;
 use App\Http\Controllers\UserManagement\UserController;
@@ -77,6 +78,16 @@ Route::middleware(['auth', 'verified'])
             Route::post('force-delete', [TrashController::class, 'forceDelete'])->name('force-delete');
             Route::post('bulk', [TrashController::class, 'bulk'])->name('bulk');
             Route::post('empty', [TrashController::class, 'empty'])->name('empty');
+        });
+
+        // Data Export (ADR 0066) — a copy of the workspace's records. Who may
+        // download or delete a given archive is decided per export in
+        // DataExports, on top of these gates.
+        Route::prefix('data-export')->name('data-export.')->group(function () {
+            Route::get('/', [DataExportController::class, 'index'])->middleware('can:data-export.view')->name('index');
+            Route::post('/', [DataExportController::class, 'store'])->middleware('can:data-export.create')->name('store');
+            Route::get('{dataExport}/download', [DataExportController::class, 'download'])->middleware('can:data-export.create')->name('download');
+            Route::delete('{dataExport}', [DataExportController::class, 'destroy'])->middleware('can:data-export.create')->name('destroy');
         });
 
         // Activity Logs

@@ -13,10 +13,19 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useColorScheme as useSystemScheme } from 'react-native';
+import { Appearance, useColorScheme as useSystemScheme } from 'react-native';
 
 import { readableOn } from './color';
-import { radius, schemes, spacing, status, typography, type ColorScheme } from './tokens';
+import {
+  fonts,
+  radius,
+  schemes,
+  spacing,
+  squircle,
+  status,
+  typography,
+  type ColorScheme,
+} from './tokens';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -26,6 +35,8 @@ type ThemeValue = {
   colors: ColorScheme;
   spacing: typeof spacing;
   radius: typeof radius;
+  squircle: typeof squircle;
+  fonts: typeof fonts;
   typography: typeof typography;
   status: typeof status;
   /**
@@ -42,6 +53,15 @@ const STORAGE_KEY = 'synapse.theme-mode';
 
 const ThemeContext = createContext<ThemeValue | null>(null);
 
+/**
+ * Hands the chosen scheme to the platform too, so what the app doesn't draw itself
+ * (the keyboard, alerts, action sheets, the date picker) matches what it does. With
+ * 'system' the override is lifted and the phone's own setting shows through again.
+ */
+function applyToPlatform(mode: ThemeMode) {
+  Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // RN reports 'unspecified' as well as null when the platform has no preference.
   const system: 'light' | 'dark' = useSystemScheme() === 'dark' ? 'dark' : 'light';
@@ -51,12 +71,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(STORAGE_KEY).then((value) => {
       if (value === 'light' || value === 'dark' || value === 'system') {
         setModeState(value);
+        applyToPlatform(value);
       }
     });
   }, []);
 
   const setMode = useCallback((next: ThemeMode) => {
     setModeState(next);
+    applyToPlatform(next);
     void AsyncStorage.setItem(STORAGE_KEY, next);
   }, []);
 
@@ -71,6 +93,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       colors,
       spacing,
       radius,
+      squircle,
+      fonts,
       typography,
       status,
       readable: (color, surface = colors.card, ratio = 4.5) => readableOn(color, surface, ratio),

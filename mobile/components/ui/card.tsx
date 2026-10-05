@@ -1,52 +1,51 @@
-import { Pressable, View, type ViewProps, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
+import { Touchable } from '@/components/ui/touchable';
 import { useTheme } from '@/theme/theme';
 
-type CardProps = ViewProps & {
+type CardProps = Omit<ViewProps, 'style'> & {
   padded?: boolean;
   onPress?: () => void;
-  elevated?: boolean;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
 };
 
 /**
- * Rounded, hairline-bordered surface — the app's default container. Page and card are
- * both white (as in the ERP), so the edge is what separates them; `elevated` adds a
- * soft neutral shadow for the one card on a screen that should sit above the rest.
+ * A white card on the grouped page, with continuous corners and no edge: the
+ * difference in shade is what separates them, as it is in every iOS app. By day it
+ * carries a shadow you feel more than see; at night the step from black to `#1C1C1E`
+ * does that job and a shadow would only muddy it.
  */
-export function Card({ padded = true, onPress, elevated, style, children, ...rest }: CardProps) {
-  const { colors, radius, spacing } = useTheme();
+export function Card({ padded = true, onPress, style, children, accessibilityLabel, ...rest }: CardProps) {
+  const { colors, radius, spacing, squircle, scheme } = useTheme();
 
   const cardStyle: ViewStyle = {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: padded ? spacing.lg : 0,
-    ...(elevated
-      ? {
-          shadowColor: colors.shadow,
-          shadowOpacity: 0.1,
-          shadowRadius: 20,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: 3,
-        }
-      : {}),
+    ...squircle,
+    ...(scheme === 'light'
+      ? { boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.035)' }
+      : null),
   };
 
   if (onPress) {
     return (
-      <Pressable
+      <Touchable
         onPress={onPress}
-        style={({ pressed }) => [cardStyle, pressed && { opacity: 0.9 }, style]}
+        scaleTo={0.98}
+        haptic="light"
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        style={[cardStyle, style]}
       >
         {children}
-      </Pressable>
+      </Touchable>
     );
   }
 
   return (
-    <View style={[cardStyle, style]} {...rest}>
+    <View style={[cardStyle, style]} accessibilityLabel={accessibilityLabel} {...rest}>
       {children}
     </View>
   );

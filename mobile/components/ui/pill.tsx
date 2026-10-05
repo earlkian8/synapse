@@ -1,4 +1,4 @@
-import { View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/ui/text';
 import { composite, withAlpha } from '@/theme/color';
@@ -12,37 +12,36 @@ type PillProps = {
   dot?: boolean;
   /** The surface the pill is sitting on, when it isn't a card. */
   on?: string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
-/** A status pill — a tint of the state's tone, with a label that stays legible on it. */
+/** A status pill: a tint of the state's tone, with a label that stays legible on it. */
 export function Pill({ label, color, dot, on, style }: PillProps) {
   const { colors, scheme, readable } = useTheme();
 
   const surface = on ?? colors.card;
-  const alpha = scheme === 'dark' ? 0.2 : 0.12;
+  const alpha = scheme === 'dark' ? 0.22 : 0.13;
   const ink = readable(color, composite(color, alpha, surface));
 
   return (
-    <View
-      style={[
-        {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 6,
-          alignSelf: 'flex-start',
-          backgroundColor: withAlpha(color, alpha),
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 999,
-        },
-        style,
-      ]}
-    >
-      {dot && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: ink }} />}
-      <AppText variant="caption" style={{ color: ink, fontWeight: '700' }}>
+    <View style={[styles.pill, { backgroundColor: withAlpha(color, alpha) }, style]}>
+      {dot && <View style={[styles.dot, { backgroundColor: ink }]} />}
+      <AppText variant="caption" weight="semibold" color={ink} numberOfLines={1} maxFontSizeMultiplier={1.2}>
         {label}
       </AppText>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+});

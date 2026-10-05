@@ -32,6 +32,17 @@ works and how to keep new code tenant-safe.
 3. Every query on a model using `BelongsToOrganization` is filtered to that
    organisation by `OrganizationScope`; every create is stamped with it.
 
+**The tenant is bound before route-model binding.** `bootstrap/app.php` puts
+`EnsureAccountIsActive` and `SetCurrentOrganization` ahead of `SubstituteBindings` in
+the middleware priority, on web and API. Until 2026-10-05 they were only appended to the
+groups, so they ran *after* the bindings. `{employee}`, `{run}` or any hashid then
+resolved with no tenant bound, the scope did nothing, and another organisation's record
+could be reached by its id
+([ADR 0066](../decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)).
+Feature tests keep the test's tenant bound across requests, so a cross-tenant URL test
+must call `app(Tenancy::class)->forget()` first to behave like a real request (see
+`TenancyTest`).
+
 Because isolation lives at the query layer, it holds **regardless of permissions** —
 an organisation's super-admin still cannot see another tenant's rows. The active
 organisation is shared to the front-end as `auth.organization`, with the full list as

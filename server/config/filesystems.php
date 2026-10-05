@@ -64,6 +64,29 @@ return [
             'report' => false,
         ],
 
+        // Data Export archives (ADR 0066) — a whole workspace's personal data, so
+        // never the public bucket above. A *private* Supabase bucket when
+        // SUPABASE_EXPORTS_BUCKET is set (it shares the storage keys above), and
+        // storage/app/private/exports otherwise. Nothing is served from it by URL:
+        // every download streams through the app after its checks.
+        'exports' => env('SUPABASE_EXPORTS_BUCKET') ? [
+            'driver' => 's3',
+            'key' => env('SUPABASE_STORAGE_KEY'),
+            'secret' => env('SUPABASE_STORAGE_SECRET'),
+            'region' => env('SUPABASE_STORAGE_REGION', 'us-east-1'),
+            'bucket' => env('SUPABASE_EXPORTS_BUCKET'),
+            'endpoint' => env('SUPABASE_STORAGE_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'retain_visibility' => false,
+            'throw' => true,
+            'report' => false,
+        ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/private/exports'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

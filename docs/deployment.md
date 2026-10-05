@@ -21,7 +21,7 @@ The build context is the repository root. Only `server/` and `model/` go in; `do
 | `php-fpm` | `php-fpm --nodaemonize` | Listens on `127.0.0.1:9000`. |
 | `nginx` | `nginx -g "daemon off;"` | Listens on `$PORT` (default 8080). |
 | `queue` | `php artisan queue:work --tries=3 --max-time=3600` | Off with `RUN_QUEUE=false`. |
-| `scheduler` | `php artisan schedule:work` | Off with `RUN_SCHEDULER=false`. Runs the end-of-day attendance close (hourly), clock-in reminders (every 15 minutes) and closing expired job postings (daily). |
+| `scheduler` | `php artisan schedule:work` | Off with `RUN_SCHEDULER=false`. Runs the end-of-day attendance close (hourly), clock-in reminders (every 15 minutes), closing expired job postings (daily) and deleting expired [data export](./modules/data-export.md) archives (hourly). |
 
 `supervisord` runs all five in the foreground and restarts any that exit. Every process
 logs to the container's stdout or stderr. The queue and the scheduler keep retrying
@@ -106,7 +106,7 @@ Set these yourself (see `server/.env.example` for the full list):
 | --- | --- |
 | App | `APP_KEY`, `APP_URL`, `TRUSTED_PROXIES` (the platform's load balancer, or `*`, so HTTPS and client IPs are read from forwarded headers) |
 | Database | `DB_CONNECTION=pgsql`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE` |
-| Files | the `SUPABASE_STORAGE_*` variables (below) |
+| Files | the `SUPABASE_STORAGE_*` variables and `SUPABASE_EXPORTS_BUCKET` (below) |
 | Mail | `MAIL_*` — verification codes, invitations and notifications are sent by email |
 | Web push | `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` |
 | Assistant | `GEMINI_API_KEY`, optionally `GEMINI_MODEL` |
@@ -161,14 +161,36 @@ SUPABASE_STORAGE_URL=https://<project-ref>.supabase.co/storage/v1/object/public/
   so switching between local files and the bucket needs no code change. Files already
   stored on one are not copied to the other.
 
+### Data export archives
+
+[Data Export](./modules/data-export.md) writes a ZIP of a whole workspace's records,
+personal data included, so it **must not** go in the public bucket above. Create a
+second bucket in Supabase, leave it **private** (not Public), and name it:
+
+```dotenv
+SUPABASE_EXPORTS_BUCKET=…     # a PRIVATE bucket; uses the SUPABASE_STORAGE_* keys
+```
+
+`config/filesystems.php` points the `exports` disk at it. Nothing is ever served from it
+by URL: every download streams through the app after checking who is asking. Unset, the
+disk is `storage/app/private/exports` inside the container (see below). Archives are
+kept for 7 days; the scheduler's hourly `data-export:prune` deletes them after that.
+
+An archive is written in the PHP-FPM worker that served the request, after the response
+has gone, within `request_terminate_timeout` (600 s). It needs no queue worker
+([ADR 0066](./decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)).
+
 ## Things that do not survive a redeploy
 
 The container's filesystem is thrown away on every deploy, and App Platform offers no
-persistent volume. Two things are written there:
+persistent volume. Three things are written there:
 
 1. **Uploads, when Supabase Storage is off.** They land in `storage/app/public`
    inside the container. In production, set the `SUPABASE_STORAGE_*` variables.
-2. **Each organisation's own trained models.** Model graduation
+2. **Data export archives, when `SUPABASE_EXPORTS_BUCKET` is unset.** A ready archive
+   then disappears on redeploy; the screen shows it as expired the first time somebody
+   tries to download it, and a new one can be prepared.
+3. **Each organisation's own trained models.** Model graduation
    ([ADR 0046](./decisions/0046-model-graduation-trains-on-the-organisations-own-records.md))
    saves them to `/app/model/artifacts/local/<tenant>/…`. The `local_models` row in the
    database outlives the file. After a redeploy, scoring with an organisation's own

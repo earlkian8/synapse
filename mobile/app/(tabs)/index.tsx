@@ -1,26 +1,37 @@
-import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/empty-state';
+import { Icon, type IconName } from '@/components/ui/icon';
+import { ListRow, ListSection } from '@/components/ui/list';
+import { Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
-import { Screen } from '@/components/ui/screen';
+import { ProgressBar } from '@/components/ui/progress-bar';
+import { Section } from '@/components/ui/section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
+import { ToneWell } from '@/components/ui/tone-well';
+import { Touchable } from '@/components/ui/touchable';
 import { attendanceApi } from '@/features/attendance/api';
+import { PUNCH_META } from '@/features/attendance/punch-meta';
+import { dayHeadline, shiftMinutes } from '@/features/attendance/shift';
 import { awardsApi } from '@/features/awards/api';
 import { leaveApi } from '@/features/leave/api';
 import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { useAuth } from '@/lib/auth';
-import { formatDate, formatLongDate, formatMinutes, formatTime } from '@/lib/format';
+import { formatClock, formatDate, formatDayHeading, formatMinutes, formatShortDate, formatTime } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
 import { useQuery } from '@/lib/use-query';
-import { composite, withAlpha } from '@/theme/color';
 import { useTheme } from '@/theme/theme';
-import { status as statusTones } from '@/theme/tokens';
+import { palette, status as statusTones } from '@/theme/tokens';
 import type { Award, LeaveBalance, LeaveRequest, TodayResponse } from '@/types/api';
 
 type HomeData = {
@@ -37,13 +48,15 @@ function greeting(): string {
   return 'Good evening';
 }
 
+const BALANCE_WIDTH = 152;
+
 export default function HomeScreen() {
-  const { colors, spacing, readable } = useTheme();
+  const { colors, spacing } = useTheme();
   const { user, organization } = useAuth();
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
-  const { data, loading, refreshing, refresh } = useQuery<HomeData>(async () => {
+  const { data, loading, refreshing, refresh, error, reload } = useQuery<HomeData>(async () => {
     const [today, balances, awards, pending] = await Promise.all([
       attendanceApi.today(),
       leaveApi.balances(),
@@ -53,235 +66,323 @@ export default function HomeScreen() {
     return { today, balances: balances.data, awards: awards.data, pending: pending.data };
   }, []);
 
-  const record = data?.today.data;
-  const statusMeta = record ? attendanceMeta(record.status) : null;
   const firstName = user?.employee?.full_name?.split(' ')[0] ?? user?.name?.split(' ')[0] ?? 'there';
+  const latestAward = data?.awards[0];
 
-  // Only the Clock tile is tinted. Four differently-coloured tiles would be decoration;
-  // one says which of these you are most likely to have come here to press.
-  const actions = [
-    { icon: 'finger-print', label: 'Clock', accent: true, onPress: () => router.push('/(tabs)/clock') },
-    { icon: 'add-circle', label: 'File Leave', accent: false, onPress: () => router.push('/leave/new') },
-    { icon: 'calendar', label: 'Attendance', accent: false, onPress: () => router.push('/(tabs)/attendance') },
-    { icon: 'trophy', label: 'Awards', accent: false, onPress: () => router.push('/awards') },
-  ] as const;
-
-  const pendingWash = composite(statusTones.late, 0.12, colors.card);
+  const shortcuts: { icon: IconName; label: string; detail: string; color: string; onPress: () => void }[] = [
+    {
+      icon: 'calendarPlus',
+      label: 'File leave',
+      detail: 'Time off',
+      color: palette.teal,
+      onPress: () => router.push('/leave/new'),
+    },
+    {
+      icon: 'calendar',
+      label: 'Records',
+      detail: 'Your time log',
+      color: statusTones.leave,
+      onPress: () => router.push('/(tabs)/attendance'),
+    },
+    {
+      icon: 'trophy',
+      label: 'Awards',
+      detail: data ? `${data.awards.length} received` : 'Recognition',
+      color: statusTones.late,
+      onPress: () => router.push('/awards'),
+    },
+  ];
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
-      >
-        {/* Active company — tap to switch workspaces */}
-        <View style={{ flexDirection: 'row' }}>
+    <Page
+      title={`${greeting()}, ${firstName}`}
+      eyebrow={formatDayHeading(new Date(), organization?.timezone)}
+      titleAccessory={
+        <Touchable
+          onPress={() => router.push('/(tabs)/profile')}
+          scaleTo={0.92}
+          haptic="light"
+          accessibilityRole="button"
+          accessibilityLabel="Your profile"
+        >
+          <Avatar uri={user?.employee?.photo} initials={firstName.slice(0, 2)} size={42} />
+        </Touchable>
+      }
+      refreshing={refreshing}
+      onRefresh={refresh}
+      tabInset
+    >
+      {organization && (
+        <View style={styles.chipRow}>
           <WorkspaceChip onPress={() => setSwitcherOpen(true)} />
         </View>
+      )}
 
-        {/* Greeting */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <Avatar uri={user?.employee?.photo} initials={firstName.slice(0, 2)} size={52} ring />
-          <View style={{ flex: 1 }}>
-            <AppText variant="caption" muted>
-              {greeting()},
-            </AppText>
-            <AppText variant="title">{firstName}</AppText>
-          </View>
-          {data && data.pending.length > 0 && (
-            <Pressable
-              onPress={() => router.push('/(tabs)/requests')}
-              accessibilityRole="button"
-              accessibilityLabel={`${data.pending.length} pending leave requests`}
-            >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: withAlpha(statusTones.late, 0.12),
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                  borderRadius: 999,
-                }}
-              >
-                <Ionicons name="hourglass-outline" size={15} color={readable(statusTones.late, pendingWash)} />
-                <AppText
-                  variant="caption"
-                  style={{ color: readable(statusTones.late, pendingWash), fontWeight: '700' }}
-                >
-                  {data.pending.length} pending
-                </AppText>
-              </View>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Today */}
-        <Animated.View entering={FadeIn.duration(400)}>
-          <Card elevated onPress={() => router.push('/(tabs)/clock')}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <AppText variant="overline" faint>
-                  {formatLongDate(new Date(), organization?.timezone)}
-                </AppText>
-                <AppText variant="title">
-                  {record?.first_in_at ? (record.last_out_at ? 'Day complete' : 'You’re clocked in') : 'Not clocked in'}
-                </AppText>
-              </View>
-              <View
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 23,
-                  backgroundColor: colors.accent,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Ionicons name="finger-print" size={24} color={colors.onAccent} />
-              </View>
-            </View>
-
-            {loading ? (
-              <Skeleton height={20} width="60%" style={{ marginTop: 16 }} />
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xl, marginTop: spacing.lg }}>
-                <View>
-                  <AppText variant="caption" muted>
-                    Time In
-                  </AppText>
-                  <AppText variant="heading" style={{ fontVariant: ['tabular-nums'] }}>
-                    {formatTime(record?.first_in_at, organization?.timezone)}
-                  </AppText>
-                </View>
-                <View>
-                  <AppText variant="caption" muted>
-                    Worked
-                  </AppText>
-                  <AppText variant="heading" style={{ fontVariant: ['tabular-nums'] }}>
-                    {formatMinutes(record?.worked_minutes ?? 0)}
-                  </AppText>
-                </View>
-                {statusMeta && <Pill label={statusMeta.label} color={statusMeta.color} style={{ marginLeft: 'auto' }} />}
-              </View>
-            )}
-          </Card>
-        </Animated.View>
-
-        {/* Quick actions */}
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          {actions.map((action) => (
-            <Pressable key={action.label} onPress={action.onPress} style={{ flex: 1 }} accessibilityRole="button">
-              <Card padded={false} style={{ alignItems: 'center', paddingVertical: spacing.lg, gap: 8 }}>
-                <View
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 14,
-                    backgroundColor: action.accent ? colors.accentSoft : colors.cardAlt,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Ionicons
-                    name={action.icon}
-                    size={21}
-                    color={action.accent ? colors.accentText : colors.text}
-                  />
-                </View>
-                <AppText variant="caption" style={{ fontWeight: '600', fontSize: 11 }}>
-                  {action.label}
-                </AppText>
-              </Card>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Leave balances */}
-        <View style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AppText variant="overline" muted>
-              Leave Balances
-            </AppText>
-            <Pressable onPress={() => router.push('/(tabs)/requests')} accessibilityRole="button">
-              <AppText variant="caption" style={{ color: colors.accentText, fontWeight: '700' }}>
-                See all
-              </AppText>
-            </Pressable>
-          </View>
-          {loading ? (
-            <Skeleton height={92} radius={18} />
+      {error && !data ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : (
+        <>
+          {/* Today */}
+          {loading || !data ? (
+            <Skeleton height={212} radius={24} />
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }}>
-              {(data?.balances ?? []).slice(0, 5).map((balance) => (
-                <Card key={balance.leave_type_id} style={{ width: 130, gap: 4 }}>
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 4,
-                      backgroundColor: readable(balance.color ?? colors.accent, colors.card, 3),
-                    }}
-                  />
-                  <AppText variant="caption" muted numberOfLines={1}>
-                    {balance.name}
+            <Animated.View entering={enter(0)}>
+              <TodayCard today={data.today} onOpen={() => router.push('/(tabs)/clock')} />
+            </Animated.View>
+          )}
+
+          {/* Shortcuts */}
+          <Animated.View entering={enter(1)} style={styles.shortcuts}>
+            {shortcuts.map((shortcut) => (
+              <Card
+                key={shortcut.label}
+                onPress={shortcut.onPress}
+                accessibilityLabel={`${shortcut.label}, ${shortcut.detail}`}
+                style={styles.shortcut}
+              >
+                <ToneWell icon={shortcut.icon} color={shortcut.color} />
+                <View style={styles.shortcutText}>
+                  <AppText variant="subheadline" weight="semibold" numberOfLines={1}>
+                    {shortcut.label}
                   </AppText>
-                  <AppText variant="title">{balance.remaining}</AppText>
-                  <AppText variant="caption" faint>
-                    of {balance.entitled} days
+                  <AppText variant="caption" tone="secondary" numberOfLines={1}>
+                    {shortcut.detail}
+                  </AppText>
+                </View>
+              </Card>
+            ))}
+          </Animated.View>
+
+          {/* Awaiting approval */}
+          {data && data.pending.length > 0 && (
+            <Animated.View entering={enter(2)}>
+              <Section
+                title="Awaiting approval"
+                action={data.pending.length > 3 ? { label: 'See All', onPress: () => router.push('/(tabs)/requests') } : undefined}
+              >
+                <ListSection leadingWidth={4}>
+                  {data.pending.slice(0, 3).map((request) => (
+                    <ListRow
+                      key={request.id}
+                      title={request.type?.name ?? 'Leave'}
+                      subtitle={`${formatShortDate(request.start_date)}${
+                        request.start_date !== request.end_date ? ` – ${formatShortDate(request.end_date)}` : ''
+                      } · ${request.days} ${request.days === 1 ? 'day' : 'days'}`}
+                      leading={<TypeBar color={request.type?.color ?? colors.tint} />}
+                      onPress={() => router.push({ pathname: '/leave/[id]', params: { id: String(request.id) } })}
+                    />
+                  ))}
+                </ListSection>
+              </Section>
+            </Animated.View>
+          )}
+
+          {/* Leave balances */}
+          <Animated.View entering={enter(3)}>
+            <Section title="Leave balance" action={{ label: 'See All', onPress: () => router.push('/(tabs)/requests') }}>
+              {loading ? (
+                <View style={styles.balanceSkeletons}>
+                  <Skeleton width={BALANCE_WIDTH} height={124} radius={20} />
+                  <Skeleton width={BALANCE_WIDTH} height={124} radius={20} />
+                </View>
+              ) : (data?.balances.length ?? 0) === 0 ? (
+                <Card>
+                  <AppText variant="subheadline" tone="secondary">
+                    No leave types are set up for you yet.
                   </AppText>
                 </Card>
-              ))}
-            </ScrollView>
-          )}
-        </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToInterval={BALANCE_WIDTH + spacing.md}
+                  snapToAlignment="start"
+                  style={styles.bleed}
+                  contentContainerStyle={styles.balanceRow}
+                >
+                  {data?.balances.map((balance) => (
+                    <BalanceCard key={balance.leave_type_id} balance={balance} />
+                  ))}
+                </ScrollView>
+              )}
+            </Section>
+          </Animated.View>
 
-        {/* Latest award */}
-        {!loading && data && data.awards.length > 0 && (
-          <View style={{ gap: spacing.sm }}>
-            <AppText variant="overline" muted>
-              Latest Recognition
-            </AppText>
-            <Card
-              onPress={() => router.push('/awards')}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-            >
-              <AwardMark color={data.awards[0].award_type?.color ?? statusTones.late} />
-              <View style={{ flex: 1 }}>
-                <AppText variant="label">{data.awards[0].award_type?.name ?? 'Award'}</AppText>
-                <AppText variant="caption" muted numberOfLines={1}>
-                  {data.awards[0].reason ?? formatDate(data.awards[0].awarded_on)}
-                </AppText>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
-            </Card>
-          </View>
-        )}
-      </ScrollView>
+          {/* Latest recognition */}
+          {latestAward && (
+            <Animated.View entering={enter(4)}>
+              <Section title="Latest recognition">
+                <Card onPress={() => router.push('/awards')} style={styles.award}>
+                  <ToneWell icon="rosette" color={latestAward.award_type?.color ?? statusTones.late} size={44} />
+                  <View style={styles.flex}>
+                    <AppText variant="headline" numberOfLines={1}>
+                      {latestAward.award_type?.name ?? 'Award'}
+                    </AppText>
+                    <AppText variant="subheadline" tone="secondary" numberOfLines={2}>
+                      {latestAward.reason ?? formatDate(latestAward.awarded_on)}
+                    </AppText>
+                  </View>
+                  <Icon name="chevronRight" size={13} color={colors.textTertiary} weight="semibold" />
+                </Card>
+              </Section>
+            </Animated.View>
+          )}
+        </>
+      )}
 
       <WorkspaceSwitcher visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
-    </Screen>
+    </Page>
   );
 }
 
-/** A trophy on a tint of the award type's own colour, whatever HR chose for it. */
-function AwardMark({ color }: { color: string }) {
-  const { colors, readable } = useTheme();
+/**
+ * Today, on the one navy surface on the screen: where the day stands, the hours
+ * against the shift, and the next punch, one tap from the clock.
+ */
+function TodayCard({ today, onOpen }: { today: TodayResponse; onOpen: () => void }) {
+  const { colors, radius, squircle } = useTheme();
+  const { user, organization } = useAuth();
+  const timeZone = organization?.timezone;
+
+  const record = today.data;
+  const schedule = user?.employee?.schedule;
+  const clockedIn = !!record.first_in_at && !record.last_out_at;
+  const completed = today.next_expected === null && !!record.last_out_at;
+  const meta = record.first_in_at || record.status !== 'absent' ? attendanceMeta(record.status) : null;
+
+  const target = shiftMinutes(schedule);
+  const worked = record.worked_minutes ?? 0;
+  const next = today.next_expected;
+
+  const detail = completed
+    ? `You worked ${formatMinutes(worked)} today.`
+    : record.first_in_at
+      ? `Since ${formatTime(record.first_in_at, timeZone)}`
+      : schedule?.start_time
+        ? `Your shift starts at ${formatClock(schedule.start_time)}`
+        : 'No shift scheduled today';
 
   return (
-    <View
-      style={{
-        width: 46,
-        height: 46,
-        borderRadius: 14,
-        backgroundColor: withAlpha(color, 0.14),
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+    <Touchable
+      onPress={onOpen}
+      scaleTo={0.985}
+      haptic="light"
+      accessibilityRole="button"
+      accessibilityLabel={`Today: ${dayHeadline(next, clockedIn, completed)}. ${detail}${
+        next && !completed ? ` Next: ${PUNCH_META[next].label}.` : ''
+      }`}
+      accessibilityHint="Opens the clock"
     >
-      <Ionicons name="trophy" size={22} color={readable(color, composite(color, 0.14, colors.card))} />
-    </View>
+      <LinearGradient
+        colors={colors.hero}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, squircle, { borderRadius: radius.xl }]}
+      >
+        {/* Two faint rings in the corner: the clock face, suggested. */}
+        <Svg width={220} height={220} style={styles.rings} pointerEvents="none">
+          <Circle cx={160} cy={60} r={100} stroke="rgba(255,255,255,0.07)" strokeWidth={1.5} fill="none" />
+          <Circle cx={160} cy={60} r={64} stroke="rgba(10,191,191,0.22)" strokeWidth={1.5} fill="none" />
+        </Svg>
+
+        <View style={styles.heroTop}>
+          <AppText variant="caption2" weight="semibold" color={colors.onHeroSecondary} style={styles.heroEyebrow}>
+            TODAY
+          </AppText>
+          {meta && <Pill label={meta.label} color={meta.color} on={palette.navy} dot />}
+        </View>
+
+        <AppText variant="title1" color={colors.onHero} style={styles.heroTitle}>
+          {dayHeadline(next, clockedIn, completed)}
+        </AppText>
+        <AppText variant="subheadline" color={colors.onHeroSecondary}>
+          {detail}
+        </AppText>
+
+        {(record.first_in_at || target) && (
+          <View style={styles.heroProgress}>
+            <ProgressBar
+              value={target ? worked / target : completed ? 1 : 0}
+              color={palette.teal}
+              track="rgba(255,255,255,0.14)"
+            />
+            <View style={styles.heroNumbers}>
+              <AppText variant="footnote" weight="semibold" color={colors.onHero} numeric>
+                {formatMinutes(worked)} worked
+              </AppText>
+              {target && (
+                <AppText variant="footnote" color={colors.onHeroSecondary} numeric>
+                  of {formatMinutes(target)}
+                </AppText>
+              )}
+            </View>
+          </View>
+        )}
+
+        {next && !completed && (
+          <View style={styles.heroAction}>
+            <Button label={PUNCH_META[next].label} icon={PUNCH_META[next].icon} variant="tint" decorative />
+          </View>
+        )}
+      </LinearGradient>
+    </Touchable>
   );
 }
+
+/** One leave type: what is left, against what was given, as a bar in the type's colour. */
+function BalanceCard({ balance }: { balance: LeaveBalance }) {
+  const { colors, readable } = useTheme();
+  const color = readable(balance.color ?? colors.tint, colors.card, 3);
+
+  return (
+    <Card style={styles.balance} accessibilityLabel={`${balance.name}: ${balance.remaining} of ${balance.entitled} days left`}>
+      <View style={styles.balanceName}>
+        <View style={[styles.dot, { backgroundColor: color }]} />
+        <AppText variant="footnote" weight="medium" tone="secondary" numberOfLines={1} style={styles.flex}>
+          {balance.name}
+        </AppText>
+      </View>
+      <View style={styles.balanceFigure}>
+        <AppText variant="title1" numeric>
+          {balance.remaining}
+        </AppText>
+        <AppText variant="footnote" tone="secondary" numeric>
+          / {balance.entitled} days
+        </AppText>
+      </View>
+      <ProgressBar value={balance.entitled > 0 ? balance.remaining / balance.entitled : 0} color={color} height={5} />
+    </Card>
+  );
+}
+
+/** The leave type's colour as a slim bar at a row's leading edge. */
+function TypeBar({ color }: { color: string }) {
+  const { colors, readable } = useTheme();
+  return <View style={[styles.typeBar, { backgroundColor: readable(color, colors.card, 3) }]} />;
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  chipRow: { flexDirection: 'row', marginTop: -10 },
+  hero: { padding: 20, overflow: 'hidden' },
+  rings: { position: 'absolute', top: -40, right: -60 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 22 },
+  heroEyebrow: { letterSpacing: 1.2 },
+  heroTitle: { marginTop: 10, marginBottom: 4 },
+  heroProgress: { marginTop: 20, gap: 8 },
+  heroNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
+  heroAction: { marginTop: 20 },
+  shortcuts: { flexDirection: 'row', gap: 10 },
+  shortcut: { flex: 1, padding: 14, gap: 12 },
+  shortcutText: { gap: 1 },
+  bleed: { marginHorizontal: -16 },
+  balanceRow: { paddingHorizontal: 16, gap: 12 },
+  balanceSkeletons: { flexDirection: 'row', gap: 12 },
+  balance: { width: BALANCE_WIDTH, gap: 10 },
+  balanceName: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  balanceFigure: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  award: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  typeBar: { width: 4, height: 34, borderRadius: 2 },
+});

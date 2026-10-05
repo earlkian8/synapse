@@ -1,6 +1,6 @@
 # SYNAPSE Mobile
 
-The employee-facing companion to the SYNAPSE HR ERP — built with Expo (SDK 54),
+The employee-facing companion to the SYNAPSE HR ERP — built with Expo (SDK 57),
 expo-router and TypeScript. It signs in against the live server's Sanctum token
 API and gives employees their day-to-day: clock in/out (DTR), view attendance
 with metrics, file and track leave, and view their awards and profile.
@@ -15,8 +15,11 @@ with metrics, file and track leave, and view their awards and profile.
   list view, and a per-day punch timeline.
 - **Leave** — balances, a file-leave form (server-computed days), history, cancel.
 - **Profile + Awards** — the 201 profile (IDs masked) and your recognitions.
-- Polish throughout: skeletons, empty states, pull-to-refresh, toasts, haptics,
-  and light/dark themes.
+- **Designed as an iOS app** (ADR 0064): large titles that collapse into a frosted
+  bar, inset grouped lists, a floating tab bar, Inter on the HIG type scale, SF Symbols
+  (Material Symbols on Android), restrained spring motion, haptics, light and dark.
+- **Keyboard-aware forms** on iOS and Android (ADR 0065): the screen rises with the
+  keyboard so the focused field and the form's button stay in sight.
 
 ## Running it
 
@@ -52,9 +55,9 @@ The app talks to the Laravel server in `../server`.
 
 ```
 app/                 expo-router routes (auth stack, (tabs) shell, detail stacks)
-components/ui/        shared UI kit (Button, Card, Pill, Input, Sheet, Toast, …)
+components/ui/        shared UI kit (Page, ListSection, Button, Input, Sheet, TabBar, Icon, …)
 features/<module>/    per-feature api.ts + components (attendance, leave, awards, profile)
-lib/                 api client, auth, formatting, location/selfie helpers
+lib/                 api client, auth, formatting, motion, location/selfie helpers
 theme/               design tokens + ThemeProvider (light/dark)
 types/api.ts         API response shapes
 ```
@@ -62,6 +65,7 @@ types/api.ts         API response shapes
 ## Quality
 
 ```bash
-npx tsc --noEmit     # typecheck
-npx expo lint        # lint
+npx tsc --noEmit                                    # typecheck
+npx expo lint                                       # lint
+npx expo export --platform ios --platform android   # bundles both, catches import errors
 ```
