@@ -370,9 +370,13 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 summary: 'Archived records, to restore',
             },
             {
-                title: 'Data Backup & Export',
-                href: '/system/backup',
+                // A copy of the workspace's records (ADR 0066). The database itself
+                // is backed up by its host, so this screen exports rather than backs up.
+                title: 'Data Export',
+                href: '/system/data-export',
                 icon: DatabaseBackup,
+                permission: 'data-export.view',
+                summary: "A copy of your company's records",
             },
         ],
     },

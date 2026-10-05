@@ -2,7 +2,7 @@
 
 > **Status: built.** This is the data model the application runs on, drawn from the
 > schema the migrations produce (every migration up to
-> `2026_09_29_000000_add_product_tour_to_users`, introspected on 2026-10-01). It
+> `2026_10_05_000000_create_data_exports_table`, introspected on 2026-10-05). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -1241,7 +1241,44 @@ erDiagram
 
 ---
 
-## 12. Framework tables
+## 12. Data export
+
+The archives an organisation takes of its own records. See
+[data export tables](./data-export-tables.md) and the
+[Data Export](../modules/data-export.md) module doc.
+
+```mermaid
+erDiagram
+    USER |o--o{ DATA_EXPORT : requests
+
+    DATA_EXPORT {
+        bigint id PK
+        bigint requested_by FK "the only one who may download it"
+        string status "queued|building|ready|failed|expired"
+        string format "csv|json"
+        json datasets "the dataset keys"
+        boolean include_files
+        string disk "exports (private)"
+        string path
+        string filename
+        bigint size_bytes
+        json summary "rows per table, files"
+        text error
+        datetime started_at
+        datetime completed_at
+        datetime expires_at "completed_at + 7 days"
+        int download_count
+        datetime last_downloaded_at
+    }
+```
+
+> Grown from the draft's `BACKUP`. The database itself is backed up by its host, so
+> this is an **export**: the organisation's rows, read at build time and written to a
+> ZIP on a private disk. The archive's contents are never stored in the database.
+
+---
+
+## 13. Framework tables
 
 Laravel's own plumbing, not drawn: `cache`, `cache_locks`, `jobs`, `job_batches`,
 `failed_jobs`, `sessions`, `password_reset_tokens` and `migrations`. Sessions, the
@@ -1271,7 +1308,7 @@ These parts of it did not become tables:
 | Draft entity | What happened |
 | --- | --- |
 | `COMPANY_PROFILE` | It is the `organizations` row ([ADR 0005](../decisions/0005-multi-tenancy.md)). |
-| `BACKUP` | Never built. *Data Backup & Export* is a sidebar entry with no screen behind it. |
+| `BACKUP` | Built as `data_exports` (§12): an export of one organisation's records, since the shared database is backed up by its host ([ADR 0066](../decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)). |
 | `EMAIL_TEMPLATE` | Never built. Notification mail is rendered from code. |
 | `ATTENDANCE` + `ATTENDANCE_IMPORT_BATCH` | Built instead as `attendance_records` + `attendance_punches`, with schedules, assignments, the roster and policies (§6). There is no bulk import. Device ingestion was built and then removed ([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)), as were attendance requests and periods ([ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)). |
 | Payroll & Benefits (`PAYROLL_PERIOD`, `PAYSLIP*`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `EMPLOYEE_ALLOWANCE`, `EMPLOYEE_DEDUCTION`, `BENEFIT_*`) | Built, then removed ([ADR 0019](../decisions/0019-remove-payroll-and-benefits.md)). |

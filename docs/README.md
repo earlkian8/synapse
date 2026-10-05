@@ -59,6 +59,7 @@ commit history rather than repeating them.
 - [Roles & Permissions](./modules/roles-permissions.md) — RBAC, permission matrix, system-wide authorization.
 - [Activity Logs](./modules/activity-logs.md) — read-only audit trail; logging API.
 - [Trash Bin](./modules/trash-bin.md) — archived records from every module in one place: restore or delete for good.
+- [Data Export](./modules/data-export.md) — a copy of the workspace's records as one archive (CSV or JSON, optionally with uploads), for the person who asked, for 7 days.
 - [Notifications](./modules/notifications.md) — in-app, email & web-push; broadcast & preferences.
 - [Mobile app](./modules/mobile-app.md) — the employee companion (Expo): clock in and out, attendance, leave, awards, several workspaces.
 
@@ -89,6 +90,7 @@ commit history rather than repeating them.
 - [attrition risk tables](./database/attrition-risk-tables.md) — assessment runs + per-employee scores and factors.
 - [model graduation tables](./database/model-graduation-tables.md) — each organisation's own trained models.
 - [assistant tables](./database/assistant-tables.md) — conversations + messages (with the agent timeline and cards).
+- [data export tables](./database/data-export-tables.md) — the archives requested, their status, summary and keep-until date.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -156,6 +158,7 @@ commit history rather than repeating them.
 - [0063 — A Privacy Policy and Terms of Service that describe the system and name its operator](./decisions/0063-privacy-policy-and-terms-of-service.md)
 - [0064 — The mobile app is designed as an iOS app, in the brand's colours](./decisions/0064-the-mobile-app-is-designed-as-an-ios-app.md)
 - [0065 — Keyboard handling on React Native's own Keyboard API, not a native keyboard library](./decisions/0065-keyboard-handling-on-the-core-keyboard-api.md)
+- [0066 — Data Export: a copy of the workspace's records, not a backup](./decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -271,3 +274,4 @@ commit history rather than repeating them.
 - [2026-10-01 — A Privacy Policy and Terms of Service](./changelog/2026-10-01-05-privacy-policy-and-terms.md)
 - [2026-10-02 — The mobile app, redesigned as an iOS app](./changelog/2026-10-02-01-mobile-ios-redesign.md)
 - [2026-10-02 — Forms rise with the keyboard, on iOS and Android](./changelog/2026-10-02-02-keyboard-rises-with-forms.md)
+- [2026-10-05 — Data Export: a copy of the workspace's records](./changelog/2026-10-05-01-data-export.md)

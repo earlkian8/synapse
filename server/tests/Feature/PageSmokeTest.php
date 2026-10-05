@@ -63,6 +63,7 @@ const PAGES = [
     'system.activity-logs.index' => 'system/activity-logs/index',
     'system.notifications.index' => 'system/notifications/index',
     'system.trash.index' => 'system/trash/index',
+    'system.data-export.index' => 'system/data-export/index',
 
     // Account
     'profile.edit' => 'settings/profile',

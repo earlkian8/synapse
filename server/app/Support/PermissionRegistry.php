@@ -133,6 +133,10 @@ class PermissionRegistry
         'Notifications' => [
             'notifications.send' => 'Send & broadcast notifications',
         ],
+        'Data Export' => [
+            'data-export.view' => 'View the data export history',
+            'data-export.create' => 'Export the workspace\'s records & download your archives',
+        ],
     ];
 
     /**

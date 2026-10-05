@@ -214,15 +214,13 @@ test('invitations are visible from outside the tenant that issued them', functio
 // ── HTTP surface ─────────────────────────────────────────────────────────────
 
 test('the invite endpoint requires the employees.invite permission', function () {
-    $user = User::factory()->create();
-    $user->roles()->attach(makeRole('viewer', ['employees.view'])->id);
-    OrganizationProvisioner::addMember(testOrganization(), $user, default: true);
+    // A member of this workspace only: an account that also belonged to another
+    // would land there, where this employee does not exist (a 404, not a 403).
+    actingAsUserWith(['employees.view']);
 
     $employee = Employee::factory()->create(['email' => 'nope@work.test', 'user_id' => null]);
 
-    $this->actingAs($user)
-        ->post(route('employees.invite', $employee))
-        ->assertForbidden();
+    $this->post(route('employees.invite', $employee))->assertForbidden();
 });
 
 test('HR can invite and revoke over HTTP', function () {

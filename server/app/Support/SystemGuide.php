@@ -279,6 +279,13 @@ final class SystemGuide
             'assistant' => 'List, restore or permanently delete one record at a time; emptying stays on the screen.',
             'keywords' => ['trash', 'archive', 'archived', 'restore', 'deleted', 'recycle'],
         ],
+        'data-export' => [
+            'title' => 'Data Export', 'menu' => 'System', 'path' => '/system/data-export', 'any' => ['data-export.view'],
+            'about' => 'A copy of the company\'s records in one archive (CSV or JSON, optionally with the uploaded files), to keep or to move to another system. Only the person who prepared an archive can download it, for 7 days.',
+            'tasks' => ['Choose the kinds of record to export and prepare an archive', 'Download your archive once you are notified it is ready', 'Delete an archive'],
+            'assistant' => 'Point you to it; exports are prepared and downloaded on the screen, never in chat.',
+            'keywords' => ['export', 'data export', 'backup', 'back up', 'download all', 'copy of our data', 'archive', 'data portability', 'leave synapse', 'migrate'],
+        ],
         'settings' => [
             'title' => 'Your settings', 'menu' => 'Account menu → Settings', 'path' => '/settings/profile', 'any' => [],
             'about' => 'Your own profile, password, two-step sign-in and passkeys, and light or dark appearance.',
