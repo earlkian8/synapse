@@ -3,19 +3,17 @@ import {
     ArrowRightCircle,
     BadgeCheck,
     Ban,
+    BarChart3,
     BellRing,
-    BookOpen,
     CalendarClock,
     Check,
     CheckCircle2,
-    Hourglass,
-    Loader2,
+    ChevronRight,
     Megaphone,
     PencilLine,
     PlayCircle,
     Search,
     ShieldCheck,
-    Sparkles,
     Trophy,
     UserPlus,
     X,
@@ -50,243 +48,305 @@ const KIND_ICON: Record<AgentCardKind, LucideIcon> = {
     post: Megaphone,
     remind: BellRing,
     award: Trophy,
-    insight: Sparkles,
+    insight: BarChart3,
     confirm: ShieldCheck,
 };
 
-/** Badge colour per tone. */
-const TONE_CLASS: Record<AgentCardTone, string> = {
-    positive: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
-    info: 'bg-sky-500/12 text-sky-600 dark:text-sky-400',
-    warning: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
-    danger: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
-    neutral: 'bg-muted text-muted-foreground',
+/** Status colour per tone: the receipt's status word and its dot. */
+const TONE_CLASS: Record<AgentCardTone, { text: string; dot: string }> = {
+    positive: {
+        text: 'text-emerald-700 dark:text-emerald-400',
+        dot: 'bg-emerald-500',
+    },
+    info: { text: 'text-sky-700 dark:text-sky-400', dot: 'bg-sky-500' },
+    warning: {
+        text: 'text-amber-700 dark:text-amber-400',
+        dot: 'bg-amber-500',
+    },
+    danger: { text: 'text-rose-700 dark:text-rose-400', dot: 'bg-rose-500' },
+    neutral: { text: 'text-muted-foreground', dot: 'bg-muted-foreground/60' },
 };
 
-/**
- * Reveals the agent's steps and result cards one at a time so a finished
- * server response still *feels* like live, deliberate work.
- */
+/** The longest delay setTimeout accepts (2^31 − 1 ms). */
+const MAX_TIMEOUT = 2_147_483_647;
+
 /** Answer a held action; resolves to an error to show, or null. */
 export type AnswerAction = (
     token: string,
     decision: 'confirm' | 'cancel',
 ) => Promise<string | null>;
 
-export function AgentActivity({
-    steps,
-    actions,
-    onRevealed,
-    onAnswer,
-}: {
-    steps: AgentStep[];
-    actions: AgentCard[];
-    onRevealed?: () => void;
-    onAnswer?: AnswerAction;
-}) {
-    const total = steps.length + actions.length;
-    const [revealed, setRevealed] = useState(0);
+// ── The work trace ───────────────────────────────────────────────────────────
 
-    useEffect(() => {
-        if (revealed >= total) {
-            onRevealed?.();
+/**
+ * What a node on the trace stands for. Each is drawn differently, because the
+ * difference matters: a read consulted the record, a change altered it, a held
+ * step waits on the user, and an error did not happen.
+ */
+export type TraceNodeKind = 'read' | 'change' | 'held' | 'error' | 'working';
 
-            return;
-        }
+function nodeKind(step: AgentStep): TraceNodeKind {
+    if (step.status === 'held') {
+        return 'held';
+    }
 
-        const delay = revealed === 0 ? 200 : 520;
-        const timer = setTimeout(
-            () => setRevealed((value) => value + 1),
-            delay,
-        );
+    if (step.status === 'error') {
+        return 'error';
+    }
 
-        return () => clearTimeout(timer);
-    }, [revealed, total, onRevealed]);
+    // Turns recorded before reads were told apart carry no kind; they were
+    // the assistant's actions.
+    return step.kind === 'read' ? 'read' : 'change';
+}
 
-    if (total === 0) {
+const NODE_LABEL: Record<TraceNodeKind, string> = {
+    read: 'Read',
+    change: 'Changed',
+    held: 'Waiting for your OK',
+    error: 'Failed',
+    working: 'Working',
+};
+
+/** A node of the trace: hollow for a read, filled for a change. */
+export function TraceNode({ kind }: { kind: TraceNodeKind }) {
+    return (
+        <span
+            className={cn(
+                'block size-2.5 shrink-0 rounded-full',
+                kind === 'read' &&
+                    'border-[1.5px] border-assistant-signal-text bg-background',
+                kind === 'change' && 'bg-assistant-signal',
+                kind === 'held' &&
+                    'border-[1.5px] border-amber-500 bg-amber-100 dark:bg-amber-500/25',
+                kind === 'error' && 'bg-rose-500',
+                kind === 'working' &&
+                    'assistant-working-node bg-assistant-signal',
+            )}
+        />
+    );
+}
+
+/** Traces longer than this start folded into their one-line summary. */
+const FOLD_AFTER = 3;
+
+/**
+ * The assistant's work for one turn, as a line of nodes: what it read before
+ * answering and what it changed, in order. It is the grounding behind the reply
+ * — the reader can check an answer against what it was built from — so it is
+ * kept, not hidden; a long one is folded into a sentence that says what is in it.
+ */
+export function WorkTrace({ steps }: { steps: AgentStep[] }) {
+    const [expanded, setExpanded] = useState(steps.length <= FOLD_AFTER);
+
+    if (steps.length === 0) {
         return null;
     }
 
-    const visibleSteps = Math.min(revealed, steps.length);
-    const visibleActions = Math.max(0, revealed - steps.length);
+    const foldable = steps.length > FOLD_AFTER;
 
     return (
-        <div className="mt-1 flex flex-col gap-2">
-            {steps.length > 0 && (
-                <ol className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/40 p-2.5">
-                    {steps.slice(0, visibleSteps).map((step, index) => (
-                        <li
-                            key={index}
-                            className="flex animate-in items-start gap-2 text-xs duration-300 fade-in slide-in-from-left-1"
-                        >
-                            <StepIcon
-                                status={step.status}
-                                kind={step.kind}
-                                isLast={
-                                    index === visibleSteps - 1 &&
-                                    revealed < total
-                                }
-                            />
-                            <span className="min-w-0">
-                                <span className="font-medium text-foreground">
-                                    {step.label}
-                                </span>
-                                {step.detail && (
-                                    <span className="text-muted-foreground">
-                                        {' '}
-                                        · {step.detail}
-                                    </span>
-                                )}
-                            </span>
-                        </li>
-                    ))}
-                </ol>
+        <div className="flex flex-col gap-1.5">
+            {foldable && (
+                <button
+                    type="button"
+                    onClick={() => setExpanded((value) => !value)}
+                    aria-expanded={expanded}
+                    className="-ml-1 flex w-fit items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                    <ChevronRight
+                        className={cn(
+                            'size-3.5 transition-transform',
+                            expanded && 'rotate-90',
+                        )}
+                    />
+                    {summarize(steps)}
+                </button>
             )}
 
-            {actions
-                .slice(0, visibleActions)
-                .map((card, index) =>
-                    card.kind === 'confirm' && card.confirmation ? (
-                        <ConfirmCard
-                            key={index}
-                            card={card}
-                            onAnswer={onAnswer}
-                        />
-                    ) : (
-                        <ResultCard key={index} card={card} />
-                    ),
-                )}
+            {expanded && (
+                <ol
+                    aria-label="What the assistant read and did"
+                    className={cn(foldable && 'pl-0.5')}
+                >
+                    {steps.map((step, index) => {
+                        const kind = nodeKind(step);
+                        const last = index === steps.length - 1;
+
+                        return (
+                            <li
+                                key={index}
+                                style={
+                                    {
+                                        '--trace-index': index,
+                                    } as React.CSSProperties
+                                }
+                                className={cn(
+                                    'assistant-trace-row relative flex gap-2.5',
+                                    !last && 'pb-2',
+                                )}
+                            >
+                                <span className="relative flex w-2.5 shrink-0 justify-center pt-[5px]">
+                                    <TraceNode kind={kind} />
+                                    {!last && (
+                                        <span className="absolute top-[17px] -bottom-[3px] left-1/2 w-px -translate-x-1/2 bg-border" />
+                                    )}
+                                </span>
+                                <div className="min-w-0 flex-1 text-[13px] leading-5">
+                                    <span className="sr-only">
+                                        {NODE_LABEL[kind]}:{' '}
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            kind === 'error'
+                                                ? 'text-rose-700 dark:text-rose-400'
+                                                : 'text-foreground/85',
+                                        )}
+                                    >
+                                        {step.label}
+                                    </span>
+                                    {step.detail && (
+                                        <p className="text-xs break-words text-muted-foreground">
+                                            {step.detail}
+                                        </p>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
         </div>
     );
 }
 
-function StepIcon({
-    status,
-    kind,
-    isLast,
-}: {
-    status: string;
-    kind?: AgentStep['kind'];
-    isLast: boolean;
-}) {
-    if (isLast && status === 'done') {
-        return (
-            <Loader2 className="mt-px size-3.5 shrink-0 animate-spin text-[#0ABFBF]" />
-        );
-    }
+/** "Read 4 sources and made 1 change" — what a folded trace holds. */
+function summarize(steps: AgentStep[]): string {
+    const count = (kind: TraceNodeKind) =>
+        steps.filter((step) => nodeKind(step) === kind).length;
+    const plural = (n: number, one: string, many: string) =>
+        `${n} ${n === 1 ? one : many}`;
 
-    // Proposed, not done: waiting on the user's answer.
-    if (status === 'held') {
-        return (
-            <span className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
-                <Hourglass className="size-2.5 text-amber-600 dark:text-amber-400" />
-            </span>
-        );
-    }
+    const reads = count('read');
+    const changes = count('change');
+    const held = count('held');
+    const errors = count('error');
 
-    if (status === 'error') {
-        return (
-            <span className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-destructive/15">
-                <X className="size-2.5 text-destructive" />
-            </span>
-        );
-    }
+    const parts = [
+        reads > 0 && `read ${plural(reads, 'source', 'sources')}`,
+        changes > 0 && `made ${plural(changes, 'change', 'changes')}`,
+        held > 0 && `held ${plural(held, 'action', 'actions')} for your OK`,
+        errors > 0 && `${plural(errors, 'step', 'steps')} failed`,
+    ].filter((part): part is string => part !== false);
 
-    // A read is the record being consulted, not a change to it — the difference
-    // between "here's what I found" and "here's what I did".
-    if (kind === 'read') {
-        return (
-            <span className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-[#0ABFBF]/15">
-                <BookOpen className="size-2.5 text-[#0a8b91] dark:text-[#0ABFBF]" />
-            </span>
-        );
+    const sentence =
+        parts.length <= 1
+            ? (parts[0] ?? plural(steps.length, 'step', 'steps'))
+            : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+
+    return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
+// ── Receipts ─────────────────────────────────────────────────────────────────
+
+/**
+ * What the turn produced — a person added, a request approved, a ranking read
+ * out — as one ruled list. Each line says what it is about and, in its own
+ * colour, what happened to it.
+ */
+export function Receipts({ cards }: { cards: AgentCard[] }) {
+    if (cards.length === 0) {
+        return null;
     }
 
     return (
-        <span className="mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
-            <Check className="size-2.5 text-emerald-600 dark:text-emerald-400" />
-        </span>
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+            {cards.map((card, index) => (
+                <Receipt key={index} card={card} />
+            ))}
+        </ul>
     );
 }
 
-function ResultCard({ card }: { card: AgentCard }) {
+function Receipt({ card }: { card: AgentCard }) {
     const Icon = KIND_ICON[card.kind] ?? Check;
     const tone = TONE_CLASS[card.tone] ?? TONE_CLASS.neutral;
     const meta = card.meta.filter(Boolean);
     // Read-outs (a pipeline summary, a ranked candidate, an AI read) carry
-    // several figures worth seeing at once, so their meta becomes a chip row
-    // instead of being collapsed into the single subtitle line.
-    const chips = card.kind === 'insight' ? meta.slice(1) : [];
+    // several figures worth seeing at once, so their meta becomes a row of
+    // figures instead of being collapsed into the single subtitle line.
+    const figures = card.kind === 'insight' ? meta.slice(1) : [];
 
     return (
-        <div className="relative animate-in overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm duration-500 zoom-in-95 fade-in slide-in-from-bottom-1">
-            {/* one-shot sheen sweeping across on reveal */}
-            <span className="pointer-events-none absolute inset-0 -translate-x-full animate-[assistant-sheen_1.1s_ease-out_forwards] bg-gradient-to-r from-transparent via-[#0ABFBF]/10 to-transparent" />
-            <div className="flex items-center gap-3">
-                <span className="animate-[assistant-pop_0.5s_ease-out]">
-                    {card.avatar ? (
-                        <PersonAvatar
-                            name={card.avatar.name}
-                            initials={card.avatar.initials}
-                            photo={card.avatar.photo}
-                            className="size-10 ring-2 ring-[#0ABFBF]/30"
-                        />
-                    ) : (
-                        <span className="flex size-10 items-center justify-center rounded-full bg-[#0F2044] text-[#0ABFBF] ring-2 ring-[#0ABFBF]/30">
-                            <Icon className="size-5" />
-                        </span>
-                    )}
+        <li className="flex gap-3 px-3 py-2.5">
+            {card.avatar ? (
+                <PersonAvatar
+                    name={card.avatar.name}
+                    initials={card.avatar.initials}
+                    photo={card.avatar.photo}
+                    className="size-8"
+                />
+            ) : (
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground/70">
+                    <Icon className="size-4" />
                 </span>
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
+            )}
+
+            <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-3">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
                         {card.title}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {meta.length > 0 && (
-                            <span className="font-mono">{meta[0]}</span>
+                    <span
+                        className={cn(
+                            'flex shrink-0 items-center gap-1.5 text-xs font-medium',
+                            tone.text,
                         )}
+                    >
+                        <span
+                            className={cn('size-1.5 rounded-full', tone.dot)}
+                        />
+                        {card.badge}
+                    </span>
+                </div>
+
+                {(meta.length > 0 || card.subtitle) && (
+                    <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground tabular-nums">
+                        {meta.length > 0 && <span>{meta[0]}</span>}
                         {card.subtitle && (
-                            <>
-                                {meta.length > 0 && <> · </>}
+                            <span className="min-w-0 truncate">
                                 {card.subtitle}
-                            </>
+                            </span>
                         )}
                     </p>
-                </div>
-                <span
-                    className={cn(
-                        'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                        tone,
-                    )}
-                >
-                    <Icon className="size-3" />
-                    {card.badge}
-                </span>
-            </div>
+                )}
 
-            {chips.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1 pl-13">
-                    {chips.map((chip) => (
-                        <span
-                            key={chip}
-                            className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                        >
-                            {chip}
-                        </span>
-                    ))}
-                </div>
-            )}
-        </div>
+                {figures.length > 0 && (
+                    <ul className="mt-1.5 flex flex-wrap gap-1">
+                        {figures.map((figure) => (
+                            <li
+                                key={figure}
+                                className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/75 tabular-nums"
+                            >
+                                {figure}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </li>
     );
 }
+
+// ── Held actions ─────────────────────────────────────────────────────────────
 
 /**
  * An action the assistant proposed but may not take on its own (ADR 0049): it
  * says exactly what would run — the tool and the arguments it would run with —
  * and waits for Confirm or Cancel. Nothing has changed until Confirm is pressed,
- * and the server runs precisely what is shown here.
+ * and the server runs precisely what is shown here. Once answered it shrinks to
+ * a line that says how it was answered.
  */
-function ConfirmCard({
+export function ConfirmCard({
     card,
     onAnswer,
 }: {
@@ -306,6 +366,12 @@ function ConfirmCard({
 
         const remaining =
             new Date(confirmation.expires_at).getTime() - Date.now();
+
+        // A delay past setTimeout's limit (~24.8 days) would fire at once.
+        if (!(remaining <= MAX_TIMEOUT)) {
+            return;
+        }
+
         const timer = setTimeout(() => setLapsed(true), Math.max(0, remaining));
 
         return () => clearTimeout(timer);
@@ -329,97 +395,98 @@ function ConfirmCard({
         setError(problem);
     };
 
+    if (!open) {
+        const [label, Icon, className] =
+            state === 'confirmed'
+                ? ['Confirmed', Check, 'text-emerald-700 dark:text-emerald-400']
+                : state === 'cancelled'
+                  ? ['Cancelled', X, 'text-muted-foreground']
+                  : ['Expired', X, 'text-muted-foreground'];
+
+        return (
+            <div className="flex flex-col gap-1">
+                <p className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <ShieldCheck className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-foreground/85">
+                        {card.title}
+                    </span>
+                    <span
+                        className={cn(
+                            'flex shrink-0 items-center gap-1 text-xs font-medium',
+                            className,
+                        )}
+                    >
+                        <Icon className="size-3.5" />
+                        {label}
+                    </span>
+                </p>
+                {error && <AnswerError error={error} />}
+            </div>
+        );
+    }
+
     const reason = card.meta[0];
 
     return (
         <section
             aria-label={`Waiting for your OK: ${card.title}`}
-            className={cn(
-                'animate-in rounded-xl border p-3 shadow-sm duration-500 fade-in slide-in-from-bottom-1',
-                open
-                    ? 'border-amber-500/40 bg-amber-500/5'
-                    : 'border-border bg-card',
-            )}
+            className="overflow-hidden rounded-lg border border-amber-500/45 bg-amber-50/70 dark:bg-amber-500/[0.06]"
         >
-            <div className="flex items-start gap-3">
-                <span
-                    className={cn(
-                        'flex size-9 shrink-0 items-center justify-center rounded-full',
-                        open
-                            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                            : 'bg-muted text-muted-foreground',
-                    )}
-                >
-                    <ShieldCheck className="size-4.5" />
-                </span>
+            <div className="flex gap-3 px-3 pt-3 pb-2.5">
+                <ShieldCheck className="mt-0.5 size-4.5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{card.title}</p>
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                        Waiting for your OK
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold">{card.title}</p>
                     {card.subtitle && (
-                        <p className="mt-0.5 text-xs break-words text-muted-foreground">
+                        <p className="mt-1 text-xs break-words text-foreground/75">
                             {card.subtitle}
                         </p>
                     )}
-                    {open && reason && (
-                        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+                    {reason && (
+                        <p className="mt-1.5 text-xs text-muted-foreground">
                             {reason}
                         </p>
                     )}
+                    {error && <AnswerError error={error} />}
                 </div>
-                <StateBadge state={state} />
             </div>
 
-            {open && (
-                <div className="mt-3 flex items-center justify-end gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={working !== null || !onAnswer}
-                        onClick={() => void answer('cancel')}
-                    >
-                        {working === 'cancel' ? <Spinner /> : <X />}
-                        Cancel
-                    </Button>
-                    <Button
-                        size="sm"
-                        disabled={working !== null || !onAnswer}
-                        onClick={() => void answer('confirm')}
-                    >
-                        {working === 'confirm' ? <Spinner /> : <Check />}
-                        Confirm
-                    </Button>
-                </div>
-            )}
-
-            {error && (
-                <p
-                    role="alert"
-                    className="mt-2 text-xs text-rose-600 dark:text-rose-400"
-                >
-                    {error}
+            <div className="flex items-center justify-end gap-2 border-t border-amber-500/25 px-3 py-2">
+                <p className="mr-auto min-w-0 flex-1 text-[11px] text-muted-foreground">
+                    Nothing changes until you confirm.
                 </p>
-            )}
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={working !== null || !onAnswer}
+                    onClick={() => void answer('cancel')}
+                >
+                    {working === 'cancel' && <Spinner />}
+                    Cancel
+                </Button>
+                <Button
+                    size="sm"
+                    disabled={working !== null || !onAnswer}
+                    onClick={() => void answer('confirm')}
+                    className="bg-assistant-ink text-white hover:bg-assistant-ink/90"
+                >
+                    {working === 'confirm' ? <Spinner /> : <Check />}
+                    Confirm
+                </Button>
+            </div>
         </section>
     );
 }
 
-function StateBadge({ state }: { state: string }) {
-    const [label, className] =
-        state === 'confirmed'
-            ? ['Confirmed', TONE_CLASS.positive]
-            : state === 'cancelled'
-              ? ['Cancelled', TONE_CLASS.neutral]
-              : state === 'expired'
-                ? ['Expired', TONE_CLASS.neutral]
-                : ['Needs your OK', TONE_CLASS.warning];
-
+function AnswerError({ error }: { error: string }) {
     return (
-        <span
-            className={cn(
-                'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                className,
-            )}
+        <p
+            role="alert"
+            className="mt-1.5 text-xs text-rose-700 dark:text-rose-400"
         >
-            {label}
-        </span>
+            {error}
+        </p>
     );
 }

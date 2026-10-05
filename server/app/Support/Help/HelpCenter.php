@@ -517,7 +517,7 @@ final class HelpCenter
             'category' => 'assistant', 'title' => 'Meet the assistant',
             'summary' => 'Ask about your workspace in plain words, or ask it to do the work — within what your role allows.',
             'any' => AssistantAccess::PERMISSIONS, 'featured' => true,
-            'keywords' => ['assistant', 'chat', 'ai', 'ask', 'copilot', 'sparkle', 'what can you do', 'conversation'],
+            'keywords' => ['assistant', 'chat', 'ai', 'ask', 'copilot', 'shortcut', 'ctrl+j', 'what can you do', 'conversation'],
             'related' => ['assistant-privacy-and-confirmations', 'your-dashboard'],
         ],
         'assistant-privacy-and-confirmations' => [

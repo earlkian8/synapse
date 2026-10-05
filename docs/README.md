@@ -159,6 +159,7 @@ commit history rather than repeating them.
 - [0064 — The mobile app is designed as an iOS app, in the brand's colours](./decisions/0064-the-mobile-app-is-designed-as-an-ios-app.md)
 - [0065 — Keyboard handling on React Native's own Keyboard API, not a native keyboard library](./decisions/0065-keyboard-handling-on-the-core-keyboard-api.md)
 - [0066 — Data Export: a copy of the workspace's records, not a backup](./decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)
+- [0067 — The assistant is a panel opened from the top bar, and its replies show their work as a trace](./decisions/0067-the-assistant-is-a-panel-opened-from-the-top-bar.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -275,3 +276,4 @@ commit history rather than repeating them.
 - [2026-10-02 — The mobile app, redesigned as an iOS app](./changelog/2026-10-02-01-mobile-ios-redesign.md)
 - [2026-10-02 — Forms rise with the keyboard, on iOS and Android](./changelog/2026-10-02-02-keyboard-rises-with-forms.md)
 - [2026-10-05 — Data Export: a copy of the workspace's records](./changelog/2026-10-05-01-data-export.md)
+- [2026-10-05 — The assistant, redesigned: a panel from the top bar](./changelog/2026-10-05-02-assistant-panel-redesign.md)

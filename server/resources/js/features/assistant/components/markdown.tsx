@@ -26,8 +26,8 @@ function hostOf(href: string | undefined): string | null {
 }
 
 /**
- * Compact, theme-aware markdown for assistant replies: GitHub-flavoured (tables,
- * lists, strikethrough), with styling tuned for a chat bubble.
+ * Theme-aware markdown for assistant replies: GitHub-flavoured (tables, lists,
+ * strikethrough), set as plain reading text — a reply is not in a bubble.
  *
  * A reply may have been steered by text in a record (ADR 0049), and the classic
  * end of that is a leak — an image that fetches `https://…?q=<data>` the moment
@@ -39,14 +39,14 @@ function hostOf(href: string | undefined): string | null {
  */
 const COMPONENTS: Components = {
     p: ({ children }) => (
-        <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>
+        <p className="my-2 first:mt-0 last:mb-0">{children}</p>
     ),
     a: ({ children, href }) => {
         if (isInternal(href)) {
             return (
                 <a
                     href={href}
-                    className="font-medium text-[#0ABFBF] underline decoration-[#0ABFBF]/40 underline-offset-2 hover:decoration-[#0ABFBF]"
+                    className="font-medium text-assistant-signal-text underline decoration-assistant-signal-text/40 underline-offset-2 hover:decoration-assistant-signal-text"
                 >
                     {children}
                 </a>
@@ -67,12 +67,12 @@ const COMPONENTS: Components = {
     img: ({ alt }) =>
         alt ? <span className="text-muted-foreground">[{alt}]</span> : null,
     ul: ({ children }) => (
-        <ul className="my-1.5 ml-4 list-disc space-y-1 marker:text-muted-foreground">
+        <ul className="my-2 ml-4 list-disc space-y-1 marker:text-muted-foreground">
             {children}
         </ul>
     ),
     ol: ({ children }) => (
-        <ol className="my-1.5 ml-4 list-decimal space-y-1 marker:text-muted-foreground">
+        <ol className="my-2 ml-4 list-decimal space-y-1 marker:text-muted-foreground marker:tabular-nums">
             {children}
         </ol>
     ),
@@ -82,16 +82,22 @@ const COMPONENTS: Components = {
     ),
     em: ({ children }) => <em className="italic">{children}</em>,
     h1: ({ children }) => (
-        <h1 className="mt-2 mb-1 text-base font-semibold">{children}</h1>
+        <h1 className="mt-4 mb-1.5 text-base font-semibold first:mt-0">
+            {children}
+        </h1>
     ),
     h2: ({ children }) => (
-        <h2 className="mt-2 mb-1 text-sm font-semibold">{children}</h2>
+        <h2 className="mt-4 mb-1.5 text-[15px] font-semibold first:mt-0">
+            {children}
+        </h2>
     ),
     h3: ({ children }) => (
-        <h3 className="mt-2 mb-1 text-sm font-semibold">{children}</h3>
+        <h3 className="mt-3 mb-1 text-sm font-semibold first:mt-0">
+            {children}
+        </h3>
     ),
     blockquote: ({ children }) => (
-        <blockquote className="my-1.5 border-l-2 border-[#0ABFBF]/50 pl-3 text-muted-foreground italic">
+        <blockquote className="my-2 border-l-2 border-assistant-signal/60 pl-3 text-muted-foreground">
             {children}
         </blockquote>
     ),
@@ -119,24 +125,28 @@ const COMPONENTS: Components = {
     ),
     table: ({ children }) => (
         <div className="my-2 overflow-x-auto rounded-lg border border-border">
-            <table className="w-full border-collapse text-xs">{children}</table>
+            <table className="w-full border-collapse text-xs tabular-nums">
+                {children}
+            </table>
         </div>
     ),
-    thead: ({ children }) => <thead className="bg-muted/60">{children}</thead>,
+    thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
     th: ({ children }) => (
-        <th className="border-b border-border px-2.5 py-1.5 text-left font-semibold">
+        <th className="border-b border-border px-2.5 py-1.5 text-left font-medium whitespace-nowrap text-muted-foreground">
             {children}
         </th>
     ),
     td: ({ children }) => (
-        <td className="border-b border-border/60 px-2.5 py-1.5">{children}</td>
+        <td className="border-b border-border/60 px-2.5 py-1.5 align-top">
+            {children}
+        </td>
     ),
     hr: () => <hr className="my-2 border-border" />,
 };
 
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
     return (
-        <div className="text-sm leading-relaxed break-words">
+        <div className="text-sm leading-6 break-words text-foreground [&_tr:last-child_td]:border-b-0">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
                 {text}
             </ReactMarkdown>

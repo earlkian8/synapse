@@ -301,11 +301,11 @@ final class SystemGuide
             'keywords' => ['workspace', 'company', 'switch', 'organisation', 'organization'],
         ],
         'assistant' => [
-            'title' => 'The assistant', 'menu' => 'The sparkle button, bottom right', 'path' => '', 'any' => [],
+            'title' => 'The assistant', 'menu' => 'The Assistant button in the top bar, or ⌘J / Ctrl+J', 'path' => '', 'any' => [],
             'about' => 'This chat. It answers from the workspace\'s live records and can act for you, only within your own permissions. Changes that matter wait for your Confirm, and everything it does is recorded in the audit trail as "via assistant".',
             'tasks' => ['Ask a question in plain words', 'Ask it to do something, then confirm'],
             'assistant' => 'It cannot see pay, government ID numbers, bank details, home addresses, birth dates or passwords.',
-            'keywords' => ['assistant', 'chat', 'ai', 'copilot', 'what can you do'],
+            'keywords' => ['assistant', 'chat', 'ai', 'copilot', 'what can you do', 'shortcut'],
         ],
         'help-center' => [
             'title' => 'Help Center', 'menu' => 'Help (the question mark in the top bar) → Help Center', 'path' => '/help', 'any' => [],

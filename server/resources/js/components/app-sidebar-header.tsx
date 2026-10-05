@@ -19,6 +19,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { AssistantButton } from '@/features/assistant/components/assistant-button';
 import { HelpMenu } from '@/features/product-tour/components/help-menu';
 import { tourTarget } from '@/features/product-tour/targets';
 import { useInitials } from '@/hooks/use-initials';
@@ -34,7 +35,7 @@ export function AppSidebarHeader({
 
     return (
         <TooltipProvider delayDuration={200}>
-            <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/50 bg-background/80 px-4 backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <header className="@container/header sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/50 bg-background/80 px-4 backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
                 {/* Left: trigger + breadcrumbs */}
                 <div className="flex min-w-0 items-center gap-2">
                     <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
@@ -44,8 +45,9 @@ export function AppSidebarHeader({
 
                 {/* Right: actions */}
                 <div className="flex items-center gap-1.5">
-                    {/* Search field */}
-                    <div className="relative hidden md:block">
+                    {/* Search field — sized by the bar's own width, which the
+                        docked assistant narrows as well as the window does */}
+                    <div className="relative hidden @4xl/header:block">
                         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                         <input
                             type="search"
@@ -62,7 +64,7 @@ export function AppSidebarHeader({
                                 variant="ghost"
                                 size="icon"
                                 aria-label="Search"
-                                className="size-8 text-muted-foreground hover:text-foreground md:hidden"
+                                className="size-8 text-muted-foreground hover:text-foreground @4xl/header:hidden"
                             >
                                 <Search className="size-[18px]" />
                             </Button>
@@ -76,6 +78,9 @@ export function AppSidebarHeader({
                         orientation="vertical"
                         className="mx-0.5 hidden h-5 sm:block"
                     />
+
+                    {/* The assistant — opens its panel; ⌘J / Ctrl+J anywhere */}
+                    <AssistantButton />
 
                     {/* Help — the tour, and the Setup Guide for owners */}
                     <HelpMenu />

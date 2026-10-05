@@ -224,11 +224,9 @@ export function buildTourStops(context: TourContext): TourStop[] {
         label: 'Assistant',
         icon: Sparkles,
         title: 'Meet your assistant',
-        body: 'Ask in plain words — "what needs my attention today?" — and it answers from your live records, or does the work for you within what your role allows. Changes that matter wait for your Confirm.',
-        side: 'top',
-        align: 'end',
-        padding: 6,
-        radius: 9999,
+        body: 'Ask in plain words — "what needs my attention today?" — and it answers from your live records, or does the work for you within what your role allows. Changes that matter wait for your Confirm. It opens beside the page; ⌘J or Ctrl+J opens it from anywhere.',
+        ...TOP_BAR_PLACEMENT,
+        radius: 10,
     });
 
     return stops;

@@ -16,9 +16,13 @@ function Toaster({ ...props }: ToasterProps) {
             // space. A page with a pinned action bar there (the setup wizard)
             // moves them up by setting these variables — see
             // `features/setup-wizard/components/toast-clearance.tsx`. The
+            // assistant's open panel moves them aside the same way. The
             // fallbacks are sonner's own defaults, so every other page is
             // exactly where it was.
-            offset={{ bottom: 'var(--app-toast-offset-bottom, 24px)' }}
+            offset={{
+                bottom: 'var(--app-toast-offset-bottom, 24px)',
+                right: 'var(--app-toast-offset-right, 24px)',
+            }}
             mobileOffset={{
                 bottom: 'var(--app-toast-offset-bottom-mobile, 16px)',
             }}

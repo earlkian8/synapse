@@ -30,14 +30,35 @@ async function parse<T>(response: Response): Promise<T> {
     const data = (await response.json().catch(() => null)) as T | null;
 
     if (!response.ok || !data) {
-        throw new Error(
-            response.status === 419
-                ? 'Your session expired. Please refresh the page and try again.'
-                : `The assistant request failed (${response.status}).`,
-        );
+        throw new Error(failureText(response.status, data));
     }
 
     return data;
+}
+
+/**
+ * What to tell the person when a request fails. The server explains its own
+ * refusals (`reply` when the assistant is not set up, `error` for a request it
+ * cannot take), and that explanation is worth more than a status code.
+ */
+function failureText(status: number, data: unknown): string {
+    if (status === 419) {
+        return 'Your session expired. Please refresh the page and try again.';
+    }
+
+    if (status === 429) {
+        return 'That is a lot of messages in a short time. Wait a minute, then retry.';
+    }
+
+    const body = (data ?? {}) as { reply?: unknown; error?: unknown };
+
+    for (const said of [body.reply, body.error]) {
+        if (typeof said === 'string' && said.trim() !== '') {
+            return said;
+        }
+    }
+
+    return `The assistant request failed (${status}).`;
 }
 
 type RawConversation = {

@@ -1,7 +1,7 @@
 # Assistant
 
-The floating chat assistant in the bottom-right corner of every page (the sparkle
-button). It does two jobs. It **answers** questions about the workspace from records it
+The chat assistant, opened from the **Assistant** button in the top bar (or ⌘J / Ctrl+J)
+as a panel at the right edge of every page. It does two jobs. It **answers** questions about the workspace from records it
 reads for the asker, and it **acts**, through named, permission-checked tools that call
 the same code as the screens. It covers the whole system: 33 modules and 277 tools, each
 offered only to the people whose role allows it. It runs on Google Gemini, server-side.
@@ -13,12 +13,14 @@ offered only to the people whose role allows it. It runs on Google Gemini, serve
 > (permission-scoped tools), [0027](../decisions/0027-assistant-employee-retrieval-and-disclosure-policy.md)
 > (disclosure policy), [0035](../decisions/0035-assistant-answers-from-a-retrieved-brief.md)
 > (retrieval first), [0049](../decisions/0049-assistant-prompt-injection-defences.md)
-> (prompt-injection defences), and [0050](../decisions/0050-assistant-training-awards-and-events.md)
-> to [0059](../decisions/0059-assistant-covers-the-whole-system.md) (module by module).
+> (prompt-injection defences), [0050](../decisions/0050-assistant-training-awards-and-events.md)
+> to [0059](../decisions/0059-assistant-covers-the-whole-system.md) (module by module), and
+> [0067](../decisions/0067-the-assistant-is-a-panel-opened-from-the-top-bar.md) (the panel
+> and the work trace).
 
 ## Who sees it
 
-The launcher is shown to anyone who holds at least one permission in
+The button is shown to anyone who holds at least one permission in
 `App\Services\Assistant\AssistantAccess::PERMISSIONS`: a view permission of any module
 the assistant reads. The server decides and shares the answer as `auth.assistant`, which
 the launcher and the [Help Center](./help-center.md)'s articles about the assistant both
@@ -262,22 +264,38 @@ delay). With no `GEMINI_API_KEY`, the endpoint answers 503 with a message saying
 
 ## Frontend
 
-`resources/js/features/assistant/`, mounted once in `layouts/app/app-sidebar-layout.tsx`:
+`resources/js/features/assistant/`. The panel is mounted once in
+`layouts/app/app-sidebar-layout.tsx`, and its button in `components/app-sidebar-header.tsx`
+(ADR 0067):
 
+- `launcher.ts` — whether the panel is open (`useAssistantOpen`, a small external store
+  the button and the panel share), and `open(prompt)` for any page to open it with a
+  question typed.
 - `use-assistant.ts` — state and orchestration: the thread list, the active thread,
-  optimistic sending, simulated streaming of the reply, edit, regenerate, retry, and
-  answering confirmation cards.
-- `api.ts` — `fetch` calls with the XSRF header; `types.ts`.
-- `components/assistant.tsx` — the launcher and panel, the permission check, and an
-  unsent draft per thread in `localStorage` (`synapse.assistant.draft.<id>`).
-- `components/message-list.tsx`, `message-item.tsx` — the turns, copy, edit and
-  regenerate.
-- `components/agent-activity.tsx` — the step timeline and result cards, including the
-  Confirm / Cancel card.
-- `components/composer.tsx` — input, drag-and-drop attachments.
-- `components/conversation-list.tsx` — history: rename, pin, delete, clear.
+  optimistic sending, the short written-out reveal of a reply, edit, regenerate, retry,
+  and answering confirmation cards.
+- `api.ts` — `fetch` calls with the XSRF header, and the server's own reason when a
+  request fails; `types.ts`.
+- `components/assistant-button.tsx` — the top-bar button and the ⌘J / Ctrl+J shortcut.
+- `components/assistant.tsx` — the panel: docked beside the page at ≥ 1280 px, a sheet
+  from 640 px, the whole screen below that; two widths (`synapse.assistant.wide`);
+  Escape and focus; dropping files anywhere on it; moving the toasts aside while it is
+  open; an unsent draft per thread in `localStorage` (`synapse.assistant.draft.<id>`).
+- `components/message-list.tsx`, `message-item.tsx` — the turns, the empty state's *Ask*
+  and *Do* starting points, copy, edit and regenerate, and *Working* with the elapsed
+  time.
+- `components/agent-activity.tsx` — the work trace (a hollow node for a read, filled for
+  a change, amber for held, red for an error; folded past three steps), the receipts,
+  and the Confirm / Cancel card.
+- `components/assistant-mark.tsx` — the mark: a two-step trace in miniature.
+- `components/composer.tsx` — input, attachments, Send and Stop.
+- `components/conversation-list.tsx` — history: search, rename, pin, and delete or clear
+  with an in-place confirmation.
 - `components/markdown.tsx` — the reply renderer; it drops images and off-app links,
   as `ReplyGuard` does on the server.
+
+Colours come from `--assistant-ink` (navy), `--assistant-signal` (teal) and
+`--assistant-signal-text` (a deeper teal that passes as text) in `resources/css/app.css`.
 
 ## Configuration
 

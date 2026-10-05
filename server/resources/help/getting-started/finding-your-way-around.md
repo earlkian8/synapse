@@ -30,7 +30,7 @@ From left to right:
 
 ## The assistant
 
-The sparkle button in the bottom-right corner opens the assistant: ask about your workspace in plain words, or ask it to do something for you. It is offered to people whose role covers at least one module it can read. See [Meet the assistant](/help/assistant/meet-the-assistant).
+The **Assistant** button in the top bar — or **⌘J** / **Ctrl+J** from any page — opens the assistant beside the page: ask about your workspace in plain words, or ask it to do something for you. It is offered to people whose role covers at least one module it can read. See [Meet the assistant](/help/assistant/meet-the-assistant).
 
 ## Lists, records and forms
 

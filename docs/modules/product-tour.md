@@ -36,7 +36,7 @@ what that person's role can open.
 | 9 | Notifications | the bell | always |
 | 10 | Help | the question mark | always; points at the [Help Center](./help-center.md), and mentions the Setup Guide to `setup.company.manage` |
 | 11 | Your account | the avatar | always |
-| 12 | Assistant | the sparkle launcher | the assistant is offered to the person |
+| 12 | Assistant | the Assistant button in the top bar | the assistant is offered to the person |
 | — | **Send-off** | centred | always: up to three places to start, and where the tour lives now |
 
 A section's card lists **the section's screens the person can open**, each with a
