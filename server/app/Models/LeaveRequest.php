@@ -7,6 +7,7 @@ use App\Models\Concerns\HasHashid;
 use App\Support\LeaveCalculator;
 use Carbon\CarbonInterface;
 use Database\Factories\LeaveRequestFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -110,5 +111,26 @@ class LeaveRequest extends Model
         return $this->status === 'approved'
             && $this->start_date->lte($date)
             && $this->end_date->gte($date);
+    }
+
+    /**
+     * Search by the employee or the leave type, so "maria" and "maria sick" both
+     * narrow it. Free-text fields are left out on purpose: they can hold
+     * personal detail that a match would reveal (ADR 0069).
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(fn (Builder $query) => $query
+            ->whereHas('employee', fn (Builder $q) => $q->search($term))
+            ->orWhereHas('type', fn (Builder $q) => $q->where('name', $like, $needle)));
     }
 }

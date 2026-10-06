@@ -183,4 +183,25 @@ class PerformanceEvaluation extends Model
     {
         $query->latest('id');
     }
+
+    /**
+     * Search by the employee or the cycle, so "maria" and "maria q3" both
+     * narrow it. Free-text fields are left out on purpose: they can hold
+     * personal detail that a match would reveal (ADR 0069).
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(fn (Builder $query) => $query
+            ->whereHas('employee', fn (Builder $q) => $q->search($term))
+            ->orWhereHas('period', fn (Builder $q) => $q->where('name', $like, $needle)));
+    }
 }

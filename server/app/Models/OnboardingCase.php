@@ -185,4 +185,20 @@ class OnboardingCase extends Model
     {
         $query->whereIn('status', self::ACTIVE_STATUSES);
     }
+
+    /**
+     * Search by the employee being onboarded — the same columns the Employees list
+     * searches. Free-text fields are left out on purpose: they can hold personal
+     * detail that a match would reveal (ADR 0069).
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $query->whereHas('employee', fn (Builder $q) => $q->search($term));
+    }
 }

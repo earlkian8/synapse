@@ -106,4 +106,25 @@ class Event extends Model
     {
         $query->orderByDesc('starts_at')->orderByDesc('id');
     }
+
+    /**
+     * Case-insensitive search across the title and the location (ADR 0069 — global search).
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(function (Builder $query) use ($needle, $like) {
+            foreach (['title', 'location'] as $column) {
+                $query->orWhere($column, $like, $needle);
+            }
+        });
+    }
 }

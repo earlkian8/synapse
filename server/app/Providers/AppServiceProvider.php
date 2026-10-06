@@ -179,6 +179,11 @@ class AppServiceProvider extends ServiceProvider
         // quota, but its token is a capability: limit the guessing.
         RateLimiter::for('assistant-actions', fn (Request $request) => Limit::perMinute(30)
             ->by('assistant-actions:'.$request->user()?->id));
+
+        // Global search (ADR 0069): each keystroke fans out into a dozen small
+        // queries. The palette debounces, so a person typing stays far below this.
+        RateLimiter::for('search', fn (Request $request) => Limit::perMinute(90)
+            ->by('search:'.$request->user()?->id));
     }
 
     /**

@@ -18,6 +18,7 @@ import type {
     EmployeesPageProps,
     ManagedEmployee,
 } from '@/features/employees/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 
 type ConfirmConfig = {
     title: string;
@@ -125,6 +126,9 @@ export default function EmployeesIndex() {
         setDetailEmployee(employee);
         setDetailOpen(true);
     };
+
+    // A link that names an employee (global search, ADR 0069) opens them here.
+    useLinkedRecord(rows, (employee) => employee.id, openView);
 
     // Invitations are re-sendable by design: sending again supersedes the old
     // code, which is the fix when somebody never received the first one.

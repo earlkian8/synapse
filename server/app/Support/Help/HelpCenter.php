@@ -120,6 +120,13 @@ final class HelpCenter
             'keywords' => ['navigation', 'sidebar', 'menu', 'top bar', 'layout', 'tour', 'where is', 'dark mode'],
             'related' => ['welcome-to-synapse', 'your-dashboard', 'notifications'],
         ],
+        'searching-synapse' => [
+            'category' => 'getting-started', 'title' => 'Searching SYNAPSE',
+            'summary' => 'Find a person, a record, a screen or a help article from any page with ⌘K or Ctrl+K, and open it straight away.',
+            'any' => [],
+            'keywords' => ['search', 'find', 'look up', 'command palette', 'ctrl k', 'cmd k', 'shortcut', 'quick open'],
+            'related' => ['finding-your-way-around', 'meet-the-assistant'],
+        ],
         'your-dashboard' => [
             'category' => 'getting-started', 'title' => 'Your dashboard',
             'summary' => 'Where each day starts: the numbers, the queue of things waiting on you, and what is coming up.',

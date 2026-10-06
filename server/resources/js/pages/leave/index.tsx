@@ -18,6 +18,7 @@ import { DEFAULT_FILTERS } from '@/features/leave/constants';
 import { useLeaveFilters } from '@/features/leave/hooks/use-leave-filters';
 import { leaveRoutes } from '@/features/leave/routes';
 import type { LeaveIndexPageProps, LeaveRequest } from '@/features/leave/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 
 type ConfirmConfig = {
     title: string;
@@ -80,6 +81,9 @@ export default function LeaveIndex() {
         setReviewRequest(request);
         setReviewOpen(true);
     };
+
+    // A link that names a request (global search, ADR 0069) opens its review.
+    useLinkedRecord(requests, (request) => request.hashid, openReview);
 
     const quickReview = (request: LeaveRequest, action: 'approve' | 'reject') =>
         router.patch(

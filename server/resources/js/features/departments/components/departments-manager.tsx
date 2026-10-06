@@ -3,6 +3,7 @@ import { ArchiveRestore, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 import { departmentRoutes } from '../routes';
 import type { Department, DepartmentsPageProps, Position } from '../types';
 import { ConfirmDialog } from './confirm-dialog';
@@ -99,6 +100,9 @@ export function DepartmentsManager({
         setDetailId(department.id);
         setDetailOpen(true);
     };
+
+    // A link that names a department (global search, ADR 0069) opens it.
+    useLinkedRecord(departments, (department) => department.id, openDetail);
 
     const archive = (department: Department) =>
         askConfirm({

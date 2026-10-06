@@ -128,4 +128,25 @@ class TrainingProgram extends Model
     {
         $query->orderByRaw('start_date is null')->orderByDesc('start_date');
     }
+
+    /**
+     * Case-insensitive search across the name and the provider (ADR 0069 — global search).
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(function (Builder $query) use ($needle, $like) {
+            foreach (['name', 'provider'] as $column) {
+                $query->orWhere($column, $like, $needle);
+            }
+        });
+    }
 }

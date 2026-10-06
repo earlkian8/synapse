@@ -50,6 +50,7 @@ commit history rather than repeating them.
 - [Company Setup Wizard](./modules/company-setup-wizard.md) — the guided walk-through a brand-new company gets before its dashboard: a step for every Company Setup screen, each carrying that screen's editors, with suggestions to start from.
 - [Product Tour](./modules/product-tour.md) — the first-run walk around the app, offered once to everyone and replayable from Help: a spotlight on each part of the screen their role can use, then where to start.
 - [Help Center](./modules/help-center.md) — the user manual in the app: an article for every screen, searchable, with help for the page you are on — read for the reader, so nobody is shown a screen they cannot open.
+- [Global search](./modules/global-search.md) — the top bar's ⌘K palette: people, records, screens and help in one search, read for the searcher, opening the record itself.
 - [Privacy Policy and Terms of Service](./modules/legal-documents.md) — the public `/privacy` and `/terms`, written from what the system does under the Data Privacy Act, naming the deployment's operator from configuration.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
@@ -160,6 +161,8 @@ commit history rather than repeating them.
 - [0065 — Keyboard handling on React Native's own Keyboard API, not a native keyboard library](./decisions/0065-keyboard-handling-on-the-core-keyboard-api.md)
 - [0066 — Data Export: a copy of the workspace's records, not a backup](./decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)
 - [0067 — The assistant is a panel opened from the top bar, and its replies show their work as a trace](./decisions/0067-the-assistant-is-a-panel-opened-from-the-top-bar.md)
+- [0068 — The assistant finishes the job: a real agent loop, tools routed per turn, plans confirmed as one, attachments that can be filed, and a Manual / Auto mode](./decisions/0068-the-assistant-finishes-the-job.md)
+- [0069 — Global search: a command palette, read for the person searching](./decisions/0069-global-search-a-command-palette-read-for-the-searcher.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -277,3 +280,5 @@ commit history rather than repeating them.
 - [2026-10-02 — Forms rise with the keyboard, on iOS and Android](./changelog/2026-10-02-02-keyboard-rises-with-forms.md)
 - [2026-10-05 — Data Export: a copy of the workspace's records](./changelog/2026-10-05-01-data-export.md)
 - [2026-10-05 — The assistant, redesigned: a panel from the top bar](./changelog/2026-10-05-02-assistant-panel-redesign.md)
+- [2026-10-05 — The assistant finishes the job](./changelog/2026-10-05-03-assistant-finishes-the-job.md)
+- [2026-10-07 — Global search: ⌘K finds people, records, screens and help](./changelog/2026-10-07-01-global-search.md)

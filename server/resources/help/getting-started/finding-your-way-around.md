@@ -23,6 +23,7 @@ To make more room, collapse the sidebar to icons with the button at the left of 
 From left to right:
 
 - **Breadcrumbs** — where you are, with a link back up each level.
+- **Search** — or **⌘K** / **Ctrl+K** from any page — finds people, records, screens and help articles. See [Searching SYNAPSE](/help/getting-started/searching-synapse).
 - **Help** (the question mark) — this Help Center, help for the page you are on, the product tour, and — for whoever sets the company up — the Setup Guide.
 - **Theme** — switch between light and dark.
 - **Notifications** (the bell) — the latest alerts, with a dot when something is unread. See [Notifications](/help/your-account/notifications).

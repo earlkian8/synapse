@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\VerifyEmailCodeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\Public\InvitationController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('workspaces', [WorkspaceController::class, 'index'])->name('workspaces');
 
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Global search — the ⌘K palette (ADR 0069). Open to everybody signed in:
+    // each kind of result is gated by its own screen's permission inside.
+    Route::get('search', SearchController::class)->middleware('throttle:search')->name('search');
 
     // The floating agentic assistant. Open to any authenticated user; the agent
     // exposes only the HR modules the user is permitted to use. Conversations are
