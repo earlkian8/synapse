@@ -17,9 +17,12 @@ use App\Models\RecruitmentPipeline;
 use App\Models\RecruitmentPipelineStage;
 use App\Models\User;
 use App\Queries\RecruitmentStatistics;
+use App\Services\Assistant\Attachments\ConversationAttachments;
+use App\Services\Assistant\Attachments\StoredAttachment;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Retrieval\RetrievedSubject;
+use App\Services\Assistant\Security\UntrustedText;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\ApplicantDocumentStore;
@@ -33,6 +36,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use RuntimeException;
 
@@ -293,6 +297,10 @@ class RecruitmentModule extends Module implements ContributesContext
             $lines[] = '- hire_applicant creates an Employee from the application, provisions their login and seeds onboarding. It is IRREVERSIBLE — only on a clear, explicit request.';
         }
 
+        if ($this->allows($user, 'recruitment.create')) {
+            $lines[] = '- A CV or other file the user attached: read the candidate\'s details from it, and pass its attachment number as resume_attachment (supporting files: document_attachments with a type) on add_applicant / add_application / update_applicant so the file is stored on the candidate. "Put this CV in <posting> as an offer" = add_application with stage "Offer" and resume_attachment, in one call.';
+        }
+
         $lines[] = '- Pass `posting` as a job title, `applicant` as a candidate name, and department/position as labels. Never invent a candidate: if no one matches, say so.';
         $lines[] = "  Departments: {$departments}. Positions: {$positions}.";
         $lines[] = "  posting employment_type: {$postingTypes}. applicant source: {$sources}.";
@@ -304,6 +312,7 @@ class RecruitmentModule extends Module implements ContributesContext
     {
         $applicantArg = ['type' => 'STRING', 'description' => 'Candidate name.'];
         $postingArg = ['type' => 'STRING', 'description' => 'Job posting title.'];
+        $files = $this->attachmentProperties();
 
         return $this->permitted($user, [
             // ── Vacancies ────────────────────────────────────────────────────
@@ -399,19 +408,19 @@ class RecruitmentModule extends Module implements ContributesContext
             ],
             [
                 'name' => 'add_applicant',
-                'description' => 'Add someone to the candidate pool without attaching them to a vacancy. Fields may be read from an attached résumé.',
+                'description' => 'Add someone to the candidate pool without attaching them to a vacancy. Fields may be read from an attached résumé, and the file stored with resume_attachment.',
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => $this->applicantProperties(),
+                    'properties' => $this->applicantProperties() + $files,
                     'required' => ['first_name', 'last_name'],
                 ],
             ],
             [
                 'name' => 'update_applicant',
-                'description' => "Update a candidate's profile details. Only pass what changes.",
+                'description' => "Update a candidate's profile details, or file a résumé or documents from attachments. Only pass what changes.",
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => ['applicant' => $applicantArg] + $this->applicantProperties(),
+                    'properties' => ['applicant' => $applicantArg] + $this->applicantProperties() + $files,
                     'required' => ['applicant'],
                 ],
             ],
@@ -441,14 +450,15 @@ class RecruitmentModule extends Module implements ContributesContext
             ],
             [
                 'name' => 'add_application',
-                'description' => "Add a candidate to a posting's pipeline (creates the applicant if new).",
+                'description' => "Add a candidate to a posting's pipeline (creates the applicant if new), optionally straight at a stage and with their CV from an attachment.",
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => ['posting' => $postingArg] + $this->applicantProperties() + [
                         'expected_salary' => ['type' => 'NUMBER'],
                         'cover_note' => ['type' => 'STRING'],
                         'rating' => ['type' => 'INTEGER', 'description' => '1–5'],
-                    ],
+                        'stage' => ['type' => 'STRING', 'description' => 'Place them straight at this open stage of the posting\'s pipeline (e.g. Offer). Defaults to its first stage.'],
+                    ] + $files,
                     'required' => ['posting', 'first_name', 'last_name'],
                 ],
             ],
@@ -908,11 +918,21 @@ class RecruitmentModule extends Module implements ContributesContext
             return ToolResult::error("Checked {$existing->full_name}", 'That candidate is already in the pool — update them instead.');
         }
 
-        $applicant = Applicant::create($validator->validated());
+        [$resume, $documents, $problem] = $this->attachmentsFrom($args);
+
+        if ($problem !== null) {
+            return ToolResult::error('Checked the attachment', $problem);
+        }
+
+        [$applicant, $filed] = DB::transaction(function () use ($validator, $resume, $documents, $user): array {
+            $applicant = Applicant::create($validator->validated());
+
+            return [$applicant, $this->fileOn($applicant, $resume, $documents, $user)];
+        });
 
         $this->log('created', "Added applicant {$applicant->full_name} to the pool via assistant", $applicant, $applicant->full_name);
 
-        return ToolResult::ok("Added {$applicant->full_name} to the pool", null, $this->applicantCard($applicant, 'add', 'positive', 'Added'));
+        return ToolResult::ok("Added {$applicant->full_name} to the pool", $filed, $this->applicantCard($applicant, 'add', 'positive', 'Added'));
     }
 
     /**
@@ -941,7 +961,13 @@ class RecruitmentModule extends Module implements ContributesContext
             }
         }
 
-        if ($changes === []) {
+        [$resume, $documents, $problem] = $this->attachmentsFrom($args);
+
+        if ($problem !== null) {
+            return ToolResult::error('Checked the attachment', $problem);
+        }
+
+        if ($changes === [] && $resume === null && $documents === []) {
             return ToolResult::error("Checked {$applicant->full_name}", 'Nothing to update — tell me which details to change.');
         }
 
@@ -951,13 +977,17 @@ class RecruitmentModule extends Module implements ContributesContext
             return ToolResult::error('Validated the candidate', $validator->errors()->first());
         }
 
-        $applicant->update($validator->validated());
+        $filed = DB::transaction(function () use ($applicant, $validator, $resume, $documents, $user): ?string {
+            $applicant->update($validator->validated());
+
+            return $this->fileOn($applicant, $resume, $documents, $user);
+        });
 
         $this->log('updated', "Updated applicant {$applicant->full_name} via assistant", $applicant, $applicant->full_name);
 
         return ToolResult::ok(
             "Updated {$applicant->full_name}",
-            implode(', ', array_keys($changes)),
+            implode('; ', array_filter([$changes !== [] ? implode(', ', array_keys($changes)) : null, $filed])),
             $this->applicantCard($applicant->fresh(), 'edit', 'info', 'Updated'),
         );
     }
@@ -1069,11 +1099,26 @@ class RecruitmentModule extends Module implements ContributesContext
             return ToolResult::error('Validated the candidate', $validator->errors()->first());
         }
 
-        // Reuse the pool entry when we already know this person, else create one.
-        $applicant = $this->existingApplicant($applicantData) ?? Applicant::create($validator->validated());
+        $stage = null;
 
-        if ($posting->applications()->where('applicant_id', $applicant->id)->exists()) {
-            return ToolResult::error("Checked {$applicant->full_name}", 'That candidate is already in this pipeline.');
+        if (filled($args['stage'] ?? null)) {
+            $stage = $this->resolveStageByName($posting->pipeline, (string) $args['stage'], kind: 'open');
+
+            if ($stage === null) {
+                return ToolResult::error('Checked the stage', 'Stage must be one of: '.$posting->pipeline->stages->where('kind', 'open')->pluck('name')->implode(', ').'.');
+            }
+        }
+
+        [$resume, $documents, $problem] = $this->attachmentsFrom($args);
+
+        if ($problem !== null) {
+            return ToolResult::error('Checked the attachment', $problem);
+        }
+
+        $existing = $this->existingApplicant($applicantData);
+
+        if ($existing !== null && $posting->applications()->where('applicant_id', $existing->id)->exists()) {
+            return ToolResult::error("Checked {$existing->full_name}", 'That candidate is already in this pipeline.');
         }
 
         $details = Validator::make([
@@ -1088,12 +1133,21 @@ class RecruitmentModule extends Module implements ContributesContext
 
         $entryStage = $posting->pipeline->entryStage();
 
-        $application = $posting->applications()->create([
-            ...$details->validated(),
-            'applicant_id' => $applicant->id,
-            'recruitment_pipeline_stage_id' => $entryStage->id,
-            'applied_at' => now(),
-        ]);
+        // Reuse the pool entry when we already know this person, else create
+        // one — with any files, all or nothing.
+        [$applicant, $application, $filed] = DB::transaction(function () use ($existing, $validator, $posting, $details, $entryStage, $resume, $documents, $user): array {
+            $applicant = $existing ?? Applicant::create($validator->validated());
+            $filed = $this->fileOn($applicant, $resume, $documents, $user);
+
+            $application = $posting->applications()->create([
+                ...$details->validated(),
+                'applicant_id' => $applicant->id,
+                'recruitment_pipeline_stage_id' => $entryStage->id,
+                'applied_at' => now(),
+            ]);
+
+            return [$applicant, $application, $filed];
+        });
 
         $this->log('created', "{$applicant->full_name} applied for \"{$posting->title}\" via assistant", $posting, $posting->title);
 
@@ -1106,11 +1160,24 @@ class RecruitmentModule extends Module implements ContributesContext
             actor: $user,
         );
 
+        $placed = $entryStage;
+
+        if ($stage !== null && $stage->id !== $entryStage->id) {
+            $application->moveTo($stage);
+            $placed = $stage;
+
+            $this->log('updated', "Moved {$applicant->full_name} to {$stage->name} via assistant", $posting, $applicant->full_name, ['stage' => $stage->name]);
+        }
+
         $application->setRelation('applicant', $applicant)->setRelation('jobPosting', $posting);
 
-        $application->setRelation('pipelineStage', $entryStage);
+        $application->setRelation('pipelineStage', $placed);
 
-        return ToolResult::ok("Added {$applicant->full_name} to “{$posting->title}”", null, $this->applicationCard($application, 'add', 'positive', $entryStage->name));
+        return ToolResult::ok(
+            "Added {$applicant->full_name} to “{$posting->title}”".($placed->id !== $entryStage->id ? " at {$placed->name}" : ''),
+            $filed,
+            $this->applicationCard($application, 'add', 'positive', $placed->name),
+        );
     }
 
     /**
@@ -2014,8 +2081,106 @@ class RecruitmentModule extends Module implements ContributesContext
     }
 
     /**
-     * The scalar applicant rules (the file rules need an upload, which chat has
-     * no way to provide).
+     * Files from the conversation to store on a candidate (ADR 0068 §4).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function attachmentProperties(): array
+    {
+        return [
+            'resume_attachment' => ['type' => 'STRING', 'description' => 'Number (or file name) of an attachment in this conversation to store as their résumé.'],
+            'document_attachments' => [
+                'type' => 'ARRAY',
+                'description' => 'Attachments in this conversation to store as supporting documents.',
+                'items' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'attachment' => ['type' => 'STRING', 'description' => 'Its number or file name.'],
+                        'type' => ['type' => 'STRING', 'enum' => StoreApplicantRequest::DOCUMENT_TYPES],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * The conversation's files a call names, checked against the form's own
+     * file rules before anything is written: a résumé, supporting documents,
+     * and the first problem found (a file that is not in this conversation, or
+     * one the form would refuse).
+     *
+     * @param  array<string, mixed>  $args
+     * @return array{0: ?StoredAttachment, 1: list<array{0: StoredAttachment, 1: string}>, 2: ?string}
+     */
+    private function attachmentsFrom(array $args): array
+    {
+        $inbox = app(ConversationAttachments::class);
+        $resume = null;
+        $documents = [];
+
+        if (filled($args['resume_attachment'] ?? null)) {
+            $resume = $inbox->resolve($args['resume_attachment']);
+
+            if ($resume === null) {
+                return [null, [], $this->missingAttachment($args['resume_attachment'])];
+            }
+
+            if ($problem = ApplicantDocumentStore::problemWith($resume)) {
+                return [null, [], $problem];
+            }
+        }
+
+        foreach (array_slice((array) ($args['document_attachments'] ?? []), 0, 10) as $row) {
+            $reference = is_array($row) ? ($row['attachment'] ?? null) : $row;
+            $file = $inbox->resolve($reference);
+
+            if ($file === null) {
+                return [null, [], $this->missingAttachment($reference)];
+            }
+
+            if ($problem = ApplicantDocumentStore::problemWith($file)) {
+                return [null, [], $problem];
+            }
+
+            $documents[] = [$file, is_array($row) ? (string) ($row['type'] ?? 'other') : 'other'];
+        }
+
+        return [$resume, $documents, null];
+    }
+
+    private function missingAttachment(mixed $reference): string
+    {
+        $name = UntrustedText::clean(is_scalar($reference) ? (string) $reference : null, 60) ?? '';
+
+        return "No attachment “{$name}” in this conversation. Attach the file in the chat, then ask again.";
+    }
+
+    /**
+     * Store the checked files on the candidate, and say what was filed.
+     *
+     * @param  list<array{0: StoredAttachment, 1: string}>  $documents
+     */
+    private function fileOn(Applicant $applicant, ?StoredAttachment $resume, array $documents, User $user): ?string
+    {
+        if ($resume !== null) {
+            ApplicantDocumentStore::resumeFrom($applicant, $resume);
+        }
+
+        foreach ($documents as [$file, $type]) {
+            ApplicantDocumentStore::documentFrom($applicant, $file, $type, $user->id);
+        }
+
+        $filed = array_filter([
+            $resume !== null ? 'résumé ('.$resume->name.')' : null,
+            $documents !== [] ? count($documents).' document'.(count($documents) === 1 ? '' : 's') : null,
+        ]);
+
+        return $filed === [] ? null : 'Filed '.implode(' and ', $filed);
+    }
+
+    /**
+     * The scalar applicant rules (files come from chat attachments instead,
+     * through {@see attachmentsFrom()}).
      *
      * @return array<string, mixed>
      */

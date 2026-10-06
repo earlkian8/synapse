@@ -303,25 +303,35 @@ test('a held change says whom it reaches, before anybody confirms it', function 
         ->and($card['meta'][1])->toContain('always needs your OK');
 });
 
-test('at most three writes run in one turn', function () {
+test('at most five writes run in one turn', function () {
     $user = actingAsSuperAdmin();
-    $people = collect(['Ana', 'Ben', 'Cara', 'Dan'])->map(fn (string $name): Employee => Employee::factory()->create(['first_name' => $name, 'last_name' => 'Test', 'phone' => null]));
+    $people = collect(['Ana', 'Ben', 'Cara', 'Dan', 'Eve', 'Fay'])->map(fn (string $name): Employee => Employee::factory()->create(['first_name' => $name, 'last_name' => 'Test', 'phone' => null]));
 
     withModel(scriptedModel([
         $people->map(fn (Employee $e): array => call('update_employee', ['match' => $e->first_name.' Test', 'phone' => '111']))->all(),
     ]))->handle($user, 'set everyone phone to 111');
 
-    expect($people->filter(fn (Employee $e): bool => $e->refresh()->phone === '111'))->toHaveCount(3);
+    expect($people->filter(fn (Employee $e): bool => $e->refresh()->phone === '111'))->toHaveCount(5);
 });
 
 test('a flood of calls in one turn is cut off', function () {
     $user = actingAsSuperAdmin();
 
     $turn = withModel(scriptedModel([
+        array_map(fn (int $i): array => call('find_employees', ['query' => "person {$i}"]), range(1, 17)),
+    ]))->handle($user, 'find them all');
+
+    expect(collect($turn['steps'])->where('label', 'Stopped')->count())->toBe(2);
+});
+
+test('the same call repeated in one turn is answered once, not run again', function () {
+    $user = actingAsSuperAdmin();
+
+    $turn = withModel(scriptedModel([
         array_fill(0, 12, call('count_employees')),
     ]))->handle($user, 'count them');
 
-    expect(collect($turn['steps'])->where('label', 'Stopped')->count())->toBe(2);
+    expect(collect($turn['steps'])->where('kind', 'action'))->toHaveCount(1);
 });
 
 // ── Confirming ───────────────────────────────────────────────────────────────
@@ -392,7 +402,7 @@ test('somebody else cannot spend your token — and trying does not burn it', fu
 
 test('a token does not work in another workspace', function () {
     $user = actingAsSuperAdmin();
-    $token = app(PendingActions::class)->hold($user, null, 'archive_employee', ['match' => 'x'], 'Archive employee');
+    $token = app(PendingActions::class)->hold($user, null, [['tool' => 'archive_employee', 'args' => ['match' => 'x'], 'title' => 'Archive employee']]);
 
     $other = Organization::factory()->create();
 

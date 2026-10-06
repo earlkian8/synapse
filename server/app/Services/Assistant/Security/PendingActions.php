@@ -10,10 +10,11 @@ use Illuminate\Support\Str;
 /**
  * Actions the assistant proposed but may not take until the user says so.
  *
- * A held action is the exact call the model asked for — tool and cleaned
- * arguments — parked under an unguessable token for a few minutes. Pressing
- * Confirm in the chat runs *that* call, and nothing the model says afterwards can
- * change it; pressing Cancel, or waiting, discards it.
+ * A held action is a **plan**: the exact calls the model asked for — tools and
+ * cleaned arguments, in order — parked under an unguessable token for a few
+ * minutes (ADR 0068 §3; a plan of one is the single held call of ADR 0049).
+ * Pressing Confirm in the chat runs *those* calls, and nothing the model says
+ * afterwards can change them; pressing Cancel, or waiting, discards them.
  *
  * A token is a capability, so it is bound as tightly as it can be:
  *
@@ -34,11 +35,11 @@ final class PendingActions
     public const TTL_MINUTES = 15;
 
     /**
-     * Park a call and return its token.
+     * Park a plan — one or more calls, to run in order — and return its token.
      *
-     * @param  array<string, mixed>  $args
+     * @param  list<array{tool: string, args: array<string, mixed>, title: string}>  $steps
      */
-    public function hold(User $user, ?int $conversationId, string $tool, array $args, string $summary): string
+    public function hold(User $user, ?int $conversationId, array $steps): string
     {
         $token = Str::random(48);
 
@@ -46,20 +47,39 @@ final class PendingActions
             'user_id' => $user->id,
             'organization_id' => app(Tenancy::class)->id(),
             'conversation_id' => $conversationId,
-            'tool' => $tool,
-            'args' => $args,
-            'summary' => $summary,
+            'steps' => array_values($steps),
         ], now()->addMinutes(self::TTL_MINUTES));
 
         return $token;
     }
 
     /**
-     * Claim a held call for this user in this workspace, exactly once. Null when
+     * Queue one more call behind a plan that is still waiting (ADR 0068 §3).
+     * A plan that has expired or was already answered gains nothing.
+     *
+     * @param  array{tool: string, args: array<string, mixed>, title: string}  $step
+     */
+    public function extend(string $token, array $step): bool
+    {
+        $payload = Cache::get($this->key($token));
+
+        if (! is_array($payload) || Cache::has($this->key($token).':claimed')) {
+            return false;
+        }
+
+        $payload['steps'][] = $step;
+
+        Cache::put($this->key($token), $payload, now()->addMinutes(self::TTL_MINUTES));
+
+        return true;
+    }
+
+    /**
+     * Claim a held plan for this user in this workspace, exactly once. Null when
      * the token is unknown, expired, already used, or belongs to somebody else —
      * deliberately indistinguishable, so a token cannot be probed.
      *
-     * @return array{tool: string, args: array<string, mixed>, summary: string, conversation_id: int|null}|null
+     * @return array{steps: list<array{tool: string, args: array<string, mixed>, title: string}>, conversation_id: int|null}|null
      */
     public function take(User $user, string $token): ?array
     {
@@ -81,10 +101,17 @@ final class PendingActions
 
         Cache::forget($this->key($token));
 
+        // A single call held before plans existed (ADR 0049) is a one-step plan.
+        $steps = isset($payload['steps'])
+            ? (array) $payload['steps']
+            : [['tool' => (string) ($payload['tool'] ?? ''), 'args' => (array) ($payload['args'] ?? []), 'title' => (string) ($payload['summary'] ?? '')]];
+
         return [
-            'tool' => (string) $payload['tool'],
-            'args' => (array) $payload['args'],
-            'summary' => (string) $payload['summary'],
+            'steps' => array_values(array_map(fn (array $step): array => [
+                'tool' => (string) ($step['tool'] ?? ''),
+                'args' => (array) ($step['args'] ?? []),
+                'title' => (string) ($step['title'] ?? ''),
+            ], $steps)),
             'conversation_id' => $payload['conversation_id'] !== null ? (int) $payload['conversation_id'] : null,
         ];
     }

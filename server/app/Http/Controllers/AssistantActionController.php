@@ -5,17 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\AssistantConversation;
 use App\Models\AssistantMessage;
 use App\Services\Assistant\Assistant;
+use App\Services\Assistant\Attachments\ConversationAttachments;
 use App\Services\Assistant\Security\PendingActions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
 
 /**
- * The user's answer to an action the assistant held for confirmation (ADR 0049).
+ * The user's answer to a plan the assistant held for confirmation (ADR 0049,
+ * ADR 0068 §3).
  *
- * Confirm runs exactly the call that was proposed — the stored tool and
- * arguments, not whatever the model might say now — through the module, which
- * re-checks the permission at that moment. Cancel discards it. Either way the
+ * Confirm runs exactly the calls that were proposed, in order — the stored
+ * tools and arguments, not whatever the model might say now — through their
+ * modules, which re-check the permission at that moment; it stops at the first
+ * step that fails. Cancel discards it. Either way the
  * card that asked is marked answered, and its token is spent: it is claimed
  * atomically, so a double click or a replay cannot run the action twice.
  *
@@ -36,8 +39,12 @@ class AssistantActionController extends Controller
         $conversation = $this->conversation($user->id, $action['conversation_id']);
         $this->answerCard($conversation, $token, 'confirmed');
 
+        // A step may file one of the conversation's attachments (ADR 0068):
+        // it resolves against the conversation the plan was proposed in.
+        app(ConversationAttachments::class)->use($conversation, $user);
+
         try {
-            $result = $assistant->execute($user, $action['tool'], $action['args']);
+            $result = $assistant->executePlan($user, $action['steps']);
         } catch (Throwable $e) {
             report($e);
 

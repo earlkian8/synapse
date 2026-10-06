@@ -345,7 +345,7 @@ test('the retrieved record reaches the prompt, and the timeline says so', functi
         ->and($turn['steps'][0]['detail'])->toContain('Employee record');
 });
 
-test('a question answered by a lookup is written by the model; an action is not', function () {
+test('after any tool step the model writes the reply — a lookup and an action alike', function () {
     actingAsSuperAdmin();
     person('Maria', 'Santos');
 
@@ -386,13 +386,15 @@ test('a question answered by a lookup is written by the model; an action is not'
     expect($gemini->calls)->toBe(2)
         ->and($turn['reply'])->toBe('Maria Santos is the only match, and she is a Barista.');
 
-    // An instruction: the confirmation is composed locally, for one call.
+    // An action: the loop goes back to the model too (ADR 0068), because the
+    // request may have more steps. (No PendingActions here, so nothing is held;
+    // held plans are narrated locally — see AgentLoopTest.)
     $gemini->calls = 0;
     $gemini->tool = 'archive_employee';
     $gemini->args = ['match' => 'Maria Santos'];
 
     $turn = $assistant->handle(auth()->user(), 'archive maria santos');
 
-    expect($gemini->calls)->toBe(1)
-        ->and($turn['reply'])->toContain('Maria Santos');
+    expect($gemini->calls)->toBe(2)
+        ->and($turn['reply'])->toBe('Maria Santos is the only match, and she is a Barista.');
 });

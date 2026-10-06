@@ -87,6 +87,30 @@ return [
             'report' => false,
         ],
 
+        // Files sent to the assistant in chat (ADR 0068) — a CV, a contract —
+        // kept for the life of their conversation so a tool can file them on a
+        // record. Private, like exports: the private exports bucket under its
+        // own folder when one is set, and storage/app/private/assistant-uploads
+        // otherwise. Never the public disk.
+        'assistant' => env('SUPABASE_EXPORTS_BUCKET') ? [
+            'driver' => 's3',
+            'key' => env('SUPABASE_STORAGE_KEY'),
+            'secret' => env('SUPABASE_STORAGE_SECRET'),
+            'region' => env('SUPABASE_STORAGE_REGION', 'us-east-1'),
+            'bucket' => env('SUPABASE_EXPORTS_BUCKET'),
+            'endpoint' => env('SUPABASE_STORAGE_ENDPOINT'),
+            'root' => 'assistant-uploads',
+            'use_path_style_endpoint' => true,
+            'retain_visibility' => false,
+            'throw' => false,
+            'report' => false,
+        ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/private/assistant-uploads'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import type { AssistantMode } from '../types';
+import { ModeMenu } from './mode-menu';
 
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.txt';
 
@@ -18,14 +20,16 @@ const isImage = (file: File) => file.type.startsWith('image/');
 
 /**
  * Where a message is written: the text on top, and a row beneath it to attach
- * files and send. Files can also be pasted, or dropped anywhere on the panel
- * (`assistant.tsx` handles the drop).
+ * files, choose when the assistant asks first, and send. Files can also be
+ * pasted, or dropped anywhere on the panel (`assistant.tsx` handles the drop).
  */
 export function Composer({
     ref,
     input,
     files,
     busy,
+    mode,
+    onModeChange,
     onInput,
     onAddFiles,
     onRemoveFile,
@@ -36,6 +40,8 @@ export function Composer({
     input: string;
     files: File[];
     busy: boolean;
+    mode: AssistantMode;
+    onModeChange: (mode: AssistantMode) => void;
     onInput: (value: string) => void;
     onAddFiles: (files: File[]) => void;
     onRemoveFile: (index: number) => void;
@@ -143,6 +149,7 @@ export function Composer({
                     >
                         <Paperclip className="size-4" />
                     </button>
+                    <ModeMenu mode={mode} onChange={onModeChange} />
                     <input
                         ref={fileInput}
                         type="file"

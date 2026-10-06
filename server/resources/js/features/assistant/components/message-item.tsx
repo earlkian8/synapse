@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { cn } from '@/lib/utils';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, TurnUsage } from '../types';
 import { ConfirmCard, Receipts, TraceNode, WorkTrace } from './agent-activity';
 import type { AnswerAction } from './agent-activity';
 import { Markdown } from './markdown';
@@ -278,6 +278,7 @@ function AssistantMessage({
                     canRegenerate={isLast && !sending}
                     onRegenerate={onRegenerate}
                     time={formatTime(message.createdAt)}
+                    usage={message.usage ?? null}
                 />
             )}
         </article>
@@ -332,18 +333,30 @@ function StreamingText({
     return <Markdown text={visible} />;
 }
 
+/** "2 model calls · 9.8k tokens" — what a turn cost, where it was spent. */
+function describeUsage(usage: TurnUsage): string {
+    const tokens =
+        usage.prompt_tokens + usage.output_tokens + usage.thinking_tokens;
+    const amount =
+        tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens);
+
+    return `${usage.requests} model ${usage.requests === 1 ? 'call' : 'calls'} · ${amount} tokens`;
+}
+
 function ReplyActions({
     text,
     alwaysShown,
     canRegenerate,
     onRegenerate,
     time,
+    usage,
 }: {
     text: string;
     alwaysShown: boolean;
     canRegenerate: boolean;
     onRegenerate: () => void;
     time: string;
+    usage: TurnUsage | null;
 }) {
     const [copied, copy] = useClipboard();
     const isCopied = copied === text && text !== '';
@@ -379,6 +392,14 @@ function ReplyActions({
             {time && (
                 <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">
                     {time}
+                </span>
+            )}
+            {usage && usage.requests > 0 && (
+                <span
+                    title={`Prompt ${usage.prompt_tokens.toLocaleString()} (cached ${usage.cached_tokens.toLocaleString()}) · reply ${usage.output_tokens.toLocaleString()} · thinking ${usage.thinking_tokens.toLocaleString()}`}
+                    className="ml-1 text-[11px] text-muted-foreground/80 tabular-nums"
+                >
+                    · {describeUsage(usage)}
                 </span>
             )}
         </div>

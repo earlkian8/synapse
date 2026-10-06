@@ -9,6 +9,8 @@ use App\Models\RecruitmentPipeline;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use App\Services\Assistant\Assistant;
+use App\Support\Ai\GeminiClient;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Attendance\ScheduleAssigner;
@@ -243,4 +245,70 @@ function workedDay(Employee $employee, string $date, array $times): AttendanceRe
     $clock->applyManualPunches($record, $times, User::factory()->create()->id);
 
     return $record->refresh();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Assistant helpers
+|--------------------------------------------------------------------------
+|
+| A stand-in for Gemini that plays a script back, one response per request,
+| and keeps what it was sent — so no test ever spends a real model call.
+|
+*/
+
+/**
+ * Bind a scripted model behind the real assistant and return it.
+ *
+ * Each script entry is either the `parts` of one response, or
+ * `['parts' => …, 'finish' => 'SAFETY', 'usage' => [...]]`. Once the script
+ * runs out, the model answers "Okay." in text.
+ *
+ * @param  list<array<int|string, mixed>>  $script
+ */
+function fakeAssistantModel(array $script = []): GeminiClient
+{
+    $model = new class(null, 'stub') extends GeminiClient
+    {
+        /** @var list<array<int|string, mixed>> */
+        public array $script = [];
+
+        /** @var list<array{contents: array<int, mixed>, tools: array<int, mixed>, system: string}> */
+        public array $sent = [];
+
+        public function configured(): bool
+        {
+            return true;
+        }
+
+        public function generate(array $contents, array $functionDeclarations = [], ?string $systemInstruction = null): array
+        {
+            $this->sent[] = ['contents' => $contents, 'tools' => $functionDeclarations, 'system' => (string) $systemInstruction];
+            $entry = array_shift($this->script) ?? [['text' => 'Okay.']];
+            $parts = array_key_exists('parts', $entry) ? $entry['parts'] : $entry;
+
+            return [
+                'candidates' => [['content' => ['role' => 'model', 'parts' => $parts], 'finishReason' => $entry['finish'] ?? 'STOP']],
+                'usageMetadata' => $entry['usage'] ?? ['promptTokenCount' => 1000, 'candidatesTokenCount' => 20],
+            ];
+        }
+
+        /** The tool names offered on the given request. */
+        public function toolNames(int $request = 0): array
+        {
+            return array_map(fn (array $d): string => $d['name'], $this->sent[$request]['tools'] ?? []);
+        }
+    };
+
+    $model->script = $script;
+    app()->instance(GeminiClient::class, $model);
+    app()->forgetInstance(Assistant::class);
+
+    return $model;
+}
+
+/** One function call, as a model part. */
+function modelCall(string $name, array $args = []): array
+{
+    return ['functionCall' => ['name' => $name, 'args' => $args]];
 }

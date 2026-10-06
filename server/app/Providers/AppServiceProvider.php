@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\Assistant\Assistant;
+use App\Services\Assistant\Attachments\ConversationAttachments;
 use App\Services\Assistant\Modules\ActivityLogsModule;
 use App\Services\Assistant\Modules\AttendanceModule;
 use App\Services\Assistant\Modules\AttendancePoliciesModule;
@@ -39,6 +40,7 @@ use App\Services\Assistant\Modules\UsersModule;
 use App\Services\Assistant\Modules\WorkspaceAccessModule;
 use App\Services\Assistant\Retrieval\Retriever;
 use App\Services\Assistant\Retrieval\SubjectResolver;
+use App\Services\Assistant\Routing\ToolRouter;
 use App\Services\Assistant\Security\PendingActions;
 use App\Support\Ai\GeminiClient;
 use App\Support\Attendance\AttendanceInputs;
@@ -68,10 +70,16 @@ class AppServiceProvider extends ServiceProvider
         // The current-tenant holder must be shared for the whole request.
         $this->app->singleton(Tenancy::class);
 
+        // The files of the conversation being handled — bound per request
+        // (ADR 0068), so it must never outlive one.
+        $this->app->scoped(ConversationAttachments::class);
+
         // The Gemini client backing the agentic assistant.
         $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
             apiKey: config('services.gemini.key'),
             model: config('services.gemini.model'),
+            temperature: config('services.gemini.temperature'),
+            thinkingLevel: config('services.gemini.thinking_level'),
         ));
 
         // The ML inference client backing the Predictive Analytics surfaces.
@@ -131,6 +139,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make('assistant.modules'),
             $app->make(Retriever::class),
             $app->make(PendingActions::class),
+            $app->make(ToolRouter::class),
         ));
     }
 

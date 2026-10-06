@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
 import { serverMessageToChat } from './api';
 import type {
+    AssistantMode,
     ChatMessage,
     ConfirmationState,
     Conversation,
@@ -10,6 +11,22 @@ import type {
 
 let seq = 0;
 const tempId = () => `tmp-${Date.now()}-${seq++}`;
+
+const MODE_KEY = 'synapse.assistant.mode';
+const MODES: AssistantMode[] = ['manual', 'balanced', 'auto'];
+
+/** The mode this person last chose, in this browser; Balanced otherwise. */
+function storedMode(): AssistantMode {
+    try {
+        const stored = localStorage.getItem(MODE_KEY);
+
+        return MODES.includes(stored as AssistantMode)
+            ? (stored as AssistantMode)
+            : 'balanced';
+    } catch {
+        return 'balanced';
+    }
+}
 
 /**
  * The brain of the assistant: server-persisted conversations, the active
@@ -26,6 +43,17 @@ export function useAssistant() {
     );
     const [ready, setReady] = useState(false);
     const [loadingThread, setLoadingThread] = useState(false);
+    const [mode, setModeState] = useState<AssistantMode>(storedMode);
+
+    const setMode = useCallback((next: AssistantMode) => {
+        setModeState(next);
+
+        try {
+            localStorage.setItem(MODE_KEY, next);
+        } catch {
+            // Remembering the choice is a convenience; it still applies now.
+        }
+    }, []);
 
     const abortRef = useRef<AbortController | null>(null);
 
@@ -208,11 +236,12 @@ export function useAssistant() {
                     conversationId: activeId,
                     replaceMessageId,
                     files,
+                    mode,
                     signal,
                 }),
             );
         },
-        [activeId, runRequest, sending],
+        [activeId, mode, runRequest, sending],
     );
 
     // Edit a prior user message: truncate from it and re-send the new text.
@@ -254,9 +283,9 @@ export function useAssistant() {
         });
 
         await runRequest(pendingId, -1, (signal) =>
-            api.regenerateTurn(activeId, signal),
+            api.regenerateTurn(activeId, mode, signal),
         );
-    }, [activeId, runRequest, sending]);
+    }, [activeId, mode, runRequest, sending]);
 
     /**
      * Answer an action the assistant held for confirmation (ADR 0049). The card
@@ -400,6 +429,8 @@ export function useAssistant() {
         streamingId,
         ready,
         loadingThread,
+        mode,
+        setMode,
         newChat,
         openConversation,
         sendMessage,

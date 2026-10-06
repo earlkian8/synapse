@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Storage;
 | See App\Support\Recruitment\ApplicantInsights.
 */
 
+// A key in config, so the client counts as set up whatever .env holds; Http is
+// faked in every test that would send a request, so the key is never used.
+beforeEach(function () {
+    config(['services.gemini.key' => 'test-key-never-sent']);
+    app()->forgetInstance(GeminiClient::class);
+});
+
 /** A canned Gemini generateContent response wrapping the given JSON insight. */
 function fakeGeminiInsight(array $insight): array
 {

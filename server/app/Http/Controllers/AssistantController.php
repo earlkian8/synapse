@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\AssistantConversation;
 use App\Models\AssistantMessage;
 use App\Services\Assistant\Assistant;
+use App\Services\Assistant\Attachments\ConversationAttachments;
+use App\Services\Assistant\TurnState;
 use App\Support\Ai\GeminiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
@@ -35,6 +38,7 @@ class AssistantController extends Controller
             'replace_message_id' => ['nullable', 'integer'],
             'files' => ['nullable', 'array', 'max:8'],
             'files.*' => ['file', 'mimes:pdf,png,jpg,jpeg,webp,txt', 'max:8192'],
+            'mode' => ['nullable', Rule::in(TurnState::MODES)],
         ]);
 
         $message = trim((string) ($validated['message'] ?? ''));
@@ -52,7 +56,11 @@ class AssistantController extends Controller
             $conversation->messages()->where('id', '>=', (int) $replaceId)->delete();
         }
 
-        $attachments = collect($files)->map(fn ($f): string => $f->getClientOriginalName())->all();
+        // Kept, not just read once (ADR 0068): a tool may file one of these on
+        // a record, now or after a Confirm, and a later turn may refer back.
+        $attachments = collect($files)
+            ->map(fn (UploadedFile $file): array => ConversationAttachments::store($conversation, $file))
+            ->all();
 
         $userMessage = $conversation->messages()->create([
             'role' => 'user',
@@ -60,12 +68,12 @@ class AssistantController extends Controller
             'attachments' => $attachments ?: null,
         ]);
 
-        return $this->run($assistant, $conversation, $user, $userMessage, $this->fileParts($files));
+        return $this->run($assistant, $conversation, $user, $userMessage, $this->mode($request));
     }
 
     /**
      * Regenerate the most recent answer in a conversation (re-runs the last user
-     * message). Attachments are not re-read; the text turn is re-run.
+     * message, with the files it carried).
      */
     public function regenerate(Request $request, Assistant $assistant, AssistantConversation $conversation): JsonResponse
     {
@@ -74,6 +82,8 @@ class AssistantController extends Controller
         if (! $assistant->configured()) {
             return response()->json(['reply' => 'The assistant is not configured yet.'], 503);
         }
+
+        $request->validate(['mode' => ['nullable', Rule::in(TurnState::MODES)]]);
 
         // reorder() clears the relation's default id-ASC sort so we truly get the
         // most recent user message (not the oldest).
@@ -86,23 +96,25 @@ class AssistantController extends Controller
         // Drop any answers after that user message, then re-run it.
         $conversation->messages()->where('id', '>', $lastUser->id)->delete();
 
-        return $this->run($assistant, $conversation, $request->user(), $lastUser, []);
+        return $this->run($assistant, $conversation, $request->user(), $lastUser, $this->mode($request));
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
 
     /**
      * Run the agent for a (already-persisted) user message and persist the reply.
-     *
-     * @param  array<int, array{mime: string, data: string}>  $fileParts
      */
-    private function run(Assistant $assistant, AssistantConversation $conversation, $user, AssistantMessage $userMessage, array $fileParts): JsonResponse
+    private function run(Assistant $assistant, AssistantConversation $conversation, $user, AssistantMessage $userMessage, string $mode): JsonResponse
     {
         $history = $this->history($conversation, $userMessage->id);
         $prompt = (string) $userMessage->body;
 
+        $inbox = app(ConversationAttachments::class);
+        $inbox->use($conversation, $user, $userMessage->id);
+        $fileParts = $this->fileParts($inbox, $prompt);
+
         try {
-            $result = $assistant->handle($user, $prompt, $history, $fileParts, $conversation->id);
+            $result = $assistant->handle($user, $prompt, $history, $fileParts, $conversation->id, $mode);
         } catch (GeminiException $e) {
             if (! $e->isBusy()) {
                 report($e);
@@ -124,6 +136,7 @@ class AssistantController extends Controller
             'body' => $result['reply'],
             'steps' => $result['steps'] ?: null,
             'actions' => $result['actions'] ?: null,
+            'usage' => $result['usage'] ?? null,
         ]);
 
         if (blank($conversation->title)) {
@@ -192,9 +205,11 @@ class AssistantController extends Controller
     }
 
     /**
-     * The prior turns (before the given message id) as agent history.
+     * The prior turns (before the given message id) as agent history: what was
+     * said, and for the assistant's turns what it did and with which modules,
+     * so a follow-up can build on it.
      *
-     * @return array<int, array{role: string, text: string}>
+     * @return array<int, array{role: string, text: string, steps: list<string>, modules: list<string>}>
      */
     private function history(AssistantConversation $conversation, int $beforeId): array
     {
@@ -202,24 +217,71 @@ class AssistantController extends Controller
             ->where('id', '<', $beforeId)
             ->get()
             ->filter(fn (AssistantMessage $m): bool => filled($m->body))
-            ->map(fn (AssistantMessage $m): array => ['role' => $m->role, 'text' => (string) $m->body])
+            ->map(fn (AssistantMessage $m): array => [
+                'role' => $m->role,
+                'text' => (string) $m->body,
+                'steps' => collect($m->steps ?? [])
+                    ->filter(fn (mixed $step): bool => is_array($step) && ($step['kind'] ?? 'action') === 'action' && ($step['status'] ?? '') !== 'error')
+                    ->pluck('label')
+                    ->filter(fn (mixed $label): bool => is_string($label))
+                    ->values()
+                    ->all(),
+                'modules' => collect($m->actions ?? [])->pluck('module')->filter(fn (mixed $key): bool => is_string($key))->unique()->values()->all(),
+            ])
             ->take(-20)
             ->values()
             ->all();
     }
 
+    /** The mode the person chose for this message (ADR 0068 §5). */
+    private function mode(Request $request): string
+    {
+        $mode = (string) $request->input('mode', TurnState::BALANCED);
+
+        return in_array($mode, TurnState::MODES, true) ? $mode : TurnState::BALANCED;
+    }
+
     /**
-     * Base64-encode uploaded files for multimodal input.
+     * The files the model reads this turn, base64-encoded for multimodal input:
+     * the ones this message carried, or — when it carried none and talks about
+     * "the CV" or "that document" — the most recent earlier one. Gemini reads
+     * PDFs and images itself, scans included; that is how a CV's details reach
+     * a tool call. Capped so one request stays under Gemini's size limit.
      *
-     * @param  array<int, UploadedFile>  $files
      * @return array<int, array{mime: string, data: string}>
      */
-    private function fileParts(array $files): array
+    private function fileParts(ConversationAttachments $inbox, string $prompt): array
     {
-        return collect($files)->map(fn ($file): array => [
-            'mime' => $file->getMimeType() ?: 'application/octet-stream',
-            'data' => base64_encode((string) file_get_contents($file->getRealPath())),
-        ])->all();
+        $files = array_values(array_filter($inbox->all(), fn ($file): bool => $file->current));
+
+        if ($files === []) {
+            $files = $inbox->replayFor($prompt);
+        }
+
+        $parts = [];
+        $budget = ConversationAttachments::INLINE_BUDGET;
+
+        foreach ($files as $file) {
+            if ($file->size > $budget) {
+                continue;
+            }
+
+            try {
+                $data = base64_encode($file->contents());
+            } catch (Throwable) {
+                continue;
+            }
+
+            $budget -= strlen($data);
+
+            if ($budget < 0) {
+                break;
+            }
+
+            $parts[] = ['mime' => $file->mime, 'data' => $data];
+        }
+
+        return $parts;
     }
 
     /**

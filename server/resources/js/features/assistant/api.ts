@@ -1,5 +1,6 @@
 import type {
     ActionAnswer,
+    AssistantMode,
     Conversation,
     ConversationDetail,
     ServerMessage,
@@ -154,10 +155,12 @@ export async function sendTurn(opts: {
     conversationId?: number | null;
     replaceMessageId?: number | null;
     files: File[];
+    mode: AssistantMode;
     signal?: AbortSignal;
 }): Promise<TurnResponse> {
     const body = new FormData();
     body.append('message', opts.message);
+    body.append('mode', opts.mode);
 
     if (opts.conversationId) {
         body.append('conversation_id', String(opts.conversationId));
@@ -184,6 +187,7 @@ export async function sendTurn(opts: {
 
 export async function regenerateTurn(
     conversationId: number,
+    mode: AssistantMode,
     signal?: AbortSignal,
 ): Promise<TurnResponse> {
     const response = await fetch(
@@ -192,6 +196,7 @@ export async function regenerateTurn(
             method: 'POST',
             headers: headers(),
             credentials: 'same-origin',
+            body: JSON.stringify({ mode }),
             signal,
         },
     );
@@ -243,6 +248,7 @@ export function serverMessageToChat(m: ServerMessage) {
         steps: m.steps,
         actions: m.actions,
         attachments: m.attachments,
+        usage: m.usage ?? null,
         failed: m.failed,
         createdAt: m.created_at,
     };

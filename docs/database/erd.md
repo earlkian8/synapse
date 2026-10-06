@@ -1228,16 +1228,18 @@ erDiagram
         text body
         json steps "the agent timeline"
         json actions "result and confirmation cards"
-        json attachments "file names only"
+        json usage "requests and tokens the turn spent"
+        json attachments "name, mime, size, private path"
         boolean failed "a retryable failed turn"
     }
 ```
 
 > The assistant has **no action tables**. Its tools call the same support classes as
 > the screens, so every write lands in that module's own tables and in
-> `activity_logs`. An attached document is read inline for the turn and not stored;
-> only its file name is kept. A write held for the user's confirmation lives in the
-> cache for 15 minutes, not in a table.
+> `activity_logs`. An attached document is kept on the private `assistant` disk for
+> the life of its conversation (ADR 0068), so a tool can file it on a record. A plan
+> of writes held for the user's confirmation lives in the cache for 15 minutes, not in
+> a table.
 
 ---
 

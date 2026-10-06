@@ -7,12 +7,14 @@ use App\Models\Employee;
 use App\Models\EmployeeCertification;
 use App\Models\EmployeeDocument;
 use App\Models\User;
+use App\Services\Assistant\Attachments\ConversationAttachments;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
 use App\Services\Assistant\Retrieval\ContextSection;
 use App\Services\Assistant\Security\UntrustedText;
 use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\Employees\EmployeeCertifications;
+use App\Support\Employees\EmployeeDocuments;
 use App\Support\OrganizationClock;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,10 +32,11 @@ use Illuminate\Support\Str;
  * {@see EmployeeCertifications}, the profile's own path. Removing one waits for
  * the user's Confirm.
  *
- * **Documents** are files the assistant can neither upload nor open. It lists
- * one person's by title, type and date only, with `employees.manage-documents`
- * — a document list can say more than it seems (a medical certificate) — and
- * the read is audited as `viewed` (ADR 0027).
+ * **Documents** are listed by title, type and date only, with
+ * `employees.manage-documents` — a document list can say more than it seems (a
+ * medical certificate) — and the read is audited as `viewed` (ADR 0027). A file
+ * the user sent in chat can be filed on someone's record (ADR 0068), always
+ * after Confirm; files on record are never opened or deleted in chat.
  */
 class EmployeeRecordsModule extends Module implements ContributesTopicContext
 {
@@ -42,7 +45,10 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
     /** How many rows a list returns at most. */
     private const MAX_ROWS = 20;
 
-    public function __construct(private readonly EmployeeCertifications $certifications) {}
+    public function __construct(
+        private readonly EmployeeCertifications $certifications,
+        private readonly EmployeeDocuments $documents,
+    ) {}
 
     public function key(): string
     {
@@ -61,6 +67,7 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
             'find_employee_documents' => 'findDocuments',
             'add_certification' => 'add',
             'remove_certification' => 'remove',
+            'add_employee_document' => 'addDocument',
         ];
     }
 
@@ -71,12 +78,14 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
             'find_employee_documents' => 'employees.manage-documents',
             'add_certification' => 'employees.manage-documents',
             'remove_certification' => 'employees.manage-documents',
+            'add_employee_document' => 'employees.manage-documents',
         ];
     }
 
     protected function confirmTools(): array
     {
-        return ['remove_certification'];
+        // A file going onto someone's permanent record always waits for the OK.
+        return ['remove_certification', 'add_employee_document'];
     }
 
     public function run(User $user, string $tool, array $args): ToolResult
@@ -95,7 +104,7 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
     public function guidance(User $user): string
     {
         return <<<'TXT'
-        EMPLOYEE RECORDS — certifications (licences, board exams, trainings with an issuer and dates) and the documents on an employee's 201 file. find_certifications lists one person's, or everyone's expiring within some days; add_certification adds one; remove_certification waits for confirmation. find_employee_documents lists one person's documents by title and type — files cannot be opened, uploaded or deleted in chat.
+        EMPLOYEE RECORDS — certifications (licences, board exams, trainings with an issuer and dates) and the documents on an employee's 201 file. find_certifications lists one person's, or everyone's expiring within some days; add_certification adds one; remove_certification waits for confirmation. find_employee_documents lists one person's documents by title and type. add_employee_document files an attachment from this conversation on an employee's 201 file (contract, cv, govt_id or other) and waits for confirmation; files on record cannot be opened or deleted in chat.
         TXT;
     }
 
@@ -108,6 +117,7 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
             ['name' => 'find_certifications', 'description' => "One employee's certifications, or everyone's that expire within some days.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['employee' => $employee, 'expiring_within_days' => ['type' => 'INTEGER'], 'include_expired' => ['type' => 'BOOLEAN']]]],
             ['name' => 'find_employee_documents', 'description' => "The documents on an employee's file, by title and type.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['employee' => $employee], 'required' => ['employee']]],
             ['name' => 'add_certification', 'description' => 'Add a certification to an employee.', 'parameters' => ['type' => 'OBJECT', 'properties' => ['employee' => $employee, 'name' => ['type' => 'STRING'], 'issuer' => ['type' => 'STRING'], 'issued_date' => $date, 'expiry_date' => $date], 'required' => ['employee', 'name']]],
+            ['name' => 'add_employee_document', 'description' => "File an attachment from this conversation on an employee's 201 file.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['employee' => $employee, 'attachment' => ['type' => 'STRING', 'description' => 'The attachment\'s number or file name.'], 'type' => ['type' => 'STRING', 'enum' => EmployeeDocuments::TYPES], 'title' => ['type' => 'STRING', 'description' => 'Defaults to the file name.']], 'required' => ['employee', 'attachment', 'type']]],
             ['name' => 'remove_certification', 'description' => "Remove a certification from an employee's file.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['employee' => $employee, 'certification' => ['type' => 'STRING', 'description' => 'Its name.']], 'required' => ['employee', 'certification']]],
         ]);
     }
@@ -251,6 +261,54 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
         $certification = $this->certifications->add($employee, $data, null, self::CHANNEL);
 
         return ToolResult::ok("Added “{$certification->name}” to {$employee->full_name}", null, $this->certificationCard($certification->setRelation('employee', $employee)));
+    }
+
+    /**
+     * File one of the conversation's attachments on the employee's 201 file,
+     * under the upload form's own types and file rules.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function addDocument(User $user, array $args): ToolResult
+    {
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''));
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        $file = app(ConversationAttachments::class)->resolve($args['attachment'] ?? null);
+
+        if ($file === null) {
+            $name = UntrustedText::clean(is_scalar($args['attachment'] ?? null) ? (string) $args['attachment'] : null, 60) ?? '';
+
+            return ToolResult::error('Checked the attachment', "No attachment “{$name}” in this conversation. Attach the file in the chat, then ask again.");
+        }
+
+        $allowed = explode(',', EmployeeDocuments::FILE_MIMES);
+
+        if (! in_array($file->extension(), $allowed, true)) {
+            return ToolResult::error('Checked the attachment', "“{$file->name}” can't be filed: it must be one of ".implode(', ', $allowed).'.');
+        }
+
+        if ($file->size > EmployeeDocuments::FILE_MAX_KB * 1024) {
+            return ToolResult::error('Checked the attachment', "“{$file->name}” is larger than ".(EmployeeDocuments::FILE_MAX_KB / 1024).' MB.');
+        }
+
+        $title = Str::limit(trim((string) ($args['title'] ?? '')) ?: $file->name, 255, '');
+        $type = in_array($args['type'] ?? null, EmployeeDocuments::TYPES, true) ? $args['type'] : 'other';
+
+        $document = $this->documents->add($employee, $title, $type, $file->copyTo('public', 'employee-documents'), $user->id, self::CHANNEL);
+
+        return ToolResult::ok("Filed “{$document->title}” on {$employee->full_name}'s 201 file", null, $this->card(
+            kind: 'add',
+            tone: 'positive',
+            badge: 'Filed',
+            title: UntrustedText::clean($document->title, 120) ?? 'Document',
+            subtitle: $employee->full_name,
+            meta: [Str::headline($document->type)],
+            id: $document->id,
+        ));
     }
 
     /**

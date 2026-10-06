@@ -331,6 +331,8 @@ export function Assistant() {
                 input={input}
                 files={files}
                 busy={assistant.sending || assistant.streamingId !== null}
+                mode={assistant.mode}
+                onModeChange={assistant.setMode}
                 onInput={setInput}
                 onAddFiles={addFiles}
                 onRemoveFile={(index) =>

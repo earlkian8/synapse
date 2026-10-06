@@ -3,8 +3,10 @@
 The chat assistant, opened from the **Assistant** button in the top bar (or ⌘J / Ctrl+J)
 as a panel at the right edge of every page. It does two jobs. It **answers** questions about the workspace from records it
 reads for the asker, and it **acts**, through named, permission-checked tools that call
-the same code as the screens. It covers the whole system: 33 modules and 277 tools, each
-offered only to the people whose role allows it. It runs on Google Gemini, server-side.
+the same code as the screens, and keeps going until the request is done: look up, act,
+act again (ADR 0068). It covers the whole system: 33 modules and 278 tools, each offered
+only to the people whose role allows it, and each request carries only the tools it is
+about. It runs on Google Gemini, server-side.
 
 > Status: **Active** · Endpoints: `POST /assistant`, `/assistant/conversations/*`,
 > `POST /assistant/actions/{confirm,cancel}` · Code: `app/Services/Assistant/`,
@@ -16,7 +18,8 @@ offered only to the people whose role allows it. It runs on Google Gemini, serve
 > (prompt-injection defences), [0050](../decisions/0050-assistant-training-awards-and-events.md)
 > to [0059](../decisions/0059-assistant-covers-the-whole-system.md) (module by module), and
 > [0067](../decisions/0067-the-assistant-is-a-panel-opened-from-the-top-bar.md) (the panel
-> and the work trace).
+> and the work trace), and [0068](../decisions/0068-the-assistant-finishes-the-job.md) (the
+> agent loop, routing, plans, attachments and the Manual / Balanced / Auto mode).
 
 ## Who sees it
 
@@ -42,29 +45,57 @@ permissions (see [Modules](#modules)).
 1. **Read first.** `Retrieval\Retriever` works out what the turn is about and reads it
    before the model is called (see [Knowing](#knowing-retrieval)). The result is a
    *context brief*.
-2. **Build the prompt.** The system instruction holds the security rules, how to
-   answer, how to act, today's date, each available module's `guidance()` (what it can
-   do *for this user*, with live catalogues such as leave type names), and the brief,
-   fenced as untrusted data. Up to the last 20 earlier messages are replayed, each
-   capped at 4,000 characters.
-3. **Call Gemini** with the tools this user is offered. Up to **6** round trips per
-   turn.
-4. **Gate every tool call** (see [Doing](#doing-tools)): it must be offered, its
-   arguments are cleaned to the declared schema, and there is a budget of **10** calls
-   and **3** writes per turn. A write may be **held** for the user's OK instead of run.
-5. **Write the reply.** When every call succeeded, the reply is composed locally from
-   the result cards, with no second model call. A question answered only by reads goes
-   back to the model **once** to be written up properly. A held call stops the loop
-   with "Nothing has changed yet — … needs your OK."
+2. **Route.** `Routing\ToolRouter` picks the modules the message is about (at most 6,
+   plus the system guide; see [Routing](#routing)). Only their tools and guidance go
+   into the request; every other module the user may use is one line in a catalogue.
+3. **Build the prompt.** The system instruction holds the security rules, how to act
+   and answer, the mode, today's date, the routed modules' `guidance()`, the catalogue,
+   the brief (fenced as untrusted data) and the conversation's
+   [attachments](#attachments), by number. Up to the last 20 earlier messages are
+   replayed, each capped at 4,000 characters; an assistant turn ends with a line naming
+   the steps it took (`[Steps: …]`), so a follow-up knows what "him" refers to.
+4. **Loop.** Gemini is called; its tool calls are gated and run (see
+   [Doing](#doing-tools)); the results go back; and again — until the model replies in
+   text. At most **8** round trips, **15** calls and **5** writes (run or planned) per
+   turn. `load_tools` brings another module's tools in for the next round trip. A call
+   already made this turn (same tool, same cleaned arguments) is not run again, and a
+   step that only repeats earlier calls ends the loop.
+5. **Write the reply.** The model's own reply, normally. When a plan is held, the reply
+   is composed locally from it ("Nothing has changed yet — these 2 changes wait for
+   your OK, in order: …"), because the model's words may claim it is done. When the
+   model stops without writing, the reply is composed from the result cards.
 6. **Guard the reply.** `Security\ReplyGuard` removes images and unlinks anything that
    leads off the app.
-7. **Persist.** `AssistantController` stores the user message and the reply (with its
-   step timeline and result cards) in the conversation
+7. **Persist.** `AssistantController` stores the user message (with its files) and the
+   reply (with its steps, result cards and `usage`) in the conversation
    ([assistant tables](../database/assistant-tables.md)).
 
-A typical turn costs **one** Gemini request: retrieval happens before the call, and an
-action is narrated locally. The free tier this was built on allows only a few requests
-a minute.
+**Cost.** A request carries roughly 10–25 KB of tools and guidance instead of the
+~155 KB every request carried before ADR 0068, so a two- or three-request turn costs
+less than one request used to. Each turn's requests and tokens (prompt, output,
+cached, thinking) are summed from Gemini's `usageMetadata` and shown under the reply
+("2 model calls · 9.8k tokens").
+
+## Routing
+
+`ToolRouter::select()` scores each available module against the message, locally:
+
+- its **hints**, a curated word list per module (`cv`, `résumé`, `vacancy` →
+  recruitment; `leave`, `vacation` → leave), whole words, plurals included, or phrases;
+- the subject words of its **tool names** (`find_job_postings` → job, posting);
+- **used in the last assistant turn** (from the cards' `module`), so follow-ups keep
+  their tools;
+- **accepts attachments** (recruitment, employee records) when files are present;
+- **Employees**, when the brief is about a person.
+
+The best six are loaded; the system guide always is. The model calls
+`load_tools(modules)` — answered by the orchestrator, its argument an enum of the
+user's *unloaded available* modules — to bring any other in. A refused load names
+nothing.
+
+Routing decides what is shown, **never what may run**: a call to any tool the user's
+permissions offer runs (with its arguments cleaned to its schema) whether or not it was
+shown this turn; a call to anything else is refused and logged as before.
 
 ## Knowing: retrieval
 
@@ -139,23 +170,42 @@ reported), `resolveMember()` (a user of this workspace), `resolveAccount()`,
 
 ### When a write waits for Confirm
 
-A write is **held** instead of run when:
+The person chooses a **mode** in the composer (sent as `mode` with each message,
+remembered in the browser as `synapse.assistant.mode`):
 
-- the tool is in its module's `confirmTools()` — deleting, archiving, hiring,
-  rejecting, launching, submitting, granting access, sending a notification, and
-  every setting that changes how other people's days are judged;
-- the turn was a **question** rather than an instruction (a crude opening-word test in
-  `Assistant::isQuestion()`, in English and Filipino);
-- the turn carried an **attached document**.
+| Mode | A write waits for Confirm when… |
+| --- | --- |
+| **Manual** | always. |
+| **Balanced** (default) | the tool is in its module's `confirmTools()`, the turn was a question, or the turn carried an attachment. |
+| **Auto** | the tool is in its module's `confirmTools()`, or the turn was a question. |
 
-The held call (tool and cleaned arguments) is parked by `Security\PendingActions`
-under a token bound to the user, the workspace and the conversation. It is single-use
-and lasts 15 minutes. The chat shows a confirmation card with exactly what would run.
-A module that implements `Contracts\ExplainsConsequences` adds one line on what it would
-reach ("Judges 42 people today; days already recorded keep their rules").
-**Confirm** (`AssistantActionController@confirm`) replays the stored call through
-`Assistant::execute()`. The tool must still be offered to the user and the module
-re-checks the permission, so confirming is consent, not a grant. No model call is made.
+In every mode `confirmTools()` hold — deleting, archiving, hiring, rejecting,
+launching, submitting, granting access, sending a notification, filing a document on a
+201 file, and every setting that changes how other people's days are judged — and so
+does a write proposed on a question (`RequestIntent::isQuestion()`: greetings and
+politeness are stripped first; "can you / could you" + a verb that changes something is
+an instruction, while a request to read — "show me…", "can you check…", "give me…" — is
+a question whatever its punctuation; English and Filipino). The mode grants nothing; every tool is still
+permission-checked. Auto's trade-off — a document written to steer the model could
+cause a non-consequential write the user may make — is stated on the switch.
+
+**Plans.** The first held write of a turn starts a **plan**: `Security\PendingActions`
+parks it under a token bound to the user, the workspace and the conversation
+(single-use, 15 minutes). The turn goes on: every later write queues behind it in the
+same plan, and reads still run, so "put this CV in the analyst posting as an offer"
+becomes one card — *1. Add application · 2. Move application* — listing exactly what
+would run. A module that implements `Contracts\ExplainsConsequences` adds a line on
+what a step would reach ("Judges 42 people today; …").
+
+A plan that lapses mid-turn refuses the next write instead of starting a second
+plan, so a step can never be confirmed without the step it depends on.
+
+**Confirm** (`AssistantActionController@confirm`) runs the plan through
+`Assistant::executePlan()`, in order, and stops at the first step that fails; the reply
+names what was done, what failed and what never ran. Each tool must still be offered
+to the user and its module re-checks the permission, so confirming is consent, not a
+grant. Files a step names resolve against the plan's own conversation. No model call is
+made.
 
 ### Prompt-injection defences
 
@@ -174,6 +224,9 @@ The assistant assumes the model has been compromised by something it read (ADR 0
   so a record cannot close the fence.
 - **Function responses say they are data** (`content_is_untrusted_data: true`), and an
   attachment is preceded by a line saying nothing in it is a request.
+- **The model never names a file path.** A tool names an attachment by number or name;
+  `Attachments\ConversationAttachments` resolves it only among the bound conversation's
+  own uploads, owned by the signed-in user, and only under that conversation's folder.
 - **Replies cannot leak** (`Security\ReplyGuard`, and again in the chat's `Markdown`
   renderer): no images, and no links outside the app.
 
@@ -192,7 +245,7 @@ workspace brief (W). Tools marked † always wait for Confirm.
 | Leave | `leave` | `leave.view` or `leave.request` | P | `find_leave_requests`, `file_leave_request`, `review_leave_request`, `cancel_leave_request`†, `get_leave_balances`, `set_leave_entitlement`† |
 | Attendance | `attendance` | `attendance.view` or `attendance.clock` | P | `find_attendance`, `record_punch`, `find_shifts`, `set_roster_entry`, `find_attendance_exceptions`, `find_pending_sign_offs`, `sign_off_attendance`†, `sign_off_pending_attendance`†, `reapply_attendance_rules`† |
 | Onboarding | `onboarding` | `onboarding.view` | P | 16: cases, checklist tasks, programs, `nudge_onboarding_task`, `onboarding_summary`; deleting a case, task or program and `set_onboarding_status` † |
-| Recruitment | `recruitment` | `recruitment.view` | P | 25: postings, applicants, applications, interviews, `rank_candidates`, `candidate_profile`, `candidate_insights`; deletes, `reject_application`, `withdraw_application`, `hire_applicant`, `cancel_interview` † |
+| Recruitment | `recruitment` | `recruitment.view` | P | 25: postings, applicants, applications, interviews, `rank_candidates`, `candidate_profile`, `candidate_insights`; deletes, `reject_application`, `withdraw_application`, `hire_applicant`, `cancel_interview` †. `add_applicant`, `add_application` and `update_applicant` file a résumé (`resume_attachment`) and supporting documents (`document_attachments`) from the conversation; `add_application` can place a candidate straight at a `stage`. |
 | Performance | `performance` | `performance.view` | P, W | `find_appraisals`, `get_appraisal`, `performance_summary`, `list_review_cycles`, `open_appraisal`, `rate_appraisal`, `submit_appraisal`†, `acknowledge_appraisal`†, `delete_draft_appraisal`†, `launch_review_cycle`† |
 | Training | `training` | `training.view` | P, W | 10: programs and enrollments; `remove_from_training`†, `archive_training_program`† |
 | Awards | `awards` | `awards.view` | P, W | `find_awards`, `list_award_types`, `awards_summary`, `get_award_nominees`, `give_award`, `update_award`, `remove_award`† |
@@ -216,7 +269,7 @@ workspace brief (W). Tools marked † always wait for Confirm.
 | Attrition risk | `attrition-risk` | `analytics.attrition.view` (`.manage` to change) | W | 8 (see below) |
 | Promotion readiness | `promotion-readiness` | `analytics.promotion.view` (`.manage` to change) | W | 8 |
 | Performance forecast | `performance-forecast` | `analytics.performance.view` (`.manage` to change) | W | 8 |
-| Employee records | `employee-records` | `employees.view` | W | `find_certifications`, `find_employee_documents`, `add_certification`, `remove_certification`† |
+| Employee records | `employee-records` | `employees.view` | W | `find_certifications`, `find_employee_documents`, `add_certification`, `remove_certification`†, `add_employee_document`† (from an attachment) |
 | App access | `workspace-access` | `employees.invite` | W | 9: join requests, invitations, the join code; approving, declining, inviting and `set_join_code` † |
 | Notifications | `notifications` | everyone | W | your own inbox and settings; `send_notification`† (`notifications.send`) |
 | System guide | `guide` | everyone | W | `find_help`, `get_my_access`, `list_my_workspaces`, `get_setup_progress` |
@@ -229,10 +282,37 @@ one†, training the organisation's own model, and switching models†. A score 
 from the stored runs, never recomputed in chat, and reading a named person's score is
 audited.
 
+## Attachments
+
+Files sent in chat (pdf, png, jpg, jpeg, webp, txt; up to 8 of 8 MB each) are **kept**,
+not just read once:
+
+- stored on the private **`assistant` disk** at
+  `<organization_id>/<conversation_id>/<random>.<ext>` — `storage/app/private/assistant-uploads`
+  locally, the private exports bucket under `assistant-uploads/` when
+  `SUPABASE_EXPORTS_BUCKET` is set; never the public disk;
+- numbered across the conversation (`[1] Ana_CV.pdf (PDF, 120 KB, sent with this
+  message)`) in the instruction;
+- **read by the model** inline on the turn they arrive — Gemini reads PDFs and images
+  itself, scans included, which is how a CV's details reach a tool call. A later turn
+  that mentions "the CV", "that document", "the attachment" (not "file" or "document"
+  alone, which are usually verbs) and sends none gets the most recent earlier file
+  re-sent; regenerating re-sends the message's own files. A
+  request carries at most ~14 MB of files;
+- **filed by reference**: a tool's attachment parameter takes a number or a file name,
+  and the file is copied onto the record's own disk under the screen's own type and
+  size rules (`ApplicantDocumentStore::resumeFrom()` / `documentFrom()`,
+  `Support\Employees\EmployeeDocuments`);
+- deleted with their conversation, and when history is cleared.
+
 Module tests are the `*AssistantTest.php` files beside each module's own tests
 (`tests/Feature/<Module>/`). Cross-cutting behaviour is in
-`tests/Feature/Assistant/AssistantGuardTest.php`, `RetrievalTest.php` and
-`SystemGuideTest.php`, and `tests/Feature/Employee/AssistantEndpointSecurityTest.php`.
+`tests/Feature/Assistant/AssistantGuardTest.php`, `AgentLoopTest.php`, `RoutingTest.php`,
+`AttachmentsTest.php`, `GeminiClientTest.php`, `RetrievalTest.php` and
+`SystemGuideTest.php`, `tests/Unit/Assistant/RequestIntentTest.php`,
+`tests/Feature/Recruitment/RecruitmentAttachmentAssistantTest.php`, and
+`tests/Feature/Employee/AssistantEndpointSecurityTest.php`. Tests bind the scripted
+model `fakeAssistantModel()` from `tests/Pest.php`; none needs or spends an API key.
 
 ## Endpoints
 
@@ -240,14 +320,14 @@ All under `auth` + `verified`, in `routes/web.php`:
 
 | Method | Path | Controller | Notes |
 | --- | --- | --- | --- |
-| POST | `/assistant` | `AssistantController@send` | `message` (≤ 4,000 chars), `conversation_id`, `replace_message_id` (edit and resend), up to 8 `files` (pdf, png, jpg, jpeg, webp, txt; 8 MB each). Throttle `assistant`. |
-| POST | `/assistant/conversations/{id}/regenerate` | `AssistantController@regenerate` | Re-runs the last user message. Throttle `assistant`. |
+| POST | `/assistant` | `AssistantController@send` | `message` (≤ 4,000 chars), `conversation_id`, `replace_message_id` (edit and resend), `mode` (`manual`, `balanced`, `auto`; default `balanced`), up to 8 `files` (pdf, png, jpg, jpeg, webp, txt; 8 MB each), which are kept. Throttle `assistant`. |
+| POST | `/assistant/conversations/{id}/regenerate` | `AssistantController@regenerate` | Re-runs the last user message, with its files; takes `mode`. Throttle `assistant`. |
 | GET | `/assistant/conversations` | `AssistantConversationController@index` | The user's threads in this workspace, pinned first. |
 | GET | `/assistant/conversations/{id}` | `…@show` | One thread with its messages. |
 | PATCH | `/assistant/conversations/{id}` | `…@update` | Rename or pin. |
-| DELETE | `/assistant/conversations/{id}` | `…@destroy` | |
-| DELETE | `/assistant/conversations` | `…@clear` | Deletes all of the user's threads in this workspace. |
-| POST | `/assistant/actions/confirm` | `AssistantActionController@confirm` | Runs a held call. Throttle `assistant-actions`. |
+| DELETE | `/assistant/conversations/{id}` | `…@destroy` | Deletes its files too. |
+| DELETE | `/assistant/conversations` | `…@clear` | Deletes all of the user's threads in this workspace, and their files. |
+| POST | `/assistant/actions/confirm` | `AssistantActionController@confirm` | Runs a held plan, in order. Throttle `assistant-actions`. |
 | POST | `/assistant/actions/cancel` | `AssistantActionController@cancel` | Throttle `assistant-actions`. |
 
 A conversation that is not the user's answers 404. An expired, spent, foreign or
@@ -282,13 +362,14 @@ delay). With no `GEMINI_API_KEY`, the endpoint answers 503 with a message saying
   Escape and focus; dropping files anywhere on it; moving the toasts aside while it is
   open; an unsent draft per thread in `localStorage` (`synapse.assistant.draft.<id>`).
 - `components/message-list.tsx`, `message-item.tsx` — the turns, the empty state's *Ask*
-  and *Do* starting points, copy, edit and regenerate, and *Working* with the elapsed
-  time.
+  and *Do* starting points, copy, edit and regenerate, *Working* with the elapsed
+  time, and what a turn cost.
 - `components/agent-activity.tsx` — the work trace (a hollow node for a read, filled for
   a change, amber for held, red for an error; folded past three steps), the receipts,
-  and the Confirm / Cancel card.
+  and the Confirm / Cancel card, which numbers a plan's steps.
 - `components/assistant-mark.tsx` — the mark: a two-step trace in miniature.
-- `components/composer.tsx` — input, attachments, Send and Stop.
+- `components/composer.tsx` — input, attachments, the mode, Send and Stop.
+- `components/mode-menu.tsx` — Manual / Balanced / Auto, with what each means.
 - `components/conversation-list.tsx` — history: search, rename, pin, and delete or clear
   with an in-place confirmation.
 - `components/markdown.tsx` — the reply renderer; it drops images and off-app links,
@@ -303,6 +384,13 @@ Colours come from `--assistant-ink` (navy), `--assistant-signal` (teal) and
 | --- | --- | --- |
 | `GEMINI_API_KEY` | — | Required. Never sent to the browser. |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | `config/services.php`. |
+| `GEMINI_TEMPERATURE` | — | Empty = the model's own default (0.2 on `gemini-2*`). Google advises leaving Gemini 3 models at their default; lower can make them loop. |
+| `GEMINI_THINKING_LEVEL` | — | `minimal`, `low`, `medium` or `high` (Gemini 3), sent as `thinkingConfig.thinkingLevel` only when set. `low` is cheaper and faster. |
+
+The client retries once when Gemini answers with no candidate or a
+`MALFORMED_FUNCTION_CALL`; a blocked answer (`SAFETY` and the like) gets a polite
+refusal rather than an error. The model's turn is echoed back unchanged, thought
+signatures included, as Gemini 3 function calling requires.
 
 Outbound HTTPS from PHP needs a CA bundle (`curl.cainfo`) on machines that lack one.
 
@@ -320,7 +408,13 @@ Outbound HTTPS from PHP needs a CA bundle (`curl.cainfo`) on machines that lack 
    describe a person or the workspace. Check the permission yourself, return null when
    there is nothing to say, and keep it to a few lines.
 5. Register it in `AppServiceProvider` (`assistant.modules`). If its view permission
-   is new, add it to `ASSISTANT_PERMISSIONS` in `assistant.tsx`, and give
-   `SystemGuide` an entry for the screen.
-6. Test with a stub `GeminiClient` bound in the container (see `withModel()` in
-   `AssistantGuardTest.php`), so no quota is spent.
+   is new, add it to `AssistantAccess::PERMISSIONS`, and give `SystemGuide` an entry
+   for the screen.
+6. Give it a line in `Routing\ToolRouter::MODULES`: its catalogue summary and the words
+   people use for it. Without one it is still routed by its tool names and loadable by
+   `load_tools`, but the catalogue line is just its key.
+7. If a tool files a chat attachment, take a number-or-name parameter, resolve it with
+   `ConversationAttachments::resolve()`, check it against the screen's file rules, copy
+   it with `StoredAttachment::copyTo()`, and add the module to
+   `ToolRouter::ATTACHMENT_MODULES`.
+8. Test with `fakeAssistantModel()` from `tests/Pest.php`, so no quota is spent.

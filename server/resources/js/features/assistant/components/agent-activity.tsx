@@ -340,9 +340,10 @@ function Receipt({ card }: { card: AgentCard }) {
 // ── Held actions ─────────────────────────────────────────────────────────────
 
 /**
- * An action the assistant proposed but may not take on its own (ADR 0049): it
- * says exactly what would run — the tool and the arguments it would run with —
- * and waits for Confirm or Cancel. Nothing has changed until Confirm is pressed,
+ * An action the assistant proposed but may not take on its own (ADR 0049) — or
+ * a plan of several, in order (ADR 0068): it says exactly what would run — the
+ * tools and the arguments they would run with — and waits for Confirm or
+ * Cancel. Nothing has changed until Confirm is pressed,
  * and the server runs precisely what is shown here. Once answered it shrinks to
  * a line that says how it was answered.
  */
@@ -425,7 +426,10 @@ export function ConfirmCard({
         );
     }
 
-    const reason = card.meta[0];
+    const plan = card.plan ?? [];
+    const steps = plan.length > 1 ? plan : [];
+    // A plan's notes: what each step would reach, then why it waits.
+    const notes = card.meta.slice(0, steps.length > 0 ? 4 : 1);
 
     return (
         <section
@@ -439,23 +443,53 @@ export function ConfirmCard({
                         Waiting for your OK
                     </p>
                     <p className="mt-0.5 text-sm font-semibold">{card.title}</p>
-                    {card.subtitle && (
-                        <p className="mt-1 text-xs break-words text-foreground/75">
-                            {card.subtitle}
-                        </p>
+                    {steps.length > 0 ? (
+                        <ol
+                            aria-label="Steps, in the order they will run"
+                            className="mt-1.5 flex flex-col gap-1.5"
+                        >
+                            {steps.map((step, index) => (
+                                <li key={index} className="flex gap-2 text-xs">
+                                    <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-[10px] font-semibold text-amber-800 tabular-nums dark:text-amber-300">
+                                        {index + 1}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="font-medium text-foreground/90">
+                                            {step.title}
+                                        </span>
+                                        {step.detail && (
+                                            <span className="block break-words text-foreground/70">
+                                                {step.detail}
+                                            </span>
+                                        )}
+                                    </span>
+                                </li>
+                            ))}
+                        </ol>
+                    ) : (
+                        card.subtitle && (
+                            <p className="mt-1 text-xs break-words text-foreground/75">
+                                {card.subtitle}
+                            </p>
+                        )
                     )}
-                    {reason && (
-                        <p className="mt-1.5 text-xs text-muted-foreground">
-                            {reason}
+                    {notes.map((note, index) => (
+                        <p
+                            key={index}
+                            className="mt-1.5 text-xs text-muted-foreground"
+                        >
+                            {note}
                         </p>
-                    )}
+                    ))}
                     {error && <AnswerError error={error} />}
                 </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-amber-500/25 px-3 py-2">
                 <p className="mr-auto min-w-0 flex-1 text-[11px] text-muted-foreground">
-                    Nothing changes until you confirm.
+                    {steps.length > 0
+                        ? 'Nothing changes until you confirm. Steps run in order and stop at the first that fails.'
+                        : 'Nothing changes until you confirm.'}
                 </p>
                 <Button
                     size="sm"
