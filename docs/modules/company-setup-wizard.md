@@ -49,8 +49,6 @@ Around them: a **welcome** (the three stretches, and that any step can wait) and
 **send-off** (where each step landed, with *Review* or *Do it now* on each, and
 "Finish, and bring your people in", which closes setup and opens Employees → Access).
 
-**Email & Notifications** (in the sidebar) has no screen yet, so it has no step.
-
 ## A step
 
 Top to bottom:

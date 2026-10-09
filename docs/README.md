@@ -66,7 +66,6 @@ commit history rather than repeating them.
 
 ### Guides
 - [Deployment](./deployment.md) — the single Docker image (web app, ML service, queue, scheduler) and Supabase for the database and uploaded files.
-
 ### Database
 - [Entity Relationship Diagram](./database/erd.md) — the built data model, every table by domain.
 - [`organizations` & the tenant column](./database/organizations-table.md) — multi-tenancy schema.
@@ -282,3 +281,4 @@ commit history rather than repeating them.
 - [2026-10-05 — The assistant, redesigned: a panel from the top bar](./changelog/2026-10-05-02-assistant-panel-redesign.md)
 - [2026-10-05 — The assistant finishes the job](./changelog/2026-10-05-03-assistant-finishes-the-job.md)
 - [2026-10-07 — Global search: ⌘K finds people, records, screens and help](./changelog/2026-10-07-01-global-search.md)
+- [2026-10-10 — Links that went nowhere are gone](./changelog/2026-10-10-01-dead-links-removed.md)

@@ -156,14 +156,6 @@ export function buildTourStops(context: TourContext): TourStop[] {
             continue;
         }
 
-        // A link with nothing behind it yet has no summary, and a section of
-        // only such links has nothing to show anybody.
-        const items = group.items.filter((item) => item.summary);
-
-        if (items.length === 0) {
-            continue;
-        }
-
         const copy = SECTIONS[group.key];
 
         stops.push({
@@ -174,7 +166,7 @@ export function buildTourStops(context: TourContext): TourStop[] {
             icon: copy.icon,
             title: copy.title,
             body: copy.body(context, group),
-            items,
+            items: group.items,
             ...SIDEBAR_PLACEMENT,
         });
     }

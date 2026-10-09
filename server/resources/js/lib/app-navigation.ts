@@ -17,7 +17,6 @@ import {
     LayoutGrid,
     LineChart,
     ListChecks,
-    Mail,
     MapPinned,
     Medal,
     Network,
@@ -46,11 +45,8 @@ import type { NavItem } from '@/types';
 export type AppNavItem = NavItem & {
     permission?: string;
     permissionAny?: string[];
-    /**
-     * One line on what the screen is for, shown by the tour. Left out for a
-     * link with no screen behind it yet, so the tour never describes one.
-     */
-    summary?: string;
+    /** One line on what the screen is for, shown by the tour. */
+    summary: string;
 };
 
 export type AppNavSection =
@@ -317,11 +313,6 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: ClipboardList,
                 permission: 'offboarding.manage-programs',
                 summary: 'Clearance checklists for exits',
-            },
-            {
-                title: 'Email & Notifications',
-                href: '/setup/notifications',
-                icon: Mail,
             },
         ],
     },
