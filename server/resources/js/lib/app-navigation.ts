@@ -17,7 +17,6 @@ import {
     LayoutGrid,
     LineChart,
     ListChecks,
-    Mail,
     MapPinned,
     Medal,
     Network,
@@ -46,11 +45,8 @@ import type { NavItem } from '@/types';
 export type AppNavItem = NavItem & {
     permission?: string;
     permissionAny?: string[];
-    /**
-     * One line on what the screen is for, shown by the tour. Left out for a
-     * link with no screen behind it yet, so the tour never describes one.
-     */
-    summary?: string;
+    /** One line on what the screen is for, shown by the tour. */
+    summary: string;
 };
 
 export type AppNavSection =
@@ -134,32 +130,40 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 summary: 'Requests, approvals and balances',
             },
             {
+                // One entry for everybody (ADR 0072): HR lands on the cycle's
+                // appraisals, someone who only takes part on their own.
                 title: 'Performance Management',
                 href: '/performance',
                 icon: Gauge,
-                permission: 'performance.view',
-                summary: 'Appraisals and review cycles',
+                permissionAny: ['performance.view', 'performance.participate'],
+                summary: 'Appraisals, reviews, goals and calibration',
             },
             {
+                // One entry for everybody (ADR 0074): HR lands on the programs,
+                // someone who only takes part on their own training.
                 title: 'Training & Development',
                 href: '/training',
                 icon: GraduationCap,
-                permission: 'training.view',
-                summary: 'Programs and who is enrolled',
+                permissionAny: ['training.view', 'training.participate'],
+                summary: 'Programs, sessions, certificates and budget',
             },
             {
+                // One entry for everybody (ADR 0071): HR lands on the awards
+                // register, someone who only takes part on the wall.
                 title: 'Awards & Recognition',
                 href: '/awards',
                 icon: Award,
-                permission: 'awards.view',
-                summary: 'Awards, nominees and citations',
+                permissionAny: ['awards.view', 'awards.participate'],
+                summary: 'Kudos, awards, nominations and points',
             },
             {
+                // One entry for everybody (ADR 0070): HR lands on every event,
+                // someone who only answers invitations on their own.
                 title: 'Events & Meetings',
                 href: '/events',
                 icon: CalendarClock,
-                permission: 'events.view',
-                summary: 'Invitations, RSVPs and reminders',
+                permissionAny: ['events.view', 'events.respond'],
+                summary: 'Events, rooms and your invitations',
             },
         ],
     },
@@ -317,11 +321,6 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: ClipboardList,
                 permission: 'offboarding.manage-programs',
                 summary: 'Clearance checklists for exits',
-            },
-            {
-                title: 'Email & Notifications',
-                href: '/setup/notifications',
-                icon: Mail,
             },
         ],
     },

@@ -30,6 +30,10 @@ class TrainingProgramResource extends JsonResource
             'capacity' => $capacity,
             'status' => $this->status(),
             'is_archived' => $this->deleted_at !== null,
+            'enrollment_mode' => $this->enrollment_mode ?? 'closed',
+            'issues_certificate' => (bool) $this->issues_certificate,
+            'certificate_validity_months' => $this->certificate_validity_months === null ? null : (int) $this->certificate_validity_months,
+            'budget' => $this->budget === null ? null : (float) $this->budget,
             'ai_insights' => $this->ai_insights ?? null,
 
             // Enrollment aggregates (populated via withCount on the query).
@@ -38,6 +42,8 @@ class TrainingProgramResource extends JsonResource
             'completed_count' => (int) ($this->completed_enrollments_count ?? 0),
             'seats_remaining' => $capacity === null ? null : max(0, $capacity - $active),
             'is_full' => $capacity !== null && $active >= $capacity,
+            'pending_count' => (int) ($this->pending_enrollments_count ?? 0),
+            'sessions_count' => (int) ($this->sessions_count ?? 0),
 
             // Resolved to a plain array (not a bare resource collection) so Inertia
             // does not re-wrap it in a `data` key when serializing this nested prop.

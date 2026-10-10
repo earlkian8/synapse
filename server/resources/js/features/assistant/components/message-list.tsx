@@ -1,18 +1,23 @@
-import { ArrowDown, Sparkles } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePermissions } from '@/hooks/use-permissions';
 import type { ChatMessage } from '../types';
+import { TraceNode } from './agent-activity';
 import type { AnswerAction } from './agent-activity';
+import { AssistantMark } from './assistant-mark';
 import { MessageItem } from './message-item';
 
 /**
  * Starting points, each shown only to someone who could actually do it — a
- * suggestion that ends in "you don't have permission" is worse than none. The
- * first six someone may use are shown, so the order spreads them across
- * modules.
+ * suggestion that ends in "you don't have permission" is worse than none. They
+ * are split by what they lead to: a question is answered from the record, a
+ * task changes it (and may wait for the user's Confirm). The first few of each
+ * someone may use are shown, so the order spreads them across modules.
  */
-const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
+type Suggestion = { prompt: string; permission: string | null };
+
+const QUESTIONS: Suggestion[] = [
     { prompt: 'How are we doing today?', permission: null },
     {
         prompt: 'How is the review cycle going?',
@@ -80,6 +85,9 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
         prompt: 'Who is forecast below target next cycle?',
         permission: 'analytics.performance.view',
     },
+];
+
+const TASKS: Suggestion[] = [
     { prompt: 'Add a new employee', permission: 'employees.create' },
     {
         prompt: 'File sick leave for someone tomorrow',
@@ -91,8 +99,9 @@ const SUGGESTIONS: { prompt: string; permission: string | null }[] = [
     },
 ];
 
-/** How many suggestions the empty state offers at most. */
-const MAX_SUGGESTIONS = 6;
+/** How many of each the empty state offers at most. */
+const MAX_QUESTIONS = 4;
+const MAX_TASKS = 2;
 
 export function MessageList({
     messages,
@@ -147,6 +156,15 @@ export function MessageList({
         return () => observer.disconnect();
     }, []);
 
+    // A conversation opened from history starts at its latest turn.
+    useEffect(() => {
+        const scroller = scrollRef.current;
+
+        if (!loading && scroller) {
+            scroller.scrollTop = scroller.scrollHeight;
+        }
+    }, [loading]);
+
     const onScroll = () => {
         const scroller = scrollRef.current;
 
@@ -179,9 +197,12 @@ export function MessageList({
             <div
                 ref={scrollRef}
                 onScroll={onScroll}
-                className="h-full overflow-y-auto px-3.5 py-4"
+                className="h-full overflow-y-auto overscroll-contain"
             >
-                <div ref={contentRef} className="flex flex-col gap-4">
+                <div
+                    ref={contentRef}
+                    className="flex min-h-full flex-col gap-6 px-4 pt-5 pb-4"
+                >
                     {loading ? (
                         <LoadingSkeleton />
                     ) : messages.length === 0 ? (
@@ -209,68 +230,113 @@ export function MessageList({
                 <button
                     type="button"
                     onClick={scrollToBottom}
-                    aria-label="Scroll to latest"
-                    className="absolute bottom-3 left-1/2 flex size-8 -translate-x-1/2 animate-in items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-colors zoom-in-90 fade-in hover:bg-muted"
+                    className="absolute bottom-2 left-1/2 flex h-7 -translate-x-1/2 animate-in items-center gap-1 rounded-full border border-border bg-background pr-3 pl-2 text-xs font-medium text-foreground shadow-sm transition-colors fade-in hover:bg-muted motion-reduce:animate-none"
                 >
-                    <ArrowDown className="size-4" />
+                    <ArrowDown className="size-3.5" />
+                    Latest
                 </button>
             )}
         </div>
     );
 }
 
+/**
+ * A new conversation: what the assistant is for, in two sentences, and a few
+ * starting points the person could actually use. They sit low in the panel,
+ * beside the composer they fill — picking one types it, it does not send it.
+ */
 function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
     const { can } = usePermissions();
-    const suggestions = SUGGESTIONS.filter(
-        ({ permission }) => permission === null || can(permission),
-    ).slice(0, MAX_SUGGESTIONS);
+    const allowed = ({ permission }: Suggestion) =>
+        permission === null || can(permission);
+
+    const questions = QUESTIONS.filter(allowed).slice(0, MAX_QUESTIONS);
+    const tasks = TASKS.filter(allowed).slice(0, MAX_TASKS);
 
     return (
-        <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-[#0F2044] text-[#0ABFBF] ring-1 ring-border">
-                <Sparkles className="size-6" />
-            </span>
-            <div>
-                <p className="text-sm font-semibold">How can I help?</p>
-                <p className="mx-auto mt-1 max-w-[280px] text-xs text-muted-foreground">
-                    I can answer questions about your workspace, run its
-                    reports, and take care of HR work, from leave and hiring to
-                    appraisals, training, awards, events and exits. Describe
-                    what you need, or drop in a CV and I'll take it from there.
-                </p>
+        <div className="mt-auto flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+                <AssistantMark className="size-6 text-assistant-ink dark:text-foreground" />
+                <div className="flex flex-col gap-1.5">
+                    <h2 className="text-lg leading-snug font-semibold tracking-tight text-balance">
+                        Ask about your workspace, or hand over the work.
+                    </h2>
+                    <p className="max-w-[46ch] text-sm leading-6 text-muted-foreground">
+                        Answers come from your live records, limited to what
+                        your role can see. Changes that notify people, are hard
+                        to undo or touch many records wait for you to confirm.
+                        You can also attach a CV or a document.
+                    </p>
+                </div>
             </div>
-            <div className="mt-1 flex flex-col items-stretch gap-1.5 self-stretch">
-                {suggestions.map(({ prompt }) => (
-                    <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => onPick(prompt)}
-                        className="rounded-xl border border-border bg-card px-3 py-2 text-left text-xs text-foreground transition-colors hover:border-[#0ABFBF]/50 hover:bg-muted"
-                    >
-                        {prompt}
-                    </button>
-                ))}
-            </div>
+
+            <SuggestionGroup
+                title="Ask"
+                node="read"
+                items={questions}
+                onPick={onPick}
+            />
+            <SuggestionGroup
+                title="Do"
+                node="change"
+                items={tasks}
+                onPick={onPick}
+            />
         </div>
+    );
+}
+
+function SuggestionGroup({
+    title,
+    node,
+    items,
+    onPick,
+}: {
+    title: string;
+    node: 'read' | 'change';
+    items: Suggestion[];
+    onPick: (prompt: string) => void;
+}) {
+    if (items.length === 0) {
+        return null;
+    }
+
+    return (
+        <section aria-label={title} className="flex flex-col gap-1">
+            <h3 className="text-xs font-medium text-muted-foreground">
+                {title}
+            </h3>
+            <ul className="-mx-2 flex flex-col">
+                {items.map(({ prompt }) => (
+                    <li key={prompt}>
+                        <button
+                            type="button"
+                            onClick={() => onPick(prompt)}
+                            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm text-foreground/90 transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+                        >
+                            <TraceNode kind={node} />
+                            {prompt}
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }
 
 function LoadingSkeleton() {
     return (
-        <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-                <Skeleton className="h-9 w-40 rounded-2xl" />
+        <div aria-hidden="true" className="flex flex-col gap-6">
+            <Skeleton className="ml-auto h-9 w-44 rounded-2xl rounded-tr-md" />
+            <div className="flex flex-col gap-2">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-4/5" />
             </div>
-            <div className="flex gap-2.5">
-                <Skeleton className="size-7 shrink-0 rounded-lg" />
-                <Skeleton className="h-16 w-56 rounded-2xl" />
-            </div>
-            <div className="flex justify-end">
-                <Skeleton className="h-9 w-28 rounded-2xl" />
-            </div>
-            <div className="flex gap-2.5">
-                <Skeleton className="size-7 shrink-0 rounded-lg" />
-                <Skeleton className="h-12 w-44 rounded-2xl" />
+            <Skeleton className="ml-auto h-9 w-32 rounded-2xl rounded-tr-md" />
+            <div className="flex flex-col gap-2">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-3/5" />
             </div>
         </div>
     );

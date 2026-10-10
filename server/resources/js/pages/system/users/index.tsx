@@ -19,6 +19,7 @@ import type {
     ManagedUser,
     UsersPageProps,
 } from '@/features/users/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 import type { Auth } from '@/types';
 
 type ConfirmConfig = {
@@ -109,6 +110,9 @@ export default function UsersIndex() {
         setDetailUser(user);
         setDetailOpen(true);
     };
+
+    // A link that names an account (global search, ADR 0069) opens it.
+    useLinkedRecord(rows, (user) => user.id, openView);
 
     const openResetPassword = (user: ManagedUser) => {
         setPasswordUser(user);

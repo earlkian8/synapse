@@ -5,7 +5,7 @@ namespace App\Services\Assistant;
 use App\Models\User;
 
 /**
- * Who is offered the assistant at all — the sparkle launcher in the app shell.
+ * Who is offered the assistant at all — its button in the app shell's top bar.
  *
  * Anyone with a module it can read for them: the directory, leave, attendance,
  * onboarding, offboarding, recruitment, performance, training, awards, events,

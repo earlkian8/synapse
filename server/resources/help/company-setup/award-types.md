@@ -4,6 +4,9 @@
 
 Choose **New award type** and give it a name, a description of what it recognises, and an accent **colour** — it tints the award's badge everywhere it appears. Each type shows how many times it has been given.
 
+- **Points** — what the award adds to the recipient's points balance, which they can spend on rewards. See [Kudos, points and rewards](/help/workforce/kudos-points-and-rewards).
+- **Open to nominations** — lets colleagues nominate each other for it; HR approves or turns down each nomination. Leave it off for an award only HR decides, such as a long-service award.
+
 > [!TIP]
 > The Setup Guide can add the common award types for you.
 

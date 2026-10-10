@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
  *  - `members` — accounts with a membership in it (users are global identities);
  *  - `roles` — pivot rows of its roles;
  *  - `work_locations` — pivot rows of its work locations;
+ *  - `calibration_sessions` — pivot rows of its calibration sessions;
  *  - `global` — a catalogue shared by every organisation (permission names).
  *
  * `files` names the columns that hold a path on the `public` disk, copied into
@@ -97,37 +98,56 @@ final class DataExportCatalogue
         ],
         'performance' => [
             'label' => 'Performance', 'section' => 'Workforce', 'permission' => 'performance.view',
-            'description' => 'The appraisal framework — rating scales, criteria, review templates, cycles — and every evaluation with its scores.',
+            'description' => 'The appraisal framework — rating scales, criteria, review templates, the goal library, cycles — every evaluation with its scores, the reviews asked for it, goals and their check-ins, and calibration sessions with every rating they moved.',
             'tables' => [
                 ['table' => 'rating_scales'],
                 ['table' => 'kpi_criteria'],
                 ['table' => 'review_templates'],
                 ['table' => 'review_template_items'],
+                ['table' => 'goal_templates'],
                 ['table' => 'evaluation_periods'],
                 ['table' => 'performance_evaluations'],
                 ['table' => 'performance_scores'],
+                ['table' => 'appraisal_reviews'],
+                ['table' => 'appraisal_review_scores'],
+                ['table' => 'performance_goals'],
+                ['table' => 'goal_check_ins'],
+                ['table' => 'calibration_sessions'],
+                ['table' => 'calibration_participants', 'scope' => 'calibration_sessions', 'order' => ['calibration_session_id', 'user_id']],
+                ['table' => 'calibration_adjustments'],
             ],
         ],
         'training' => [
             'label' => 'Training', 'section' => 'Workforce', 'permission' => 'training.view',
-            'description' => 'Training programs and who enrolled, with scores and completion.',
+            'description' => 'Training programs and who enrolled or asked to, with scores and completion; their sessions and the attendance taken; what each cost, and the yearly budgets. (Certificates earned are with the employees\' certifications.)',
             'tables' => [
                 ['table' => 'training_programs'],
                 ['table' => 'training_enrollments'],
+                ['table' => 'training_sessions'],
+                ['table' => 'training_attendances'],
+                ['table' => 'training_costs'],
+                ['table' => 'training_budgets'],
             ],
         ],
         'awards' => [
             'label' => 'Awards', 'section' => 'Workforce', 'permission' => 'awards.view',
-            'description' => 'Award types and every recognition given.',
+            'description' => 'Award types and every recognition given, nominations, kudos, the points ledger, and the rewards catalogue with its requests.',
             'tables' => [
                 ['table' => 'award_types'],
                 ['table' => 'employee_awards'],
+                ['table' => 'award_nominations'],
+                ['table' => 'kudos'],
+                ['table' => 'point_transactions'],
+                ['table' => 'rewards'],
+                ['table' => 'reward_redemptions'],
             ],
         ],
         'events' => [
             'label' => 'Events', 'section' => 'Workforce', 'permission' => 'events.view',
-            'description' => 'Events and meetings, and every invitee\'s reply.',
+            'description' => 'Events and meetings, their repeat rules and rooms, and every invitee\'s reply.',
             'tables' => [
+                ['table' => 'rooms'],
+                ['table' => 'event_series'],
                 ['table' => 'events'],
                 ['table' => 'event_attendees'],
             ],
@@ -260,6 +280,7 @@ final class DataExportCatalogue
         'assistant_conversations' => 'Each person\'s own chats with the assistant are theirs, not the company\'s records.',
         'assistant_messages' => 'Each person\'s own chats with the assistant are theirs, not the company\'s records.',
         'personal_access_tokens' => 'Sign-in credentials for the mobile app.',
+        'calendar_feeds' => 'Each person\'s private calendar link — a secret that opens their invitations, not a record.',
         'data_exports' => 'This screen\'s own history of archives.',
     ];
 
@@ -347,6 +368,7 @@ final class DataExportCatalogue
             'members' => $query->whereIn("{$table}.id", DB::table('organization_user')->select('user_id')->where('organization_id', $organizationId)),
             'roles' => $query->whereIn("{$table}.role_id", DB::table('roles')->select('id')->where('organization_id', $organizationId)),
             'work_locations' => $query->whereIn("{$table}.work_location_id", DB::table('work_locations')->select('id')->where('organization_id', $organizationId)),
+            'calibration_sessions' => $query->whereIn("{$table}.calibration_session_id", DB::table('calibration_sessions')->select('id')->where('organization_id', $organizationId)),
             'global' => null,
         };
 

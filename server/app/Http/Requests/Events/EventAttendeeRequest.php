@@ -25,6 +25,8 @@ class EventAttendeeRequest extends FormRequest
             'employee_ids' => [Rule::requiredIf($inviting), 'array'],
             'employee_ids.*' => ['integer', TenantRule::exists('employees')],
             'response' => [Rule::requiredIf(! $inviting), Rule::in(EventAttendee::RESPONSES)],
+            // Inviting to an occurrence of a series: it alone, or every later one too.
+            'scope' => ['nullable', Rule::in(['this', 'following'])],
         ];
     }
 }

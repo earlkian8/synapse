@@ -195,12 +195,6 @@ export default function AuthSimpleLayout({
                             >
                                 Terms of Service
                             </a>
-                            <a
-                                href="#"
-                                className="text-[11px] text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
-                            >
-                                Support
-                            </a>
                         </div>
                     </footer>
                 </div>

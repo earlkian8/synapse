@@ -14,6 +14,8 @@ final class CycleLaunch
         public readonly int $skipped,
         /** No framework covers them (or it has nothing to measure). */
         public readonly int $uncovered,
+        /** Self and manager reviews asked for alongside (ADR 0072). */
+        public readonly int $reviews = 0,
     ) {}
 
     /**
@@ -37,6 +39,10 @@ final class CycleLaunch
 
         if ($this->uncovered > 0) {
             $message .= " {$this->uncovered} ".str('employee')->plural($this->uncovered).' had no framework.';
+        }
+
+        if ($this->reviews > 0) {
+            $message .= " Asked for {$this->reviews} ".str('review')->plural($this->reviews).'.';
         }
 
         return [$message, 'success'];

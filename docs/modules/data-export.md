@@ -64,8 +64,8 @@ Each is guarded by the view permission of its screen.
 | Workforce | `employees` | `employees.view` | employees 📎, employee_documents 📎, employee_certifications 📎, employee_promotions, employee_invitations, organization_join_requests |
 | | `attendance` | `attendance.view` | attendance_records, attendance_punches 📎 |
 | | `leave` | `leave.view` | leave_types, leave_balances, leave_requests |
-| | `performance` | `performance.view` | rating_scales, kpi_criteria, review_templates, review_template_items, evaluation_periods, performance_evaluations, performance_scores |
-| | `training` | `training.view` | training_programs, training_enrollments |
+| | `performance` | `performance.view` | rating_scales, kpi_criteria, review_templates, review_template_items, goal_templates, evaluation_periods, performance_evaluations, performance_scores, appraisal_reviews, appraisal_review_scores, performance_goals, goal_check_ins, calibration_sessions, calibration_participants, calibration_adjustments |
+| | `training` | `training.view` | training_programs, training_enrollments, training_sessions, training_attendances, training_costs, training_budgets (certificates are rows of employee_certifications) |
 | | `awards` | `awards.view` | award_types, employee_awards |
 | | `events` | `events.view` | events, event_attendees |
 | Offboarding | `offboarding` | `offboarding.view` | offboarding_programs, offboarding_program_items, offboarding_cases, clearance_items |
@@ -94,7 +94,8 @@ screen's history). Global and framework tables (`notifications`, `push_subscript
 
 **Confinement.** Each table spec names a `scope`: `tenant` (`organization_id`, the
 default), `self` (the organisation row), `members` (users with a membership),
-`roles` / `work_locations` (pivot rows of the organisation's roles or locations), or
+`roles` / `work_locations` / `calibration_sessions` (pivot rows of the organisation's
+roles, locations or calibration sessions), or
 `global`. It is applied explicitly in `DataExportCatalogue::query()`, never left to the
 tenant global scope.
 

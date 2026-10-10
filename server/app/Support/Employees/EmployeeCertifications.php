@@ -17,6 +17,10 @@ use Illuminate\Support\Facades\Storage;
  * {@see StoreEmployeeCertificationRequest}. Both writes are recorded: removing
  * one used to leave no trace.
  *
+ * A certificate earned by completing training (ADR 0075) belongs to Training:
+ * it is withdrawn there, by undoing the completion, so the profile and the
+ * assistant are refused here ({@see self::refusal()}).
+ *
  * `$channel` is appended to the audit description (" via assistant").
  */
 class EmployeeCertifications
@@ -37,6 +41,16 @@ class EmployeeCertifications
         $this->log('updated', "Added certification \"{$certification->name}\" to {$employee->full_name}{$channel}", $employee);
 
         return $certification;
+    }
+
+    /**
+     * Why a certification cannot be removed from the profile, or null if it can.
+     */
+    public function refusal(EmployeeCertification $certification): ?string
+    {
+        return $certification->fromTraining()
+            ? 'This certificate was earned in training. To withdraw it, change the person’s enrollment in Training.'
+            : null;
     }
 
     public function remove(Employee $employee, EmployeeCertification $certification, string $channel = ''): void

@@ -1,5 +1,5 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { Download, Plus, Sparkles } from 'lucide-react';
+import { Head, usePage } from '@inertiajs/react';
+import { Download, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { removeAward } from '@/features/awards/api';
 import { AwardStatsCards } from '@/features/awards/components/award-stats';
+import { AwardsNav } from '@/features/awards/components/awards-nav';
 import { AwardsTable } from '@/features/awards/components/awards-table';
 import { GiveAwardDialog } from '@/features/awards/components/give-award-dialog';
 import { awardsRoutes } from '@/features/awards/routes';
@@ -23,7 +24,7 @@ import type {
 } from '@/features/awards/types';
 
 export default function AwardsIndex() {
-    const { awards, types, employees, stats, can } =
+    const { awards, types, employees, stats, can, pending_nominations } =
         usePage<AwardsIndexPageProps>().props;
 
     const [giveOpen, setGiveOpen] = useState(false);
@@ -96,21 +97,17 @@ export default function AwardsIndex() {
 
     return (
         <>
-            <Head title="Awards & Recognition" />
+            <Head title="Awards" />
 
             <PageBody>
                 <PageHeader
-                    title="Awards & Recognition"
-                    description="Celebrate great work — the organisation's recognition feed."
+                    title="Awards"
+                    description="Every award the organisation has given, and who gave it."
                     actions={
-                        can.manage && (
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href={awardsRoutes.nominations}>
-                                    <Sparkles className="size-4" />
-                                    Nomination board
-                                </Link>
-                            </Button>
-                        )
+                        <AwardsNav
+                            current="awards"
+                            pending={pending_nominations}
+                        />
                     }
                 />
 
@@ -208,5 +205,5 @@ export default function AwardsIndex() {
 }
 
 AwardsIndex.layout = {
-    breadcrumbs: [{ title: 'Awards', href: '/awards' }],
+    breadcrumbs: [{ title: 'Awards & Recognition', href: '/awards' }],
 };

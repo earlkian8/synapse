@@ -1,12 +1,15 @@
 <?php
 
+use App\Models\AppraisalReview;
 use App\Models\AttritionRiskRun;
+use App\Models\CalibrationSession;
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Organization;
 use App\Models\PerformanceEvaluation;
+use App\Models\PerformanceGoal;
 use App\Models\RecruitmentPipeline;
 use App\Models\Role;
 use App\Models\User;
@@ -138,6 +141,24 @@ test('the seed produces a coherent demo workspace', function () {
     expect(AttritionRiskRun::count())->toBe(13)
         ->and(AttritionRiskRun::oldest('created_at')->first()->scores()->first()->features)
         ->toHaveKeys(['tenure_years', 'monthly_salary', 'years_since_promotion', 'absences_90d', 'overtime_hours_90d']);
+
+    // 10. The staff login has something to do in Performance (ADRs 0072, 0073):
+    //     last year's appraisal shared and waiting for them, a self-review and a
+    //     colleague's review to write, and goals of their own. The open cycle's
+    //     submitted results are held by an open calibration session.
+    $self = $staff->employee;
+    $shared = PerformanceEvaluation::where('employee_id', $self->id)->where('status', 'submitted')->sole();
+
+    expect($shared->isShared())->toBeTrue()
+        ->and($shared->acknowledged_at)->toBeNull()
+        ->and(AppraisalReview::where('reviewer_id', $self->id)->where('status', 'pending')->pluck('relationship')->all())
+        ->toHaveCount(2)->toContain('self')
+        ->and(PerformanceGoal::where('employee_id', $self->id)->count())->toBe(3);
+
+    $session = CalibrationSession::where('status', 'open')->sole();
+
+    expect($session->adjustments()->count())->toBe(1)
+        ->and($session->evaluations()->where('status', 'submitted')->whereNull('shared_at')->count())->toBeGreaterThan(0);
 });
 
 test('the seeded workspace renders for the account it was seeded for', function () {
@@ -163,4 +184,19 @@ test('the seeded workspace renders for the account it was seeded for', function 
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component($component));
     }
+
+    $session = CalibrationSession::where('status', 'open')->sole();
+
+    $this->get(route('performance.goals.index'))->assertOk()->assertInertia(fn (Assert $page) => $page->component('performance/goals'));
+    $this->get(route('performance.calibration.show', $session))->assertOk()->assertInertia(fn (Assert $page) => $page->component('performance/calibration-session'));
+
+    // The staff login's own side of Performance.
+    $this->actingAs(User::where('email', DatabaseSeeder::MOBILE_EMPLOYEE_EMAIL)->sole());
+
+    $this->get(route('performance.me'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('performance/me')->where('nav.reviews', 2));
+    $this->get(route('performance.me.goals'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('performance/my-goals')->has('goals', 3));
 });

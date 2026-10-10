@@ -1,4 +1,5 @@
 import { useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +20,14 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
-import { TYPE_LABELS, toDateTimeLocal } from '../constants';
+import { REMINDER_OPTIONS, TYPE_LABELS, toDateTimeLocal } from '../constants';
 import { eventRoutes } from '../routes';
-import type { EventItem, EventType } from '../types';
+import type { EventItem, EventScope, EventType, RepeatRule } from '../types';
+import { RepeatFields } from './repeat-fields';
+import { RoomPicker } from './room-picker';
+import { ScopeDialog } from './scope-dialog';
+
+const NO_REMINDER = 'none';
 
 const TYPES: EventType[] = ['event', 'meeting'];
 
@@ -45,8 +51,9 @@ export function EventFormSheet({ event, open, onOpenChange }: Props) {
                         {isEditing ? 'Edit event' : 'New event'}
                     </SheetTitle>
                     <SheetDescription>
-                        An event or meeting, with its schedule, location and
-                        kind. Invite attendees once it's created.
+                        An event or meeting: when and where, a room if it needs
+                        one, and whether it repeats. Invite people once it's
+                        created.
                     </SheetDescription>
                 </SheetHeader>
 
@@ -70,24 +77,49 @@ function FormBody({
     onDone: () => void;
 }) {
     const isEditing = Boolean(event);
-    const { data, setData, post, processing, errors } = useForm({
+    const [askScope, setAskScope] = useState(false);
+    const { data, setData, post, processing, errors, transform } = useForm({
         title: event?.title ?? '',
         type: event?.type ?? ('event' as EventType),
         location: event?.location ?? '',
         starts_at: toDateTimeLocal(event?.starts_at ?? null),
         ends_at: toDateTimeLocal(event?.ends_at ?? null),
         description: event?.description ?? '',
+        room_id: (event?.room?.id ?? null) as number | null,
+        // A new event reminds its invitees an hour before, unless told not to.
+        reminder_minutes: (event ? event.reminder_minutes : 60) as
+            number | null,
+        repeat: null as RepeatRule | null,
+        scope: 'this' as EventScope,
     });
 
-    const submit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const opts = { preserveScroll: true, onSuccess: () => onDone() };
+    const send = (scope: EventScope) => {
+        const opts = {
+            preserveScroll: true,
+            onSuccess: () => onDone(),
+            onFinish: () => setAskScope(false),
+        };
+
+        transform((form) => ({ ...form, scope }));
 
         if (isEditing && event) {
             post(eventRoutes.update(event.hashid), opts);
         } else {
             post(eventRoutes.store, opts);
         }
+    };
+
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // One date of a repeating event: this date alone, or later ones too?
+        if (isEditing && event?.series) {
+            setAskScope(true);
+
+            return;
+        }
+
+        send('this');
     };
 
     return (
@@ -178,6 +210,77 @@ function FormBody({
                 </div>
 
                 <div>
+                    <Label className="mb-1.5 block">Room</Label>
+                    <RoomPicker
+                        startsAt={data.starts_at}
+                        endsAt={data.ends_at}
+                        value={data.room_id}
+                        onChange={(roomId) => setData('room_id', roomId)}
+                        eventHashid={event?.hashid}
+                        current={event?.room ?? null}
+                        invited={event?.attendees_count ?? 0}
+                    />
+                    <InputError message={errors.room_id} className="mt-1.5" />
+                </div>
+
+                <div>
+                    <Label className="mb-1.5 block">Reminder</Label>
+                    <Select
+                        value={
+                            data.reminder_minutes === null
+                                ? NO_REMINDER
+                                : String(data.reminder_minutes)
+                        }
+                        onValueChange={(v) =>
+                            setData(
+                                'reminder_minutes',
+                                v === NO_REMINDER ? null : Number(v),
+                            )
+                        }
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={NO_REMINDER}>
+                                No reminder
+                            </SelectItem>
+                            {REMINDER_OPTIONS.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={String(option.value)}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                        Sent on its own to everyone invited who hasn't declined.
+                    </p>
+                    <InputError
+                        message={errors.reminder_minutes}
+                        className="mt-1.5"
+                    />
+                </div>
+
+                {!isEditing && (
+                    <RepeatFields
+                        value={data.repeat}
+                        onChange={(rule) => setData('repeat', rule)}
+                        startsAt={data.starts_at}
+                        errors={errors as Partial<Record<string, string>>}
+                    />
+                )}
+
+                {isEditing && event?.series && (
+                    <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                        Repeats: {event.series.summary.toLowerCase()}. When you
+                        save, you choose whether later dates change too.
+                    </p>
+                )}
+
+                <div>
                     <Label className="mb-1.5 block">Description</Label>
                     <textarea
                         value={data.description}
@@ -209,6 +312,22 @@ function FormBody({
                     </Button>
                 </div>
             </SheetFooter>
+
+            {event?.series && (
+                <ScopeDialog
+                    open={askScope}
+                    onOpenChange={setAskScope}
+                    action="Save changes to"
+                    title={event.title}
+                    position={
+                        event.series.position && event.series.total
+                            ? `${event.series.position} of ${event.series.total}`
+                            : null
+                    }
+                    processing={processing}
+                    onChoose={send}
+                />
+            )}
         </form>
     );
 }

@@ -50,6 +50,10 @@ export type AuthUser = {
   pending_requests: PendingJoinRequest[];
   employee: AuthEmployee | null;
   can_clock: boolean;
+  /** My events: answering one's own invitations (ADR 0070). */
+  can_respond_events: boolean;
+  /** Recognition: kudos, nominations, points and rewards (ADR 0071). */
+  can_recognize: boolean;
 };
 
 /** An invitation waiting to be claimed (ADR 0026). */
@@ -232,4 +236,105 @@ export type Paginated<T> = {
   data: T[];
   links?: unknown;
   meta?: { current_page: number; last_page: number; total: number };
+};
+
+// ── Events (ADR 0070) ───────────────────────────────────────────────────────
+
+export type EventResponse = 'invited' | 'accepted' | 'tentative' | 'declined';
+export type EventAnswer = Exclude<EventResponse, 'invited'>;
+
+export type MyInvitation = {
+  id: number;
+  response: EventResponse;
+  responded_at: string | null;
+  event: {
+    hashid: string;
+    title: string;
+    description: string | null;
+    type: 'event' | 'meeting';
+    starts_at: string | null;
+    ends_at: string | null;
+    location: string | null;
+    status: 'upcoming' | 'ongoing' | 'past';
+    reminder_minutes: number | null;
+    room: { name: string; location: string | null } | null;
+    series: { id: number; summary: string } | null;
+    organizer: string | null;
+    attendees_count: number;
+    attending_count: number;
+  };
+};
+
+export type CalendarLinks = { https: string; webcal: string };
+
+// ── Recognition (ADR 0071) ──────────────────────────────────────────────────
+
+export type Colleague = {
+  id: number;
+  name: string;
+  initials: string;
+  photo: string | null;
+  position: string | null;
+  department: string | null;
+};
+
+export type FeedItem = {
+  kind: 'kudos' | 'award';
+  id: number;
+  at: string | null;
+  awarded_on?: string | null;
+  from: Colleague | null;
+  to: Colleague | null;
+  message: string | null;
+  points: number;
+  award_type?: { name: string; color: string | null } | null;
+};
+
+export type RecognitionMe = {
+  has_employee: boolean;
+  balance: number;
+  kudos_left: number;
+  kudos_points: number;
+  kudos_monthly_limit: number;
+};
+
+export type NominatableType = { id: number; name: string; description: string | null; color: string | null; points: number };
+
+export type Nomination = {
+  id: number;
+  status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+  reason: string;
+  created_at: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  nominee: Colleague | null;
+  award_type: { id: number; name: string; color: string | null; points: number } | null;
+};
+
+export type Reward = {
+  id: number;
+  hashid: string;
+  name: string;
+  description: string | null;
+  cost: number;
+  stock: number | null;
+  affordable: boolean | null;
+};
+
+export type Redemption = {
+  id: number;
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled';
+  cost: number;
+  note: string | null;
+  response_note: string | null;
+  created_at: string | null;
+  reward: { name: string } | null;
+};
+
+export type LedgerLine = {
+  id: number;
+  amount: number;
+  kind: 'award' | 'kudos' | 'redemption' | 'refund' | 'adjustment';
+  note: string | null;
+  at: string | null;
 };

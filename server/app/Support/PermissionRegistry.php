@@ -60,7 +60,8 @@ class PermissionRegistry
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
-            'performance.manage' => 'Open, score, submit & acknowledge evaluations',
+            'performance.manage' => 'Open, score & submit appraisals; ask for reviews; set goals; run calibration sessions',
+            'performance.participate' => 'See & acknowledge your own appraisals, write the reviews you\'re asked for & check in on your goals (self-service)',
         ],
         'Predictive Analytics' => [
             'analytics.promotion.view' => 'View promotion readiness',
@@ -72,15 +73,18 @@ class PermissionRegistry
         ],
         'Training & Development' => [
             'training.view' => 'View training programs & enrollments',
-            'training.manage' => 'Manage programs, enroll employees & grade',
+            'training.manage' => 'Manage programs, enroll & grade; decide requests to join; run sessions & attendance; record costs & budgets',
+            'training.participate' => 'Browse training, join or ask to join a program & follow your own sessions and certificates (self-service)',
         ],
         'Awards & Recognition' => [
             'awards.view' => 'View awards & recognition',
-            'awards.manage' => 'Give, edit & remove recognitions',
+            'awards.manage' => 'Give, edit & remove recognitions; review nominations & redemptions',
+            'awards.participate' => 'Give kudos, nominate colleagues & redeem rewards (self-service)',
         ],
         'Events & Meetings' => [
             'events.view' => 'View events & meetings',
-            'events.manage' => 'Schedule events, invite attendees & track responses',
+            'events.manage' => 'Schedule events, book rooms, invite attendees & track responses',
+            'events.respond' => 'Answer your own invitations & subscribe to them (self-service)',
         ],
         'Offboarding' => [
             'offboarding.view' => 'View offboarding & clearance',

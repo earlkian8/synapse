@@ -1,6 +1,7 @@
 import type {
     BandTone,
     EvaluationPeriodOption,
+    GoalLibraryEntry,
     RatingBand,
     ReviewTemplateOption,
     ScaleLevel,
@@ -58,5 +59,8 @@ export type KpiSetupPageProps = {
     audiences: AudienceOptions;
     tones: BandTone[];
     defaultBands: RatingBand[];
+    /** The goal library (ADR 0073). */
+    goalTemplates?: GoalLibraryEntry[];
+    archivedGoalTemplates?: GoalLibraryEntry[];
     can: { manage: boolean };
 };

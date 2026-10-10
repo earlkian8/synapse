@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AssistantConversation;
+use App\Services\Assistant\Attachments\ConversationAttachments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -66,12 +67,13 @@ class AssistantConversationController extends Controller
     }
 
     /**
-     * Delete one conversation (and its messages).
+     * Delete one conversation (its messages, and the files sent in it).
      */
     public function destroy(Request $request, AssistantConversation $conversation): JsonResponse
     {
         $this->authorize($request, $conversation);
 
+        ConversationAttachments::purge($conversation);
         $conversation->delete();
 
         return response()->json(['ok' => true]);
@@ -82,7 +84,12 @@ class AssistantConversationController extends Controller
      */
     public function clear(Request $request): JsonResponse
     {
-        AssistantConversation::where('user_id', $request->user()->id)->delete();
+        $conversations = AssistantConversation::where('user_id', $request->user()->id)->get();
+
+        foreach ($conversations as $conversation) {
+            ConversationAttachments::purge($conversation);
+            $conversation->delete();
+        }
 
         return response()->json(['ok' => true]);
     }

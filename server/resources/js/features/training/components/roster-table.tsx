@@ -1,4 +1,5 @@
 import {
+    BadgeCheck,
     CheckCircle2,
     Download,
     Pencil,
@@ -42,16 +43,38 @@ import { cn } from '@/lib/utils';
 import { bulkEnrollments } from '../api';
 import { formatDate, scoreTone } from '../constants';
 import { trainingRoutes } from '../routes';
-import type { TrainingEnrollment, TrainingEnrollmentStatus } from '../types';
+import type {
+    AttendanceRate,
+    TrainingEnrollment,
+    TrainingEnrollmentStatus,
+} from '../types';
 import { EnrollmentStatusBadge } from './training-status-badge';
 
-type RosterSort = 'name' | 'status' | 'score' | 'enrolled' | 'completed';
+type RosterSort =
+    'name' | 'status' | 'score' | 'attendance' | 'enrolled' | 'completed';
 
 const STATUS_RANK: Record<TrainingEnrollmentStatus, number> = {
+    requested: -1,
     enrolled: 0,
     completed: 1,
     dropped: 2,
+    declined: 3,
 };
+
+/** Colour an attendance rate: full in green, patchy in amber, poor in rose. */
+function attendanceTone(rate: number | null): string {
+    if (rate === null) {
+        return 'text-muted-foreground';
+    }
+
+    if (rate >= 90) {
+        return 'text-emerald-600 dark:text-emerald-400';
+    }
+
+    return rate >= 75
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-rose-600 dark:text-rose-400';
+}
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'All statuses' },
@@ -63,6 +86,8 @@ const STATUS_OPTIONS = [
 type Props = {
     programHashid: string;
     enrollments: TrainingEnrollment[];
+    /** Each enrollment's attendance across the sessions held. */
+    attendance: Record<number, AttendanceRate>;
     canManage: boolean;
     onEnroll: () => void;
     onEdit: (enrollment: TrainingEnrollment) => void;
@@ -77,6 +102,7 @@ type Props = {
 export function RosterTable({
     programHashid,
     enrollments,
+    attendance,
     canManage,
     onEnroll,
     onEdit,
@@ -136,6 +162,12 @@ export function RosterTable({
                         );
                     case 'score':
                         return ((a.score ?? -1) - (b.score ?? -1)) * dir;
+                    case 'attendance':
+                        return (
+                            ((attendance[a.id]?.rate ?? -1) -
+                                (attendance[b.id]?.rate ?? -1)) *
+                            dir
+                        );
                     case 'enrolled':
                         return (
                             (a.enrolled_on ?? '').localeCompare(
@@ -156,7 +188,7 @@ export function RosterTable({
                         );
                 }
             });
-    }, [enrollments, search, status, sort, direction]);
+    }, [enrollments, attendance, search, status, sort, direction]);
 
     const page = useClientPagination(
         filtered,
@@ -164,7 +196,7 @@ export function RosterTable({
     );
 
     const isFiltered = search !== '' || status !== 'all';
-    const columns = canManage ? 7 : 5;
+    const columns = canManage ? 8 : 6;
 
     // "Select all" covers the rows on screen, so a bulk action never reaches
     // people the manager cannot see.
@@ -332,6 +364,13 @@ export function RosterTable({
                                 Score
                             </SortableHead>
                             <SortableHead
+                                {...sortable('attendance')}
+                                align="right"
+                                className="hidden sm:table-cell"
+                            >
+                                Attendance
+                            </SortableHead>
+                            <SortableHead
                                 {...sortable('enrolled')}
                                 className="hidden md:table-cell"
                             >
@@ -431,9 +470,21 @@ export function RosterTable({
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <EnrollmentStatusBadge
-                                            status={enrollment.status}
-                                        />
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <EnrollmentStatusBadge
+                                                status={enrollment.status}
+                                            />
+                                            {enrollment.certificate && (
+                                                <BadgeCheck
+                                                    className="size-4 text-[#0a8b91] dark:text-[#0ABFBF]"
+                                                    aria-label={`Certificate ${enrollment.certificate.certificate_no ?? ''}`.trim()}
+                                                >
+                                                    <title>
+                                                        {`Certificate ${enrollment.certificate.certificate_no ?? ''}`.trim()}
+                                                    </title>
+                                                </BadgeCheck>
+                                            )}
+                                        </span>
                                     </TableCell>
                                     <TableCell
                                         className={cn(
@@ -445,6 +496,9 @@ export function RosterTable({
                                             ? '—'
                                             : `${enrollment.score}%`}
                                     </TableCell>
+                                    <AttendanceCell
+                                        rate={attendance[enrollment.id]}
+                                    />
                                     <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                                         {formatDate(enrollment.enrolled_on)}
                                     </TableCell>
@@ -510,5 +564,30 @@ export function RosterTable({
                 onConfirm={() => runBulk('remove')}
             />
         </div>
+    );
+}
+
+/** "4 of 5" with the rate, toned; a dash until a session is marked. */
+function AttendanceCell({ rate }: { rate: AttendanceRate | undefined }) {
+    return (
+        <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
+            {rate && rate.rate !== null ? (
+                <>
+                    <span
+                        className={cn(
+                            'font-semibold',
+                            attendanceTone(rate.rate),
+                        )}
+                    >
+                        {rate.rate}%
+                    </span>
+                    <span className="ml-1 text-xs text-muted-foreground">
+                        {rate.attended}/{rate.counted}
+                    </span>
+                </>
+            ) : (
+                <span className="text-muted-foreground">—</span>
+            )}
+        </TableCell>
     );
 }

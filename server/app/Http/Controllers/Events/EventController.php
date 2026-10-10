@@ -7,6 +7,7 @@ use App\Http\Resources\EventResource;
 use App\Models\Employee;
 use App\Models\Event;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -21,10 +22,18 @@ use Inertia\Response;
 class EventController extends Controller
 {
     /**
-     * The events overview: KPIs + a card per event.
+     * The events overview: KPIs + a card per event. Someone who only answers
+     * their own invitations (`events.respond`) is sent to them instead, so the
+     * module has one entry in the sidebar.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if ($request->user()->cannot('events.view')) {
+            abort_unless($request->user()->can('events.respond'), 403);
+
+            return redirect()->route('events.me');
+        }
+
         $events = $this->withCounts(Event::query())->chronological()->get();
         $archived = $this->withCounts(Event::query()->onlyTrashed())->recentFirst()->get();
 
@@ -47,11 +56,19 @@ class EventController extends Controller
             'attendees as attending_count' => fn (Builder $query) => $query->attending(),
         ])->load([
             'organizer:id,first_name,last_name',
+            'room',
+            'series',
             'attendees' => fn ($query) => $query->orderBy('id'),
             'attendees.employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id',
             'attendees.employee.department:id,name',
             'attendees.employee.position:id,title',
         ]);
+
+        if ($event->series_id !== null) {
+            $dates = Event::query()->where('series_id', $event->series_id)->orderBy('starts_at')->orderBy('id')->pluck('id');
+            $event->setAttribute('series_total', $dates->count());
+            $event->setAttribute('series_position', $dates->search($event->id) + 1);
+        }
 
         return Inertia::render('events/show', [
             'event' => (new EventResource($event))->resolve($request),
@@ -69,7 +86,7 @@ class EventController extends Controller
     private function withCounts(Builder $query): Builder
     {
         return $query
-            ->with('organizer:id,first_name,last_name')
+            ->with(['organizer:id,first_name,last_name', 'room', 'series'])
             ->withCount('attendees')
             ->withCount(['attendees as attending_count' => fn (Builder $q) => $q->attending()]);
     }

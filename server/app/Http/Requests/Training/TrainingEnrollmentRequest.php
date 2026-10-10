@@ -21,7 +21,8 @@ class TrainingEnrollmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(TrainingEnrollment::STATUSES)],
+            // A request to join is approved or declined, never graded.
+            'status' => ['required', Rule::in(TrainingEnrollment::ROSTER_STATUSES)],
             'score' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ];

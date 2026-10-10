@@ -67,6 +67,8 @@ export function LaunchCycleModal({
     const [templateId, setTemplateId] = useState('auto');
     const [scope, setScope] = useState<'all' | 'departments'>('all');
     const [departmentIds, setDepartmentIds] = useState<number[]>([]);
+    const [selfReviews, setSelfReviews] = useState(true);
+    const [managerReviews, setManagerReviews] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     const preview = useMemo(() => {
@@ -107,6 +109,8 @@ export function LaunchCycleModal({
                     templateId === 'auto' ? null : Number(templateId),
                 scope,
                 department_ids: scope === 'departments' ? departmentIds : [],
+                self_reviews: selfReviews,
+                manager_reviews: managerReviews,
             },
             {
                 onStart: () => setProcessing(true),
@@ -232,6 +236,62 @@ export function LaunchCycleModal({
                                         ))}
                                     </ul>
                                 )}
+                            </FormField>
+
+                            <FormField label="Reviews to ask for" group>
+                                <div className="space-y-2.5">
+                                    {(
+                                        [
+                                            [
+                                                'self-reviews',
+                                                selfReviews,
+                                                setSelfReviews,
+                                                'A self-review from each person',
+                                                'Their own view, criterion by criterion, for the evaluator to read.',
+                                            ],
+                                            [
+                                                'manager-reviews',
+                                                managerReviews,
+                                                setManagerReviews,
+                                                'A review from each person’s manager',
+                                                'Skipped where the manager is the evaluator or has no account.',
+                                            ],
+                                        ] as const
+                                    ).map(
+                                        ([
+                                            id,
+                                            checked,
+                                            onChange,
+                                            label,
+                                            hint,
+                                        ]) => (
+                                            <div
+                                                key={id}
+                                                className="flex items-start gap-3"
+                                            >
+                                                <Checkbox
+                                                    id={id}
+                                                    checked={checked}
+                                                    onCheckedChange={(next) =>
+                                                        onChange(next === true)
+                                                    }
+                                                    className="mt-0.5"
+                                                />
+                                                <Label
+                                                    htmlFor={id}
+                                                    className="cursor-pointer leading-snug font-normal"
+                                                >
+                                                    <span className="block text-sm font-medium">
+                                                        {label}
+                                                    </span>
+                                                    <span className="block text-xs text-muted-foreground">
+                                                        {hint}
+                                                    </span>
+                                                </Label>
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
                             </FormField>
 
                             <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">

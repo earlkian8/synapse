@@ -2,6 +2,8 @@
 
 use App\Models\AssistantConversation;
 use App\Models\User;
+use App\Services\Assistant\Assistant;
+use App\Support\Ai\GeminiClient;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -9,9 +11,14 @@ use Illuminate\Support\Facades\RateLimiter;
 | The assistant's HTTP surface, rather than its tools: who may reach a
 | conversation, and how often anyone may spend a Gemini call.
 |
-| No model call is made — every request here is refused before it would reach
-| Gemini, which is the property being asserted.
+| No model call is made. Requests that are refused are refused before they
+| would reach Gemini, which is the property being asserted; the rest are
+| answered by a stub, so no test here depends on (or spends) a real API key.
 */
+
+beforeEach(function () {
+    fakeAssistantModel();
+});
 
 test('the assistant endpoint is closed to guests', function () {
     $this->post(route('assistant'), ['message' => 'hello'])->assertRedirect(route('login'));
@@ -103,4 +110,14 @@ test('an executable attachment is refused', function () {
     ])->assertRedirect();
 
     expect(AssistantConversation::query()->count())->toBe(0);
+});
+
+test('without an API key the assistant says it is not set up', function () {
+    actingAsUserWith([]);
+    app()->instance(GeminiClient::class, new GeminiClient(null, 'gemini-3.5-flash-lite'));
+    app()->forgetInstance(Assistant::class);
+
+    $this->postJson(route('assistant'), ['message' => 'hello'])
+        ->assertStatus(503)
+        ->assertJsonPath('reply', 'The assistant is not configured yet. Add a GEMINI_API_KEY to enable it.');
 });

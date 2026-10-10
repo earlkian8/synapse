@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Http\Requests\Recruitment\StoreApplicantRequest;
 use App\Models\Applicant;
+use App\Services\Assistant\Attachments\StoredAttachment;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,8 +14,9 @@ use Illuminate\Support\Facades\Storage;
  * `applicant_documents` row for each.
  *
  * One place so every intake path — the recruiter's add-candidate form, the
- * applicant edit form, and the public careers application — stores files
- * identically. `uploadedBy` is null for public submissions.
+ * applicant edit form, the public careers application, and a file sent to the
+ * assistant in chat (ADR 0068) — stores files identically. `uploadedBy` is null
+ * for public submissions.
  */
 class ApplicantDocumentStore
 {
@@ -47,6 +50,49 @@ class ApplicantDocumentStore
         }
 
         return $stored;
+    }
+
+    /**
+     * Why a chat attachment cannot be filed on an applicant — the form's own
+     * type and size rules, in its own terms — or null when it can.
+     */
+    public static function problemWith(StoredAttachment $file): ?string
+    {
+        $allowed = explode(',', StoreApplicantRequest::FILE_MIMES);
+
+        if (! in_array($file->extension(), $allowed, true)) {
+            return "“{$file->name}” can't be filed on a candidate: it must be one of ".implode(', ', $allowed).'.';
+        }
+
+        if ($file->size > StoreApplicantRequest::FILE_MAX_KB * 1024) {
+            return "“{$file->name}” is larger than ".(StoreApplicantRequest::FILE_MAX_KB / 1024).' MB.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Make a chat attachment the applicant's résumé, replacing any earlier one.
+     * The applicant is saved.
+     */
+    public static function resumeFrom(Applicant $applicant, StoredAttachment $file): void
+    {
+        self::forgetResume($applicant);
+        $applicant->resume = $file->copyTo('public', 'applicant-resumes');
+        $applicant->save();
+    }
+
+    /**
+     * File a chat attachment as one of the applicant's supporting documents.
+     */
+    public static function documentFrom(Applicant $applicant, StoredAttachment $file, string $type, ?int $uploadedBy = null): void
+    {
+        $applicant->documents()->create([
+            'title' => $file->name,
+            'type' => in_array($type, StoreApplicantRequest::DOCUMENT_TYPES, true) ? $type : 'other',
+            'file' => $file->copyTo('public', 'applicant-documents'),
+            'uploaded_by' => $uploadedBy,
+        ]);
     }
 
     /**

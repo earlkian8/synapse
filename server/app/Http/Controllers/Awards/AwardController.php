@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Awards;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployeeAwardResource;
+use App\Models\AwardNomination;
 use App\Models\AwardType;
 use App\Models\Employee;
 use App\Models\EmployeeAward;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -19,8 +21,18 @@ use Inertia\Response;
  */
 class AwardController extends Controller
 {
-    public function index(Request $request): Response
+    /**
+     * The awards register. Someone who only takes part (`awards.participate`)
+     * is sent to the wall instead, so the module has one entry in the sidebar.
+     */
+    public function index(Request $request): Response|RedirectResponse
     {
+        if ($request->user()->cannot('awards.view')) {
+            abort_unless($request->user()->can('awards.participate'), 403);
+
+            return redirect()->route('awards.wall');
+        }
+
         $awards = EmployeeAward::query()
             ->with([
                 'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id',
@@ -38,6 +50,7 @@ class AwardController extends Controller
             'employees' => $this->activeEmployees(),
             'stats' => $this->stats($awards),
             'can' => ['manage' => $request->user()->can('awards.manage')],
+            'pending_nominations' => $request->user()->can('awards.manage') ? AwardNomination::query()->pending()->count() : null,
         ]);
     }
 

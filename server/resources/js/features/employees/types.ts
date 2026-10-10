@@ -50,6 +50,9 @@ export type EmployeeCertification = {
     expiry_date: string | null;
     is_expired: boolean;
     url: string | null;
+    /** Earned by completing training (ADR 0075): withdrawn there, not here. */
+    from_training: boolean;
+    certificate_no: string | null;
 };
 
 export type EmployeePromotion = {
@@ -81,7 +84,7 @@ export type EmployeePerformanceEvaluation = {
 
 /** A read-only summary of one of the employee's training enrollments. */
 export type EmployeeTraining = {
-    status: 'enrolled' | 'completed' | 'dropped';
+    status: 'requested' | 'enrolled' | 'completed' | 'dropped' | 'declined';
     score: number | null;
     program: {
         hashid: string;

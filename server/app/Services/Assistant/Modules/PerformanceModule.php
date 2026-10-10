@@ -2,11 +2,15 @@
 
 namespace App\Services\Assistant\Modules;
 
+use App\Models\AppraisalReview;
+use App\Models\CalibrationSession;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
+use App\Models\GoalTemplate;
 use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceForecast;
+use App\Models\PerformanceGoal;
 use App\Models\PerformanceScore;
 use App\Models\ReviewTemplate;
 use App\Models\User;
@@ -19,8 +23,13 @@ use App\Support\ActivityLogger;
 use App\Support\Ml\PredictionWording;
 use App\Support\Performance\AppraisalException;
 use App\Support\Performance\AppraisalWorkflow;
+use App\Support\Performance\CalibrationWorkflow;
+use App\Support\Performance\FeedbackSummary;
+use App\Support\Performance\GoalProgress;
+use App\Support\Performance\GoalWorkflow;
 use App\Support\Performance\PerformanceCalibration;
 use App\Support\Performance\RatingScales;
+use App\Support\Performance\ReviewWorkflow;
 use App\Support\Performance\TemplateResolver;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,11 +48,15 @@ use Illuminate\Support\Str;
  * {@see AppraisalWorkflow} — the path the screens take — so the scale checks,
  * the scoring and the lifecycle rules are the screens' own.
  *
- * Disclosure follows the screens, which have no self-service view: an
- * appraisal — including one's own — needs `performance.view`, and an ML
- * forecast additionally needs `analytics.performance.view`. Writes need
- * `performance.manage`. Anything that locks, signs off, deletes or launches
- * waits for the user's Confirm (ADR 0049).
+ * Disclosure follows the screens. Reading anyone's appraisal needs
+ * `performance.view`, and an ML forecast additionally needs
+ * `analytics.performance.view`; writes need `performance.manage`. Taking part
+ * (`performance.participate`, ADRs 0072, 0073) reads one's own appraisals —
+ * their results only once shared — acknowledges them, lists the reviews asked of
+ * one, and reads and checks in on one's own goals. Reviews are read pooled
+ * ({@see FeedbackSummary}), exactly as the scorecard shows them. Anything that
+ * locks, signs off, deletes, launches or tells someone else waits for the
+ * user's Confirm (ADR 0049).
  *
  * Names resolve to exactly one person or not at all: an appraisal is not a
  * thing to act on for "the first Maria".
@@ -63,6 +76,9 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         private readonly AppraisalWorkflow $workflow,
         private readonly PerformanceCalibration $calibration,
         private readonly TemplateResolver $templates,
+        private readonly ReviewWorkflow $reviews,
+        private readonly GoalWorkflow $goals,
+        private readonly FeedbackSummary $feedback,
     ) {}
 
     public function key(): string
@@ -72,7 +88,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
 
     public function isAvailable(User $user): bool
     {
-        return $user->can('performance.view');
+        return $user->can('performance.view') || $user->can('performance.participate');
     }
 
     protected function toolMap(): array
@@ -88,6 +104,15 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
             'acknowledge_appraisal' => 'acknowledgeAppraisal',
             'delete_draft_appraisal' => 'deleteDraft',
             'launch_review_cycle' => 'launchCycle',
+            'request_reviews' => 'requestReviews',
+            'find_goals' => 'findGoals',
+            'set_goal' => 'setGoal',
+            'find_calibration_sessions' => 'findSessions',
+            'find_my_appraisals' => 'myAppraisals',
+            'acknowledge_my_appraisal' => 'acknowledgeMine',
+            'find_my_reviews' => 'myReviews',
+            'find_my_goals' => 'myGoals',
+            'check_in_goal' => 'checkInGoal',
         ];
     }
 
@@ -104,18 +129,31 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
             'acknowledge_appraisal' => 'performance.manage',
             'delete_draft_appraisal' => 'performance.manage',
             'launch_review_cycle' => 'performance.manage',
+            'request_reviews' => 'performance.manage',
+            'find_goals' => 'performance.view',
+            'set_goal' => 'performance.manage',
+            'find_calibration_sessions' => 'performance.view',
+            'find_my_appraisals' => 'performance.participate',
+            'acknowledge_my_appraisal' => 'performance.participate',
+            'find_my_reviews' => 'performance.participate',
+            'find_my_goals' => 'performance.participate',
+            'check_in_goal' => 'performance.participate',
         ];
     }
 
     protected function confirmTools(): array
     {
         // Submitting locks a result, signing off makes it final, deleting and
-        // launching a whole cycle are not done on a misread.
+        // launching a whole cycle are not done on a misread; asking for reviews
+        // and setting goals tell other people.
         return [
             'submit_appraisal',
             'acknowledge_appraisal',
             'delete_draft_appraisal',
             'launch_review_cycle',
+            'request_reviews',
+            'set_goal',
+            'acknowledge_my_appraisal',
         ];
     }
 
@@ -130,7 +168,11 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         $permission = $this->permissionMap()[$tool] ?? 'performance.view';
 
         if ($user->cannot($permission)) {
-            return $this->denied($permission === 'performance.manage' ? 'change appraisals' : 'view appraisals');
+            return $this->denied(match ($permission) {
+                'performance.manage' => 'change appraisals, ask for reviews or set goals',
+                'performance.participate' => 'take part in your own appraisal',
+                default => 'view appraisals',
+            });
         }
 
         return $this->{$this->toolMap()[$tool]}($user, $args);
@@ -138,23 +180,39 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
 
     public function guidance(User $user): string
     {
-        $cycles = $this->catalog(EvaluationPeriod::query()->recentFirst()->limit(6)->get(['name', 'status'])
-            ->map(fn (EvaluationPeriod $p): string => "{$p->name} ({$p->status})"));
+        $view = '';
+
+        if ($this->allows($user, 'performance.view')) {
+            $cycles = $this->catalog(EvaluationPeriod::query()->recentFirst()->limit(6)->get(['name', 'status'])
+                ->map(fn (EvaluationPeriod $p): string => "{$p->name} ({$p->status})"));
+
+            $view = <<<TXT
+
+            - find_appraisals lists appraisals (by person, cycle, status); get_appraisal reads one scorecard in full, with the reviews (self and manager named; peers and direct reports pooled, shown once two answer), the person's goals and any calibration; performance_summary reads a cycle — coverage, average, the spread across bands, and per-department calibration; list_review_cycles lists cycles; find_goals lists a cycle's goals (by person, health, status); find_calibration_sessions lists calibration sessions.
+              Review cycles: {$cycles}
+            TXT;
+        }
 
         $manage = $this->allows($user, 'performance.manage')
             ? <<<'TXT'
 
             - open_appraisal opens one for a person in a cycle (the open cycle when none is named), on the framework that covers them unless one is named.
-            - rate_appraisal saves ratings on a DRAFT: one entry per criterion, by its name, with a rating that is a number on that criterion's own scale or one of its level names ("Proficient"). Out-of-scale ratings are refused.
-            - submit_appraisal locks it (every criterion must be rated); acknowledge_appraisal records the employee's sign-off; delete_draft_appraisal discards a draft; launch_review_cycle opens appraisals for everyone active (or named departments). These wait for the user's confirmation.
+            - rate_appraisal saves ratings on a DRAFT: one entry per criterion, by its name, with a rating that is a number on that criterion's own scale or one of its level names ("Proficient"). Out-of-scale ratings are refused. Nobody rates their own appraisal.
+            - submit_appraisal locks it (every criterion must be rated) and shares it with the employee unless a calibration session holds it; acknowledge_appraisal records a sign-off on the employee's behalf (they can acknowledge it themselves); delete_draft_appraisal discards a draft; launch_review_cycle opens appraisals for everyone active (or named departments), optionally asking for self-reviews and managers' reviews. These wait for the user's confirmation.
+            - request_reviews asks people to review a DRAFT appraisal — named colleagues, and/or the person themself, their manager, their direct reports. What each is to the person comes from the reporting line. set_goal sets one goal for one or more people in a cycle (written out, or from the goal library by name). Both tell people, so they wait for the user's confirmation. Calibrating ratings and writing reviews are done on the screens.
+            TXT
+            : '';
+
+        $participate = $this->allows($user, 'performance.participate')
+            ? <<<'TXT'
+
+            - For the user's OWN performance: find_my_appraisals lists their appraisals (a result shows only once it is shared with them); acknowledge_my_appraisal acknowledges a shared one, with an optional comment — it says they have read it, not that they agree — and waits for the user's confirmation; find_my_reviews lists the reviews they are asked to write (they write them on the Reviews screen); find_my_goals lists their goals with progress; check_in_goal records where one of their own goals stands (value, on_track / at_risk / off_track, note).
             TXT
             : '';
 
         return <<<TXT
-        PERFORMANCE — appraisals scored against the company's own frameworks. A result is attainment on 0–100 reported in the company's own rating words (its "band"), plus a 1–5 index. Status runs draft → submitted → acknowledged.
-        - find_appraisals lists appraisals (by person, cycle, status); get_appraisal reads one scorecard in full; performance_summary reads a cycle — coverage, average, the spread across bands, and per-department calibration; list_review_cycles lists cycles.
-        - Pass people by name or employee number, and cycles by name.{$manage}
-          Review cycles: {$cycles}
+        PERFORMANCE — appraisals scored against the company's own frameworks. A result is attainment on 0–100 reported in the company's own rating words (its "band"), plus a 1–5 index. Status runs draft → submitted (shared with the employee, unless a calibration session holds it) → acknowledged. People around an appraisal can be asked to review it; employees have goals with check-ins.
+        - Pass people by name or employee number, and cycles by name.{$view}{$manage}{$participate}
         TXT;
     }
 
@@ -271,7 +329,109 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
                         'cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the open cycle.'],
                         'departments' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Only these departments, by name.'],
                         'framework' => ['type' => 'STRING', 'description' => 'Use this framework for everyone instead of each person\'s own.'],
+                        'self_reviews' => ['type' => 'BOOLEAN', 'description' => 'Ask each person for a self-review.'],
+                        'manager_reviews' => ['type' => 'BOOLEAN', 'description' => 'Ask each person\'s manager for a review.'],
                     ],
+                ],
+            ],
+            [
+                'name' => 'request_reviews',
+                'description' => "Ask people to review an employee's draft appraisal: named colleagues, and/or the employee themself, their manager, their direct reports.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Whose appraisal — name or employee number.'],
+                        'cycle' => $cycle,
+                        'reviewers' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Colleagues to ask, by name or employee number.'],
+                        'self' => ['type' => 'BOOLEAN', 'description' => 'Ask the employee for a self-review.'],
+                        'manager' => ['type' => 'BOOLEAN', 'description' => 'Ask their manager.'],
+                        'direct_reports' => ['type' => 'BOOLEAN', 'description' => 'Ask everyone who reports to them.'],
+                        'due' => ['type' => 'STRING', 'description' => 'Due date, YYYY-MM-DD; defaults to the cycle end.'],
+                    ],
+                    'required' => ['employee'],
+                ],
+            ],
+            [
+                'name' => 'find_goals',
+                'description' => "List a review cycle's goals with their progress and health, optionally for one person or by health or status.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => $employee,
+                        'cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the open cycle.'],
+                        'health' => ['type' => 'STRING', 'enum' => PerformanceGoal::HEALTHS],
+                        'status' => ['type' => 'STRING', 'enum' => PerformanceGoal::STATUSES],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'set_goal',
+                'description' => 'Set one goal for one or more employees in a review cycle — written out, or from the goal library by name.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employees' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Who it is for, by name or employee number.'],
+                        'cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the open cycle.'],
+                        'title' => ['type' => 'STRING', 'description' => 'The goal, in a line.'],
+                        'library' => ['type' => 'STRING', 'description' => 'A goal-library entry to start from, by name.'],
+                        'measure' => ['type' => 'STRING', 'enum' => PerformanceGoal::MEASURES, 'description' => 'percent: progress to 100%; number: from a start to a target.'],
+                        'start' => ['type' => 'NUMBER', 'description' => 'Where a number goal starts.'],
+                        'target' => ['type' => 'NUMBER', 'description' => 'The number to reach.'],
+                        'unit' => ['type' => 'STRING', 'description' => 'What the number counts — deals, tickets, PHP.'],
+                        'due' => ['type' => 'STRING', 'description' => 'Due date, YYYY-MM-DD.'],
+                    ],
+                    'required' => ['employees'],
+                ],
+            ],
+            [
+                'name' => 'find_calibration_sessions',
+                'description' => 'List the calibration sessions of a review cycle: what each covers, when, how many ratings it moved, and whether it is open.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => ['cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the open cycle.']],
+                ],
+            ],
+            [
+                'name' => 'find_my_appraisals',
+                'description' => "List the user's own appraisals. A result shows only once it has been shared with them.",
+                'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass],
+            ],
+            [
+                'name' => 'acknowledge_my_appraisal',
+                'description' => "Acknowledge the user's own shared appraisal, optionally with a comment. It says they have read it, not that they agree.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the one waiting for acknowledgement.'],
+                        'comment' => ['type' => 'STRING', 'description' => 'What they want to say about it.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'find_my_reviews',
+                'description' => 'List the reviews the user is asked to write — their self-review and reviews of colleagues — waiting ones first.',
+                'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass],
+            ],
+            [
+                'name' => 'find_my_goals',
+                'description' => "List the user's own goals for a review cycle, with progress and how each is going.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => ['cycle' => ['type' => 'STRING', 'description' => 'Review cycle name; defaults to the open cycle.']],
+                ],
+            ],
+            [
+                'name' => 'check_in_goal',
+                'description' => "Record where one of the user's own goals stands: the value now, how it is going, and a note.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'goal' => ['type' => 'STRING', 'description' => 'The goal, by its title.'],
+                        'value' => ['type' => 'NUMBER', 'description' => 'Where it stands now: a percentage for a percent goal, else the number.'],
+                        'health' => ['type' => 'STRING', 'enum' => PerformanceGoal::HEALTHS],
+                        'note' => ['type' => 'STRING', 'description' => 'What moved, or what is in the way.'],
+                    ],
+                    'required' => ['goal', 'value', 'health'],
                 ],
             ],
         ]);
@@ -288,8 +448,8 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
     {
         $employee = $subject->employeeModel();
 
-        // No self-service exception: the screens have no "my appraisal" view,
-        // so neither does the assistant.
+        // Someone who only takes part reads their own through
+        // find_my_appraisals, which shows a result only once it is shared.
         if ($employee === null || $user->cannot('performance.view')) {
             return null;
         }
@@ -332,6 +492,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         return [
             'appraisal', 'appraisals', 'performance', 'evaluation', 'evaluations', 'review cycle',
             'review cycles', 'calibration', 'rating', 'ratings', 'scorecard', 'scorecards', 'kpi', 'kpis',
+            'self-review', 'peer review', '360', 'goals', 'check-in',
         ];
     }
 
@@ -418,11 +579,15 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         $card = $this->appraisalCard($evaluation, 'insight', $this->tone($evaluation), $evaluation->result_label ?? ucfirst($evaluation->status));
         $card['meta'] = array_values(array_filter([
             $this->resultText($evaluation),
-            ucfirst($evaluation->status),
+            $evaluation->isCalibrated() ? "Calibrated from “{$evaluation->scored_label}”" : null,
+            ucfirst($evaluation->status).($evaluation->status === 'submitted' && $evaluation->shared_at === null ? ' (held for calibration)' : ''),
             $rated->count().' of '.$scores->count().' criteria rated',
             $evaluation->evaluator ? 'Evaluator: '.trim($evaluation->evaluator->first_name.' '.$evaluation->evaluator->last_name) : null,
             ...$criteria,
             filled($evaluation->remarks) ? 'Remarks: '.Str::limit((string) $evaluation->remarks, 240) : null,
+            ...$this->reviewLines($evaluation, $scores),
+            $this->goalLine($evaluation),
+            filled($evaluation->employee_comment) ? 'Employee’s comment on acknowledging: '.Str::limit((string) $evaluation->employee_comment, 240) : null,
         ]));
 
         return ToolResult::found(
@@ -581,6 +746,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
                 $hasRemarks ? Str::limit((string) $args['remarks'], 4000, '') : null,
                 setRemarks: $hasRemarks,
                 channel: ' via assistant',
+                by: $user,
             );
         } catch (AppraisalException $e) {
             return ToolResult::error('Rated the appraisal', $e->getMessage());
@@ -607,7 +773,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         }
 
         try {
-            $this->workflow->submit($evaluation, ' via assistant');
+            $this->workflow->submit($evaluation, ' via assistant', $user);
         } catch (AppraisalException $e) {
             return ToolResult::error('Submitted the appraisal', $e->getMessage());
         }
@@ -631,7 +797,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         }
 
         try {
-            $this->workflow->acknowledge($evaluation, ' via assistant');
+            $this->workflow->acknowledge($evaluation, ' via assistant', $user);
         } catch (AppraisalException $e) {
             return ToolResult::error('Recorded the sign-off', $e->getMessage());
         }
@@ -658,7 +824,7 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         $name = $evaluation->employee?->full_name;
 
         try {
-            $this->workflow->discard($evaluation, ' via assistant');
+            $this->workflow->discard($evaluation, ' via assistant', $user);
         } catch (AppraisalException $e) {
             return ToolResult::error('Deleted the draft', $e->getMessage());
         }
@@ -705,7 +871,15 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
         }
 
         try {
-            $launch = $this->workflow->launch($period, $departmentIds, $pinned, $user, ' via assistant');
+            $launch = $this->workflow->launch(
+                $period,
+                $departmentIds,
+                $pinned,
+                $user,
+                ' via assistant',
+                selfReviews: (bool) ($args['self_reviews'] ?? false),
+                managerReviews: (bool) ($args['manager_reviews'] ?? false),
+            );
         } catch (AppraisalException $e) {
             return ToolResult::error('Launched the cycle', $e->getMessage());
         }
@@ -725,10 +899,405 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
                     $launch->opened.' opened',
                     $launch->skipped > 0 ? $launch->skipped.' already had one' : null,
                     $launch->uncovered > 0 ? $launch->uncovered.' without a framework' : null,
+                    $launch->reviews > 0 ? $launch->reviews.' '.Str::plural('review', $launch->reviews).' asked for' : null,
                 ],
                 id: $period->hashid,
             ),
         );
+    }
+
+    // ── Reviews, goals and calibration (ADRs 0072, 0073) ────────────────────
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function requestReviews(User $user, array $args): ToolResult
+    {
+        [$evaluation, $error] = $this->locateAppraisal($args, 'draft');
+
+        if ($evaluation === null) {
+            return ToolResult::error('Looked up the draft appraisal', $error);
+        }
+
+        if ($evaluation->isAbout($user)) {
+            return ToolResult::error('Asked for reviews', AppraisalWorkflow::OWN_APPRAISAL);
+        }
+
+        $subject = $evaluation->employee;
+        $reviewers = collect();
+        $names = is_array($args['reviewers'] ?? null) ? $args['reviewers'] : [];
+
+        if ($names !== []) {
+            [$named, $error] = $this->resolveEmployees($names, 10);
+
+            if ($named === null) {
+                return ToolResult::error('Looked up the reviewers', $error);
+            }
+
+            $reviewers = $reviewers->merge($named);
+        }
+
+        if ((bool) ($args['self'] ?? false)) {
+            $reviewers->push($subject);
+        }
+
+        if ((bool) ($args['manager'] ?? false)) {
+            if ($subject->manager === null) {
+                return ToolResult::error('Looked up the manager', "{$subject->full_name} has no manager on record.");
+            }
+
+            $reviewers->push($subject->manager);
+        }
+
+        if ((bool) ($args['direct_reports'] ?? false)) {
+            $reviewers = $reviewers->merge($subject->reports()->where('employment_status', 'active')->get());
+        }
+
+        $reviewers = $reviewers->filter()->unique('id')->values();
+
+        if ($reviewers->isEmpty()) {
+            return ToolResult::error('Asked for reviews', 'Say who to ask: colleagues by name, the person themself, their manager or their reports.');
+        }
+
+        $due = filled($args['due'] ?? null) ? (string) $args['due'] : null;
+
+        if ($due !== null && (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $due) || $due < today()->toDateString())) {
+            return ToolResult::error('Asked for reviews', 'The due date must be today or later, as YYYY-MM-DD.');
+        }
+
+        try {
+            $outcome = $this->reviews->request($evaluation, $reviewers, $user, $due, ' via assistant');
+        } catch (AppraisalException $e) {
+            return ToolResult::error('Asked for reviews', $e->getMessage());
+        }
+
+        $asked = collect($outcome['requested']);
+
+        if ($asked->isEmpty()) {
+            return ToolResult::error('Asked for reviews', implode(' ', $outcome['refused']));
+        }
+
+        return ToolResult::ok(
+            "Asked {$asked->count()} ".Str::plural('person', $asked->count())." to review {$subject->full_name}",
+            $outcome['refused'] === [] ? null : implode(' ', $outcome['refused']),
+            $this->card(
+                kind: 'start',
+                tone: $outcome['refused'] === [] ? 'positive' : 'warning',
+                badge: 'Asked',
+                title: $subject->full_name,
+                subtitle: ($evaluation->period?->name ?? 'Cycle').' · reviews',
+                meta: [
+                    ...$asked->map(fn (AppraisalReview $r): string => $r->reviewer?->full_name.' ('.ReviewWorkflow::label($r->relationship).')')->all(),
+                    ...array_map(fn (string $why): string => 'Not asked: '.$why, array_values($outcome['refused'])),
+                ],
+                id: $evaluation->hashid,
+            ),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function findGoals(User $user, array $args): ToolResult
+    {
+        $period = filled($args['cycle'] ?? null) ? $this->locateCycle((string) $args['cycle']) : $this->currentCycle();
+
+        if ($period === null) {
+            return ToolResult::error('Looked up the review cycle', filled($args['cycle'] ?? null) ? 'No review cycle matches that name.' : 'No review cycles have been set up yet.');
+        }
+
+        $needle = trim((string) ($args['employee'] ?? ''));
+        $health = in_array($args['health'] ?? null, PerformanceGoal::HEALTHS, true) ? $args['health'] : null;
+        $status = in_array($args['status'] ?? null, PerformanceGoal::STATUSES, true) ? $args['status'] : null;
+
+        $goals = PerformanceGoal::query()
+            ->forPeriod($period->id)
+            ->with('employee')
+            ->when($needle !== '', fn (Builder $q) => $q->whereHas('employee', fn (Builder $e) => $this->matchByTokens($e, $needle)))
+            ->when($health !== null, fn (Builder $q) => $q->where('health', $health)->where('status', 'active'))
+            ->when($status !== null, fn (Builder $q) => $q->where('status', $status))
+            ->latest('id')
+            ->limit(self::MAX_RESULTS)
+            ->get();
+
+        return ToolResult::found(
+            "Searched {$period->name} goals",
+            $goals->count().' found',
+            $goals->map(fn (PerformanceGoal $g): array => $this->goalCard($g, true))->all(),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function setGoal(User $user, array $args): ToolResult
+    {
+        [$employees, $error] = $this->resolveEmployees(is_array($args['employees'] ?? null) ? $args['employees'] : [], 20);
+
+        if ($employees === null) {
+            return ToolResult::error('Looked up who the goal is for', $error);
+        }
+
+        $period = filled($args['cycle'] ?? null) ? $this->locateCycle((string) $args['cycle']) : EvaluationPeriod::query()->open()->recentFirst()->first();
+
+        if ($period === null) {
+            return ToolResult::error('Looked up the review cycle', filled($args['cycle'] ?? null) ? 'No review cycle matches that name.' : 'No review cycle is open.');
+        }
+
+        $template = null;
+
+        if (filled($args['library'] ?? null)) {
+            $id = $this->resolveId(GoalTemplate::query()->active(), 'name', (string) $args['library']);
+            $template = $id === null ? null : GoalTemplate::find($id);
+
+            if ($template === null) {
+                return ToolResult::error('Looked up the library goal', 'No goal in the library is called “'.Str::limit((string) $args['library'], 60).'”.');
+            }
+        }
+
+        $data = array_filter([
+            'title' => filled($args['title'] ?? null) ? Str::limit((string) $args['title'], 255, '') : null,
+            'measure' => $args['measure'] ?? null,
+            'start_value' => $args['start'] ?? null,
+            'target_value' => $args['target'] ?? null,
+            'unit' => $args['unit'] ?? null,
+            'due_on' => filled($args['due'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $args['due']) ? (string) $args['due'] : null,
+        ], fn (mixed $value): bool => $value !== null && $value !== '');
+
+        try {
+            $goals = $this->goals->set($employees, $period, $data, $template, $user, channel: ' via assistant');
+        } catch (AppraisalException $e) {
+            return ToolResult::error('Set the goal', $e->getMessage());
+        }
+
+        $first = $goals[0];
+
+        return ToolResult::ok(
+            "Set “{$first->title}” for ".(count($goals) === 1 ? $first->employee?->full_name : count($goals).' people'),
+            $period->name,
+            $this->goalCard($first, true),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function findSessions(User $user, array $args): ToolResult
+    {
+        $period = filled($args['cycle'] ?? null) ? $this->locateCycle((string) $args['cycle']) : $this->currentCycle();
+
+        if ($period === null) {
+            return ToolResult::error('Looked up the review cycle', filled($args['cycle'] ?? null) ? 'No review cycle matches that name.' : 'No review cycles have been set up yet.');
+        }
+
+        $sessions = CalibrationSession::query()
+            ->where('evaluation_period_id', $period->id)
+            ->withCount('adjustments')
+            ->latest('id')
+            ->limit(self::MAX_RESULTS)
+            ->get();
+
+        return ToolResult::found(
+            "Listed {$period->name} calibration sessions",
+            $sessions->count().' found',
+            $sessions->map(fn (CalibrationSession $session): array => $this->card(
+                kind: 'find',
+                tone: $session->isOpen() ? 'info' : 'neutral',
+                badge: ucfirst($session->status),
+                title: $session->name,
+                subtitle: CalibrationWorkflow::scopeLabel($session),
+                meta: [
+                    $session->scheduled_for ? 'Meets '.$session->scheduled_for->format('M j, Y') : null,
+                    $session->adjustments_count.' '.Str::plural('rating', $session->adjustments_count).' moved',
+                    $session->isOpen() ? 'Holding back appraisals submitted inside it' : null,
+                ],
+                id: $session->hashid,
+            ))->all(),
+        );
+    }
+
+    // ── Taking part: the user's own (ADRs 0072, 0073) ───────────────────────
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function myAppraisals(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Looked up your appraisals', 'Your account isn’t linked to an employee record.');
+        }
+
+        $evaluations = PerformanceEvaluation::query()
+            ->forEmployee($me)
+            ->with('period:id,name')
+            ->latest('id')
+            ->limit(self::MAX_RESULTS)
+            ->get();
+
+        return ToolResult::found('Read your appraisals', $evaluations->count().' found', $evaluations->map(fn (PerformanceEvaluation $e): array => $this->card(
+            kind: 'find',
+            tone: $e->isShared() && $e->status === 'submitted' ? 'warning' : 'neutral',
+            badge: $e->status === 'acknowledged' ? 'Acknowledged' : ($e->isShared() ? 'Ready to acknowledge' : 'In progress'),
+            title: $e->period?->name ?? 'Review cycle',
+            subtitle: $e->template_name ?? 'Appraisal',
+            // A result the employee may not see yet stays out of the reply.
+            meta: [
+                $e->isShared() ? $this->resultText($e) : ($e->status === 'submitted' ? 'Being calibrated — shared once that is done' : 'Still being rated'),
+                $e->acknowledged_at ? 'Acknowledged '.$e->acknowledged_at->format('M j, Y') : null,
+            ],
+            id: $e->hashid,
+        ))->all());
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function acknowledgeMine(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Acknowledged your appraisal', 'Your account isn’t linked to an employee record.');
+        }
+
+        $period = null;
+
+        if (filled($args['cycle'] ?? null) && ($period = $this->locateCycle((string) $args['cycle'])) === null) {
+            return ToolResult::error('Looked up the review cycle', 'No review cycle matches that name.');
+        }
+
+        $evaluation = PerformanceEvaluation::query()
+            ->forEmployee($me)
+            ->with(['period:id,name', 'employee'])
+            ->where('status', 'submitted')
+            ->whereNotNull('shared_at')
+            ->when($period !== null, fn (Builder $q) => $q->where('evaluation_period_id', $period->id))
+            ->latest('id')
+            ->first();
+
+        if ($evaluation === null) {
+            return ToolResult::error('Acknowledged your appraisal', 'You have no shared appraisal waiting to be acknowledged'.($period ? " in {$period->name}" : '').'.');
+        }
+
+        try {
+            $this->workflow->acknowledge(
+                $evaluation,
+                ' via assistant',
+                $user,
+                filled($args['comment'] ?? null) ? Str::limit((string) $args['comment'], 2000, '') : null,
+            );
+        } catch (AppraisalException $e) {
+            return ToolResult::error('Acknowledged your appraisal', $e->getMessage());
+        }
+
+        return ToolResult::ok(
+            "Acknowledged your {$evaluation->period?->name} appraisal",
+            $this->resultText($evaluation),
+            $this->card(
+                kind: 'approve',
+                tone: 'positive',
+                badge: 'Acknowledged',
+                title: $evaluation->period?->name ?? 'Your appraisal',
+                subtitle: $evaluation->template_name ?? 'Appraisal',
+                meta: [$this->resultText($evaluation), filled($args['comment'] ?? null) ? 'With your comment' : null],
+                id: $evaluation->hashid,
+            ),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function myReviews(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Looked up your reviews', 'Your account isn’t linked to an employee record.');
+        }
+
+        $reviews = AppraisalReview::query()
+            ->byReviewer($me)
+            ->where('status', '!=', 'cancelled')
+            ->with(['evaluation:id,employee_id,evaluation_period_id,status', 'evaluation.employee', 'evaluation.period:id,name'])
+            ->orderByRaw("case status when 'pending' then 0 else 1 end")
+            ->latest('id')
+            ->limit(self::MAX_RESULTS)
+            ->get();
+
+        return ToolResult::found('Read the reviews asked of you', $reviews->where('status', 'pending')->count().' waiting', $reviews->map(fn (AppraisalReview $r): array => $this->card(
+            kind: 'find',
+            tone: $r->isOverdue() ? 'warning' : ($r->isPending() ? 'info' : 'neutral'),
+            badge: $r->isPending() ? ($r->isOverdue() ? 'Overdue' : 'Waiting') : ucfirst($r->status),
+            title: $r->isSelf() ? 'Your self-review' : ($r->evaluation?->employee?->full_name ?? 'A colleague'),
+            subtitle: trim(($r->evaluation?->period?->name ?? 'Cycle').($r->isSelf() ? '' : ' · as their '.ReviewWorkflow::label($r->relationship))),
+            meta: [
+                $r->isPending() && $r->due_on ? 'Due '.$r->due_on->format('M j, Y') : null,
+                $r->isPending() ? 'Write it on the Reviews screen' : null,
+            ],
+            id: $r->hashid,
+        ))->all());
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function myGoals(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Looked up your goals', 'Your account isn’t linked to an employee record.');
+        }
+
+        $period = filled($args['cycle'] ?? null) ? $this->locateCycle((string) $args['cycle']) : $this->currentCycle();
+
+        if ($period === null) {
+            return ToolResult::error('Looked up the review cycle', filled($args['cycle'] ?? null) ? 'No review cycle matches that name.' : 'No review cycles have been set up yet.');
+        }
+
+        $goals = PerformanceGoal::query()->forEmployee($me)->forPeriod($period->id)->with('employee')->latest('id')->get();
+        $attainment = GoalProgress::attainment($goals);
+
+        return ToolResult::found(
+            "Read your {$period->name} goals",
+            $goals->count().' found'.($attainment !== null ? ' · '.$this->percent($attainment).'% overall' : ''),
+            $goals->map(fn (PerformanceGoal $g): array => $this->goalCard($g, false))->all(),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function checkInGoal(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Checked in', 'Your account isn’t linked to an employee record.');
+        }
+
+        $goals = PerformanceGoal::query()->forEmployee($me)->where('status', 'active')->with(['employee', 'period'])->get();
+        $needle = Str::lower(trim((string) ($args['goal'] ?? '')));
+        $goal = $goals->first(fn (PerformanceGoal $g): bool => Str::lower($g->title) === $needle);
+
+        if ($goal === null) {
+            $partial = $goals->filter(fn (PerformanceGoal $g): bool => $needle !== '' && str_contains(Str::lower($g->title), $needle));
+            $goal = $partial->count() === 1 ? $partial->first() : null;
+        }
+
+        if ($goal === null) {
+            return ToolResult::error('Looked up the goal', 'None of your active goals is called “'.Str::limit((string) ($args['goal'] ?? ''), 60).'”. Your goals: '.($goals->pluck('title')->take(8)->implode(', ') ?: 'none').'.');
+        }
+
+        $value = trim(rtrim(trim((string) ($args['value'] ?? '')), '%'));
+        $health = (string) ($args['health'] ?? '');
+
+        if (! is_numeric($value)) {
+            return ToolResult::error('Checked in', 'Say where the goal stands now, as a number.');
+        }
+
+        try {
+            $this->goals->checkIn($goal, (float) $value, $health, filled($args['note'] ?? null) ? Str::limit((string) $args['note'], 1000, '') : null, $user, ' via assistant');
+        } catch (AppraisalException $e) {
+            return ToolResult::error('Checked in', $e->getMessage());
+        }
+
+        $goal->refresh()->load('employee');
+
+        return ToolResult::ok("Checked in on “{$goal->title}”", null, $this->goalCard($goal, false));
     }
 
     // ── Resolution ───────────────────────────────────────────────────────────
@@ -854,6 +1423,105 @@ class PerformanceModule extends Module implements ContributesContext, Contribute
     }
 
     // ── Presentation ─────────────────────────────────────────────────────────
+
+    /**
+     * The reviews of an appraisal in lines, read exactly as the scorecard shows
+     * them: who answered, and the comparison per criterion — self and manager
+     * named, peers and direct reports pooled and only once two have answered.
+     *
+     * @param  Collection<int, PerformanceScore>  $scores
+     * @return list<string>
+     */
+    private function reviewLines(PerformanceEvaluation $evaluation, Collection $scores): array
+    {
+        $summary = $this->feedback->for($evaluation);
+
+        if ($summary['counts']['asked'] === 0) {
+            return [];
+        }
+
+        $columns = collect($summary['columns']);
+        $lines = [sprintf(
+            'Reviews: %d of %d answered (%s).',
+            $summary['counts']['submitted'],
+            $summary['counts']['asked'],
+            $columns->map(fn (array $c): string => "{$c['label']} {$c['answered']}/{$c['asked']}".($c['shown'] ? '' : ' — not shown until 2 answer'))->implode(', '),
+        )];
+
+        $shown = $columns->where('shown', true)->pluck('label', 'key');
+
+        foreach ($summary['lines'] as $line) {
+            $values = collect($line['values'])
+                ->filter()
+                ->map(fn (array $v, string $key): string => Str::lower((string) $shown->get($key)).' '.$v['formatted'])
+                ->implode(', ');
+
+            if ($values !== '') {
+                $lines[] = 'Review ratings — '.($scores->firstWhere('id', $line['id'])?->label ?? 'criterion').': '.$values.'.';
+            }
+        }
+
+        foreach (array_slice($summary['comments'], 0, 4) as $comment) {
+            $who = $comment['by'] ?? 'A '.ReviewWorkflow::label($comment['relationship']);
+            $lines[] = trim($who.' wrote: '.Str::limit(trim(($comment['strengths'] ?? '').' '.($comment['improvements'] ?? '')), 200));
+        }
+
+        return $lines;
+    }
+
+    /**
+     * The person's goals for the appraisal's cycle, in a line.
+     */
+    private function goalLine(PerformanceEvaluation $evaluation): ?string
+    {
+        $goals = PerformanceGoal::query()
+            ->forEmployee($evaluation->employee_id)
+            ->forPeriod($evaluation->evaluation_period_id)
+            ->get();
+
+        if ($goals->isEmpty()) {
+            return null;
+        }
+
+        $attainment = GoalProgress::attainment($goals);
+
+        return sprintf(
+            'Goals this cycle: %d (%s achieved)%s.',
+            $goals->count(),
+            $goals->where('status', 'achieved')->count(),
+            $attainment === null ? '' : ', '.$this->percent($attainment).'% attainment',
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function goalCard(PerformanceGoal $goal, bool $withOwner): array
+    {
+        $format = fn (float $value): string => GoalProgress::format($value, $goal->measure, $goal->unit);
+
+        return $this->card(
+            kind: 'find',
+            tone: match (true) {
+                $goal->status === 'achieved', $goal->health === 'on_track' => 'positive',
+                $goal->health === 'at_risk' => 'warning',
+                $goal->health === 'off_track', $goal->status === 'missed' => 'danger',
+                default => 'neutral',
+            },
+            badge: $goal->status === 'active' ? ($goal->health ? Str::headline($goal->health) : 'No check-in yet') : ucfirst($goal->status),
+            title: $goal->title,
+            subtitle: $withOwner ? ($goal->employee?->full_name ?? 'Employee') : ($goal->due_on ? 'Due '.$goal->due_on->format('M j, Y') : 'No due date'),
+            meta: [
+                $this->percent($goal->progress()).'% — '.$format((float) $goal->current_value).', target '.$format((float) $goal->target_value),
+                $goal->last_check_in_at ? 'Last check-in '.$goal->last_check_in_at->format('M j, Y') : 'Not checked in on yet',
+                $goal->isStale() ? 'No check-in for a month' : null,
+            ],
+            avatar: $withOwner && $goal->employee
+                ? ['name' => $goal->employee->full_name, 'initials' => $goal->employee->initials(), 'photo' => $goal->employee->photo_url]
+                : null,
+            id: $goal->hashid,
+        );
+    }
 
     /**
      * A cycle in lines: coverage, statuses, average, the band spread and the

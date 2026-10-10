@@ -45,6 +45,15 @@ digest per recipient, to holders of `attendance.view` for the whole company and 
 manager without it for their own reports (from `attendance:close-day`, ADR 0041); and a
 **clock-in reminder** → the employee, once per shift, when their policy sets one (from
 `attendance:remind`).
+Events (category `events`, ADR 0070) send an **invitation** (once per person, however
+many dates of a series it covers), *Remind pending*, and a **scheduled reminder** →
+every invitee who has not declined, `reminder_minutes` before the start (from
+`events:remind`, every five minutes); each links to `/events/me?event=<hashid>`.
+Recognition (category `awards`, ADR 0071) tells the **recipient of an award or kudos**
+(with the points), **HR** of a new nomination (`toPermission('awards.manage')`, leaving
+out the nominator and nominee) and of a reward request, the **nominator** of the
+decision, and the **requester** when a reward is handed over or declined, or their
+points are adjusted.
 `Notifier::holdersOf()` is the audience query behind `toPermission`, exposed so the
 digest can tell who already hears about everybody. The mobile app has no push channel
 of its own, so a reminder reaches a phone only as email or web push. Every call funnels through

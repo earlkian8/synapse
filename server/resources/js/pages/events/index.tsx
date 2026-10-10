@@ -17,6 +17,7 @@ import { EventFormSheet } from '@/features/events/components/event-form-sheet';
 import { EventStatsCards } from '@/features/events/components/event-stats';
 import { EventTable } from '@/features/events/components/event-table';
 import type { EventSort } from '@/features/events/components/event-table';
+import { EventsNav } from '@/features/events/components/events-nav';
 import {
     STATUS_LABELS,
     STATUS_ORDER,
@@ -125,7 +126,9 @@ export default function EventsIndex() {
                     return a.title.localeCompare(b.title) * dir;
                 case 'location':
                     return (
-                        (a.location ?? '').localeCompare(b.location ?? '') * dir
+                        (a.room?.name ?? a.location ?? '').localeCompare(
+                            b.room?.name ?? b.location ?? '',
+                        ) * dir
                     );
                 case 'attendance':
                     return (a.attending_count - b.attending_count) * dir;
@@ -175,7 +178,8 @@ export default function EventsIndex() {
             <PageBody>
                 <PageHeader
                     title="Events & Meetings"
-                    description="Company events and meetings, and who's invited."
+                    description="Company events and meetings, who's invited, and the rooms they hold."
+                    actions={<EventsNav current="events" />}
                 />
 
                 <EventStatsCards stats={stats} />

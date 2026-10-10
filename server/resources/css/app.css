@@ -59,6 +59,10 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    --color-assistant-ink: var(--assistant-ink);
+    --color-assistant-signal: var(--assistant-signal);
+    --color-assistant-signal-text: var(--assistant-signal-text);
 }
 
 :root {
@@ -95,6 +99,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.87 0 0);
+
+    /* The assistant: the brand navy carries what the person wrote, and the
+       brand teal what the assistant read or did. Teal is too light to read as
+       text on white (2.3:1), so text and outlines use a deeper shade. */
+    --assistant-ink: #0f2044;
+    --assistant-signal: #0abfbf;
+    --assistant-signal-text: #08767c;
 }
 
 .dark {
@@ -130,6 +141,10 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(0.269 0 0);
     --sidebar-ring: oklch(0.439 0 0);
+
+    --assistant-ink: #1c3263;
+    --assistant-signal: #0abfbf;
+    --assistant-signal-text: #3dd6d6;
 }
 
 @layer base {
@@ -237,7 +252,10 @@
     background-color: color-mix(in oklab, #0abfbf 65%, transparent);
 }
 
-/* ── Agentic assistant animations ─────────────────────────────────────────── */
+/* ── Agentic assistant ───────────────────────────────────────────────────────
+   `assistant-pop` is shared with the tour's finish card. The rest belong to the
+   assistant's work trace: its rows settle in one after another once a reply
+   lands, and the node of a turn still running pulses. */
 @keyframes assistant-pop {
     0% {
         transform: scale(0.6);
@@ -252,9 +270,40 @@
     }
 }
 
-@keyframes assistant-sheen {
+@keyframes assistant-trace-in {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
     to {
-        transform: translateX(100%);
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.assistant-trace-row {
+    animation: assistant-trace-in 260ms ease-out both;
+    animation-delay: calc(var(--trace-index, 0) * 70ms);
+}
+
+@keyframes assistant-node-pulse {
+    0% {
+        box-shadow: 0 0 0 0
+            color-mix(in oklab, var(--assistant-signal) 60%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 0 7px transparent;
+    }
+}
+
+.assistant-working-node {
+    animation: assistant-node-pulse 1.5s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assistant-trace-row,
+    .assistant-working-node {
+        animation: none;
     }
 }
 

@@ -14,12 +14,14 @@ export default function AppSidebarLayout({
     return (
         <AppShell variant="sidebar">
             <AppSidebar />
-            <AppContent variant="sidebar" className="overflow-x-clip">
+            {/* min-w-0 lets the page narrow when the assistant docks beside it. */}
+            <AppContent variant="sidebar" className="min-w-0 overflow-x-clip">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 <div className="flex flex-1 flex-col">{children}</div>
                 <AppFooter />
             </AppContent>
-            {/* Persistent agentic assistant — mounted once for the whole app. */}
+            {/* Persistent agentic assistant — mounted once for the whole app,
+                docked at the right edge while open (its button is in the top bar). */}
             <Assistant />
             {/* The first-run tour (ADR 0060) — offered once, replayed from Help. */}
             <ProductTour />

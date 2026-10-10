@@ -1,6 +1,8 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import {
     Archive,
+    BadgeCheck,
+    CalendarCheck2,
     CircleCheckBig,
     GraduationCap,
     Pencil,
@@ -20,22 +22,58 @@ import {
 import { Button } from '@/components/ui/button';
 import { removeEnrollment } from '@/features/training/api';
 import { BulkEnrollDialog } from '@/features/training/components/bulk-enroll-dialog';
+import { CostsPanel } from '@/features/training/components/costs-panel';
 import { EditEnrollmentDialog } from '@/features/training/components/edit-enrollment-dialog';
-import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
+import { ProgramFormModal } from '@/features/training/components/program-form-modal';
+import { RequestsCard } from '@/features/training/components/requests-card';
 import { RosterTable } from '@/features/training/components/roster-table';
+import { SessionsPanel } from '@/features/training/components/sessions-panel';
 import { TrainingInsightsPanel } from '@/features/training/components/training-insights';
 import { ProgramStatusBadge } from '@/features/training/components/training-status-badge';
-import { formatDateRange, scoreTone } from '@/features/training/constants';
+import {
+    ENROLLMENT_MODE_LABELS,
+    formatDateRange,
+    formatMoney,
+    scoreTone,
+    validityLabel,
+} from '@/features/training/constants';
 import { trainingRoutes } from '@/features/training/routes';
 import type {
     TrainingEnrollment,
     TrainingShowPageProps,
 } from '@/features/training/types';
+import { cn } from '@/lib/utils';
 
+type Tab = 'roster' | 'sessions' | 'costs';
+
+const TABS: Tab[] = ['roster', 'sessions', 'costs'];
+
+/**
+ * One training program: its headline figures, then underline tabs — the roster
+ * (with the requests to join that wait), its sessions and the attendance taken
+ * at them, and its costs against its budget (ADRs 0074, 0075). `?tab=` opens a
+ * tab directly.
+ */
 export default function TrainingShow() {
-    const { program, enrollable, analytics, ai_available, can } =
-        usePage<TrainingShowPageProps>().props;
+    const page = usePage<TrainingShowPageProps>();
+    const {
+        program,
+        requests,
+        sessions,
+        attendance,
+        costs,
+        money,
+        enrollable,
+        analytics,
+        ai_available,
+        can,
+    } = page.props;
     const enrollments = program.enrollments ?? [];
+
+    const asked = new URLSearchParams(page.url.split('?')[1] ?? '').get('tab');
+    const [tab, setTab] = useState<Tab>(
+        TABS.includes(asked as Tab) ? (asked as Tab) : 'roster',
+    );
 
     const [enrollOpen, setEnrollOpen] = useState(false);
     const [edit, setEdit] = useState<TrainingEnrollment | null>(null);
@@ -93,6 +131,29 @@ export default function TrainingShow() {
                                 program.start_date,
                                 program.end_date,
                             )}
+                            <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                                <span>
+                                    {
+                                        ENROLLMENT_MODE_LABELS[
+                                            program.enrollment_mode
+                                        ]
+                                    }
+                                </span>
+                                {program.issues_certificate && (
+                                    <span className="inline-flex items-center gap-1">
+                                        <BadgeCheck className="size-3.5" />
+                                        Certificate,{' '}
+                                        {validityLabel(
+                                            program.certificate_validity_months,
+                                        )}
+                                    </span>
+                                )}
+                                {program.budget !== null && (
+                                    <span>
+                                        Budget {formatMoney(program.budget)}
+                                    </span>
+                                )}
+                            </span>
                             {program.description && (
                                 <span className="mt-1 line-clamp-2 block max-w-3xl">
                                     {program.description}
@@ -161,10 +222,21 @@ export default function TrainingShow() {
                                     : scoreTone(analytics.average_score),
                         },
                         {
+                            key: 'attendance',
+                            label: 'Attendance',
+                            value:
+                                attendance.rate === null
+                                    ? '—'
+                                    : `${attendance.rate}%`,
+                            hint: `${attendance.held} of ${attendance.sessions} held`,
+                            icon: CalendarCheck2,
+                            accent: 'violet',
+                        },
+                        {
                             key: 'at-risk',
                             label: 'At risk',
                             value: analytics.at_risk.toLocaleString(),
-                            hint: 'unfinished past end',
+                            hint: 'past the end',
                             icon: TriangleAlert,
                             accent: 'amber',
                             valueClassName:
@@ -186,20 +258,90 @@ export default function TrainingShow() {
                     ]}
                 />
 
-                <RosterTable
-                    programHashid={program.hashid}
-                    enrollments={enrollments}
-                    canManage={can.manage}
-                    onEnroll={() => setEnrollOpen(true)}
-                    onEdit={setEdit}
-                    onRemove={setRemove}
-                />
+                <div
+                    className="flex items-center gap-1 overflow-x-auto border-b border-border"
+                    role="tablist"
+                    aria-label="Program views"
+                >
+                    {TABS.map((value) => (
+                        <button
+                            key={value}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === value}
+                            onClick={() => setTab(value)}
+                            className={cn(
+                                'border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+                                tab === value
+                                    ? 'border-[#0ABFBF] text-foreground'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            {value === 'roster'
+                                ? 'Roster'
+                                : value === 'sessions'
+                                  ? 'Sessions'
+                                  : 'Costs'}
+                            <span className="ml-1.5 text-muted-foreground tabular-nums">
+                                {value === 'roster'
+                                    ? enrollments.length
+                                    : value === 'sessions'
+                                      ? sessions.length
+                                      : costs.length}
+                            </span>
+                        </button>
+                    ))}
+                </div>
 
-                {ai_available && enrollments.length > 0 && (
-                    <TrainingInsightsPanel
-                        key={program.hashid}
-                        hashid={program.hashid}
-                        saved={program.ai_insights}
+                {tab === 'roster' && (
+                    <>
+                        {can.manage && (
+                            <RequestsCard
+                                requests={requests}
+                                seatsRemaining={program.seats_remaining}
+                            />
+                        )}
+
+                        <RosterTable
+                            programHashid={program.hashid}
+                            enrollments={enrollments}
+                            attendance={attendance.by_enrollment}
+                            canManage={can.manage}
+                            onEnroll={() => setEnrollOpen(true)}
+                            onEdit={setEdit}
+                            onRemove={setRemove}
+                        />
+
+                        {ai_available && enrollments.length > 0 && (
+                            <TrainingInsightsPanel
+                                key={program.hashid}
+                                hashid={program.hashid}
+                                saved={program.ai_insights}
+                            />
+                        )}
+                    </>
+                )}
+
+                {tab === 'sessions' && (
+                    <SessionsPanel
+                        programHashid={program.hashid}
+                        window={{
+                            start: program.start_date,
+                            end: program.end_date,
+                        }}
+                        sessions={sessions}
+                        enrollments={enrollments}
+                        attendance={attendance}
+                        canManage={can.manage}
+                    />
+                )}
+
+                {tab === 'costs' && (
+                    <CostsPanel
+                        programHashid={program.hashid}
+                        money={money}
+                        costs={costs}
+                        canManage={can.manage}
                     />
                 )}
             </PageBody>
@@ -218,7 +360,7 @@ export default function TrainingShow() {
                 enrollment={edit}
             />
 
-            <ProgramFormSheet
+            <ProgramFormModal
                 program={editProgram ? program : null}
                 open={editProgram}
                 onOpenChange={setEditProgram}
@@ -251,7 +393,7 @@ export default function TrainingShow() {
 
 TrainingShow.layout = (props: TrainingShowPageProps) => ({
     breadcrumbs: [
-        { title: 'Training', href: '/training' },
+        { title: 'Training & Development', href: '/training' },
         {
             title: props.program.name,
             href: trainingRoutes.show(props.program.hashid),

@@ -20,13 +20,9 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { updateEnrollment } from '../api';
 import { ENROLLMENT_STATUS_LABELS } from '../constants';
-import type { TrainingEnrollment, TrainingEnrollmentStatus } from '../types';
+import type { RosterStatus, TrainingEnrollment } from '../types';
 
-const STATUSES: TrainingEnrollmentStatus[] = [
-    'enrolled',
-    'completed',
-    'dropped',
-];
+const STATUSES: RosterStatus[] = ['enrolled', 'completed', 'dropped'];
 
 type Props = {
     open: boolean;
@@ -73,8 +69,9 @@ function FormBody({
     enrollment: TrainingEnrollment;
     onDone: () => void;
 }) {
-    const [status, setStatus] = useState<TrainingEnrollmentStatus>(
-        enrollment.status,
+    // Only roster rows open here; a request is approved or declined instead.
+    const [status, setStatus] = useState<RosterStatus>(
+        enrollment.status as RosterStatus,
     );
     const [score, setScore] = useState(
         enrollment.score != null ? String(enrollment.score) : '',
@@ -108,9 +105,7 @@ function FormBody({
                 <Field label="Status" error={errors.status}>
                     <Select
                         value={status}
-                        onValueChange={(v) =>
-                            setStatus(v as TrainingEnrollmentStatus)
-                        }
+                        onValueChange={(v) => setStatus(v as RosterStatus)}
                     >
                         <SelectTrigger className="w-full">
                             <SelectValue />

@@ -42,6 +42,7 @@ import type {
     PipelineStage,
     PipelineView,
 } from '@/features/recruitment/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 
 const SORT_OPTIONS: { value: PipelineSort; label: string }[] = [
     { value: 'default', label: 'Best match' },
@@ -197,6 +198,9 @@ export default function RecruitmentPipeline() {
         setDetailApp(application);
         setDetailOpen(true);
     };
+
+    // A link that names an application (global search, ADR 0069) opens it.
+    useLinkedRecord(applications, (application) => application.id, openDetail);
 
     const move = (application: Application, stageId: number) =>
         router.patch(

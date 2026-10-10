@@ -1,5 +1,4 @@
 import { usePage } from '@inertiajs/react';
-import { Search } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { NotificationsDropdown } from '@/components/notifications-dropdown';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -12,13 +11,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { AssistantButton } from '@/features/assistant/components/assistant-button';
+import { SearchTrigger } from '@/features/global-search/components/search-trigger';
 import { HelpMenu } from '@/features/product-tour/components/help-menu';
 import { tourTarget } from '@/features/product-tour/targets';
 import { useInitials } from '@/hooks/use-initials';
@@ -34,7 +30,7 @@ export function AppSidebarHeader({
 
     return (
         <TooltipProvider delayDuration={200}>
-            <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/50 bg-background/80 px-4 backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <header className="@container/header sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/50 bg-background/80 px-4 backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
                 {/* Left: trigger + breadcrumbs */}
                 <div className="flex min-w-0 items-center gap-2">
                     <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
@@ -44,38 +40,17 @@ export function AppSidebarHeader({
 
                 {/* Right: actions */}
                 <div className="flex items-center gap-1.5">
-                    {/* Search field */}
-                    <div className="relative hidden md:block">
-                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                            type="search"
-                            placeholder="Search employees, docs…"
-                            aria-label="Search"
-                            className="h-8 w-64 rounded-lg border border-input bg-muted/40 pr-3 pl-8 text-[13px] text-foreground transition-colors outline-none placeholder:text-muted-foreground hover:bg-muted focus:w-80 focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/30 lg:w-72"
-                        />
-                    </div>
-
-                    {/* Search icon (mobile) */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Search"
-                                className="size-8 text-muted-foreground hover:text-foreground md:hidden"
-                            >
-                                <Search className="size-[18px]" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="text-xs">
-                            Search
-                        </TooltipContent>
-                    </Tooltip>
+                    {/* Global search (ADR 0069) — a field where the bar is
+                        wide enough, an icon where it is not; ⌘K / Ctrl+K anywhere */}
+                    <SearchTrigger />
 
                     <Separator
                         orientation="vertical"
                         className="mx-0.5 hidden h-5 sm:block"
                     />
+
+                    {/* The assistant — opens its panel; ⌘J / Ctrl+J anywhere */}
+                    <AssistantButton />
 
                     {/* Help — the tour, and the Setup Guide for owners */}
                     <HelpMenu />

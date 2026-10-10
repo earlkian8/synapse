@@ -60,6 +60,7 @@ const GLYPHS = {
   phone: { ios: 'phone.fill', android: 'call' },
   pin: { ios: 'mappin.and.ellipse', android: 'location_on' },
   gift: { ios: 'gift.fill', android: 'cake' },
+  reward: { ios: 'gift.fill', android: 'redeem' },
   heart: { ios: 'heart.fill', android: 'favorite' },
   ticket: { ios: 'ticket.fill', android: 'confirmation_number' },
   note: { ios: 'text.bubble.fill', android: 'chat' },

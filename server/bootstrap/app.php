@@ -56,7 +56,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetCurrentOrganization::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // The mobile API, and global search (ADR 0069), which the palette reads
+        // with fetch(): a lapsed session or a bad query must answer JSON (401,
+        // 422), not a redirect to an HTML page it cannot read.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*', 'search'),
         );
     })->create();

@@ -2,7 +2,11 @@
 
 > **Status: built.** This is the data model the application runs on, drawn from the
 > schema the migrations produce (every migration up to
-> `2026_10_05_000000_create_data_exports_table`, introspected on 2026-10-05). It
+> `2026_10_05_000000_create_data_exports_table`, introspected on 2026-10-05; §8's
+> performance tables re-checked up to
+> `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10, and §8's
+> training tables up to `2026_10_11_000000_create_training_self_service_tables` on
+> 2026-10-11). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -399,7 +403,9 @@ erDiagram
 ### 2b. Catalogues: leave, awards and the performance framework
 
 See [leave tables](./leave-tables.md), [awards tables](./awards-tables.md) and
-[performance tables](./performance-tables.md).
+[performance tables](./performance-tables.md). The goal library (`goal_templates`) is
+part of the performance framework; a goal copies an entry rather than referring to it
+for its wording ([ADR 0073](../decisions/0073-goals-with-check-ins-and-calibration-sessions.md)).
 
 ```mermaid
 erDiagram
@@ -485,6 +491,17 @@ erDiagram
         string status "draft|open|closed"
         datetime deleted_at
     }
+    GOAL_TEMPLATE {
+        bigint id PK
+        string name "a goal-library entry"
+        text description
+        string measure "percent|number"
+        decimal start_value
+        decimal target_value
+        string unit
+        boolean is_active
+        datetime deleted_at
+    }
 ```
 
 ---
@@ -552,10 +569,13 @@ erDiagram
     EMPLOYEE_CERTIFICATION {
         bigint id PK
         bigint employee_id FK
+        bigint training_enrollment_id FK "unique; from training"
         string name
         string issuer
+        string certificate_no
         date issued_date
         date expiry_date
+        datetime expiry_notified_at
         string file
     }
     EMPLOYEE_DOCUMENT {
@@ -957,6 +977,24 @@ their dates. See [performance tables](./performance-tables.md),
 [ADR 0028](../decisions/0028-appraisal-frameworks-and-tenant-rating-models.md) and
 [ADR 0013](../decisions/0013-training-and-development.md).
 
+The people around an appraisal take part in it
+([ADR 0072](../decisions/0072-appraisal-reviews-and-acknowledgement-by-the-employee.md),
+[ADR 0073](../decisions/0073-goals-with-check-ins-and-calibration-sessions.md)):
+reviews answered on the appraisal's own lines, goals with append-only check-ins, and
+calibration sessions whose every move is a row. `shared_at`, `acknowledged_by` and
+`employee_comment` record the employee's side; `scored_band` / `scored_label` keep
+what the scorecard gave when calibration moved `result_band`. `calibration_participants`
+(session ↔ user) is a pivot confined through its session.
+
+Employees join training themselves and programs meet in sessions
+([ADR 0074](../decisions/0074-training-self-enrolment-sessions-and-attendance.md)): a
+request to join is a `training_enrollments` row (`requested` → `enrolled` | `declined`),
+and attendance is one row per session and enrollment. A certificate earned by
+completing a program is an `employee_certifications` row tied to its enrollment, and
+spend is the sum of `training_costs`, read against a program's `budget` and a year's
+`training_budgets`
+([ADR 0075](../decisions/0075-training-certificates-with-expiry-and-budgets-with-costs.md)).
+
 ```mermaid
 erDiagram
     EMPLOYEE ||--o{ PERFORMANCE_EVALUATION : appraised
@@ -965,8 +1003,24 @@ erDiagram
     PERFORMANCE_EVALUATION ||--o{ PERFORMANCE_SCORE : "broken down into"
     KPI_CRITERION |o--o{ PERFORMANCE_SCORE : "scored on"
     REVIEW_TEMPLATE_ITEM |o--o{ PERFORMANCE_SCORE : "copied from"
+    PERFORMANCE_EVALUATION ||--o{ APPRAISAL_REVIEW : "asks for"
+    EMPLOYEE ||--o{ APPRAISAL_REVIEW : reviews
+    APPRAISAL_REVIEW ||--o{ APPRAISAL_REVIEW_SCORE : "answers in"
+    PERFORMANCE_SCORE ||--o{ APPRAISAL_REVIEW_SCORE : "answered on"
+    EMPLOYEE ||--o{ PERFORMANCE_GOAL : "works toward"
+    EVALUATION_PERIOD ||--o{ PERFORMANCE_GOAL : "set in"
+    GOAL_TEMPLATE |o--o{ PERFORMANCE_GOAL : "copied from"
+    PERFORMANCE_GOAL ||--o{ GOAL_CHECK_IN : "checked in on"
+    EVALUATION_PERIOD ||--o{ CALIBRATION_SESSION : "calibrated in"
+    CALIBRATION_SESSION ||--o{ CALIBRATION_ADJUSTMENT : moves
+    PERFORMANCE_EVALUATION ||--o{ CALIBRATION_ADJUSTMENT : "moved by"
     TRAINING_PROGRAM ||--o{ TRAINING_ENROLLMENT : enrolls
     EMPLOYEE ||--o{ TRAINING_ENROLLMENT : attends
+    TRAINING_PROGRAM ||--o{ TRAINING_SESSION : "meets in"
+    TRAINING_SESSION ||--o{ TRAINING_ATTENDANCE : "taken at"
+    TRAINING_ENROLLMENT ||--o{ TRAINING_ATTENDANCE : "marked in"
+    TRAINING_ENROLLMENT |o--o| EMPLOYEE_CERTIFICATION : earns
+    TRAINING_PROGRAM ||--o{ TRAINING_COST : spends
 
     PERFORMANCE_EVALUATION {
         bigint id PK
@@ -980,11 +1034,17 @@ erDiagram
         bigint evaluator_id FK "users"
         decimal overall_score
         decimal overall_percent
-        string result_band
+        string result_band "calibrated when moved"
         string result_label
+        string scored_band "what the scorecard gave, once moved"
+        string scored_label
+        datetime calibrated_at
         string status "draft|submitted|acknowledged"
         datetime submitted_at
+        datetime shared_at "the employee can read it"
         datetime acknowledged_at
+        bigint acknowledged_by FK "users"
+        text employee_comment
         text remarks
         json ai_insights
     }
@@ -1008,6 +1068,78 @@ erDiagram
         text remarks
         int sort_order
     }
+    APPRAISAL_REVIEW {
+        bigint id PK
+        bigint performance_evaluation_id FK "unique with reviewer"
+        bigint reviewer_id FK "employees"
+        string relationship "self|manager|peer|direct_report"
+        string status "pending|submitted|declined|cancelled"
+        bigint requested_by FK "users"
+        date due_on
+        text strengths
+        text improvements
+        text decline_reason
+        datetime submitted_at
+        datetime declined_at
+        datetime reminded_at
+    }
+    APPRAISAL_REVIEW_SCORE {
+        bigint id PK
+        bigint appraisal_review_id FK "unique with line"
+        bigint performance_score_id FK
+        decimal score "on the line's own scale"
+        text remarks
+    }
+    PERFORMANCE_GOAL {
+        bigint id PK
+        bigint employee_id FK
+        bigint evaluation_period_id FK
+        bigint goal_template_id FK
+        string title
+        text description
+        string measure "percent|number"
+        decimal start_value
+        decimal target_value
+        decimal current_value
+        string unit
+        decimal weight
+        date due_on
+        string status "active|achieved|missed|dropped"
+        string health "on_track|at_risk|off_track"
+        datetime last_check_in_at
+        bigint created_by FK "users"
+        datetime closed_at
+    }
+    GOAL_CHECK_IN {
+        bigint id PK
+        bigint performance_goal_id FK
+        bigint author_id FK "users"
+        decimal value
+        string health
+        text note
+    }
+    CALIBRATION_SESSION {
+        bigint id PK
+        bigint evaluation_period_id FK
+        string name
+        date scheduled_for
+        json department_ids "null = whole cycle"
+        string status "open|completed|cancelled"
+        text notes
+        bigint facilitator_id FK "users"
+        datetime completed_at
+    }
+    CALIBRATION_ADJUSTMENT {
+        bigint id PK
+        bigint calibration_session_id FK
+        bigint performance_evaluation_id FK
+        string from_band
+        string from_label
+        string to_band
+        string to_label
+        text reason
+        bigint adjusted_by FK "users"
+    }
     TRAINING_PROGRAM {
         bigint id PK
         string name
@@ -1016,6 +1148,10 @@ erDiagram
         date start_date
         date end_date
         int capacity
+        string enrollment_mode "closed|open|approval"
+        boolean issues_certificate
+        int certificate_validity_months
+        decimal budget
         json ai_insights
         datetime deleted_at
     }
@@ -1023,10 +1159,46 @@ erDiagram
         bigint id PK
         bigint training_program_id FK
         bigint employee_id FK "unique with program"
-        string status "enrolled|completed|dropped"
+        string status "requested|enrolled|completed|dropped|declined"
         decimal score
         datetime completed_at
         text remarks
+        bigint decided_by FK "users"
+        datetime decided_at
+        text decision_note
+    }
+    TRAINING_SESSION {
+        bigint id PK
+        bigint training_program_id FK
+        string title
+        date session_date
+        time starts_at
+        time ends_at
+        string location
+        text notes
+    }
+    TRAINING_ATTENDANCE {
+        bigint id PK
+        bigint training_session_id FK "unique with enrollment"
+        bigint training_enrollment_id FK
+        string status "present|late|absent|excused"
+        string note
+        bigint marked_by FK "users"
+    }
+    TRAINING_COST {
+        bigint id PK
+        bigint training_program_id FK
+        string category
+        string description
+        decimal amount
+        date incurred_on
+        bigint recorded_by FK "users"
+    }
+    TRAINING_BUDGET {
+        bigint id PK
+        int year "unique per organisation"
+        decimal amount
+        text notes
     }
 ```
 
@@ -1035,8 +1207,13 @@ erDiagram
 ## 9. Awards & events
 
 See [awards tables](./awards-tables.md), [events tables](./events-tables.md),
-[ADR 0014](../decisions/0014-awards-and-recognition.md) and
-[ADR 0015](../decisions/0015-events-and-meetings.md).
+[ADR 0014](../decisions/0014-awards-and-recognition.md),
+[ADR 0015](../decisions/0015-events-and-meetings.md),
+[ADR 0070](../decisions/0070-events-answered-by-invitees-repeating-rooms-reminders-and-a-calendar-feed.md)
+(rooms, repeats, reminders, the calendar feed) and
+[ADR 0071](../decisions/0071-recognition-kudos-nominations-points-and-rewards.md)
+(nominations, kudos, points, rewards). `award_types` also gains `points` and
+`accepts_nominations`; `organizations` gains `kudos_points` and `kudos_monthly_limit`.
 
 ```mermaid
 erDiagram
@@ -1044,6 +1221,16 @@ erDiagram
     AWARD_TYPE ||--o{ EMPLOYEE_AWARD : categorises
     EVENT ||--o{ EVENT_ATTENDEE : invites
     EMPLOYEE ||--o{ EVENT_ATTENDEE : attends
+    ROOM ||--o{ EVENT : holds
+    EVENT_SERIES ||--o{ EVENT : generates
+    USER ||--o{ CALENDAR_FEED : subscribes
+    AWARD_TYPE ||--o{ AWARD_NOMINATION : "nominated for"
+    EMPLOYEE ||--o{ AWARD_NOMINATION : "is nominated"
+    AWARD_NOMINATION |o--o| EMPLOYEE_AWARD : "approved into"
+    EMPLOYEE ||--o{ KUDOS : "sends / receives"
+    EMPLOYEE ||--o{ POINT_TRANSACTION : earns
+    REWARD ||--o{ REWARD_REDEMPTION : "redeemed as"
+    EMPLOYEE ||--o{ REWARD_REDEMPTION : requests
 
     EMPLOYEE_AWARD {
         bigint id PK
@@ -1061,6 +1248,10 @@ erDiagram
         datetime starts_at
         datetime ends_at
         string location
+        bigint room_id FK "nullable"
+        bigint series_id FK "nullable"
+        smallint reminder_minutes
+        datetime reminder_sent_at
         bigint organizer_id FK "users"
         datetime deleted_at
     }
@@ -1070,6 +1261,72 @@ erDiagram
         bigint employee_id FK "unique with event"
         string response "invited|accepted|declined|tentative"
         datetime notified_at
+        datetime responded_at
+    }
+    ROOM {
+        bigint id PK
+        string name
+        string location
+        int capacity
+        boolean is_active
+        datetime deleted_at
+    }
+    EVENT_SERIES {
+        bigint id PK
+        string frequency "daily|weekly|monthly"
+        smallint interval "1-4"
+        json weekdays
+        date until
+        smallint count
+    }
+    CALENDAR_FEED {
+        bigint id PK
+        bigint user_id FK "unique with organization"
+        string token_hash UK
+        text token "encrypted"
+        datetime last_used_at
+    }
+    AWARD_NOMINATION {
+        bigint id PK
+        bigint award_type_id FK
+        bigint employee_id FK "nominee"
+        bigint nominated_by FK "users"
+        text reason
+        string status "pending|approved|rejected|withdrawn"
+        bigint reviewed_by FK "users"
+        bigint employee_award_id FK
+    }
+    KUDOS {
+        bigint id PK
+        bigint from_employee_id FK
+        bigint to_employee_id FK
+        text message
+        smallint points
+        datetime deleted_at
+    }
+    POINT_TRANSACTION {
+        bigint id PK
+        bigint employee_id FK
+        int amount "signed"
+        string kind "award|kudos|redemption|refund|adjustment"
+        string subject_type "morph"
+        bigint subject_id
+    }
+    REWARD {
+        bigint id PK
+        string name
+        int cost
+        int stock "null = unlimited"
+        boolean is_active
+        datetime deleted_at
+    }
+    REWARD_REDEMPTION {
+        bigint id PK
+        bigint reward_id FK
+        bigint employee_id FK
+        int cost "as charged"
+        string status "pending|fulfilled|declined|cancelled"
+        bigint handled_by FK "users"
     }
 ```
 
@@ -1228,16 +1485,18 @@ erDiagram
         text body
         json steps "the agent timeline"
         json actions "result and confirmation cards"
-        json attachments "file names only"
+        json usage "requests and tokens the turn spent"
+        json attachments "name, mime, size, private path"
         boolean failed "a retryable failed turn"
     }
 ```
 
 > The assistant has **no action tables**. Its tools call the same support classes as
 > the screens, so every write lands in that module's own tables and in
-> `activity_logs`. An attached document is read inline for the turn and not stored;
-> only its file name is kept. A write held for the user's confirmation lives in the
-> cache for 15 minutes, not in a table.
+> `activity_logs`. An attached document is kept on the private `assistant` disk for
+> the life of its conversation (ADR 0068), so a tool can file it on a record. A plan
+> of writes held for the user's confirmation lives in the cache for 15 minutes, not in
+> a table.
 
 ---
 

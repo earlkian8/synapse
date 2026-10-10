@@ -13,14 +13,17 @@ const BASE =
 /** A pill for an evaluation's lifecycle status. */
 export function EvaluationStatusBadge({
     status,
+    label,
     className,
 }: {
     status: EvaluationStatus;
+    /** In the reader's own words, where HR's would read wrongly (My appraisals). */
+    label?: string;
     className?: string;
 }) {
     return (
         <span className={cn(BASE, EVALUATION_STATUS_STYLES[status], className)}>
-            {EVALUATION_STATUS_LABELS[status]}
+            {label ?? EVALUATION_STATUS_LABELS[status]}
         </span>
     );
 }

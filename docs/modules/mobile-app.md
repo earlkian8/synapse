@@ -62,9 +62,10 @@ every `useQuery` screen refetches against the new company's tenant context.
   asks twice. Company creation is deliberately absent — that lives on the web app.
 - **Home** — the date and a greeting as the large title, the workspace chip, and
   today on a navy card: where the day stands, hours worked against the shift, and the
-  next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards),
-  requests awaiting approval, a snapping carousel of leave balances, and the latest
-  award.
+  next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards —
+  plus **Events** and **Recognition** when the person may answer invitations or take
+  part), an **Up next** card with the next invitation and one-tap answers, requests
+  awaiting approval, a snapping carousel of leave balances, and the latest award.
 - **Clock (DTR, the hero)** — a clock face: a ring that fills as the shift is worked,
   around the live time and the running time on the clock, then a state-driven primary
   button (Time In → Break → Time Out) driven by the server's `allowed` /
@@ -80,7 +81,12 @@ every `useQuery` screen refetches against the new company's tenant context.
   `PunchQueueRunner` (mounted in the tab layout) sends the queue oldest first every 30
   seconds and whenever the app returns to the foreground; a punch the server refuses
   (older than the policy's offline window, say) is dropped with a toast saying why — HR
-  enters it instead. A resend is harmless: the same client id returns
+  enters it instead. Only one send runs at a time: `flush()` shares the attempt in
+  flight, so **Send now** pressed during a background send waits for it and reports
+  its outcome (sent, still unreachable, or refused). Every request has a deadline
+  (`lib/api.ts`: 30 s, 60 s for a punch with a selfie), because React Native's Android
+  HTTP client sets none — before, one connection that never answered left the queue
+  "sending" for good and **Send now** did nothing. A resend is harmless: the same client id returns
   `duplicate`. The day screen shows each punch's site and distance, and whether it was
   sent offline.
 - **Attendance** — a month switcher (swipe the calendar sideways to turn the month), a
@@ -93,7 +99,18 @@ every `useQuery` screen refetches against the new company's tenant context.
   and a detail screen whose cancel is confirmed by a system alert.
 - **Profile + Awards** — the 201 profile as inset grouped lists (government IDs
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
-  sign-out behind a system alert; and the employee's recognitions.
+  sign-out behind a system alert; and the employee's recognitions. The Profile list is
+  also the hub for **My events**, **Recognition** and **Points & rewards** (shown by
+  permission) — the five tabs stay as they are.
+- **Events** ([ADR 0070](../decisions/0070-events-answered-by-invitees-repeating-rooms-reminders-and-a-calendar-feed.md))
+  — `app/events/index.tsx` lists the person's invitations (upcoming / past) and
+  `app/events/[id].tsx` shows one with its room, repeat and reminder, answers it (for
+  this date or every later one), and subscribes the phone's calendar to the feed.
+- **Recognition** ([ADR 0071](../decisions/0071-recognition-kudos-nominations-points-and-rewards.md))
+  — `app/recognition/index.tsx` is the wall with the person's balance; kudos and
+  nominating open as modals (`recognition/kudos`, `recognition/nominate`);
+  `recognition/nominations` lists one's nominations; `app/rewards/index.tsx` holds the
+  balance, the catalogue with redeem, one's requests and the points history.
 
 ## API (all behind `auth:sanctum`, self-scoped)
 
@@ -107,6 +124,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics. A punch may carry `client_id` (idempotency), `punched_at` (the phone's time; marks it offline, judged against the policy's offline window) and `sent_at` (to measure clock skew) |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
 | `GET /api/awards` | Own recognitions |
+| `GET /api/events` · `GET /api/events/{hashid}` · `POST /api/events/{hashid}/respond` | Own invitations and answering them (`events.respond`) |
+| `GET /api/calendar-feed` · `POST /api/calendar-feed/reset` | The person's calendar-feed links |
+| `GET /api/recognition` · `GET /api/colleagues` · `POST /api/kudos` | The wall, colleagues to pick, sending kudos (`awards.participate`) |
+| `GET /api/nominations` · `GET /api/nominations/types` · `POST /api/nominations` · `DELETE /api/nominations/{id}` | One's nominations |
+| `GET /api/points` · `GET /api/rewards` · `POST /api/rewards/{hashid}/redeem` · `PATCH /api/redemptions/{id}/cancel` | Points, rewards and redeeming |
 | `GET /api/leave/types` · `GET /api/leave/balances` · `GET /api/leave/requests` · `POST /api/leave/requests` · `PATCH /api/leave/requests/{id}/cancel` | Self-service leave |
 
 Leave filing reuses `LeaveCalculator` + `HolidayCalendar` (days computed

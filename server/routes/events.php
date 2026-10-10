@@ -6,6 +6,8 @@ use App\Http\Controllers\Events\EventExportController;
 use App\Http\Controllers\Events\EventIcsController;
 use App\Http\Controllers\Events\EventManagementController;
 use App\Http\Controllers\Events\EventRosterExportController;
+use App\Http\Controllers\Events\MyEventsController;
+use App\Http\Controllers\Events\RoomController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,8 +20,32 @@ Route::middleware(['auth', 'verified'])
     ->prefix('events')
     ->name('events.')
     ->group(function () {
-        Route::get('/', [EventController::class, 'index'])->middleware('can:events.view')->name('index');
+        // `events.view`, or `events.respond` (redirected to My invitations).
+        Route::get('/', [EventController::class, 'index'])->name('index');
         Route::post('/', [EventManagementController::class, 'store'])->middleware('can:events.manage')->name('store');
+
+        // My events (ADR 0070): an employee's own invitations, answered by
+        // themselves, and their calendar subscription. Literal — before the
+        // {event} wildcard. An event is reachable here only by its invitees.
+        Route::middleware('can:events.respond')->prefix('me')->name('me')->group(function () {
+            Route::get('/', [MyEventsController::class, 'index']);
+            Route::get('calendar', [MyEventsController::class, 'calendar'])->name('.calendar');
+            Route::post('calendar/reset', [MyEventsController::class, 'resetCalendar'])->name('.calendar.reset');
+            Route::post('{event}/respond', [MyEventsController::class, 'respond'])->name('.respond');
+            Route::get('{event}/ics', [MyEventsController::class, 'ics'])->name('.ics');
+        });
+
+        // Rooms (ADR 0070), addressed by hashid; restore / force-delete take it
+        // as a string. Literal — before the {event} wildcard.
+        Route::prefix('rooms')->name('rooms.')->group(function () {
+            Route::get('/', [RoomController::class, 'index'])->middleware('can:events.view')->name('index');
+            Route::get('availability', [RoomController::class, 'availability'])->middleware('can:events.manage')->name('availability');
+            Route::post('/', [RoomController::class, 'store'])->middleware('can:events.manage')->name('store');
+            Route::post('{room}', [RoomController::class, 'update'])->middleware('can:events.manage')->name('update');
+            Route::delete('{room}', [RoomController::class, 'destroy'])->middleware('can:events.manage')->name('destroy');
+            Route::patch('{room}/restore', [RoomController::class, 'restore'])->middleware('can:events.manage')->name('restore');
+            Route::delete('{room}/force', [RoomController::class, 'forceDelete'])->middleware('can:events.manage')->name('force-delete');
+        });
 
         // CSV export of every event (literal — declared before the wildcard).
         Route::get('export', EventExportController::class)->middleware('can:events.view')->name('export');

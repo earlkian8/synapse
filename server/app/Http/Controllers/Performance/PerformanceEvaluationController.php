@@ -14,6 +14,7 @@ use App\Support\Performance\AppraisalWorkflow;
 use App\Support\Performance\EvaluationOpener;
 use App\Support\Performance\PerformanceScorer;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 /**
@@ -73,7 +74,7 @@ class PerformanceEvaluationController extends Controller
             ->all();
 
         try {
-            $this->workflow->rate($evaluation, $lines, $data['remarks'] ?? null, setRemarks: true);
+            $this->workflow->rate($evaluation, $lines, $data['remarks'] ?? null, setRemarks: true, by: $request->user());
         } catch (AppraisalException $e) {
             return $this->back($e->getMessage(), 'warning');
         }
@@ -83,41 +84,46 @@ class PerformanceEvaluationController extends Controller
 
     /**
      * Submit the appraisal: lock it and finalise the result. Every line must be
-     * rated first.
+     * rated first. It is shared with the employee — unless a calibration session
+     * holds it, which the toast says.
      */
-    public function submit(PerformanceEvaluation $evaluation): RedirectResponse
+    public function submit(Request $request, PerformanceEvaluation $evaluation): RedirectResponse
     {
         try {
-            $this->workflow->submit($evaluation);
+            $this->workflow->submit($evaluation, by: $request->user());
         } catch (AppraisalException $e) {
             return $this->back($e->getMessage(), 'warning');
         }
 
-        return $this->back('Appraisal submitted.');
+        return $this->back($evaluation->shared_at === null
+            ? 'Appraisal submitted. It is shared with the employee once calibration is complete.'
+            : 'Appraisal submitted and shared with the employee.');
     }
 
     /**
-     * Acknowledge a submitted appraisal (employee sign-off, recorded by HR).
+     * Record the employee's sign-off on their behalf — given on paper or in
+     * person. An employee with an account acknowledges it themselves from My
+     * appraisals (ADR 0072).
      */
-    public function acknowledge(PerformanceEvaluation $evaluation): RedirectResponse
+    public function acknowledge(Request $request, PerformanceEvaluation $evaluation): RedirectResponse
     {
         try {
-            $this->workflow->acknowledge($evaluation);
+            $this->workflow->acknowledge($evaluation, by: $request->user());
         } catch (AppraisalException $e) {
             return $this->back($e->getMessage(), 'warning');
         }
 
-        return $this->back('Appraisal acknowledged.');
+        return $this->back('Sign-off recorded.');
     }
 
     /**
      * Discard a draft appraisal. Submitted / acknowledged ones are kept as a
      * record.
      */
-    public function destroy(PerformanceEvaluation $evaluation): RedirectResponse
+    public function destroy(Request $request, PerformanceEvaluation $evaluation): RedirectResponse
     {
         try {
-            $this->workflow->discard($evaluation);
+            $this->workflow->discard($evaluation, by: $request->user());
         } catch (AppraisalException $e) {
             Inertia::flash('toast', ['type' => 'warning', 'message' => $e->getMessage()]);
 

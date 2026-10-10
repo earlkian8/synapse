@@ -3,10 +3,9 @@ import {
     Pencil,
     Pin,
     PinOff,
-    Plus,
     Search,
+    SquarePen,
     Trash2,
-    X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -20,7 +19,11 @@ const GROUP_ORDER = [
     'Older',
 ] as const;
 
-function groupFor(conversation: Conversation): (typeof GROUP_ORDER)[number] {
+type Group = (typeof GROUP_ORDER)[number];
+
+const DAY = 86_400_000;
+
+function groupFor(conversation: Conversation, startOfToday: number): Group {
     if (conversation.pinned) {
         return 'Pinned';
     }
@@ -29,31 +32,67 @@ function groupFor(conversation: Conversation): (typeof GROUP_ORDER)[number] {
         return 'Older';
     }
 
-    const then = new Date(conversation.lastActivityAt);
-    const now = new Date();
-    const startOfToday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-    ).getTime();
-    const ts = then.getTime();
-    const day = 86_400_000;
+    const ts = new Date(conversation.lastActivityAt).getTime();
 
     if (ts >= startOfToday) {
         return 'Today';
     }
 
-    if (ts >= startOfToday - day) {
+    if (ts >= startOfToday - DAY) {
         return 'Yesterday';
     }
 
-    if (ts >= startOfToday - 7 * day) {
+    if (ts >= startOfToday - 7 * DAY) {
         return 'Previous 7 days';
     }
 
     return 'Older';
 }
 
+/** When a thread was last used, as short as its age allows: 14:05, Mon, 28 Sep. */
+function whenLabel(iso: string | null, startOfToday: number): string {
+    if (!iso) {
+        return '';
+    }
+
+    const date = new Date(iso);
+    const ts = date.getTime();
+
+    if (Number.isNaN(ts)) {
+        return '';
+    }
+
+    if (ts >= startOfToday) {
+        return date.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+        });
+    }
+
+    if (ts >= startOfToday - 6 * DAY) {
+        return date.toLocaleDateString(undefined, { weekday: 'short' });
+    }
+
+    return date.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+    });
+}
+
+/** A reply's first line as plain text: the preview is cut from its markdown. */
+function plain(preview: string): string {
+    return preview
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/[*_`#>|~]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * The conversation history, laid over the thread when the panel's title is
+ * pressed. Searching, pinning, renaming and deleting happen in place; deleting
+ * one thread, or all of them, asks once more before it goes.
+ */
 export function ConversationList({
     conversations,
     activeId,
@@ -63,7 +102,6 @@ export function ConversationList({
     onTogglePin,
     onDelete,
     onClearAll,
-    onClose,
 }: {
     conversations: Conversation[];
     activeId: number | null;
@@ -73,89 +111,101 @@ export function ConversationList({
     onTogglePin: (id: number, pinned: boolean) => void;
     onDelete: (id: number) => void;
     onClearAll: () => void;
-    onClose: () => void;
 }) {
     const [query, setQuery] = useState('');
+    const [confirmingClear, setConfirmingClear] = useState(false);
+    // Focus goes back to "Delete all…" when its question is answered "Keep".
+    const [refocusClear, setRefocusClear] = useState(false);
 
-    const groups = useMemo(() => {
-        const filtered = conversations.filter((c) => {
-            const q = query.trim().toLowerCase();
+    const keepAll = () => {
+        setConfirmingClear(false);
+        setRefocusClear(true);
+    };
 
-            return (
-                q === '' ||
-                c.title.toLowerCase().includes(q) ||
-                (c.preview ?? '').toLowerCase().includes(q)
-            );
-        });
+    const { groups, startOfToday } = useMemo(() => {
+        const now = new Date();
+        const today = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+        ).getTime();
+        const q = query.trim().toLowerCase();
 
-        const map = new Map<string, Conversation[]>();
+        const map = new Map<Group, Conversation[]>();
 
-        for (const conversation of filtered) {
-            const group = groupFor(conversation);
+        for (const conversation of conversations) {
+            if (
+                q !== '' &&
+                !conversation.title.toLowerCase().includes(q) &&
+                !(conversation.preview ?? '').toLowerCase().includes(q)
+            ) {
+                continue;
+            }
+
+            const group = groupFor(conversation, today);
             map.set(group, [...(map.get(group) ?? []), conversation]);
         }
 
-        return GROUP_ORDER.map((name) => ({
-            name,
-            items: map.get(name) ?? [],
-        })).filter((g) => g.items.length > 0);
+        return {
+            startOfToday: today,
+            groups: GROUP_ORDER.map((name) => ({
+                name,
+                items: map.get(name) ?? [],
+            })).filter((g) => g.items.length > 0),
+        };
     }, [conversations, query]);
 
     return (
-        <div className="absolute inset-0 z-10 flex animate-in flex-col bg-card duration-200 fade-in slide-in-from-left-2">
-            {/* Header */}
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-                <p className="flex-1 text-sm font-semibold">Conversations</p>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="Close history"
-                    className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                    <X className="size-4" />
-                </button>
-            </div>
-
-            {/* New + search */}
-            <div className="flex flex-col gap-2 px-3 py-2.5">
+        <div className="absolute inset-0 z-10 flex animate-in flex-col bg-background duration-150 fade-in motion-reduce:animate-none">
+            <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+                <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                        type="search"
+                        value={query}
+                        autoFocus
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search conversations"
+                        aria-label="Search conversations"
+                        className="h-8 w-full rounded-md border border-input bg-background pr-2.5 pl-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                    />
+                </div>
                 <button
                     type="button"
                     onClick={onNew}
-                    className="flex items-center gap-2 rounded-lg bg-[#0F2044] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0F2044]/90"
+                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-assistant-ink px-2.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
                 >
-                    <Plus className="size-4" />
-                    New conversation
+                    <SquarePen className="size-3.5" />
+                    New
                 </button>
-                <div className="relative">
-                    <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search conversations…"
-                        className="w-full rounded-lg border border-input bg-background py-1.5 pr-2.5 pl-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                    />
-                </div>
             </div>
 
-            {/* List */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
                 {groups.length === 0 ? (
-                    <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+                    <p className="px-2 py-10 text-center text-sm text-muted-foreground">
                         {conversations.length === 0
-                            ? 'No conversations yet.'
-                            : 'No matches.'}
+                            ? 'Your conversations will be listed here.'
+                            : `Nothing matches “${query.trim()}”.`}
                     </p>
                 ) : (
                     groups.map((group) => (
-                        <div key={group.name} className="mb-2">
-                            <p className="px-2 py-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        <section
+                            key={group.name}
+                            aria-label={group.name}
+                            className="mt-2 first:mt-0"
+                        >
+                            <h3 className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                                 {group.name}
-                            </p>
-                            <div className="flex flex-col gap-0.5">
+                            </h3>
+                            <ul className="flex flex-col">
                                 {group.items.map((conversation) => (
                                     <ConversationRow
                                         key={conversation.id}
                                         conversation={conversation}
+                                        when={whenLabel(
+                                            conversation.lastActivityAt,
+                                            startOfToday,
+                                        )}
                                         active={conversation.id === activeId}
                                         onOpen={onOpen}
                                         onRename={onRename}
@@ -163,22 +213,57 @@ export function ConversationList({
                                         onDelete={onDelete}
                                     />
                                 ))}
-                            </div>
-                        </div>
+                            </ul>
+                        </section>
                     ))
                 )}
             </div>
 
             {conversations.length > 0 && (
-                <div className="border-t border-border px-3 py-2">
-                    <button
-                        type="button"
-                        onClick={onClearAll}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                        <Trash2 className="size-3.5" />
-                        Clear all conversations
-                    </button>
+                <div
+                    onKeyDown={(event) => {
+                        if (confirmingClear && event.key === 'Escape') {
+                            event.preventDefault();
+                            keepAll();
+                        }
+                    }}
+                    className="flex h-11 shrink-0 items-center justify-center gap-2 border-t border-border px-3 text-xs"
+                >
+                    {confirmingClear ? (
+                        <>
+                            <span className="text-foreground">
+                                Delete all {conversations.length} conversations?
+                            </span>
+                            <button
+                                type="button"
+                                onClick={keepAll}
+                                className="rounded-md px-2 py-1 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                                Keep them
+                            </button>
+                            <button
+                                type="button"
+                                autoFocus
+                                onClick={() => {
+                                    setConfirmingClear(false);
+                                    onClearAll();
+                                }}
+                                className="rounded-md bg-destructive px-2 py-1 font-medium text-white transition-opacity hover:opacity-90"
+                            >
+                                Delete all
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            autoFocus={refocusClear}
+                            onClick={() => setConfirmingClear(true)}
+                            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                            <Trash2 className="size-3.5" />
+                            Delete all conversations
+                        </button>
+                    )}
                 </div>
             )}
         </div>
@@ -187,6 +272,7 @@ export function ConversationList({
 
 function ConversationRow({
     conversation,
+    when,
     active,
     onOpen,
     onRename,
@@ -194,106 +280,160 @@ function ConversationRow({
     onDelete,
 }: {
     conversation: Conversation;
+    when: string;
     active: boolean;
     onOpen: (id: number) => void;
     onRename: (id: number, title: string) => void;
     onTogglePin: (id: number, pinned: boolean) => void;
     onDelete: (id: number) => void;
 }) {
-    const [renaming, setRenaming] = useState(false);
+    type Mode = 'view' | 'rename' | 'delete';
+    const [mode, setMode] = useState<Mode>('view');
     const [draft, setDraft] = useState(conversation.title);
+    // Back in view, focus returns to the button that left it, so the keyboard
+    // (and Escape) stay inside the panel.
+    const [returnTo, setReturnTo] = useState<Mode | null>(null);
 
-    if (renaming) {
+    const back = (from: Mode) => {
+        setMode('view');
+        setReturnTo(from);
+    };
+
+    const save = () => {
+        onRename(conversation.id, draft);
+        back('rename');
+    };
+
+    if (mode === 'rename') {
         return (
-            <div className="flex items-center gap-1 rounded-lg bg-muted px-2 py-1.5">
+            <li className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-1">
                 <input
                     value={draft}
                     autoFocus
+                    aria-label="Conversation name"
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                            onRename(conversation.id, draft);
-                            setRenaming(false);
+                            e.preventDefault();
+                            save();
                         } else if (e.key === 'Escape') {
-                            setRenaming(false);
+                            e.preventDefault();
                             setDraft(conversation.title);
+                            back('rename');
                         }
                     }}
-                    className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                    className="h-7 min-w-0 flex-1 rounded border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                 />
                 <button
                     type="button"
                     aria-label="Save name"
-                    onClick={() => {
-                        onRename(conversation.id, draft);
-                        setRenaming(false);
-                    }}
-                    className="flex size-6 items-center justify-center rounded-md text-emerald-500 hover:bg-background"
+                    onClick={save}
+                    className="flex size-7 items-center justify-center rounded-md text-foreground hover:bg-background"
                 >
                     <Check className="size-3.5" />
                 </button>
-            </div>
+            </li>
+        );
+    }
+
+    if (mode === 'delete') {
+        return (
+            <li
+                onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        back('delete');
+                    }
+                }}
+                className="flex items-center gap-2 rounded-md bg-destructive/[0.07] py-1.5 pr-1.5 pl-2.5 text-xs"
+            >
+                <span className="min-w-0 flex-1 truncate">
+                    Delete “{conversation.title}”?
+                </span>
+                <button
+                    type="button"
+                    onClick={() => back('delete')}
+                    className="rounded-md px-2 py-1 font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                >
+                    Keep
+                </button>
+                <button
+                    type="button"
+                    autoFocus
+                    onClick={() => onDelete(conversation.id)}
+                    className="rounded-md bg-destructive px-2 py-1 font-medium text-white transition-opacity hover:opacity-90"
+                >
+                    Delete
+                </button>
+            </li>
         );
     }
 
     return (
-        <div
+        <li
             className={cn(
-                'group/row flex items-center gap-1 rounded-lg px-2 py-1.5 transition-colors',
+                'group/row relative flex items-center rounded-md transition-colors',
                 active ? 'bg-muted' : 'hover:bg-muted/60',
             )}
         >
             <button
                 type="button"
                 onClick={() => onOpen(conversation.id)}
-                className="flex min-w-0 flex-1 flex-col items-start text-left"
+                aria-current={active ? 'true' : undefined}
+                className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-                <span className="flex w-full items-center gap-1.5">
+                <span className="flex w-full items-baseline gap-2">
                     {conversation.pinned && (
-                        <Pin className="size-3 shrink-0 text-[#0ABFBF]" />
+                        <Pin
+                            aria-label="Pinned"
+                            className="size-3 shrink-0 self-center text-assistant-signal-text"
+                        />
                     )}
-                    <span className="truncate text-sm font-medium">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
                         {conversation.title}
                     </span>
+                    {when && (
+                        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums group-focus-within/row:invisible group-hover/row:invisible">
+                            {when}
+                        </span>
+                    )}
                 </span>
                 {conversation.preview && (
-                    <span className="w-full truncate text-[11px] text-muted-foreground">
-                        {conversation.preview}
+                    <span className="w-full truncate text-xs text-muted-foreground">
+                        {plain(conversation.preview)}
                     </span>
                 )}
             </button>
 
-            <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
+            <div className="absolute top-1.5 right-1.5 flex items-center rounded-md bg-muted opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100">
                 <RowButton
                     label={conversation.pinned ? 'Unpin' : 'Pin'}
                     onClick={() =>
                         onTogglePin(conversation.id, !conversation.pinned)
                     }
                 >
-                    {conversation.pinned ? (
-                        <PinOff className="size-3.5" />
-                    ) : (
-                        <Pin className="size-3.5" />
-                    )}
+                    {conversation.pinned ? <PinOff /> : <Pin />}
                 </RowButton>
                 <RowButton
                     label="Rename"
+                    autoFocus={returnTo === 'rename'}
                     onClick={() => {
                         setDraft(conversation.title);
-                        setRenaming(true);
+                        setMode('rename');
                     }}
                 >
-                    <Pencil className="size-3.5" />
+                    <Pencil />
                 </RowButton>
                 <RowButton
                     label="Delete"
                     destructive
-                    onClick={() => onDelete(conversation.id)}
+                    autoFocus={returnTo === 'delete'}
+                    onClick={() => setMode('delete')}
                 >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 />
                 </RowButton>
             </div>
-        </div>
+        </li>
     );
 }
 
@@ -301,21 +441,24 @@ function RowButton({
     label,
     onClick,
     destructive,
+    autoFocus,
     children,
 }: {
     label: string;
     onClick: () => void;
     destructive?: boolean;
+    autoFocus?: boolean;
     children: React.ReactNode;
 }) {
     return (
         <button
             type="button"
+            autoFocus={autoFocus}
             onClick={onClick}
             title={label}
             aria-label={label}
             className={cn(
-                'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background',
+                'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background [&_svg]:size-3.5',
                 destructive
                     ? 'hover:text-destructive'
                     : 'hover:text-foreground',

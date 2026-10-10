@@ -1,6 +1,6 @@
 How you ask for time off depends on what your role includes:
 
-- **Everyone** can file leave from the **SYNAPSE mobile app**: open **Leave**, file a request, and follow it there. See [Your leave, awards and profile in the app](/help/mobile-app/leave-on-mobile).
+- **Everyone** can file leave from the **SYNAPSE mobile app**: open **Leave**, file a request, and follow it there. See [Your leave, events, recognition and profile in the app](/help/mobile-app/leave-on-mobile).
 - **If your role includes Leave Management**, you can also use **File leave** on the [Managing leave](/help/workforce/managing-leave) screen.
 - **If the assistant is offered to you**, you can ask it: "file vacation leave for me from the 12th to the 14th".
 

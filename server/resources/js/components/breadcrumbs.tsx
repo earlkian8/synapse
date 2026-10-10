@@ -10,6 +10,11 @@ import {
 } from '@/components/ui/breadcrumb';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
+/**
+ * The trail in the top bar. On a phone only the page itself is shown, on one
+ * truncated line — the earlier crumbs wrapped under the bar and over the page
+ * title; the page's own back button and section switcher get you up a level.
+ */
 export function Breadcrumbs({
     breadcrumbs,
 }: {
@@ -18,16 +23,22 @@ export function Breadcrumbs({
     return (
         <>
             {breadcrumbs.length > 0 && (
-                <Breadcrumb>
-                    <BreadcrumbList>
+                <Breadcrumb className="min-w-0">
+                    <BreadcrumbList className="flex-nowrap sm:flex-wrap">
                         {breadcrumbs.map((item, index) => {
                             const isLast = index === breadcrumbs.length - 1;
 
                             return (
                                 <Fragment key={index}>
-                                    <BreadcrumbItem>
+                                    <BreadcrumbItem
+                                        className={
+                                            isLast
+                                                ? 'min-w-0'
+                                                : 'hidden sm:inline-flex'
+                                        }
+                                    >
                                         {isLast ? (
-                                            <BreadcrumbPage>
+                                            <BreadcrumbPage className="block truncate">
                                                 {item.title}
                                             </BreadcrumbPage>
                                         ) : (
@@ -38,7 +49,9 @@ export function Breadcrumbs({
                                             </BreadcrumbLink>
                                         )}
                                     </BreadcrumbItem>
-                                    {!isLast && <BreadcrumbSeparator />}
+                                    {!isLast && (
+                                        <BreadcrumbSeparator className="hidden sm:list-item" />
+                                    )}
                                 </Fragment>
                             );
                         })}

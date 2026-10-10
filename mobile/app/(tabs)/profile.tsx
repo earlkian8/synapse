@@ -30,7 +30,7 @@ const APPEARANCE: { mode: ThemeMode; label: string; icon: 'sun' | 'moon' | 'phon
 
 export default function ProfileScreen() {
   const { colors, mode, setMode, status } = useTheme();
-  const { logout, organization, organizations } = useAuth();
+  const { logout, organization, organizations, user } = useAuth();
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const waiting = useQueuedPunches().length;
@@ -85,10 +85,19 @@ export default function ProfileScreen() {
 
           <Animated.View entering={enter(1)}>
             <ListSection withIcons>
+              {user?.can_respond_events && (
+                <ListRow icon="calendar" iconColor={status.leave} title="My events" onPress={() => router.push('/events')} />
+              )}
+              {user?.can_recognize && (
+                <ListRow icon="heart" iconColor={status.absent} title="Recognition" onPress={() => router.push('/recognition')} />
+              )}
+              {user?.can_recognize && (
+                <ListRow icon="reward" iconColor={status.present} title="Points & rewards" onPress={() => router.push('/rewards')} />
+              )}
               <ListRow
                 icon="trophy"
                 iconColor={status.late}
-                title="Awards & recognition"
+                title="My awards"
                 onPress={() => router.push('/awards')}
               />
               {organization && (

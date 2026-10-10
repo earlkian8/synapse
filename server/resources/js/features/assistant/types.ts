@@ -75,6 +75,12 @@ export type AgentConfirmation = {
     expires_at: string | null;
 };
 
+/** One step of a held plan, as the confirm card lists it (ADR 0068). */
+export type PlanStep = {
+    title: string;
+    detail: string | null;
+};
+
 /** A rich, module-agnostic result the chat animates in after an action. */
 export type AgentCard = {
     module: string;
@@ -88,6 +94,25 @@ export type AgentCard = {
     id: number | string | null;
     /** Present on a `confirm` card only. */
     confirmation?: AgentConfirmation;
+    /** The steps a `confirm` card would run, in order (absent on cards from before plans). */
+    plan?: PlanStep[];
+};
+
+/**
+ * Which changes wait for the person's OK (ADR 0068). `balanced` is the default:
+ * consequential changes, changes on a question and changes on a turn with an
+ * attached document wait; `manual` waits on every change; `auto` waits only on
+ * consequential changes and changes on a question.
+ */
+export type AssistantMode = 'manual' | 'balanced' | 'auto';
+
+/** What a turn cost: model requests and tokens, summed. */
+export type TurnUsage = {
+    requests: number;
+    prompt_tokens: number;
+    output_tokens: number;
+    cached_tokens: number;
+    thinking_tokens: number;
 };
 
 /** A turn in the chat (client view). `id` is the server id, or a temp string. */
@@ -98,6 +123,8 @@ export type ChatMessage = {
     steps?: AgentStep[];
     actions?: AgentCard[];
     attachments?: string[];
+    /** What the turn cost (assistant turns since ADR 0068). */
+    usage?: TurnUsage | null;
     /** The assistant turn failed (rate limit / error) and can be retried. */
     failed?: boolean;
     /** The assistant turn is still in flight. */
@@ -127,6 +154,7 @@ export type ServerMessage = {
     steps: AgentStep[];
     actions: AgentCard[];
     attachments: string[];
+    usage?: TurnUsage | null;
     failed: boolean;
     created_at: string | null;
 };

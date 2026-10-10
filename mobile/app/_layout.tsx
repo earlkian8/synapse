@@ -126,6 +126,13 @@ function RootNavigator() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen name="awards/index" />
+        <Stack.Screen name="events/index" />
+        <Stack.Screen name="events/[id]" />
+        <Stack.Screen name="recognition/index" />
+        <Stack.Screen name="recognition/nominations" />
+        <Stack.Screen name="recognition/kudos" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="recognition/nominate" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="rewards/index" />
       </Stack>
     </>
   );

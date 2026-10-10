@@ -17,6 +17,7 @@ import type {
     ManagedRole,
     RolesPageProps,
 } from '@/features/roles/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 import { usePermissions } from '@/hooks/use-permissions';
 
 type ConfirmConfig = {
@@ -98,6 +99,9 @@ export default function RolesIndex() {
         setDetailRole(role);
         setDetailOpen(true);
     };
+
+    // A link that names a role (global search, ADR 0069) opens it.
+    useLinkedRecord(roles.data, (role) => role.id, openView);
 
     const askConfirm = (config: ConfirmConfig) => {
         setConfirm(config);

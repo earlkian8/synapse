@@ -44,6 +44,7 @@ import { performanceRoutes } from '@/features/performance/routes';
 import { EnrollmentStatusBadge as TrainingStatusBadge } from '@/features/training/components/training-status-badge';
 import { formatScore as formatTrainingScore } from '@/features/training/constants';
 import { trainingRoutes } from '@/features/training/routes';
+import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { DOCUMENT_TYPE_OPTIONS, TYPE_LABELS } from '../constants';
 import { employeeRoutes } from '../routes';
@@ -1058,6 +1059,7 @@ function CertificationsTab({
     canManage: boolean;
     onChanged: () => void;
 }) {
+    const { can } = usePermissions();
     const [name, setName] = useState('');
     const [issuer, setIssuer] = useState('');
     const [issued, setIssued] = useState('');
@@ -1190,8 +1192,18 @@ function CertificationsTab({
                                     {cert.expiry_date
                                         ? ` · expires ${cert.expiry_date}`
                                         : ''}
+                                    {cert.from_training &&
+                                        ` · from training${cert.certificate_no ? `, ${cert.certificate_no}` : ''}`}
                                 </p>
                             </div>
+                            {cert.from_training && can('training.view') && (
+                                <Link
+                                    href={trainingRoutes.certificate(cert.id)}
+                                    className="text-xs font-medium text-[#0ABFBF] hover:underline"
+                                >
+                                    View
+                                </Link>
+                            )}
                             {cert.url && (
                                 <a
                                     href={cert.url}
@@ -1202,7 +1214,7 @@ function CertificationsTab({
                                     File
                                 </a>
                             )}
-                            {canManage && (
+                            {canManage && !cert.from_training && (
                                 <button
                                     type="button"
                                     onClick={() => remove(cert.id)}

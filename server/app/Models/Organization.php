@@ -47,6 +47,10 @@ class Organization extends Model
         'sss_employer_no',
         'philhealth_employer_no',
         'pagibig_employer_no',
+        // Recognition (ADR 0071): the points a kudos carries, and how many kudos
+        // a month one person can give with points.
+        'kudos_points',
+        'kudos_monthly_limit',
     ];
 
     /**
@@ -64,6 +68,8 @@ class Organization extends Model
     protected $attributes = [
         'join_code_enabled' => true,
         'timezone' => OrganizationClock::DEFAULT_TIMEZONE,
+        'kudos_points' => 10,
+        'kudos_monthly_limit' => 5,
     ];
 
     /**
@@ -84,6 +90,8 @@ class Organization extends Model
             // The first and last dates the end-of-day job has closed (ADR 0041).
             'attendance_closed_from' => 'date',
             'attendance_closed_through' => 'date',
+            'kudos_points' => 'integer',
+            'kudos_monthly_limit' => 'integer',
         ];
     }
 

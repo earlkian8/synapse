@@ -35,8 +35,23 @@ class PerformanceEvaluationResource extends JsonResource
             'bands' => $this->bandList(),
             'result_display' => $this->result_display ?? 'band',
 
+            // When calibration moved the rating (ADR 0073): what the scorecard
+            // itself gave. Null when nothing moved it.
+            'scored_band' => $this->scored_band,
+            'scored_label' => $this->scored_label,
+            'calibrated_at' => $this->calibrated_at?->toIso8601String(),
+
             'submitted_at' => $this->submitted_at?->toIso8601String(),
+            // When the employee could first read it (ADR 0072); null while a
+            // calibration session holds it back.
+            'shared_at' => $this->shared_at?->toIso8601String(),
             'acknowledged_at' => $this->acknowledged_at?->toIso8601String(),
+            'employee_comment' => $this->employee_comment,
+            'acknowledged_by' => $this->whenLoaded('acknowledger', fn () => $this->acknowledger ? [
+                'name' => $this->acknowledger->full_name,
+                // The employee themselves, or HR on their behalf.
+                'is_employee' => $this->acknowledgedByEmployee(),
+            ] : null),
             'remarks' => $this->remarks,
             'scores_count' => (int) ($this->scores_count ?? 0),
 

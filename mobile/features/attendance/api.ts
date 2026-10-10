@@ -40,7 +40,10 @@ export const attendanceApi = {
       } as unknown as Blob);
     }
 
-    return api.post<TodayResponse & { duplicate?: boolean }>('/attendance/punch', form);
+    // A selfie on a weak signal takes longer to upload than a plain punch.
+    return api.post<TodayResponse & { duplicate?: boolean }>('/attendance/punch', form, {
+      timeoutMs: photoUri ? 60_000 : 30_000,
+    });
   },
 
   records: (from: string, to: string) =>

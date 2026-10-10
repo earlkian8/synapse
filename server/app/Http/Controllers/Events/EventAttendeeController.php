@@ -31,7 +31,12 @@ class EventAttendeeController extends Controller
     public function store(EventAttendeeRequest $request, Event $event): RedirectResponse
     {
         try {
-            $invited = $this->workflow->invite($event, $request->validated()['employee_ids'], $request->user());
+            $invited = $this->workflow->invite(
+                $event,
+                $request->validated()['employee_ids'],
+                $request->user(),
+                scope: $request->validated('scope') ?? 'this',
+            );
         } catch (EventException $e) {
             return $this->respond($e->getMessage(), 'warning');
         }

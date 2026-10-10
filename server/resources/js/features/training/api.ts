@@ -1,8 +1,10 @@
 import { router } from '@inertiajs/react';
 import { trainingRoutes } from './routes';
 import type {
+    AttendanceStatus,
     BulkAction,
-    TrainingEnrollmentStatus,
+    CostCategory,
+    RosterStatus,
     TrainingInsightResult,
 } from './types';
 
@@ -14,7 +16,7 @@ type Handlers = {
 };
 
 export type UpdateEnrollmentPayload = {
-    status: TrainingEnrollmentStatus;
+    status: RosterStatus;
     score?: number | null;
     remarks?: string | null;
 };
@@ -65,6 +67,113 @@ export function bulkEnrollments(
 /** Remove an enrollment from a program. */
 export function removeEnrollment(id: number, h: Handlers = {}): void {
     router.delete(trainingRoutes.enrollment(id), opts(h));
+}
+
+/** Approve a request to join: the person takes a seat, if one is left. */
+export function approveRequest(id: number, h: Handlers = {}): void {
+    router.post(trainingRoutes.approve(id), {}, opts(h));
+}
+
+/** Decline a request to join, with an optional note the person is shown. */
+export function declineRequest(
+    id: number,
+    note: string | null,
+    h: Handlers = {},
+): void {
+    router.post(trainingRoutes.decline(id), { note }, opts(h));
+}
+
+export type SessionPayload = {
+    title: string | null;
+    session_date: string;
+    starts_at: string;
+    ends_at: string;
+    location: string | null;
+    notes: string | null;
+    /** New sessions only: one per day up to this date. */
+    repeat_until?: string | null;
+    weekdays_only?: boolean;
+};
+
+/** Schedule a session (or a run of them), or change one. */
+export function saveSession(
+    target: { programHashid: string } | { sessionId: number },
+    payload: SessionPayload,
+    h: Handlers = {},
+): void {
+    if ('sessionId' in target) {
+        router.patch(
+            trainingRoutes.session(target.sessionId),
+            payload,
+            opts(h),
+        );
+    } else {
+        router.post(
+            trainingRoutes.sessions(target.programHashid),
+            payload,
+            opts(h),
+        );
+    }
+}
+
+/** Cancel a session; the attendance taken at it goes with it. */
+export function deleteSession(id: number, h: Handlers = {}): void {
+    router.delete(trainingRoutes.session(id), opts(h));
+}
+
+/** Take attendance: a status per enrollment, or null to clear a mark. */
+export function saveAttendance(
+    sessionId: number,
+    marks: { enrollment_id: number; status: AttendanceStatus | null }[],
+    h: Handlers = {},
+): void {
+    router.put(trainingRoutes.attendance(sessionId), { marks }, opts(h));
+}
+
+export type CostPayload = {
+    category: CostCategory;
+    description: string | null;
+    amount: number;
+    incurred_on: string;
+};
+
+/** Record a cost on a program, or change one. */
+export function saveCost(
+    target: { programHashid: string } | { costId: number },
+    payload: CostPayload,
+    h: Handlers = {},
+): void {
+    if ('costId' in target) {
+        router.patch(trainingRoutes.cost(target.costId), payload, opts(h));
+    } else {
+        router.post(
+            trainingRoutes.costs(target.programHashid),
+            payload,
+            opts(h),
+        );
+    }
+}
+
+export function deleteCost(id: number, h: Handlers = {}): void {
+    router.delete(trainingRoutes.cost(id), opts(h));
+}
+
+/** Set the organisation's training budget for a year. */
+export function setBudget(
+    payload: { year: number; amount: number; notes: string | null },
+    h: Handlers = {},
+): void {
+    router.post(trainingRoutes.budgetStore, payload, opts(h));
+}
+
+/** Join an open program, or ask to join one that needs approval. */
+export function joinProgram(hashid: string, h: Handlers = {}): void {
+    router.post(trainingRoutes.join(hashid), {}, opts(h));
+}
+
+/** Withdraw one's own request, or leave a program before it starts. */
+export function withdrawEnrollment(id: number, h: Handlers = {}): void {
+    router.delete(trainingRoutes.withdraw(id), opts(h));
 }
 
 /** Read Laravel's XSRF cookie so the plain fetch passes CSRF verification. */

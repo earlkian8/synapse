@@ -47,8 +47,9 @@ function trainee(string $first, string $last, string $status = 'active'): Employ
 
 // ── Permissions ──────────────────────────────────────────────────────────────
 
-test('the module is closed without training.view', function () {
-    expect(app(TrainingModule::class)->isAvailable(actingAsUserWith([])))->toBeFalse();
+test('the module is closed without training.view or training.participate', function () {
+    expect(app(TrainingModule::class)->isAvailable(actingAsUserWith([])))->toBeFalse()
+        ->and(app(TrainingModule::class)->isAvailable(actingAsUserWith(['training.participate'])))->toBeTrue();
 });
 
 test('a viewer is offered only the reads; a manager the writes too', function () {
@@ -56,6 +57,7 @@ test('a viewer is offered only the reads; a manager the writes too', function ()
 
     expect(trainingAgentTools($viewer))->toEqualCanonicalizing([
         'find_training_programs', 'get_training_program', 'find_training_enrollments', 'training_summary',
+        'find_training_requests', 'find_training_sessions', 'find_training_certificates', 'get_training_budget',
     ]);
 
     $manager = actingAsUserWith(['training.view', 'training.manage']);
@@ -76,12 +78,16 @@ test('a write is refused at run time without training.manage, even if called', f
         ->and($program->enrollments()->count())->toBe(0);
 });
 
-test('removing someone and archiving a program are what wait for confirmation', function () {
+test('removing someone, archiving a program, deciding a request, and joining or leaving are what wait for confirmation', function () {
     $module = app(TrainingModule::class);
 
     expect($module->requiresConfirmation('remove_from_training'))->toBeTrue()
         ->and($module->requiresConfirmation('archive_training_program'))->toBeTrue()
+        ->and($module->requiresConfirmation('decide_training_request'))->toBeTrue()
+        ->and($module->requiresConfirmation('join_training'))->toBeTrue()
+        ->and($module->requiresConfirmation('leave_training'))->toBeTrue()
         ->and($module->requiresConfirmation('enroll_in_training'))->toBeFalse()
+        ->and($module->requiresConfirmation('record_training_attendance'))->toBeFalse()
         ->and($module->isReadOnly('training_summary'))->toBeTrue()
         ->and($module->isReadOnly('update_training_enrollment'))->toBeFalse();
 });

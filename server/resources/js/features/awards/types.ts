@@ -28,6 +28,8 @@ export type AwardType = {
     name: string;
     description: string | null;
     color: string | null;
+    points: number;
+    accepts_nominations: boolean;
     is_active: boolean;
     is_archived: boolean;
     awards_count: number;
@@ -60,6 +62,8 @@ export type AwardsIndexPageProps = {
     employees: AwardableEmployee[];
     stats: AwardStats;
     can: AwardPermissions;
+    /** Nominations waiting for review — only for those who review them. */
+    pending_nominations: number | null;
 };
 
 // ── Nomination board ─────────────────────────────────────────────────────────
@@ -115,4 +119,5 @@ export type AwardNominationsPageProps = {
     employees: AwardableEmployee[];
     ai_available: boolean;
     can: AwardPermissions;
+    pending_nominations: number | null;
 };

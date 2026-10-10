@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import {
     ArchiveRestore,
+    BadgeCheck,
     Eye,
     GraduationCap,
     Trash2,
@@ -158,8 +159,29 @@ export function ProgramTable({
                                                     {program.name}
                                                 </Link>
                                             )}
-                                            <p className="max-w-64 truncate text-xs text-muted-foreground">
-                                                {program.provider ?? 'In-house'}
+                                            <p className="flex max-w-64 items-center gap-1 truncate text-xs text-muted-foreground">
+                                                <span className="truncate">
+                                                    {program.provider ??
+                                                        'In-house'}
+                                                    {program.enrollment_mode ===
+                                                        'open' &&
+                                                        ' · open to join'}
+                                                    {program.enrollment_mode ===
+                                                        'approval' &&
+                                                        ' · join on approval'}
+                                                </span>
+                                                {program.issues_certificate && (
+                                                    <BadgeCheck
+                                                        className="size-3.5 shrink-0 text-[#0a8b91] dark:text-[#0ABFBF]"
+                                                        aria-label="Earns a certificate"
+                                                    />
+                                                )}
+                                                {program.pending_count > 0 && (
+                                                    <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-medium text-amber-700 tabular-nums dark:text-amber-400">
+                                                        {program.pending_count}{' '}
+                                                        waiting
+                                                    </span>
+                                                )}
                                             </p>
                                         </div>
                                     </div>

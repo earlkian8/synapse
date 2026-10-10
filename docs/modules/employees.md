@@ -259,7 +259,10 @@ spends Gemini quota.
   within some days (`employees.view`); add, and remove behind a Confirm
   (`employees.manage-documents`), through `App\Support\Employees\EmployeeCertifications`
   and `StoreEmployeeCertificationRequest`, which the profile now uses — removal is now
-  audited. A person's documents are listed by title and type only
+  audited. A certificate earned in training
+  ([ADR 0075](../decisions/0075-training-certificates-with-expiry-and-budgets-with-costs.md))
+  is marked "from training" on the Certifications tab and is refused for removal on the
+  screen and in chat: it is withdrawn in Training, by changing the enrollment. A person's documents are listed by title and type only
   (`employees.manage-documents`), audited as `viewed`; files are never opened or
   uploaded in chat.
 

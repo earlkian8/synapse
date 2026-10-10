@@ -23,6 +23,14 @@ class TrainingEnrollmentResource extends JsonResource
             'completed_at' => $this->completed_at?->toDateString(),
             'enrolled_on' => $this->created_at?->toDateString(),
             'remarks' => $this->remarks,
+            'requested_on' => $this->status === 'requested' || $this->decided_at !== null ? $this->created_at?->toDateString() : null,
+            'decided_at' => $this->decided_at?->toDateString(),
+            'decision_note' => $this->decision_note,
+            'certificate' => $this->whenLoaded('certificate', fn () => $this->certificate ? [
+                'id' => $this->certificate->id,
+                'certificate_no' => $this->certificate->certificate_no,
+                'expiry_date' => $this->certificate->expiry_date?->toDateString(),
+            ] : null),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,
