@@ -171,6 +171,7 @@ class OrganizationProvisioner
                 'permissions' => [
                     // Self-service (as an employee themselves)
                     'attendance.clock', 'leave.request',
+                    'events.respond', 'awards.participate',
                     // Team visibility
                     'employees.view',
                     'attendance.view',
@@ -186,16 +187,19 @@ class OrganizationProvisioner
                 ],
             ],
 
-            // 3. Staff — the regular employee. Self-service only: record attendance
-            //    and file/cancel their own leave (web or the mobile DTR app).
+            // 3. Staff — the regular employee. Self-service only: record attendance,
+            //    file/cancel their own leave, answer their event invitations, and
+            //    take part in recognition (web or the mobile app).
             [
                 'name' => Role::STAFF,
                 'label' => 'Staff',
-                'description' => 'Regular employee with self-service access: record attendance and file leave.',
+                'description' => 'Regular employee with self-service access: record attendance, file leave, answer invitations and recognise colleagues.',
                 'is_system' => true,
                 'permissions' => [
                     'attendance.clock',
                     'leave.request',
+                    'events.respond',
+                    'awards.participate',
                 ],
             ],
         ];

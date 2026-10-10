@@ -80,3 +80,17 @@ test('every address in the guide is a real page', function () {
     expect($paths)->not->toBeEmpty()
         ->and($unrouted->all())->toBe([]);
 });
+
+test('recognition and invitations are described to whoever takes part, the review desks only to HR', function () {
+    $staff = actingAsUserWith(['events.respond', 'awards.participate']);
+    $hr = actingAsSuperAdmin();
+
+    $kudos = guideAgent($staff, 'find_help', ['question' => 'how do I send kudos to a colleague?']);
+    $rsvp = guideAgent($staff, 'find_help', ['question' => 'where do I answer my invitations?']);
+
+    expect($kudos->cards[0]['subtitle'])->toBe('/awards/wall')
+        ->and($rsvp->cards[0]['subtitle'])->toBe('/events/me')
+        ->and(SystemGuide::for($staff)->keys()->all())->toContain('recognition-wall', 'my-points', 'my-nominations', 'my-invitations')
+        ->not->toContain('awards', 'award-nominations', 'rewards-desk', 'events', 'rooms')
+        ->and(SystemGuide::for($hr)->keys()->all())->toContain('award-nominations', 'rewards-desk', 'rooms');
+});

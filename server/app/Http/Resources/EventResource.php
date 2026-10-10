@@ -27,6 +27,24 @@ class EventResource extends JsonResource
             'location' => $this->location,
             'status' => $this->status(),
             'is_archived' => $this->deleted_at !== null,
+            'reminder_minutes' => $this->reminder_minutes,
+            'reminder_sent_at' => $this->reminder_sent_at?->toIso8601String(),
+
+            'room' => $this->whenLoaded('room', fn () => $this->room ? [
+                'id' => $this->room->id,
+                'hashid' => $this->room->hashid,
+                'name' => $this->room->name,
+                'location' => $this->room->location,
+                'capacity' => $this->room->capacity,
+            ] : null),
+
+            // The repeat rule, and — on the event page — where this date sits in it.
+            'series' => $this->whenLoaded('series', fn () => $this->series ? [
+                'id' => $this->series->id,
+                'summary' => $this->series->summary(),
+                'position' => $this->series_position ?? null,
+                'total' => $this->series_total ?? null,
+            ] : null),
 
             'organizer' => $this->whenLoaded('organizer', fn () => $this->organizer ? [
                 'id' => $this->organizer->id,

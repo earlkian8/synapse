@@ -118,16 +118,23 @@ final class DataExportCatalogue
         ],
         'awards' => [
             'label' => 'Awards', 'section' => 'Workforce', 'permission' => 'awards.view',
-            'description' => 'Award types and every recognition given.',
+            'description' => 'Award types and every recognition given, nominations, kudos, the points ledger, and the rewards catalogue with its requests.',
             'tables' => [
                 ['table' => 'award_types'],
                 ['table' => 'employee_awards'],
+                ['table' => 'award_nominations'],
+                ['table' => 'kudos'],
+                ['table' => 'point_transactions'],
+                ['table' => 'rewards'],
+                ['table' => 'reward_redemptions'],
             ],
         ],
         'events' => [
             'label' => 'Events', 'section' => 'Workforce', 'permission' => 'events.view',
-            'description' => 'Events and meetings, and every invitee\'s reply.',
+            'description' => 'Events and meetings, their repeat rules and rooms, and every invitee\'s reply.',
             'tables' => [
+                ['table' => 'rooms'],
+                ['table' => 'event_series'],
                 ['table' => 'events'],
                 ['table' => 'event_attendees'],
             ],
@@ -260,6 +267,7 @@ final class DataExportCatalogue
         'assistant_conversations' => 'Each person\'s own chats with the assistant are theirs, not the company\'s records.',
         'assistant_messages' => 'Each person\'s own chats with the assistant are theirs, not the company\'s records.',
         'personal_access_tokens' => 'Sign-in credentials for the mobile app.',
+        'calendar_feeds' => 'Each person\'s private calendar link — a secret that opens their invitations, not a record.',
         'data_exports' => 'This screen\'s own history of archives.',
     ];
 

@@ -23,13 +23,18 @@ class EventAttendee extends Model
         'event_id',
         'employee_id',
         'response',
+        'responded_at',
         'notified_at',
     ];
+
+    /** The answers an invitee can give themselves — never back to "invited". */
+    public const ANSWERS = ['accepted', 'tentative', 'declined'];
 
     protected function casts(): array
     {
         return [
             'notified_at' => 'datetime',
+            'responded_at' => 'datetime',
         ];
     }
 

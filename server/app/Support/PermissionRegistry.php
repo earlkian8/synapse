@@ -76,11 +76,13 @@ class PermissionRegistry
         ],
         'Awards & Recognition' => [
             'awards.view' => 'View awards & recognition',
-            'awards.manage' => 'Give, edit & remove recognitions',
+            'awards.manage' => 'Give, edit & remove recognitions; review nominations & redemptions',
+            'awards.participate' => 'Give kudos, nominate colleagues & redeem rewards (self-service)',
         ],
         'Events & Meetings' => [
             'events.view' => 'View events & meetings',
-            'events.manage' => 'Schedule events, invite attendees & track responses',
+            'events.manage' => 'Schedule events, book rooms, invite attendees & track responses',
+            'events.respond' => 'Answer your own invitations & subscribe to them (self-service)',
         ],
         'Offboarding' => [
             'offboarding.view' => 'View offboarding & clearance',

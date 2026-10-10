@@ -104,6 +104,31 @@ export function todayDateKey(timeZone?: string | null): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/**
+ * The day an instant falls on in the zone, split for a date badge: "Mon" / 12 /
+ * "Oct", with a "Y-m-d" key to group by and whether it is today there.
+ */
+export function dayParts(
+  iso: string | null | undefined,
+  timeZone?: string | null,
+): { key: string; weekday: string; day: number; month: string; isToday: boolean } {
+  const { year, month, day, weekday } = wallClock(iso ? new Date(iso) : new Date(), timeZone);
+  const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return { key, weekday: DAYS[weekday], day, month: MONTHS[month], isToday: key === todayDateKey(timeZone) };
+}
+
+/** "just now", "5m ago", "3h ago", "2d ago", then "Jun 15" — for the recognition wall. */
+export function formatAgo(iso: string | null | undefined, timeZone?: string | null): string {
+  if (!iso) return '';
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)}d ago`;
+  const { month, day } = wallClock(new Date(iso), timeZone);
+  return `${MONTHS[month]} ${day}`;
+}
+
 /** "Jun 15, 2026" from an ISO date string ("Y-m-d"). */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';

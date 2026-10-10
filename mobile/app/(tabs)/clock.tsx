@@ -53,6 +53,7 @@ export default function ClockScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justPunched, setJustPunched] = useState<{ type: PunchType; at: string; queued: boolean } | null>(null);
+  const [sendingQueue, setSendingQueue] = useState(false);
 
   // Live clock + worked counter.
   useEffect(() => {
@@ -163,6 +164,25 @@ export default function ClockScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingType, coords, photoUri, timeZone]);
 
+  // Send what is waiting now, and say how it went. A refusal is told by the
+  // queue runner, which hears of it whoever sent the punch.
+  const sendQueued = useCallback(async () => {
+    setSendingQueue(true);
+    const result = await punchQueue.flush();
+    setSendingQueue(false);
+
+    if (result.offline) {
+      toast.show(
+        `Couldn’t reach SYNAPSE. ${result.waiting === 1 ? 'Your punch is' : `${result.waiting} punches are`} still saved on this phone and will be sent automatically.`,
+        'error',
+      );
+    } else if (result.sent > 0) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show(result.sent === 1 ? 'Punch sent.' : `${result.sent} punches sent.`, 'success');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const statusMeta = record?.first_in_at ? attendanceMeta(record.status) : null;
 
   // The ring: time worked against the shift, live while on the clock.
@@ -196,7 +216,16 @@ export default function ClockScreen() {
                 there’s a connection.
               </AppText>
             </View>
-            <Button label="Send" icon="send" variant="gray" size="sm" fullWidth={false} onPress={() => void punchQueue.flush()} />
+            <Button
+              label={sendingQueue ? 'Sending' : 'Send'}
+              icon="send"
+              variant="gray"
+              size="sm"
+              fullWidth={false}
+              loading={sendingQueue}
+              disabled={sendingQueue}
+              onPress={() => void sendQueued()}
+            />
           </Card>
         </Animated.View>
       )}

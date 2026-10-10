@@ -52,16 +52,19 @@ import {
     ResponseBadge,
 } from '@/features/events/components/event-status-badge';
 import { InviteDialog } from '@/features/events/components/invite-dialog';
+import { ScopeDialog } from '@/features/events/components/scope-dialog';
 import {
     RESPONSE_LABELS,
     RESPONSE_ORDER,
     TYPE_LABELS,
     formatDateTimeRange,
+    reminderLabel,
 } from '@/features/events/constants';
 import { eventRoutes } from '@/features/events/routes';
 import type {
     AttendeeResponse,
     EventAttendee,
+    EventScope,
     EventShowPageProps,
 } from '@/features/events/types';
 
@@ -122,14 +125,19 @@ export default function EventShow() {
         });
     };
 
-    const archive = () =>
-        router.delete(eventRoutes.destroy(event.hashid), {
-            onStart: () => setProcessing(true),
-            onFinish: () => {
-                setProcessing(false);
-                setArchiveOpen(false);
+    const archive = (scope: EventScope = 'this') =>
+        router.delete(
+            scope === 'following'
+                ? `${eventRoutes.destroy(event.hashid)}?scope=following`
+                : eventRoutes.destroy(event.hashid),
+            {
+                onStart: () => setProcessing(true),
+                onFinish: () => {
+                    setProcessing(false);
+                    setArchiveOpen(false);
+                },
             },
-        });
+        );
 
     const duplicate = () =>
         router.post(
@@ -180,7 +188,17 @@ export default function EventShow() {
                                     event.starts_at,
                                     event.ends_at,
                                 ),
-                                event.location ?? 'Location TBD',
+                                event.room
+                                    ? [event.room.name, event.location]
+                                          .filter(Boolean)
+                                          .join(', ')
+                                    : (event.location ?? 'Location TBD'),
+                                event.series
+                                    ? `${event.series.summary}${event.series.position && event.series.total ? ` (${event.series.position} of ${event.series.total})` : ''}`
+                                    : null,
+                                reminderLabel(event.reminder_minutes)
+                                    ? `Reminder ${reminderLabel(event.reminder_minutes)}`
+                                    : null,
                                 event.organizer
                                     ? `Organised by ${event.organizer.name}`
                                     : null,
@@ -488,6 +506,7 @@ export default function EventShow() {
                 onOpenChange={setInviteOpen}
                 eventHashid={event.hashid}
                 invitable={invitable}
+                repeats={Boolean(event.series)}
             />
 
             <EventFormSheet
@@ -517,16 +536,33 @@ export default function EventShow() {
                 onConfirm={remindPending}
             />
 
-            <ConfirmDialog
-                open={archiveOpen}
-                onOpenChange={setArchiveOpen}
-                title={`Archive "${event.title}"?`}
-                description="It is hidden from the active list; attendees are kept. You can restore it later."
-                confirmLabel="Archive"
-                destructive
-                processing={processing}
-                onConfirm={archive}
-            />
+            {event.series ? (
+                <ScopeDialog
+                    open={archiveOpen}
+                    onOpenChange={setArchiveOpen}
+                    action="Archive"
+                    title={event.title}
+                    position={
+                        event.series.position && event.series.total
+                            ? `${event.series.position} of ${event.series.total}`
+                            : null
+                    }
+                    destructive
+                    processing={processing}
+                    onChoose={archive}
+                />
+            ) : (
+                <ConfirmDialog
+                    open={archiveOpen}
+                    onOpenChange={setArchiveOpen}
+                    title={`Archive "${event.title}"?`}
+                    description="It is hidden from the active list, its room is freed, and attendees are kept. You can restore it later."
+                    confirmLabel="Archive"
+                    destructive
+                    processing={processing}
+                    onConfirm={() => archive()}
+                />
+            )}
         </>
     );
 }

@@ -61,7 +61,17 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, message, fieldErrors);
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/**
+ * How long a request may take before it is given up. React Native's Android HTTP
+ * client has no timeouts of its own, so without one a request on a connection
+ * that died never settles — and whatever waits on it (the punch queue) waits for
+ * ever.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+export type RequestOptions = { timeoutMs?: number };
+
+async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
   const token = getToken();
   const isForm = body instanceof FormData;
 
@@ -75,26 +85,42 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
-  });
+  // The deadline covers the whole exchange, the body as well as the headers.
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw await parseError(response);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw await parseError(response);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    // Status 0: no answer came back — to the caller, the same as no connection.
+    if (controller.signal.aborted && !(error instanceof ApiError)) {
+      throw new ApiError(0, 'The server took too long to answer.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(deadline);
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
-  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-  delete: <T>(path: string) => request<T>('DELETE', path),
+  get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, undefined, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, body, options),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PATCH', path, body, options),
+  delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };

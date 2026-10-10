@@ -7,7 +7,10 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Event;
 use App\Models\EventAttendee;
+use App\Models\EventSeries;
+use App\Models\Room;
 use App\Models\User;
+use App\Queries\MyInvitations;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
 use App\Services\Assistant\Retrieval\ContextSection;
@@ -15,6 +18,7 @@ use App\Services\Assistant\Retrieval\RetrievedSubject;
 use App\Services\Assistant\ToolResult;
 use App\Support\Events\EventException;
 use App\Support\Events\EventWorkflow;
+use App\Support\Events\RoomBooking;
 use App\Support\OrganizationClock;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -69,7 +73,7 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
 
     public function isAvailable(User $user): bool
     {
-        return $user->can('events.view');
+        return $user->can('events.view') || $user->can('events.respond');
     }
 
     protected function toolMap(): array
@@ -84,6 +88,9 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             'set_event_response' => 'respond',
             'remove_event_attendee' => 'removeAttendee',
             'archive_event' => 'archiveEvent',
+            'find_rooms' => 'findRooms',
+            'find_my_invitations' => 'findMyInvitations',
+            'respond_to_event' => 'respondAsMe',
         ];
     }
 
@@ -99,6 +106,9 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             'set_event_response' => 'events.manage',
             'remove_event_attendee' => 'events.manage',
             'archive_event' => 'events.manage',
+            'find_rooms' => 'events.view',
+            'find_my_invitations' => 'events.respond',
+            'respond_to_event' => 'events.respond',
         ];
     }
 
@@ -118,7 +128,11 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
         $permission = $this->permissionMap()[$tool] ?? 'events.view';
 
         if ($user->cannot($permission)) {
-            return $this->denied($permission === 'events.manage' ? 'change events' : 'view events');
+            return $this->denied(match ($permission) {
+                'events.manage' => 'change events',
+                'events.respond' => 'answer invitations',
+                default => 'view events',
+            });
         }
 
         return $this->{$this->toolMap()[$tool]}($user, $args);
@@ -137,10 +151,21 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             TXT
             : '';
 
+        $own = $this->allows($user, 'events.respond')
+            ? "\n- find_my_invitations lists the user's OWN invitations and answers; respond_to_event answers one for them (accepted = going, tentative = maybe, declined). all_following answers every later date of a repeating event too."
+            : '';
+
+        $calendar = $this->allows($user, 'events.view')
+            ? "\n- find_events lists events (upcoming by default; by title, kind, status, a window of days ahead, or who is invited); get_event reads one — when, where, who organises it, and who has accepted, declined or not replied. find_rooms lists rooms, and which are free in a window."
+            : '';
+
+        $manageMore = $this->allows($user, 'events.manage')
+            ? "\n- schedule_event can book a room (by name; it needs an end time and must be free), set reminder_minutes (10, 30, 60, 120, 1440 or 2880 — sent on its own before the start), and repeat (daily, weekly on weekdays 1=Mon…7=Sun, or monthly; every 1–4; until a date or a count; at most 100 dates, two years). On a repeating event, update_event, invite_to_event and archive_event take scope: this (one date) or following (it and every later date)."
+            : '';
+
         return <<<TXT
-        EVENTS — the company's events and meetings, and who is invited to each (response: invited, accepted, tentative or declined). An event is upcoming, ongoing or past by its times.
-        - find_events lists events (upcoming by default; by title, kind, status, a window of days ahead, or who is invited); get_event reads one — when, where, who organises it, and who has accepted, declined or not replied.
-        - Times are the office's wall clock ({$zone}; it is now {$now}). Pass them as "YYYY-MM-DD HH:MM" in 24-hour time, resolving words like "Friday 2pm" yourself. Identify an event by its title, plus its date (YYYY-MM-DD) when several share a title.{$manage}
+        EVENTS — the company's events and meetings, and who is invited to each (response: invited, accepted, tentative or declined). An event is upcoming, ongoing or past by its times.{$calendar}{$own}
+        - Times are the office's wall clock ({$zone}; it is now {$now}). Pass them as "YYYY-MM-DD HH:MM" in 24-hour time, resolving words like "Friday 2pm" yourself. Identify an event by its title, plus its date (YYYY-MM-DD) when several share a title.{$manage}{$manageMore}
         TXT;
     }
 
@@ -155,7 +180,10 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             'ends_at' => ['type' => 'STRING', 'description' => 'End, "YYYY-MM-DD HH:MM" on the office clock.'],
             'location' => ['type' => 'STRING', 'description' => 'Where it happens (a room, an address or a call link name).'],
             'description' => ['type' => 'STRING', 'description' => 'What it is about.'],
+            'room' => ['type' => 'STRING', 'description' => 'A room to book, by name. Needs an end time.'],
+            'reminder_minutes' => ['type' => 'INTEGER', 'description' => 'Remind invitees this many minutes before: 10, 30, 60, 120, 1440 or 2880.'],
         ];
+        $scope = ['type' => 'STRING', 'enum' => ['this', 'following'], 'description' => 'On a repeating event: this date only (default) or it and every later date.'];
 
         return $this->permitted($user, [
             [
@@ -186,7 +214,22 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
                 'description' => 'Schedule a new event or meeting. The signed-in user becomes its organiser. Nobody is invited yet.',
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => ['title' => ['type' => 'STRING', 'description' => 'The title.'], ...$fields],
+                    'properties' => [
+                        'title' => ['type' => 'STRING', 'description' => 'The title.'],
+                        ...$fields,
+                        'repeat' => [
+                            'type' => 'OBJECT',
+                            'description' => 'Make it repeat. Give until or count.',
+                            'properties' => [
+                                'frequency' => ['type' => 'STRING', 'enum' => EventSeries::FREQUENCIES],
+                                'interval' => ['type' => 'INTEGER', 'description' => 'Every n days/weeks/months, 1–4.'],
+                                'weekdays' => ['type' => 'ARRAY', 'items' => ['type' => 'INTEGER'], 'description' => 'Weekly only: ISO weekdays, 1 = Monday … 7 = Sunday.'],
+                                'until' => ['type' => 'STRING', 'description' => 'Last date, YYYY-MM-DD.'],
+                                'count' => ['type' => 'INTEGER', 'description' => 'How many dates in all, 2–100.'],
+                            ],
+                            'required' => ['frequency'],
+                        ],
+                    ],
                     'required' => ['title', 'type', 'starts_at'],
                 ],
             ],
@@ -200,6 +243,7 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
                         'date' => $date,
                         'new_title' => ['type' => 'STRING', 'description' => 'A new title.'],
                         ...$fields,
+                        'scope' => $scope,
                     ],
                     'required' => ['event'],
                 ],
@@ -214,6 +258,7 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
                         'date' => $date,
                         'employees' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Names or employee numbers, at most 25.'],
                         'departments' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Invite every active employee of these departments, by name.'],
+                        'scope' => $scope,
                     ],
                     'required' => ['event'],
                 ],
@@ -255,8 +300,38 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
                 'description' => 'Archive an event. It can be restored from the Events screen.',
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => ['event' => $event, 'date' => $date],
+                    'properties' => ['event' => $event, 'date' => $date, 'scope' => $scope],
                     'required' => ['event'],
+                ],
+            ],
+            [
+                'name' => 'find_rooms',
+                'description' => 'List the rooms events can book, with seats — and, given a start and an end, which are free then and what holds the others.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'starts_at' => ['type' => 'STRING', 'description' => 'Start, "YYYY-MM-DD HH:MM" on the office clock.'],
+                        'ends_at' => ['type' => 'STRING', 'description' => 'End, "YYYY-MM-DD HH:MM" on the office clock.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'find_my_invitations',
+                'description' => "The signed-in user's own invitations still to come, soonest first, with their answer to each.",
+                'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass],
+            ],
+            [
+                'name' => 'respond_to_event',
+                'description' => "Answer one of the signed-in user's OWN invitations: going (accepted), maybe (tentative) or not going (declined).",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'event' => $event,
+                        'date' => $date,
+                        'response' => ['type' => 'STRING', 'enum' => EventAttendee::ANSWERS],
+                        'all_following' => ['type' => 'BOOLEAN', 'description' => 'On a repeating event, answer every later date too.'],
+                    ],
+                    'required' => ['event', 'response'],
                 ],
             ],
         ]);
@@ -471,11 +546,21 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             return ToolResult::error('Scheduled the event', 'That start time has already passed ('.$data['starts_at'].'; it is now '.OrganizationClock::now()->format('Y-m-d H:i').'). Check the date.');
         }
 
-        $event = $this->workflow->schedule($data, $user, ' via assistant');
+        if (is_array($args['repeat'] ?? null) && filled($args['repeat']['frequency'] ?? null)) {
+            $data['repeat'] = array_intersect_key($args['repeat'], array_flip(['frequency', 'interval', 'weekdays', 'until', 'count']));
+        }
+
+        try {
+            $event = $this->workflow->schedule($data, $user, ' via assistant');
+        } catch (EventException $e) {
+            return ToolResult::error('Scheduled the event', $e->getMessage());
+        }
+
+        $dates = $event->series_id ? Event::query()->where('series_id', $event->series_id)->count() : 1;
 
         return ToolResult::ok(
             "Scheduled {$event->title}",
-            $this->when($event),
+            $this->when($event).($dates > 1 ? " — {$dates} dates, ".lcfirst((string) $event->series?->summary()) : ''),
             $this->eventCard($this->withCounts(Event::query())->findOrFail($event->id), 'schedule', 'positive', 'Scheduled'),
         );
     }
@@ -511,6 +596,8 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             'starts_at' => $event->starts_at ? OrganizationClock::local($event->starts_at)->format('Y-m-d H:i') : null,
             'ends_at' => $event->ends_at ? OrganizationClock::local($event->ends_at)->format('Y-m-d H:i') : null,
             'location' => $event->location,
+            'room_id' => $event->room_id,
+            'reminder_minutes' => $event->reminder_minutes,
             ...$changes,
         ];
 
@@ -518,7 +605,11 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             return ToolResult::error('Updated the event', $problem);
         }
 
-        $this->workflow->update($event, $changes, ' via assistant');
+        try {
+            $this->workflow->update($event, $changes, ' via assistant', $this->scope($args));
+        } catch (EventException $e) {
+            return ToolResult::error('Updated the event', $e->getMessage());
+        }
 
         return ToolResult::ok(
             "Updated {$event->title}",
@@ -574,7 +665,7 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
         }
 
         try {
-            $invited = $this->workflow->invite($event, $people->pluck('id')->all(), $user, ' via assistant');
+            $invited = $this->workflow->invite($event, $people->pluck('id')->all(), $user, ' via assistant', $this->scope($args));
         } catch (EventException $e) {
             return ToolResult::error("Invited people to {$event->title}", $e->getMessage());
         }
@@ -690,9 +781,148 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
 
         $card = $this->eventCard($this->withCounts(Event::query())->findOrFail($event->id), 'archive', 'warning', 'Archived');
 
-        $this->workflow->archive($event, ' via assistant');
+        $archived = $this->workflow->archive($event, ' via assistant', $this->scope($args));
 
-        return ToolResult::ok("Archived {$event->title}", 'It can be restored from the Events screen.', $card);
+        return ToolResult::ok(
+            "Archived {$event->title}".($archived > 1 ? " and {$archived} dates in all" : ''),
+            'It can be restored from the Events screen.',
+            $card,
+        );
+    }
+
+    /**
+     * The rooms, and — given a window — which are free then.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function findRooms(User $user, array $args): ToolResult
+    {
+        $start = filled($args['starts_at'] ?? null) ? $this->wallClock($args['starts_at']) : null;
+        $end = filled($args['ends_at'] ?? null) ? $this->wallClock($args['ends_at']) : null;
+
+        if ((filled($args['starts_at'] ?? null) && $start === null) || (filled($args['ends_at'] ?? null) && $end === null)) {
+            return ToolResult::error('Checked the rooms', 'Give the start and end as "YYYY-MM-DD HH:MM" (24-hour).');
+        }
+
+        if (($start === null) !== ($end === null) || ($start !== null && $end <= $start)) {
+            return ToolResult::error('Checked the rooms', 'Give both a start and a later end to check who has a room.');
+        }
+
+        if ($start === null) {
+            $rooms = Room::query()->catalogueOrder()->limit(self::MAX_RESULTS)->get();
+
+            return $rooms->isEmpty()
+                ? ToolResult::ok('Found no rooms', 'No rooms are set up — add them under Events → Rooms.')
+                : ToolResult::found('Found '.$rooms->count().' '.Str::plural('room', $rooms->count()), null, $rooms->map(fn (Room $room): array => $this->card(
+                    kind: 'event',
+                    tone: $room->is_active ? 'info' : 'neutral',
+                    badge: $room->is_active ? 'Bookable' : 'Not booking',
+                    title: $room->name,
+                    subtitle: implode(' · ', array_filter([$room->location, $room->capacity ? "seats {$room->capacity}" : null])),
+                    id: $room->hashid,
+                ))->all());
+        }
+
+        $rows = app(RoomBooking::class)->availability(OrganizationClock::parse($start), OrganizationClock::parse($end));
+
+        if ($rows === []) {
+            return ToolResult::ok('Found no rooms', 'No rooms are taking bookings.');
+        }
+
+        $free = count(array_filter($rows, fn (array $row): bool => $row['free']));
+
+        return ToolResult::found("{$free} of ".count($rows).' rooms free', "{$start} – ".substr($end, 11), array_map(fn (array $row): array => $this->card(
+            kind: 'event',
+            tone: $row['free'] ? 'positive' : 'warning',
+            badge: $row['free'] ? 'Free' : 'Taken',
+            title: $row['room']->name,
+            subtitle: $row['free']
+                ? implode(' · ', array_filter([$row['room']->location, $row['room']->capacity ? "seats {$row['room']->capacity}" : null]))
+                : "{$row['clash']->title} · {$this->when($row['clash'])}",
+            id: $row['room']->hashid,
+        ), $rows));
+    }
+
+    /**
+     * The signed-in user's own invitations still to come.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function findMyInvitations(User $user, array $args): ToolResult
+    {
+        $employee = $user->employee()->first();
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up your invitations', 'Your account isn’t linked to an employee record, so you have no invitations.');
+        }
+
+        $rows = MyInvitations::for($employee)
+            ->filter(fn (EventAttendee $row): bool => $row->event->status() !== 'past')
+            ->take(self::MAX_RESULTS)
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return ToolResult::ok('Found no invitations', 'Nothing coming up.');
+        }
+
+        return ToolResult::found('Found '.$rows->count().' '.Str::plural('invitation', $rows->count()), null, $rows->map(fn (EventAttendee $row): array => $this->card(
+            kind: 'event',
+            tone: $row->response === 'invited' ? 'warning' : 'info',
+            badge: $this->responseText($row->response),
+            title: $row->event->title,
+            subtitle: $this->when($row->event).($row->event->room ? ' · '.$row->event->room->name : ($row->event->location ? ' · '.$row->event->location : '')),
+            id: $row->event->hashid,
+        ))->all());
+    }
+
+    /**
+     * Answer one of the user's own invitations.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function respondAsMe(User $user, array $args): ToolResult
+    {
+        $employee = $user->employee()->first();
+
+        if ($employee === null) {
+            return ToolResult::error('Answered the invitation', 'Your account isn’t linked to an employee record, so you have no invitations.');
+        }
+
+        $response = (string) ($args['response'] ?? '');
+
+        if (! in_array($response, EventAttendee::ANSWERS, true)) {
+            return ToolResult::error('Answered the invitation', 'Answer with accepted, tentative or declined.');
+        }
+
+        // Only among the user's own invitations, so no other event is named back.
+        [$event, $error] = $this->locateEvent($args, Event::query()->whereHas('attendees', fn ($query) => $query->where('employee_id', $employee->id)));
+
+        if ($event === null) {
+            return ToolResult::error('Looked up your invitation', str_replace('No event matches', 'No event among your invitations matches', $error));
+        }
+
+        try {
+            $answered = $this->workflow->respondAsInvitee($event, $employee, $response, ($args['all_following'] ?? false) ? 'following' : 'this', ' via assistant');
+        } catch (EventException $e) {
+            return ToolResult::error("Answered {$event->title}", $e->getMessage());
+        }
+
+        $label = ['accepted' => 'Going', 'tentative' => 'Maybe', 'declined' => 'Not going'][$response];
+
+        return ToolResult::ok(
+            "{$label} — {$event->title}",
+            $answered > 1 ? "Answered {$answered} dates." : $this->when($event),
+        );
+    }
+
+    /**
+     * A repeating event's scope: this date, or it and every later one.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function scope(array $args): string
+    {
+        return ($args['scope'] ?? null) === 'following' ? 'following' : 'this';
     }
 
     // ── Resolution ───────────────────────────────────────────────────────────
@@ -702,10 +932,13 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
      * share it — or why not.
      *
      * @param  array<string, mixed>  $args
+     * @param  Builder<Event>|null  $within  Only among these events.
      * @return array{0: Event|null, 1: string}
      */
-    private function locateEvent(array $args): array
+    private function locateEvent(array $args, ?Builder $within = null): array
     {
+        $base = fn (): Builder => $within ? (clone $within) : Event::query();
+
         $title = trim((string) ($args['event'] ?? ''));
 
         if ($title === '') {
@@ -718,11 +951,11 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             return [null, 'Give the event date as YYYY-MM-DD.'];
         }
 
-        $matches = Event::query()->whereRaw('lower(title) = ?', [Str::lower($title)])->chronological()->limit(50)->get();
+        $matches = $base()->whereRaw('lower(title) = ?', [Str::lower($title)])->chronological()->limit(50)->get();
 
         if ($matches->isEmpty()) {
             $like = Event::query()->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-            $matches = Event::query()->where('title', $like, '%'.addcslashes($title, '%_\\').'%')->chronological()->limit(50)->get();
+            $matches = $base()->where('title', $like, '%'.addcslashes($title, '%_\\').'%')->chronological()->limit(50)->get();
         }
 
         if ($date !== null) {
@@ -813,6 +1046,22 @@ class EventsModule extends Module implements ContributesContext, ContributesTopi
             if (filled($args[$key] ?? null)) {
                 $fields[$key] = trim((string) $args[$key]);
             }
+        }
+
+        if (filled($args['room'] ?? null)) {
+            $roomId = $this->resolveId(Room::query(), 'name', (string) $args['room']);
+
+            if ($roomId === null) {
+                $rooms = Room::query()->active()->orderBy('name')->pluck('name');
+
+                return [[], 'No room is called “'.Str::limit((string) $args['room'], 60).'”.'.($rooms->isNotEmpty() ? ' Rooms: '.$this->catalog($rooms).'.' : ' No rooms are set up.')];
+            }
+
+            $fields['room_id'] = $roomId;
+        }
+
+        if (array_key_exists('reminder_minutes', $args) && $args['reminder_minutes'] !== null && $args['reminder_minutes'] !== '') {
+            $fields['reminder_minutes'] = (int) $args['reminder_minutes'];
         }
 
         foreach (['starts_at', 'ends_at'] as $key) {

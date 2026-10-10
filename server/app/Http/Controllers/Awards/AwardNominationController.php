@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Awards;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Awards\AwardCitationRequest;
+use App\Models\AwardNomination;
 use App\Models\AwardType;
 use App\Models\Employee;
 use App\Support\Awards\AwardCitationWriter;
@@ -14,7 +15,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The award nomination board — decision support for recognition. For every
+ * The award shortlist (the "nomination board" before ADR 0071, whose
+ * Nominations are now ones colleagues make) — decision support for recognition. For every
  * active award type, {@see AwardNominator} ranks the employees who deserve it
  * most on the ERP's own signals, and {@see AwardCitationWriter} can draft the
  * citation when one is granted from the board. Manage-gated: it ranks employees
@@ -28,11 +30,12 @@ class AwardNominationController extends Controller
      */
     public function index(Request $request, AwardNominator $nominator, AwardCitationWriter $writer): Response
     {
-        return Inertia::render('awards/nominations', [
+        return Inertia::render('awards/shortlist', [
             'board' => $nominator->board(),
             'employees' => $this->activeEmployees(),
             'ai_available' => $writer->enabled(),
             'can' => ['manage' => $request->user()->can('awards.manage')],
+            'pending_nominations' => $request->user()->can('awards.manage') ? AwardNomination::query()->pending()->count() : null,
         ]);
     }
 

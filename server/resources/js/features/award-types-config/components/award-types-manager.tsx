@@ -235,11 +235,15 @@ function TypeRow({
                         </span>
                     )}
                 </div>
-                {type.description && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {type.description}
-                    </p>
-                )}
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {[
+                        type.points > 0 ? `${type.points} points` : null,
+                        type.accepts_nominations ? 'Open to nominations' : null,
+                        type.description,
+                    ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                </p>
             </div>
             <span className="hidden text-xs text-muted-foreground tabular-nums sm:block">
                 {type.awards_count} given

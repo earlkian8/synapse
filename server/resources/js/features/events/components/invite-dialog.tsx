@@ -20,6 +20,8 @@ type Props = {
     onOpenChange: (open: boolean) => void;
     eventHashid: string;
     invitable: InvitableEmployee[];
+    /** The event repeats: offer to invite to its later dates too. */
+    repeats?: boolean;
 };
 
 /** Invite one or more employees to an event with a searchable, multi-select list. */
@@ -28,6 +30,7 @@ export function InviteDialog({
     onOpenChange,
     eventHashid,
     invitable,
+    repeats = false,
 }: Props) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,6 +47,7 @@ export function InviteDialog({
                     <Body
                         eventHashid={eventHashid}
                         invitable={invitable}
+                        repeats={repeats}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -55,12 +59,16 @@ export function InviteDialog({
 function Body({
     eventHashid,
     invitable,
+    repeats,
     onDone,
 }: {
     eventHashid: string;
     invitable: InvitableEmployee[];
+    repeats: boolean;
     onDone: () => void;
 }) {
+    // On a repeating event, people are usually wanted at every later date.
+    const [following, setFollowing] = useState(true);
     const [query, setQuery] = useState('');
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [processing, setProcessing] = useState(false);
@@ -113,11 +121,16 @@ function Body({
             return;
         }
 
-        inviteAttendees(eventHashid, Array.from(selected), {
-            onStart: () => setProcessing(true),
-            onFinish: () => setProcessing(false),
-            onSuccess: onDone,
-        });
+        inviteAttendees(
+            eventHashid,
+            Array.from(selected),
+            {
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+                onSuccess: onDone,
+            },
+            repeats && following ? 'following' : 'this',
+        );
     };
 
     if (invitable.length === 0) {
@@ -157,6 +170,18 @@ function Body({
                 </button>
                 <span className="tabular-nums">{selected.size} selected</span>
             </div>
+
+            {repeats && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-md bg-muted/60 px-3 py-2 text-sm">
+                    <Checkbox
+                        checked={following}
+                        onCheckedChange={(checked) =>
+                            setFollowing(checked === true)
+                        }
+                    />
+                    Invite to this and every later date
+                </label>
+            )}
 
             <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
                 {filtered.length === 0 ? (

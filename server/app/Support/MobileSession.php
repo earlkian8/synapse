@@ -122,6 +122,9 @@ class MobileSession
                 'schedule' => $this->shiftPayload($employee),
             ] : null,
             'can_clock' => $organization !== null && $user->can('attendance.clock'),
+            // My events and recognition (ADR 0070, 0071).
+            'can_respond_events' => $organization !== null && $user->can('events.respond'),
+            'can_recognize' => $organization !== null && $user->can('awards.participate'),
         ];
     }
 

@@ -1035,8 +1035,13 @@ erDiagram
 ## 9. Awards & events
 
 See [awards tables](./awards-tables.md), [events tables](./events-tables.md),
-[ADR 0014](../decisions/0014-awards-and-recognition.md) and
-[ADR 0015](../decisions/0015-events-and-meetings.md).
+[ADR 0014](../decisions/0014-awards-and-recognition.md),
+[ADR 0015](../decisions/0015-events-and-meetings.md),
+[ADR 0070](../decisions/0070-events-answered-by-invitees-repeating-rooms-reminders-and-a-calendar-feed.md)
+(rooms, repeats, reminders, the calendar feed) and
+[ADR 0071](../decisions/0071-recognition-kudos-nominations-points-and-rewards.md)
+(nominations, kudos, points, rewards). `award_types` also gains `points` and
+`accepts_nominations`; `organizations` gains `kudos_points` and `kudos_monthly_limit`.
 
 ```mermaid
 erDiagram
@@ -1044,6 +1049,16 @@ erDiagram
     AWARD_TYPE ||--o{ EMPLOYEE_AWARD : categorises
     EVENT ||--o{ EVENT_ATTENDEE : invites
     EMPLOYEE ||--o{ EVENT_ATTENDEE : attends
+    ROOM ||--o{ EVENT : holds
+    EVENT_SERIES ||--o{ EVENT : generates
+    USER ||--o{ CALENDAR_FEED : subscribes
+    AWARD_TYPE ||--o{ AWARD_NOMINATION : "nominated for"
+    EMPLOYEE ||--o{ AWARD_NOMINATION : "is nominated"
+    AWARD_NOMINATION |o--o| EMPLOYEE_AWARD : "approved into"
+    EMPLOYEE ||--o{ KUDOS : "sends / receives"
+    EMPLOYEE ||--o{ POINT_TRANSACTION : earns
+    REWARD ||--o{ REWARD_REDEMPTION : "redeemed as"
+    EMPLOYEE ||--o{ REWARD_REDEMPTION : requests
 
     EMPLOYEE_AWARD {
         bigint id PK
@@ -1061,6 +1076,10 @@ erDiagram
         datetime starts_at
         datetime ends_at
         string location
+        bigint room_id FK "nullable"
+        bigint series_id FK "nullable"
+        smallint reminder_minutes
+        datetime reminder_sent_at
         bigint organizer_id FK "users"
         datetime deleted_at
     }
@@ -1070,6 +1089,72 @@ erDiagram
         bigint employee_id FK "unique with event"
         string response "invited|accepted|declined|tentative"
         datetime notified_at
+        datetime responded_at
+    }
+    ROOM {
+        bigint id PK
+        string name
+        string location
+        int capacity
+        boolean is_active
+        datetime deleted_at
+    }
+    EVENT_SERIES {
+        bigint id PK
+        string frequency "daily|weekly|monthly"
+        smallint interval "1-4"
+        json weekdays
+        date until
+        smallint count
+    }
+    CALENDAR_FEED {
+        bigint id PK
+        bigint user_id FK "unique with organization"
+        string token_hash UK
+        text token "encrypted"
+        datetime last_used_at
+    }
+    AWARD_NOMINATION {
+        bigint id PK
+        bigint award_type_id FK
+        bigint employee_id FK "nominee"
+        bigint nominated_by FK "users"
+        text reason
+        string status "pending|approved|rejected|withdrawn"
+        bigint reviewed_by FK "users"
+        bigint employee_award_id FK
+    }
+    KUDOS {
+        bigint id PK
+        bigint from_employee_id FK
+        bigint to_employee_id FK
+        text message
+        smallint points
+        datetime deleted_at
+    }
+    POINT_TRANSACTION {
+        bigint id PK
+        bigint employee_id FK
+        int amount "signed"
+        string kind "award|kudos|redemption|refund|adjustment"
+        string subject_type "morph"
+        bigint subject_id
+    }
+    REWARD {
+        bigint id PK
+        string name
+        int cost
+        int stock "null = unlimited"
+        boolean is_active
+        datetime deleted_at
+    }
+    REWARD_REDEMPTION {
+        bigint id PK
+        bigint reward_id FK
+        bigint employee_id FK
+        int cost "as charged"
+        string status "pending|fulfilled|declined|cancelled"
+        bigint handled_by FK "users"
     }
 ```
 

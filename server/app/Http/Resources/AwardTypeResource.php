@@ -22,6 +22,8 @@ class AwardTypeResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'color' => $this->color,
+            'points' => (int) $this->points,
+            'accepts_nominations' => (bool) $this->accepts_nominations,
             'is_active' => (bool) $this->is_active,
             'is_archived' => $this->deleted_at !== null,
             'awards_count' => (int) ($this->awards_count ?? 0),

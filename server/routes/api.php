@@ -3,10 +3,14 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
+use App\Http\Controllers\Api\CalendarFeedController;
+use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\RecognitionController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Controllers\Public\CalendarFeedController as CalendarSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +33,14 @@ Route::post('auth/login', [AuthController::class, 'login'])
 Route::post('auth/register', [AuthController::class, 'register'])
     ->middleware('throttle:6,1')
     ->name('api.auth.register');
+
+// A person's calendar subscription (ADR 0070). Fetched by calendar apps with no
+// session or token header: the secret in the address is the key, so it is
+// throttled like the other public lookups.
+Route::get('calendar/{token}.ics', CalendarSubscriptionController::class)
+    ->where('token', '[A-Za-z0-9]+')
+    ->middleware('throttle:60,1')
+    ->name('api.calendar.feed');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
@@ -59,6 +71,31 @@ Route::middleware('auth:sanctum')->group(function () {
     // The employee's own 201 profile and recognitions.
     Route::get('profile', [ProfileController::class, 'show'])->name('api.profile.show');
     Route::get('awards', [AwardController::class, 'index'])->name('api.awards.index');
+
+    // My events (ADR 0070): own invitations, answered from the phone, and the
+    // calendar subscription link.
+    Route::middleware('can:events.respond')->group(function () {
+        Route::get('events', [EventController::class, 'index'])->name('api.events.index');
+        Route::get('events/{event}', [EventController::class, 'show'])->name('api.events.show');
+        Route::post('events/{event}/respond', [EventController::class, 'respond'])->name('api.events.respond');
+        Route::get('calendar-feed', [CalendarFeedController::class, 'show'])->name('api.calendar-feed.show');
+        Route::post('calendar-feed/reset', [CalendarFeedController::class, 'reset'])->name('api.calendar-feed.reset');
+    });
+
+    // Recognition (ADR 0071): the wall, kudos, nominations, points and rewards.
+    Route::middleware('can:awards.participate')->group(function () {
+        Route::get('recognition', [RecognitionController::class, 'wall'])->name('api.recognition.wall');
+        Route::get('colleagues', [RecognitionController::class, 'colleagues'])->name('api.colleagues');
+        Route::post('kudos', [RecognitionController::class, 'kudos'])->middleware('throttle:30,1')->name('api.kudos.store');
+        Route::get('nominations', [RecognitionController::class, 'nominations'])->name('api.nominations.index');
+        Route::get('nominations/types', [RecognitionController::class, 'nominationTypes'])->name('api.nominations.types');
+        Route::post('nominations', [RecognitionController::class, 'nominate'])->middleware('throttle:20,1')->name('api.nominations.store');
+        Route::delete('nominations/{nomination}', [RecognitionController::class, 'withdraw'])->whereNumber('nomination')->name('api.nominations.withdraw');
+        Route::get('points', [RecognitionController::class, 'points'])->name('api.points');
+        Route::get('rewards', [RecognitionController::class, 'rewards'])->name('api.rewards.index');
+        Route::post('rewards/{reward}/redeem', [RecognitionController::class, 'redeem'])->middleware('throttle:20,1')->name('api.rewards.redeem');
+        Route::patch('redemptions/{redemption}/cancel', [RecognitionController::class, 'cancel'])->whereNumber('redemption')->name('api.redemptions.cancel');
+    });
 
     // Self-service Leave. Literal routes precede the {leaveRequest} wildcard.
     Route::get('leave/types', [LeaveController::class, 'types'])->name('api.leave.types');

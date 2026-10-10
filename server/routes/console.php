@@ -20,6 +20,10 @@ Schedule::command('attendance:close-day')->hourly()->withoutOverlapping();
 // Clock-in reminders (ADR 0041) for people whose shift has started.
 Schedule::command('attendance:remind')->everyFifteenMinutes()->withoutOverlapping();
 
+// Event reminders (ADR 0070): each event set to remind its invitees does so
+// once, its chosen time before the start.
+Schedule::command('events:remind')->everyFiveMinutes()->withoutOverlapping();
+
 // Data Export (ADR 0066): delete archives past their keep-until date, and close
 // exports whose build died before it finished.
 Schedule::command('data-export:prune')->hourly()->withoutOverlapping();

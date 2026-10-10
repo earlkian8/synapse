@@ -33,12 +33,30 @@ export type QueuedPunch = {
 /** A queued punch the server refused, and why — HR has to enter it instead. */
 export type RefusedPunch = { punch: QueuedPunch; message: string };
 
+/** What one attempt to send the queue came to. */
+export type FlushResult = {
+  /** Punches the server took (or already had). */
+  sent: number;
+  /** Punches it refused — dropped, and announced to {@link punchQueue.onRefused} listeners. */
+  refused: RefusedPunch[];
+  /** Punches still on the phone afterwards. */
+  waiting: number;
+  /** Whether it stopped because the server could not be reached. */
+  offline: boolean;
+};
+
 type Owner = { userId: number; organizationId: number };
 
 let owner: Owner | null = null;
 let queue: QueuedPunch[] = [];
-let sending = false;
+/**
+ * The attempt under way, shared by everyone who asks to send meanwhile — the Send
+ * button pressed during a background retry waits for that retry and hears how it
+ * went, instead of returning at once with nothing done.
+ */
+let inFlight: Promise<FlushResult> | null = null;
 const listeners = new Set<() => void>();
+const refusalListeners = new Set<(refused: RefusedPunch[]) => void>();
 
 const storageKey = ({ userId, organizationId }: Owner) => `synapse.punch-queue.${userId}.${organizationId}`;
 
@@ -100,47 +118,30 @@ export const punchQueue = {
   /**
    * Send what is queued, oldest first. Stops at the first punch that still
    * cannot reach the server; drops one the server has taken (or already had);
-   * drops and reports one it refused. Returns the refused ones.
+   * drops and reports one it refused. A call made while an attempt is under way
+   * joins that attempt.
    */
-  async flush(): Promise<RefusedPunch[]> {
-    if (sending || queue.length === 0) {
-      return [];
+  flush(): Promise<FlushResult> {
+    if (inFlight) {
+      return inFlight;
     }
 
-    sending = true;
-    const refused: RefusedPunch[] = [];
-
-    try {
-      while (queue.length > 0) {
-        const [punch] = queue;
-
-        try {
-          await attendanceApi.punch({
-            type: punch.type,
-            latitude: punch.latitude,
-            longitude: punch.longitude,
-            accuracy: punch.accuracy,
-            photoUri: punch.photoUri,
-            clientId: punch.client_id,
-            punchedAt: punch.punched_at,
-          });
-        } catch (error) {
-          if (isOffline(error)) {
-            break;
-          }
-
-          refused.push({ punch, message: error instanceof ApiError ? error.message : 'It was refused.' });
-        }
-
-        queue = queue.slice(1);
-        emit();
-        await persist();
-      }
-    } finally {
-      sending = false;
+    if (queue.length === 0) {
+      return Promise.resolve({ sent: 0, refused: [], waiting: 0, offline: false });
     }
 
-    return refused;
+    inFlight = send().finally(() => {
+      inFlight = null;
+    });
+
+    return inFlight;
+  },
+
+  /** Hear about punches the server refused, whoever asked to send them. */
+  onRefused(listener: (refused: RefusedPunch[]) => void): () => void {
+    refusalListeners.add(listener);
+
+    return () => refusalListeners.delete(listener);
   },
 
   subscribe(listener: () => void): () => void {
@@ -149,6 +150,53 @@ export const punchQueue = {
     return () => listeners.delete(listener);
   },
 };
+
+async function send(): Promise<FlushResult> {
+  const refused: RefusedPunch[] = [];
+  const sendingFor = owner;
+  let sent = 0;
+  let offline = false;
+
+  while (queue.length > 0) {
+    const [punch] = queue;
+
+    try {
+      await attendanceApi.punch({
+        type: punch.type,
+        latitude: punch.latitude,
+        longitude: punch.longitude,
+        accuracy: punch.accuracy,
+        photoUri: punch.photoUri,
+        clientId: punch.client_id,
+        punchedAt: punch.punched_at,
+      });
+      sent++;
+    } catch (error) {
+      if (isOffline(error)) {
+        offline = true;
+        break;
+      }
+
+      refused.push({ punch, message: error instanceof ApiError ? error.message : 'It was refused.' });
+    }
+
+    // Signed out, or into another company, while it was on its way: that queue is
+    // somebody else's now, and this one is safe where `bind` left it.
+    if (owner !== sendingFor) {
+      break;
+    }
+
+    queue = queue.slice(1);
+    emit();
+    await persist();
+  }
+
+  if (refused.length > 0) {
+    refusalListeners.forEach((listener) => listener(refused));
+  }
+
+  return { sent, refused, waiting: queue.length, offline };
+}
 
 /** The punches waiting to be sent, kept current. */
 export function useQueuedPunches(): QueuedPunch[] {

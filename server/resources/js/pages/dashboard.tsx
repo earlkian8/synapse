@@ -1,5 +1,12 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowUpRight, CalendarPlus, Clock3, UserRound } from 'lucide-react';
+import {
+    ArrowUpRight,
+    CalendarCheck2,
+    CalendarPlus,
+    Clock3,
+    HandHeart,
+    UserRound,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { DashboardHero } from '@/features/dashboard/components/dashboard-hero';
 import {
@@ -122,6 +129,18 @@ function PersonalStart() {
             icon: <Clock3 className="size-5" />,
             title: 'Attendance',
             desc: 'Review your daily time record.',
+        },
+        can('events.respond') && {
+            href: '/events/me',
+            icon: <CalendarCheck2 className="size-5" />,
+            title: 'My invitations',
+            desc: 'Answer your invitations and subscribe to them.',
+        },
+        can('awards.participate') && {
+            href: '/awards/wall',
+            icon: <HandHeart className="size-5" />,
+            title: 'Recognition wall',
+            desc: 'Thank a colleague, nominate them, spend your points.',
         },
         {
             href: '/settings/profile',

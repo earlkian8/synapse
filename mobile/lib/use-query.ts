@@ -9,6 +9,8 @@ type QueryState<T> = {
   error: string | null;
   refresh: () => Promise<void>;
   reload: () => Promise<void>;
+  /** Replace the data with what a write answered, without fetching again. */
+  setData: (data: T) => void;
 };
 
 /**
@@ -53,12 +55,17 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = []): Qu
     void run('initial');
   }, [run, activeWorkspace]);
 
+  // Stable, so a screen can reload from a focus effect without re-running it.
+  const refresh = useCallback(() => run('refresh'), [run]);
+  const reload = useCallback(() => run('initial'), [run]);
+
   return {
     data,
     loading,
     refreshing,
     error,
-    refresh: () => run('refresh'),
-    reload: () => run('initial'),
+    refresh,
+    reload,
+    setData,
   };
 }

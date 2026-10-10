@@ -7,9 +7,13 @@ use App\Models\Employee;
 use App\Models\EmployeeAward;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Notifier;
 use App\Support\OrganizationClock;
+use App\Support\Recognition\PointsLedger;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Everything that changes a recognition, in one place: give one, revise it, or
@@ -24,11 +28,16 @@ use Carbon\CarbonInterface;
  *   fine; giving it anew, or switching an award to it, is not.
  * - **An award is not dated in the future**, by the organisation's calendar.
  *
- * The granting user is recorded on every award. `$channel` is appended to the
- * audit description (" via assistant").
+ * The granting user is recorded on every award. Its type's points go to the
+ * recipient's balance (ADR 0071): credited when it is given, the difference
+ * posted when its type changes, reversed when it is taken back. The recipient
+ * is told when it is given. `$channel` is appended to the audit description
+ * (" via assistant").
  */
 class AwardWorkflow
 {
+    public function __construct(private readonly PointsLedger $ledger) {}
+
     /**
      * @throws AwardException
      */
@@ -37,13 +46,21 @@ class AwardWorkflow
         $this->assertGivable($type);
         $date = $this->assertDate($awardedOn);
 
-        $award = EmployeeAward::create([
-            'employee_id' => $employee->id,
-            'award_type_id' => $type->id,
-            'awarded_on' => $date,
-            'reason' => $reason,
-            'awarded_by' => $by?->id,
-        ]);
+        $award = DB::transaction(function () use ($employee, $type, $date, $reason, $by): EmployeeAward {
+            $award = EmployeeAward::create([
+                'employee_id' => $employee->id,
+                'award_type_id' => $type->id,
+                'awarded_on' => $date,
+                'reason' => $reason,
+                'awarded_by' => $by?->id,
+            ]);
+
+            $this->ledger->post($employee, (int) $type->points, 'award', $award, $type->name, $by);
+
+            return $award;
+        });
+
+        $this->tell($employee, $type, $reason, $by);
 
         ActivityLogger::log(
             event: 'created',
@@ -76,7 +93,15 @@ class AwardWorkflow
             $changes['awarded_on'] = $this->assertDate($changes['awarded_on']);
         }
 
-        $award->update($changes);
+        DB::transaction(function () use ($award, $changes): void {
+            $award->update($changes);
+
+            // A new type carries its own points: post the difference.
+            if ($award->wasChanged('award_type_id') && $award->employee) {
+                $type = AwardType::withTrashed()->find($award->award_type_id);
+                $this->ledger->settle($award->employee, $award, (int) ($type?->points ?? 0), 'award', 'Award changed to '.($type?->name ?? 'another type'), null);
+            }
+        });
 
         ActivityLogger::log(
             event: 'updated',
@@ -95,13 +120,42 @@ class AwardWorkflow
     public function remove(EmployeeAward $award, string $channel = ''): void
     {
         $name = $award->employee?->full_name;
-        $award->delete();
+
+        DB::transaction(function () use ($award): void {
+            if ($award->employee) {
+                $this->ledger->settle($award->employee, $award, 0, 'award', 'Award taken back', null);
+            }
+
+            $award->delete();
+        });
 
         ActivityLogger::log(
             event: 'deleted',
             description: 'Removed a recognition'.$channel,
             logName: 'awards',
             subjectLabel: $name,
+        );
+    }
+
+    /**
+     * Tell the recipient, if they can sign in. Best-effort.
+     */
+    private function tell(Employee $employee, AwardType $type, ?string $reason, ?User $by): void
+    {
+        $user = $employee->user;
+
+        if (! $user || ! $user->is_active) {
+            return;
+        }
+
+        Notifier::toUser(
+            user: $user,
+            title: "You've been recognised: {$type->name}".($type->points > 0 ? " (+{$type->points} points)" : ''),
+            body: $reason ? Str::limit($reason, 160) : 'Congratulations!',
+            url: '/awards/wall',
+            level: 'success',
+            category: 'awards',
+            actor: $by,
         );
     }
 

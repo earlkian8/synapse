@@ -19,6 +19,7 @@ class EventAttendeeResource extends JsonResource
         return [
             'id' => $this->id,
             'response' => $this->response,
+            'responded_at' => $this->responded_at?->toIso8601String(),
             'notified_at' => $this->notified_at?->toIso8601String(),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [

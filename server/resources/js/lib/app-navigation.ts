@@ -144,18 +144,22 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 summary: 'Programs and who is enrolled',
             },
             {
+                // One entry for everybody (ADR 0071): HR lands on the awards
+                // register, someone who only takes part on the wall.
                 title: 'Awards & Recognition',
                 href: '/awards',
                 icon: Award,
-                permission: 'awards.view',
-                summary: 'Awards, nominees and citations',
+                permissionAny: ['awards.view', 'awards.participate'],
+                summary: 'Kudos, awards, nominations and points',
             },
             {
+                // One entry for everybody (ADR 0070): HR lands on every event,
+                // someone who only answers invitations on their own.
                 title: 'Events & Meetings',
                 href: '/events',
                 icon: CalendarClock,
-                permission: 'events.view',
-                summary: 'Invitations, RSVPs and reminders',
+                permissionAny: ['events.view', 'events.respond'],
+                summary: 'Events, rooms and your invitations',
             },
         ],
     },

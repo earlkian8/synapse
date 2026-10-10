@@ -3,8 +3,10 @@
 namespace App\Services\Assistant\Modules;
 
 use App\Http\Requests\Awards\EmployeeAwardRequest;
+use App\Models\AwardNomination;
 use App\Models\AwardType;
 use App\Models\EmployeeAward;
+use App\Models\RewardRedemption;
 use App\Models\User;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
@@ -15,6 +17,11 @@ use App\Support\Awards\AwardException;
 use App\Support\Awards\AwardNominator;
 use App\Support\Awards\AwardWorkflow;
 use App\Support\OrganizationClock;
+use App\Support\Recognition\KudosWorkflow;
+use App\Support\Recognition\NominationWorkflow;
+use App\Support\Recognition\PointsLedger;
+use App\Support\Recognition\RecognitionException;
+use App\Support\Recognition\RewardWorkflow;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
@@ -38,6 +45,13 @@ use Illuminate\Support\Str;
  * does every change. A person's own recognitions are theirs to ask about (the
  * mobile app shows them). Taking a recognition back waits for the user's Confirm
  * (ADR 0049).
+ *
+ * **Recognition self-service** (ADR 0071) — kudos, nominations and one's own
+ * points — needs `awards.participate`; the review queues for nominations and
+ * reward requests need `awards.manage`. Everything goes through the screens'
+ * workflows ({@see KudosWorkflow}, {@see NominationWorkflow},
+ * {@see RewardWorkflow}, {@see PointsLedger}), so a refusal reads the same. A
+ * tool that tells another person something waits for Confirm (ADR 0050).
  */
 class AwardsModule extends Module implements ContributesContext, ContributesTopicContext
 {
@@ -53,6 +67,10 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
     public function __construct(
         private readonly AwardWorkflow $workflow,
         private readonly AwardNominator $nominator,
+        private readonly KudosWorkflow $kudos,
+        private readonly NominationWorkflow $nominations,
+        private readonly RewardWorkflow $rewards,
+        private readonly PointsLedger $ledger,
     ) {}
 
     public function key(): string
@@ -62,7 +80,7 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
 
     public function isAvailable(User $user): bool
     {
-        return $user->can('awards.view');
+        return $user->can('awards.view') || $user->can('awards.participate');
     }
 
     protected function toolMap(): array
@@ -75,6 +93,13 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             'give_award' => 'give',
             'update_award' => 'revise',
             'remove_award' => 'remove',
+            'give_kudos' => 'giveKudos',
+            'nominate_colleague' => 'nominate',
+            'get_my_points' => 'points',
+            'find_nominations' => 'findNominations',
+            'review_nomination' => 'reviewNomination',
+            'find_redemptions' => 'findRedemptions',
+            'handle_redemption' => 'handleRedemption',
         ];
     }
 
@@ -90,12 +115,21 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             'give_award' => 'awards.manage',
             'update_award' => 'awards.manage',
             'remove_award' => 'awards.manage',
+            'give_kudos' => 'awards.participate',
+            'nominate_colleague' => 'awards.participate',
+            'get_my_points' => 'awards.participate',
+            'find_nominations' => 'awards.manage',
+            'review_nomination' => 'awards.manage',
+            'find_redemptions' => 'awards.manage',
+            'handle_redemption' => 'awards.manage',
         ];
     }
 
     protected function confirmTools(): array
     {
-        return ['remove_award'];
+        // Each of these tells someone else: the colleague thanked, HR's queue,
+        // the nominee and nominator, the person who asked for a reward.
+        return ['remove_award', 'give_kudos', 'nominate_colleague', 'review_nomination', 'handle_redemption'];
     }
 
     public function run(User $user, string $tool, array $args): ToolResult
@@ -107,9 +141,14 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
         $permission = $this->permissionMap()[$tool] ?? 'awards.view';
 
         if ($user->cannot($permission)) {
-            return $this->denied($permission === 'awards.manage'
-                ? ($tool === 'get_award_nominees' ? 'see the nomination board' : 'give or change recognitions')
-                : 'view recognitions');
+            return $this->denied(match (true) {
+                $tool === 'get_award_nominees' => 'see the nomination board',
+                in_array($tool, ['find_nominations', 'review_nomination'], true) => 'review nominations',
+                in_array($tool, ['find_redemptions', 'handle_redemption'], true) => 'handle reward requests',
+                $permission === 'awards.manage' => 'give or change recognitions',
+                $permission === 'awards.participate' => 'give kudos, nominate or redeem rewards',
+                default => 'view recognitions',
+            });
         }
 
         return $this->{$this->toolMap()[$tool]}($user, $args);
@@ -128,10 +167,21 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             TXT
             : '';
 
+        $view = $this->allows($user, 'awards.view')
+            ? "\n- find_awards lists recognitions (by person, award type, since a date); list_award_types lists the catalogue; awards_summary reads the recognition picture."
+            : '';
+
+        $participate = $this->allows($user, 'awards.participate')
+            ? "\n- give_kudos thanks a colleague publicly on the recognition wall (it earns them points while the sender has kudos left this month); nominate_colleague puts a colleague forward for an award type that takes nominations — the reason (20+ characters) becomes the citation, and HR approves or rejects it. Both tell other people, so they wait for the user's Confirm. get_my_points reads the user's own points, kudos left and recent point history. Never kudos or nominate the user themself."
+            : '';
+
+        $review = $this->allows($user, 'awards.manage')
+            ? "\n- find_nominations lists colleagues' nominations (pending by default); review_nomination approves one (giving the award and its points, citation defaulting to the reason) or rejects it with a note. find_redemptions lists reward requests (pending by default); handle_redemption fulfils or declines one — declining refunds the points. Nobody reviews their own. get_my_points with an employee reads that person's balance."
+            : '';
+
         return <<<TXT
-        AWARDS — recognitions given to employees, each of a configured award type.
-        - find_awards lists recognitions (by person, award type, since a date); list_award_types lists the catalogue; awards_summary reads the recognition picture.
-        - Pass people by name or employee number, award types by name, and dates as YYYY-MM-DD.{$manage}
+        AWARDS — recognitions given to employees, each of a configured award type; colleagues also send kudos, nominate each other and spend points on rewards.{$view}
+        - Pass people by name or employee number, award types by name, and dates as YYYY-MM-DD.{$manage}{$participate}{$review}
           Award types given out: {$types}
         TXT;
     }
@@ -212,6 +262,93 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
                     'required' => ['employee'],
                 ],
             ],
+            [
+                'name' => 'give_kudos',
+                'description' => 'Send a colleague kudos: a public thank-you on the recognition wall, worth points while the user has kudos left this month.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'The colleague to thank, by name or employee number.'],
+                        'message' => ['type' => 'STRING', 'description' => 'What they did, in a line or two (500 characters at most).'],
+                    ],
+                    'required' => ['employee', 'message'],
+                ],
+            ],
+            [
+                'name' => 'nominate_colleague',
+                'description' => 'Nominate a colleague for an award type that takes nominations; HR reviews it.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'The colleague to nominate, by name or employee number.'],
+                        'award_type' => $type,
+                        'reason' => ['type' => 'STRING', 'description' => 'Why, in 20 to 1,000 characters — it becomes the citation if approved.'],
+                    ],
+                    'required' => ['employee', 'award_type', 'reason'],
+                ],
+            ],
+            [
+                'name' => 'get_my_points',
+                'description' => "The user's own recognition points: balance, kudos left this month and recent history. HR may name another employee.",
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'Only for HR: whose points to read. Leave out for the user\'s own.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'find_nominations',
+                'description' => 'Colleagues\' nominations for awards, oldest pending first, optionally by nominee, award type or status.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'The nominee, by name or employee number.'],
+                        'award_type' => $type,
+                        'status' => ['type' => 'STRING', 'description' => 'pending (default), approved, rejected or withdrawn.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'review_nomination',
+                'description' => 'Approve a pending nomination — giving the award and its points — or reject it. Identify it by the nominee and, when they have several, the award type.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => ['type' => 'STRING', 'description' => 'The nominee, by name or employee number.'],
+                        'award_type' => $type,
+                        'decision' => ['type' => 'STRING', 'description' => 'approve or reject.'],
+                        'citation' => ['type' => 'STRING', 'description' => 'On approval: the citation; defaults to the nomination\'s reason.'],
+                        'note' => ['type' => 'STRING', 'description' => 'On rejection: a note for the nominator.'],
+                    ],
+                    'required' => ['employee', 'decision'],
+                ],
+            ],
+            [
+                'name' => 'find_redemptions',
+                'description' => 'Requests to redeem points for rewards, oldest pending first, optionally by employee or status.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => $employee,
+                        'status' => ['type' => 'STRING', 'description' => 'pending (default), fulfilled, declined or cancelled.'],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'handle_redemption',
+                'description' => 'Fulfil a pending reward request (it has been handed over) or decline it (the points go back). Identify it by the employee and, when they have several, the reward.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'employee' => $employee,
+                        'reward' => ['type' => 'STRING', 'description' => 'The reward\'s name.'],
+                        'decision' => ['type' => 'STRING', 'description' => 'fulfil or decline.'],
+                        'note' => ['type' => 'STRING', 'description' => 'A note for the employee.'],
+                    ],
+                    'required' => ['employee', 'decision'],
+                ],
+            ],
         ]);
     }
 
@@ -264,11 +401,17 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
      */
     public function topicContext(User $user): ?ContextSection
     {
+        $own = $this->ownPointsLine($user);
+
         if ($user->cannot('awards.view')) {
-            return null;
+            return $own === null ? null : ContextSection::of('Awards & recognition', [$own]);
         }
 
         $lines = $this->pictureLines();
+
+        if ($own !== null) {
+            $lines[] = $own;
+        }
 
         if ($user->can('awards.manage')) {
             $leaders = collect($this->nominator->board())
@@ -279,6 +422,13 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
 
             if ($leaders->isNotEmpty()) {
                 $lines[] = 'Front-runners on the nomination board: '.$leaders->implode('; ').'.';
+            }
+
+            $pending = AwardNomination::query()->pending()->count();
+            $requests = RewardRedemption::query()->pending()->count();
+
+            if ($pending + $requests > 0) {
+                $lines[] = "Waiting for review: {$pending} ".Str::plural('nomination', $pending).", {$requests} reward ".Str::plural('request', $requests).'.';
             }
         }
 
@@ -566,6 +716,330 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
         return ToolResult::ok("Removed {$name}'s {$award->awardType?->name}", null, $card);
     }
 
+    // ── Recognition self-service and review (ADR 0071) ───────────────────────
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function giveKudos(User $user, array $args): ToolResult
+    {
+        if (($me = $user->employee()->first()) === null) {
+            return ToolResult::error('Sent kudos', 'Your account isn’t linked to an employee record, so you can’t send kudos.');
+        }
+
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say who to thank.');
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up the colleague', $error);
+        }
+
+        try {
+            $kudos = $this->kudos->send($me, $employee, trim((string) ($args['message'] ?? '')), ' via assistant');
+        } catch (RecognitionException $e) {
+            return ToolResult::error('Sent kudos', $e->getMessage());
+        }
+
+        return ToolResult::ok(
+            "Sent {$employee->full_name} kudos",
+            $kudos->points > 0 ? "+{$kudos->points} points for them" : 'No points — you’ve used this month’s kudos with points',
+            $this->card(
+                kind: 'award',
+                tone: 'positive',
+                badge: 'Kudos',
+                title: $employee->full_name,
+                subtitle: Str::limit($kudos->message, 160),
+                meta: [$kudos->points > 0 ? "+{$kudos->points} points" : null],
+                avatar: ['name' => $employee->full_name, 'initials' => $employee->initials(), 'photo' => $employee->photo_url],
+                id: $kudos->id,
+            ),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function nominate(User $user, array $args): ToolResult
+    {
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say who to nominate.');
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up the colleague', $error);
+        }
+
+        [$type, $error] = $this->locateType((string) ($args['award_type'] ?? ''));
+
+        if ($type === null) {
+            return ToolResult::error('Looked up the award type', $error);
+        }
+
+        try {
+            $nomination = $this->nominations->nominate($employee, $type, trim((string) ($args['reason'] ?? '')), $user, ' via assistant');
+        } catch (RecognitionException $e) {
+            return ToolResult::error('Nominated a colleague', $e->getMessage());
+        }
+
+        return ToolResult::ok(
+            "Nominated {$employee->full_name} for {$type->name}",
+            'HR will review it.',
+            $this->nominationCard($nomination->load(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name']), 'Nominated'),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function points(User $user, array $args): ToolResult
+    {
+        $own = ! filled($args['employee'] ?? null);
+
+        if ($own) {
+            $employee = $user->employee()->first();
+
+            if ($employee === null) {
+                return ToolResult::error('Read your points', 'Your account isn’t linked to an employee record, so you have no points.');
+            }
+        } else {
+            if ($user->cannot('awards.manage')) {
+                return ToolResult::error('Read points', 'You can read only your own points.');
+            }
+
+            [$employee, $error] = $this->resolveEmployee((string) $args['employee']);
+
+            if ($employee === null) {
+                return ToolResult::error('Looked up the employee', $error);
+            }
+        }
+
+        $balance = $this->ledger->balance($employee);
+        $history = $this->ledger->history($employee, 8);
+
+        return ToolResult::found(
+            ($own ? 'Your points: ' : "{$employee->full_name}'s points: ").number_format($balance).' '.Str::plural('point', $balance),
+            null,
+            [$this->card(
+                kind: 'insight',
+                tone: 'info',
+                badge: 'Points',
+                title: number_format($balance).' '.Str::plural('point', $balance),
+                subtitle: $own ? $this->ledger->kudosLeftThisMonth($employee).' kudos with points left this month' : $employee->full_name,
+                meta: $history->map(fn ($line): string => sprintf(
+                    '%s%d — %s%s (%s)',
+                    $line->amount > 0 ? '+' : '',
+                    $line->amount,
+                    $line->kind,
+                    filled($line->note) ? ': '.Str::limit((string) $line->note, 80) : '',
+                    $line->created_at?->format('M j') ?? '',
+                ))->all(),
+            )],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function findNominations(User $user, array $args): ToolResult
+    {
+        $status = Str::lower(trim((string) ($args['status'] ?? 'pending'))) ?: 'pending';
+
+        if (! in_array($status, AwardNomination::STATUSES, true)) {
+            return ToolResult::error('Searched nominations', 'Status is pending, approved, rejected or withdrawn.');
+        }
+
+        $employee = null;
+        $type = null;
+
+        if (filled($args['employee'] ?? null)) {
+            [$employee, $error] = $this->resolveEmployee((string) $args['employee']);
+
+            if ($employee === null) {
+                return ToolResult::error('Looked up the employee', $error);
+            }
+        }
+
+        if (filled($args['award_type'] ?? null)) {
+            [$type, $error] = $this->locateType((string) $args['award_type']);
+
+            if ($type === null) {
+                return ToolResult::error('Looked up the award type', $error);
+            }
+        }
+
+        $cards = AwardNomination::query()
+            ->with(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name'])
+            ->where('status', $status)
+            ->when($employee !== null, fn (Builder $q) => $q->where('employee_id', $employee->id))
+            ->when($type !== null, fn (Builder $q) => $q->where('award_type_id', $type->id))
+            ->when($status === 'pending', fn (Builder $q) => $q->oldest('id'), fn (Builder $q) => $q->latest('id'))
+            ->limit(self::MAX_RESULTS)
+            ->get()
+            ->map(fn (AwardNomination $n): array => $this->nominationCard($n, Str::ucfirst($n->status)))
+            ->all();
+
+        return ToolResult::found('Searched nominations', count($cards)." {$status}", $cards);
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function reviewNomination(User $user, array $args): ToolResult
+    {
+        $decision = Str::lower(trim((string) ($args['decision'] ?? '')));
+
+        if (! in_array($decision, ['approve', 'reject'], true)) {
+            return ToolResult::error('Reviewed the nomination', 'Decide approve or reject.');
+        }
+
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say whose nomination.');
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up the nominee', $error);
+        }
+
+        $type = null;
+
+        if (filled($args['award_type'] ?? null)) {
+            [$type, $error] = $this->locateType((string) $args['award_type']);
+
+            if ($type === null) {
+                return ToolResult::error('Looked up the award type', $error);
+            }
+        }
+
+        $pending = AwardNomination::query()
+            ->pending()
+            ->with(['employee', 'awardType', 'nominator:id,first_name,last_name'])
+            ->where('employee_id', $employee->id)
+            ->when($type !== null, fn (Builder $q) => $q->where('award_type_id', $type->id))
+            ->oldest('id')
+            ->limit(6)
+            ->get();
+
+        if ($pending->isEmpty()) {
+            return ToolResult::error('Looked up the nomination', "No pending nomination of {$employee->full_name}".($type ? " for {$type->name}" : '').'.');
+        }
+
+        if ($pending->count() > 1 && $pending->pluck('award_type_id')->unique()->count() > 1) {
+            return ToolResult::error('Looked up the nomination', "{$employee->full_name} has nominations for ".$pending->map(fn (AwardNomination $n): string => $n->awardType?->name ?? 'an award')->unique()->implode(', ').'. Say which award.');
+        }
+
+        // Several colleagues may nominate the same person for the same award;
+        // the oldest is reviewed first, as on the queue.
+        $nomination = $pending->first();
+
+        try {
+            if ($decision === 'approve') {
+                $citation = filled($args['citation'] ?? null) ? trim((string) $args['citation']) : null;
+                $this->nominations->approve($nomination, $user, $citation, null, ' via assistant');
+            } else {
+                $note = filled($args['note'] ?? null) ? trim((string) $args['note']) : null;
+                $this->nominations->reject($nomination, $user, $note, ' via assistant');
+            }
+        } catch (RecognitionException $e) {
+            return ToolResult::error('Reviewed the nomination', $e->getMessage());
+        }
+
+        $nomination->refresh()->load(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name']);
+        $verb = $decision === 'approve' ? 'Approved' : 'Rejected';
+
+        return ToolResult::ok(
+            "{$verb} {$employee->full_name}'s nomination",
+            $decision === 'approve' && ($nomination->awardType?->points ?? 0) > 0
+                ? "{$nomination->awardType->name} given, +{$nomination->awardType->points} points"
+                : $nomination->awardType?->name,
+            $this->nominationCard($nomination, $verb),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function findRedemptions(User $user, array $args): ToolResult
+    {
+        $status = Str::lower(trim((string) ($args['status'] ?? 'pending'))) ?: 'pending';
+
+        if (! in_array($status, RewardRedemption::STATUSES, true)) {
+            return ToolResult::error('Searched reward requests', 'Status is pending, fulfilled, declined or cancelled.');
+        }
+
+        $employee = null;
+
+        if (filled($args['employee'] ?? null)) {
+            [$employee, $error] = $this->resolveEmployee((string) $args['employee']);
+
+            if ($employee === null) {
+                return ToolResult::error('Looked up the employee', $error);
+            }
+        }
+
+        $cards = RewardRedemption::query()
+            ->with(['employee', 'reward' => fn ($q) => $q->withTrashed()])
+            ->where('status', $status)
+            ->when($employee !== null, fn (Builder $q) => $q->where('employee_id', $employee->id))
+            ->when($status === 'pending', fn (Builder $q) => $q->oldest('id'), fn (Builder $q) => $q->latest('id'))
+            ->limit(self::MAX_RESULTS)
+            ->get()
+            ->map(fn (RewardRedemption $r): array => $this->redemptionCard($r, Str::ucfirst($r->status)))
+            ->all();
+
+        return ToolResult::found('Searched reward requests', count($cards)." {$status}", $cards);
+    }
+
+    /**
+     * @param  array<string, mixed>  $args
+     */
+    private function handleRedemption(User $user, array $args): ToolResult
+    {
+        $decision = Str::lower(trim((string) ($args['decision'] ?? '')));
+        $decision = $decision === 'fulfill' ? 'fulfil' : $decision;
+
+        if (! in_array($decision, ['fulfil', 'decline'], true)) {
+            return ToolResult::error('Handled the reward request', 'Decide fulfil or decline.');
+        }
+
+        [$employee, $error] = $this->resolveEmployee((string) ($args['employee'] ?? ''), 'Say whose request.');
+
+        if ($employee === null) {
+            return ToolResult::error('Looked up the employee', $error);
+        }
+
+        $reward = trim((string) ($args['reward'] ?? ''));
+        $pending = RewardRedemption::query()
+            ->pending()
+            ->with(['employee', 'reward' => fn ($q) => $q->withTrashed()])
+            ->where('employee_id', $employee->id)
+            ->oldest('id')
+            ->get()
+            ->when($reward !== '', fn ($rows) => $rows->filter(fn (RewardRedemption $r): bool => Str::contains(Str::lower($r->reward?->name ?? ''), Str::lower($reward))))
+            ->values();
+
+        if ($pending->isEmpty()) {
+            return ToolResult::error('Looked up the request', "No pending reward request from {$employee->full_name}".($reward !== '' ? ' for “'.Str::limit($reward, 60).'”' : '').'.');
+        }
+
+        if ($pending->pluck('reward_id')->unique()->count() > 1) {
+            return ToolResult::error('Looked up the request', "{$employee->full_name} has asked for ".$pending->map(fn (RewardRedemption $r): string => $r->reward?->name ?? 'a reward')->unique()->implode(', ').'. Say which reward.');
+        }
+
+        $redemption = $pending->first();
+        $note = filled($args['note'] ?? null) ? trim((string) $args['note']) : null;
+
+        try {
+            $decision === 'fulfil'
+                ? $this->rewards->fulfil($redemption, $user, $note, ' via assistant')
+                : $this->rewards->decline($redemption, $user, $note, ' via assistant');
+        } catch (RecognitionException $e) {
+            return ToolResult::error('Handled the reward request', $e->getMessage());
+        }
+
+        $redemption->refresh()->load(['employee', 'reward' => fn ($q) => $q->withTrashed()]);
+
+        return ToolResult::ok(
+            ($decision === 'fulfil' ? 'Fulfilled ' : 'Declined ')."{$employee->full_name}'s {$redemption->reward?->name}",
+            $decision === 'decline' ? "{$redemption->cost} points refunded" : null,
+            $this->redemptionCard($redemption, $decision === 'fulfil' ? 'Fulfilled' : 'Declined'),
+        );
+    }
+
     // ── Resolution ───────────────────────────────────────────────────────────
 
     /**
@@ -740,6 +1214,80 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             $a->awarded_on?->format('M j, Y') ?? 'an unknown date',
             filled($a->reason) ? ' — '.Str::limit((string) $a->reason, 160) : '',
             $by ? " (given by {$by})" : '',
+        );
+    }
+
+    /**
+     * The user's own points line for their topic brief, when they take part.
+     */
+    private function ownPointsLine(User $user): ?string
+    {
+        if ($user->cannot('awards.participate') || ($employee = $user->employee()->first()) === null) {
+            return null;
+        }
+
+        $balance = $this->ledger->balance($employee);
+        $left = $this->ledger->kudosLeftThisMonth($employee);
+
+        return "The user has {$balance} ".Str::plural('point', $balance)." and {$left} kudos with points left this month.";
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function nominationCard(AwardNomination $n, string $badge): array
+    {
+        $employee = $n->employee;
+        $by = $n->nominator ? trim($n->nominator->first_name.' '.$n->nominator->last_name) : null;
+
+        return $this->card(
+            kind: 'award',
+            tone: match ($n->status) {
+                'approved' => 'positive',
+                'rejected', 'withdrawn' => 'neutral',
+                default => 'info',
+            },
+            badge: $badge,
+            title: ($employee?->full_name ?? 'Employee').' — '.($n->awardType?->name ?? 'Award'),
+            subtitle: Str::limit((string) $n->reason, 160),
+            meta: [
+                $by ? "Nominated by {$by}" : null,
+                $n->created_at?->format('M j, Y'),
+                ($n->awardType?->points ?? 0) > 0 ? "{$n->awardType->points} points" : null,
+                filled($n->review_note) ? 'Note: '.Str::limit((string) $n->review_note, 120) : null,
+            ],
+            avatar: $employee
+                ? ['name' => $employee->full_name, 'initials' => $employee->initials(), 'photo' => $employee->photo_url]
+                : null,
+            id: $n->id,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function redemptionCard(RewardRedemption $r, string $badge): array
+    {
+        $employee = $r->employee;
+
+        return $this->card(
+            kind: 'award',
+            tone: match ($r->status) {
+                'fulfilled' => 'positive',
+                'declined', 'cancelled' => 'neutral',
+                default => 'info',
+            },
+            badge: $badge,
+            title: ($r->reward?->name ?? 'Reward').' — '.($employee?->full_name ?? 'Employee'),
+            subtitle: number_format($r->cost).' points · asked '.($r->created_at?->format('M j, Y') ?? ''),
+            meta: [
+                filled($r->note) ? 'Their note: '.Str::limit((string) $r->note, 120) : null,
+                filled($r->response_note) ? 'Reply: '.Str::limit((string) $r->response_note, 120) : null,
+            ],
+            avatar: $employee
+                ? ['name' => $employee->full_name, 'initials' => $employee->initials(), 'photo' => $employee->photo_url]
+                : null,
+            id: $r->id,
         );
     }
 

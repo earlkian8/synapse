@@ -18,27 +18,37 @@ import { Section } from '@/components/ui/section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
 import { ToneWell } from '@/components/ui/tone-well';
+import { useToast } from '@/components/ui/toast';
 import { Touchable } from '@/components/ui/touchable';
 import { attendanceApi } from '@/features/attendance/api';
 import { PUNCH_META } from '@/features/attendance/punch-meta';
 import { dayHeadline, shiftMinutes } from '@/features/attendance/shift';
 import { awardsApi } from '@/features/awards/api';
+import { AnswerButtons } from '@/features/events/answer-buttons';
+import { eventsApi } from '@/features/events/api';
+import { RESPONSE_COLOR, RESPONSE_LABEL } from '@/features/events/meta';
+import { recognitionApi } from '@/features/recognition/api';
 import { leaveApi } from '@/features/leave/api';
 import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
+import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatClock, formatDate, formatDayHeading, formatMinutes, formatShortDate, formatTime } from '@/lib/format';
+import { dayParts, formatClock, formatDate, formatDayHeading, formatMinutes, formatShortDate, formatTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
 import { palette, status as statusTones } from '@/theme/tokens';
-import type { Award, LeaveBalance, LeaveRequest, TodayResponse } from '@/types/api';
+import type { Award, EventAnswer, LeaveBalance, LeaveRequest, MyInvitation, TodayResponse } from '@/types/api';
 
 type HomeData = {
   today: TodayResponse;
   balances: LeaveBalance[];
   awards: Award[];
   pending: LeaveRequest[];
+  /** My events (ADR 0070), when this person answers invitations. */
+  events: { data: MyInvitation[]; pending: number } | null;
+  /** Points (ADR 0071), when this person takes part in recognition. */
+  points: number | null;
 };
 
 function greeting(): string {
@@ -56,15 +66,23 @@ export default function HomeScreen() {
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
-  const { data, loading, refreshing, refresh, error, reload } = useQuery<HomeData>(async () => {
-    const [today, balances, awards, pending] = await Promise.all([
+  const canEvents = !!user?.can_respond_events;
+  const canRecognize = !!user?.can_recognize;
+
+  const { data, loading, refreshing, refresh, error, reload, setData } = useQuery<HomeData>(async () => {
+    const [today, balances, awards, pending, events, points] = await Promise.all([
       attendanceApi.today(),
       leaveApi.balances(),
       awardsApi.list(),
       leaveApi.requests('pending'),
+      canEvents ? eventsApi.list() : Promise.resolve(null),
+      canRecognize ? recognitionApi.points().then((p) => p.balance) : Promise.resolve(null),
     ]);
-    return { today, balances: balances.data, awards: awards.data, pending: pending.data };
-  }, []);
+    return { today, balances: balances.data, awards: awards.data, pending: pending.data, events, points };
+  }, [canEvents, canRecognize]);
+
+  // The next thing on the calendar the person has not turned down.
+  const upNext = data?.events?.data.find((i) => i.event.status !== 'past' && i.response !== 'declined') ?? null;
 
   const firstName = user?.employee?.full_name?.split(' ')[0] ?? user?.name?.split(' ')[0] ?? 'there';
   const latestAward = data?.awards[0];
@@ -77,20 +95,36 @@ export default function HomeScreen() {
       color: palette.teal,
       onPress: () => router.push('/leave/new'),
     },
-    {
-      icon: 'calendar',
-      label: 'Records',
-      detail: 'Your time log',
-      color: statusTones.leave,
-      onPress: () => router.push('/(tabs)/attendance'),
-    },
-    {
-      icon: 'trophy',
-      label: 'Awards',
-      detail: data ? `${data.awards.length} received` : 'Recognition',
-      color: statusTones.late,
-      onPress: () => router.push('/awards'),
-    },
+    canEvents
+      ? {
+          icon: 'calendar',
+          label: 'Events',
+          detail: data?.events && data.events.pending > 0 ? `${data.events.pending} to answer` : 'Invitations',
+          color: statusTones.leave,
+          onPress: () => router.push('/events'),
+        }
+      : {
+          icon: 'calendar',
+          label: 'Records',
+          detail: 'Your time log',
+          color: statusTones.leave,
+          onPress: () => router.push('/(tabs)/attendance'),
+        },
+    canRecognize
+      ? {
+          icon: 'heart',
+          label: 'Recognition',
+          detail: data?.points != null ? `${data.points.toLocaleString()} points` : 'Kudos & rewards',
+          color: statusTones.late,
+          onPress: () => router.push('/recognition'),
+        }
+      : {
+          icon: 'trophy',
+          label: 'Awards',
+          detail: data ? `${data.awards.length} received` : 'Recognition',
+          color: statusTones.late,
+          onPress: () => router.push('/awards'),
+        },
   ];
 
   return (
@@ -152,6 +186,28 @@ export default function HomeScreen() {
               </Card>
             ))}
           </Animated.View>
+
+          {/* Up next: the next invitation, answered in one tap */}
+          {upNext && (
+            <Animated.View entering={enter(2)}>
+              <Section title="Up next" action={{ label: 'All Events', onPress: () => router.push('/events') }}>
+                <UpNextCard
+                  invitation={upNext}
+                  onOpen={() => router.push({ pathname: '/events/[id]', params: { id: upNext.event.hashid } })}
+                  onAnswered={(updated) =>
+                    data?.events &&
+                    setData({
+                      ...data,
+                      events: {
+                        pending: data.events.data.filter((i) => (i.id === updated.id ? updated : i).response === 'invited').length,
+                        data: data.events.data.map((i) => (i.id === updated.id ? updated : i)),
+                      },
+                    })
+                  }
+                />
+              </Section>
+            </Animated.View>
+          )}
 
           {/* Awaiting approval */}
           {data && data.pending.length > 0 && (
@@ -330,6 +386,71 @@ function TodayCard({ today, onOpen }: { today: TodayResponse; onOpen: () => void
   );
 }
 
+/**
+ * The next invitation: when, where, and — until answered — Going / Maybe / Not
+ * going right here. Answered, it shows the answer; the card opens the event.
+ */
+function UpNextCard({
+  invitation,
+  onOpen,
+  onAnswered,
+}: {
+  invitation: MyInvitation;
+  onOpen: () => void;
+  onAnswered: (updated: MyInvitation) => void;
+}) {
+  const { colors } = useTheme();
+  const { organization } = useAuth();
+  const toast = useToast();
+  const [sending, setSending] = useState<EventAnswer | null>(null);
+  const timeZone = organization?.timezone;
+  const { event } = invitation;
+  const day = dayParts(event.starts_at, timeZone);
+  const where = event.room?.name ?? event.location;
+
+  const answer = async (response: EventAnswer) => {
+    setSending(response);
+    try {
+      const result = await eventsApi.respond(event.hashid, response);
+      onAnswered(result.data);
+    } catch (e) {
+      toast.show(e instanceof ApiError ? e.message : 'Couldn’t send your answer. Try again.', 'error');
+    } finally {
+      setSending(null);
+    }
+  };
+
+  return (
+    <Card onPress={onOpen} accessibilityLabel={`Up next: ${event.title}`} style={styles.upNext}>
+      <View style={styles.upNextTop}>
+        <View style={[styles.dayBadge, { backgroundColor: colors.tintSoft }]}>
+          <AppText variant="caption2" weight="semibold" color={colors.tintText}>
+            {day.isToday ? 'Today' : day.weekday}
+          </AppText>
+          <AppText variant="title3" numeric>
+            {day.day}
+          </AppText>
+        </View>
+        <View style={styles.flex}>
+          <AppText variant="headline" numberOfLines={2}>
+            {event.title}
+          </AppText>
+          <AppText variant="subheadline" tone="secondary" numberOfLines={1} numeric>
+            {formatTime(event.starts_at, timeZone)}
+            {where ? ` · ${where}` : ''}
+          </AppText>
+        </View>
+        {invitation.response !== 'invited' && (
+          <Pill label={RESPONSE_LABEL[invitation.response]} color={RESPONSE_COLOR[invitation.response]} on={colors.card} dot />
+        )}
+      </View>
+      {invitation.response === 'invited' && (
+        <AnswerButtons value={invitation.response} onAnswer={(a) => void answer(a)} sending={sending} title={event.title} />
+      )}
+    </Card>
+  );
+}
+
 /** One leave type: what is left, against what was given, as a bar in the type's colour. */
 function BalanceCard({ balance }: { balance: LeaveBalance }) {
   const { colors, readable } = useTheme();
@@ -384,5 +505,8 @@ const styles = StyleSheet.create({
   balanceFigure: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   award: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  upNext: { gap: 14 },
+  upNextTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dayBadge: { width: 48, paddingVertical: 6, borderRadius: 12, alignItems: 'center' },
   typeBar: { width: 4, height: 34, borderRadius: 2 },
 });

@@ -16,49 +16,48 @@ const RETRY_MS = 30_000;
  * whenever the app comes back to the foreground — so a punch made in a dead spot
  * arrives without anybody having to remember it. A punch the server refuses (too
  * old, out of order) is dropped and the person told, since only HR entering the
- * time can put it right.
+ * time can put it right. The refusal is told here, whoever sent it — this runner,
+ * or the Clock screen's Send button.
  */
 export function PunchQueueRunner() {
   const { user, organization } = useAuth();
   const toast = useToast();
   const timeZone = organization?.timezone;
 
+  useEffect(
+    () =>
+      punchQueue.onRefused((refused) => {
+        for (const { punch, message } of refused) {
+          toast.show(
+            `${PUNCH_META[punch.type].label} at ${formatTime(punch.punched_at, timeZone)} couldn’t be recorded: ${message}`,
+            'error',
+          );
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timeZone],
+  );
+
   useEffect(() => {
-    let cancelled = false;
-
-    const send = async () => {
-      const refused = await punchQueue.flush();
-
-      if (cancelled) {
-        return;
-      }
-
-      for (const { punch, message } of refused) {
-        toast.show(
-          `${PUNCH_META[punch.type].label} at ${formatTime(punch.punched_at, timeZone)} couldn’t be recorded: ${message}`,
-          'error',
-        );
-      }
-    };
+    const send = () => void punchQueue.flush();
 
     void punchQueue
       .bind(user && organization ? { userId: user.id, organizationId: organization.id } : null)
       .then(send);
 
-    const interval = setInterval(() => void send(), RETRY_MS);
+    const interval = setInterval(send, RETRY_MS);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void send();
+        send();
       }
     });
 
     return () => {
-      cancelled = true;
       clearInterval(interval);
       subscription.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, organization?.id, timeZone]);
+  }, [user?.id, organization?.id]);
 
   return null;
 }

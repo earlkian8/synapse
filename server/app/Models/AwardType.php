@@ -24,13 +24,23 @@ class AwardType extends Model
         'name',
         'description',
         'color',
+        'points',
+        'accepts_nominations',
         'is_active',
+    ];
+
+    /** Mirrors the column defaults (ADR 0071). */
+    protected $attributes = [
+        'points' => 0,
+        'accepts_nominations' => true,
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'points' => 'integer',
+            'accepts_nominations' => 'boolean',
         ];
     }
 
@@ -42,6 +52,17 @@ class AwardType extends Model
     public function awards(): HasMany
     {
         return $this->hasMany(EmployeeAward::class);
+    }
+
+    /**
+     * Types colleagues can nominate for: still given out, and open to
+     * nominations (ADR 0071).
+     *
+     * @param  Builder<AwardType>  $query
+     */
+    public function scopeNominatable(Builder $query): void
+    {
+        $query->where('is_active', true)->where('accepts_nominations', true);
     }
 
     /**

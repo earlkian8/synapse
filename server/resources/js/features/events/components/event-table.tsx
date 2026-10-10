@@ -161,6 +161,9 @@ export function EventTable({
                                             )}
                                             <p className="max-w-64 truncate text-xs text-muted-foreground">
                                                 {TYPE_LABELS[event.type]}
+                                                {event.series
+                                                    ? ` · ${event.series.summary}`
+                                                    : ''}
                                                 {event.organizer
                                                     ? ` · ${event.organizer.name}`
                                                     : ''}
@@ -175,7 +178,7 @@ export function EventTable({
                                     )}
                                 </TableCell>
                                 <TableCell className="max-w-56 truncate text-sm text-muted-foreground">
-                                    {event.location ?? '—'}
+                                    {event.room?.name ?? event.location ?? '—'}
                                 </TableCell>
                                 <TableCell className="text-right text-sm tabular-nums">
                                     <span className="inline-flex items-center gap-1.5 text-muted-foreground">

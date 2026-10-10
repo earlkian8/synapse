@@ -86,7 +86,7 @@ function eventsModel(array $call): GeminiClient
 test('a viewer reads; a manager changes; the dashboard no longer lists events itself', function () {
     $viewer = actingAsUserWith(['events.view']);
 
-    expect(eventsAgentTools($viewer))->toEqualCanonicalizing(['find_events', 'get_event'])
+    expect(eventsAgentTools($viewer))->toEqualCanonicalizing(['find_events', 'get_event', 'find_rooms'])
         ->and(eventsAgent($viewer, 'schedule_event', ['title' => 'X', 'type' => 'meeting', 'starts_at' => '2030-01-01 10:00'])->detail)->toContain('permission');
 
     $manager = actingAsUserWith(['events.view', 'events.manage']);

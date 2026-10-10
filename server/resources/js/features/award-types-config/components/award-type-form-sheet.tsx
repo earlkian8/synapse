@@ -66,6 +66,8 @@ function FormBody({
         name: type?.name ?? '',
         description: type?.description ?? '',
         color: type?.color ?? AWARD_COLOR_PRESETS[0],
+        points: type?.points ? String(type.points) : '',
+        accepts_nominations: type?.accepts_nominations ?? true,
         is_active: type?.is_active ?? true,
     });
 
@@ -130,6 +132,44 @@ function FormBody({
                     <InputError
                         message={errors.description}
                         className="mt-1.5"
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="award-points" className="mb-1.5 block">
+                        Points
+                    </Label>
+                    <Input
+                        id="award-points"
+                        type="number"
+                        min={0}
+                        max={10000}
+                        value={data.points}
+                        onChange={(e) => setData('points', e.target.value)}
+                        placeholder="0"
+                        className="w-32"
+                    />
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                        Added to the recipient's balance when it is given, to
+                        spend on rewards. Leave empty for none.
+                    </p>
+                    <InputError message={errors.points} className="mt-1.5" />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-sidebar-border/70 px-3 py-2.5 dark:border-sidebar-border">
+                    <div className="pr-3">
+                        <Label className="text-sm">Open to nominations</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Colleagues can nominate each other for it. Turn off
+                            for awards the records decide, like perfect
+                            attendance.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={data.accepts_nominations}
+                        onCheckedChange={(v) =>
+                            setData('accepts_nominations', v)
+                        }
                     />
                 </div>
 

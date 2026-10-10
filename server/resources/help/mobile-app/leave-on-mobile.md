@@ -16,10 +16,18 @@ More about how leave works: [Filing your own leave](/help/workforce/filing-your-
 
 ## Home
 
-**Home** brings together your day: a greeting, whether you've clocked in, quick actions, your leave balances, your latest award, and how many of your requests are pending.
+**Home** brings together your day: a greeting, whether you've clocked in, quick actions, your next event, your leave balances, your latest award, and how many of your requests are pending.
 
 ## Your profile and awards
 
 **Profile** shows your employee record — your personal, contact and employment details. Government ID numbers are masked, and your salary isn't shown. To correct something, ask your HR team.
 
 Your **awards** — every recognition you've received, with its citation — are in the app too.
+
+## Events
+
+**My events** — from Home or **Profile** — lists your invitations by day. Open one to answer **Going**, **Maybe** or **Not going**; for a repeating event you can answer for every later date too. More: [Answering your invitations](/help/workforce/answering-event-invitations).
+
+## Kudos, nominations and points
+
+**Recognition** — from Home or **Profile** — is the wall of kudos and awards. Send a colleague kudos, nominate them for an award, and follow your nominations. **Points & rewards** shows your balance and what it buys; redeem a reward and HR hands it over. More: [Kudos, points and rewards](/help/workforce/kudos-points-and-rewards).
