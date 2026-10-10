@@ -65,7 +65,7 @@ Each is guarded by the view permission of its screen.
 | | `attendance` | `attendance.view` | attendance_records, attendance_punches 📎 |
 | | `leave` | `leave.view` | leave_types, leave_balances, leave_requests |
 | | `performance` | `performance.view` | rating_scales, kpi_criteria, review_templates, review_template_items, goal_templates, evaluation_periods, performance_evaluations, performance_scores, appraisal_reviews, appraisal_review_scores, performance_goals, goal_check_ins, calibration_sessions, calibration_participants, calibration_adjustments |
-| | `training` | `training.view` | training_programs, training_enrollments |
+| | `training` | `training.view` | training_programs, training_enrollments, training_sessions, training_attendances, training_costs, training_budgets (certificates are rows of employee_certifications) |
 | | `awards` | `awards.view` | award_types, employee_awards |
 | | `events` | `events.view` | events, event_attendees |
 | Offboarding | `offboarding` | `offboarding.view` | offboarding_programs, offboarding_program_items, offboarding_cases, clearance_items |

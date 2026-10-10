@@ -333,6 +333,10 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
                 : "{$employee->full_name} has no certification called “".Str::limit(trim((string) ($args['certification'] ?? '')), 60).'”.');
         }
 
+        if (($refusal = $this->certifications->refusal($certification)) !== null) {
+            return ToolResult::error('Removed the certification', $refusal);
+        }
+
         $name = $certification->name;
         $this->certifications->remove($employee, $certification, self::CHANNEL);
 

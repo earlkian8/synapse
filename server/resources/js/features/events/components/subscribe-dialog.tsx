@@ -23,7 +23,8 @@ type State =
 
 /**
  * "Subscribe": a private link a calendar app checks on its own, so every
- * invitation — and every change to one — shows up there (ADR 0070). The link is
+ * invitation — and every change to one — shows up there (ADR 0070), with the
+ * sessions of the training the person holds a seat on (ADR 0074). The link is
  * made the first time somebody asks for it; resetting it stops the old one.
  */
 export function SubscribeButton() {
@@ -75,9 +76,9 @@ export function SubscribeButton() {
                         </DialogTitle>
                         <DialogDescription>
                             Subscribe once. Google, Outlook or Apple Calendar
-                            checks this link on its own, so new invitations and
-                            changes appear there by themselves, and what you
-                            decline drops off.
+                            checks this link on its own, so new invitations,
+                            your training sessions and any changes appear there
+                            by themselves, and what you decline drops off.
                         </DialogDescription>
                     </DialogHeader>
 

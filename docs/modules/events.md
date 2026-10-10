@@ -96,7 +96,8 @@ Both pages use the shared Workforce table kit
 - **Calendar feed** — `/api/calendar/{token}.ics`, public and throttled (60/min):
   one feed per person per workspace, serving their invitations (not declined) and the
   events they organise, 60 days back to 400 ahead, each with a stable `UID` and a
-  `SEQUENCE`. The token is stored hashed for lookup and encrypted for display; *Reset
+  `SEQUENCE` — and the sessions of the training programs they hold a seat on
+  ([ADR 0074](../decisions/0074-training-self-enrolment-sessions-and-attendance.md)). The token is stored hashed for lookup and encrypted for display; *Reset
   link* replaces it. Write-back from Google or Outlook is not built.
 
 ## Where the rules live

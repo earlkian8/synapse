@@ -4,8 +4,14 @@ import {
     ENROLLMENT_STATUS_STYLES,
     PROGRAM_STATUS_LABELS,
     PROGRAM_STATUS_STYLES,
+    STANDING_LABELS,
+    STANDING_STYLES,
 } from '../constants';
-import type { ProgramStatus, TrainingEnrollmentStatus } from '../types';
+import type {
+    CertificateStanding,
+    ProgramStatus,
+    TrainingEnrollmentStatus,
+} from '../types';
 
 const BASE =
     'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium';
@@ -36,6 +42,21 @@ export function EnrollmentStatusBadge({
     return (
         <span className={cn(BASE, ENROLLMENT_STATUS_STYLES[status], className)}>
             {ENROLLMENT_STATUS_LABELS[status]}
+        </span>
+    );
+}
+
+/** A pill for a certificate's standing today (ADR 0075). */
+export function CertificateStandingBadge({
+    standing,
+    className,
+}: {
+    standing: CertificateStanding;
+    className?: string;
+}) {
+    return (
+        <span className={cn(BASE, STANDING_STYLES[standing], className)}>
+            {STANDING_LABELS[standing]}
         </span>
     );
 }

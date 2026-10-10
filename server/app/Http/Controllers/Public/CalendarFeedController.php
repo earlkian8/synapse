@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Public;
 use App\Http\Controllers\Controller;
 use App\Models\CalendarFeed;
 use App\Models\Event;
+use App\Models\TrainingEnrollment;
+use App\Models\TrainingSession;
 use App\Support\Events\EventCalendar;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,8 +17,9 @@ use Illuminate\Http\Response;
  * with no session — the secret token in the address is the only key. It serves
  * one company's events: the ones they are invited to and have not declined, and
  * the ones they organise, from {@see self::PAST_DAYS} days back to
- * {@see self::AHEAD_DAYS} ahead. Archived events drop out, and the calendar app
- * removes them on its next look.
+ * {@see self::AHEAD_DAYS} ahead — and the sessions of the training programs
+ * they hold a seat on (ADR 0074). Archived events and programs drop out, and the
+ * calendar app removes them on its next look.
  *
  * The link stops working when it is reset, when the account is deactivated, and
  * when the person no longer belongs to the company.
@@ -52,9 +55,17 @@ class CalendarFeedController extends Controller
                 ->orderBy('starts_at')
                 ->get();
 
+            $sessions = $employee === null ? [] : TrainingSession::query()
+                ->whereIn('training_program_id', TrainingEnrollment::query()->where('employee_id', $employee->id)->active()->select('training_program_id'))
+                ->ofLivePrograms()
+                ->whereBetween('session_date', [now()->subDays(self::PAST_DAYS)->toDateString(), now()->addDays(self::AHEAD_DAYS)->toDateString()])
+                ->with('program:id,name')
+                ->chronological()
+                ->get();
+
             $feed->forceFill(['last_used_at' => now()])->saveQuietly();
 
-            return EventCalendar::document($events, "{$organization->name} events", $responses);
+            return EventCalendar::document($events, "{$organization->name} events", $responses, $sessions);
         });
 
         return response($body, 200, [

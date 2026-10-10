@@ -172,6 +172,7 @@ class OrganizationProvisioner
                     // Self-service (as an employee themselves)
                     'attendance.clock', 'leave.request',
                     'events.respond', 'awards.participate', 'performance.participate',
+                    'training.participate',
                     // Team visibility
                     'employees.view',
                     'attendance.view',
@@ -189,12 +190,13 @@ class OrganizationProvisioner
 
             // 3. Staff — the regular employee. Self-service only: record attendance,
             //    file/cancel their own leave, answer their event invitations, take
-            //    part in recognition, and take part in their own appraisal — read and
-            //    acknowledge it, write the reviews asked of them, check in on goals.
+            //    part in recognition, take part in their own appraisal — read and
+            //    acknowledge it, write the reviews asked of them, check in on goals —
+            //    and join training and follow their own sessions and certificates.
             [
                 'name' => Role::STAFF,
                 'label' => 'Staff',
-                'description' => 'Regular employee with self-service access: record attendance, file leave, answer invitations, recognise colleagues and take part in their own appraisal.',
+                'description' => 'Regular employee with self-service access: record attendance, file leave, answer invitations, recognise colleagues, take part in their own appraisal and join training.',
                 'is_system' => true,
                 'permissions' => [
                     'attendance.clock',
@@ -202,6 +204,7 @@ class OrganizationProvisioner
                     'events.respond',
                     'awards.participate',
                     'performance.participate',
+                    'training.participate',
                 ],
             ],
         ];

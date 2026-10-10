@@ -119,10 +119,14 @@ final class DataExportCatalogue
         ],
         'training' => [
             'label' => 'Training', 'section' => 'Workforce', 'permission' => 'training.view',
-            'description' => 'Training programs and who enrolled, with scores and completion.',
+            'description' => 'Training programs and who enrolled or asked to, with scores and completion; their sessions and the attendance taken; what each cost, and the yearly budgets. (Certificates earned are with the employees\' certifications.)',
             'tables' => [
                 ['table' => 'training_programs'],
                 ['table' => 'training_enrollments'],
+                ['table' => 'training_sessions'],
+                ['table' => 'training_attendances'],
+                ['table' => 'training_costs'],
+                ['table' => 'training_budgets'],
             ],
         ],
         'awards' => [

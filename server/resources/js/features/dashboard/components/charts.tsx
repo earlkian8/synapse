@@ -282,9 +282,12 @@ export type Bar = { label: string; value: number; hint?: string };
 export function BarList({
     bars,
     color = '#0ABFBF',
+    format = (value: number) => value.toLocaleString(),
 }: {
     bars: Bar[];
     color?: string;
+    /** How a value is written beside its bar (a count by default; money, say). */
+    format?: (value: number) => string;
 }) {
     const drawn = useDrawn();
     const max = Math.max(...bars.map((b) => b.value), 1);
@@ -298,7 +301,7 @@ export function BarList({
                             {bar.label}
                         </span>
                         <span className="font-semibold tabular-nums">
-                            {bar.value.toLocaleString()}
+                            {format(bar.value)}
                             {bar.hint && (
                                 <span className="ml-1 text-xs font-normal text-muted-foreground">
                                     {bar.hint}

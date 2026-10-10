@@ -8,17 +8,17 @@ use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 
 /*
-| Self-service permissions every employee holds (ADR 0070, 0071): answering one's
-| own event invitations, and taking part in recognition. New companies get them
+| Self-service permissions every employee holds (ADR 0070, 0071, 0074): answering
+| one's own event invitations, taking part in recognition, and joining training. New companies get them
 | on their built-in roles; existing companies get them from the migration, through
 | PermissionSyncer::grant().
 */
 
 test('the self-service permissions are catalogued', function () {
-    expect(PermissionRegistry::names())->toContain('events.respond', 'awards.participate');
+    expect(PermissionRegistry::names())->toContain('events.respond', 'awards.participate', 'training.participate');
 });
 
-test('a new company’s Staff and Department Head roles can answer invitations and take part in recognition', function () {
+test('a new company’s Staff and Department Head roles can answer invitations, take part in recognition and join training', function () {
     seedPermissions();
     $organization = Organization::factory()->create();
     app(Tenancy::class)->set($organization);
@@ -27,7 +27,7 @@ test('a new company’s Staff and Department Head roles can answer invitations a
     foreach ([Role::STAFF, Role::DEPARTMENT_HEAD, Role::HR_MANAGER] as $name) {
         $granted = Role::query()->where('name', $name)->firstOrFail()->permissions()->pluck('name');
 
-        expect($granted)->toContain('events.respond', 'awards.participate');
+        expect($granted)->toContain('events.respond', 'awards.participate', 'training.participate');
     }
 });
 

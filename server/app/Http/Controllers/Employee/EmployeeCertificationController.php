@@ -30,6 +30,12 @@ class EmployeeCertificationController extends Controller
     {
         abort_unless($certification->employee_id === $employee->id, 404);
 
+        if (($refusal = $certifications->refusal($certification)) !== null) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => $refusal]);
+
+            return back();
+        }
+
         $certifications->remove($employee, $certification);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Certification removed.']);

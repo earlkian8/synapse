@@ -13,9 +13,11 @@ import {
     useClientPagination,
 } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
-import { ProgramFormSheet } from '@/features/training/components/program-form-sheet';
+import { ProgramFormModal } from '@/features/training/components/program-form-modal';
 import { ProgramTable } from '@/features/training/components/program-table';
 import type { ProgramSort } from '@/features/training/components/program-table';
+import { RequestsCard } from '@/features/training/components/requests-card';
+import { TrainingNav } from '@/features/training/components/training-nav';
 import { TrainingStatsCards } from '@/features/training/components/training-stats';
 import {
     PROGRAM_STATUS_LABELS,
@@ -48,9 +50,10 @@ const STATUS_RANK: Record<ProgramStatus, number> = {
 /**
  * Training & Development: one table of every program — filtered by status,
  * where the archive is one more status — opening onto each program's roster.
+ * Requests to join that wait for a decision sit above it (ADR 0074).
  */
 export default function TrainingIndex() {
-    const { programs, archived, stats, can } =
+    const { programs, archived, requests, stats, can, nav } =
         usePage<TrainingIndexPageProps>().props;
 
     const [search, setSearch] = useState('');
@@ -160,15 +163,18 @@ export default function TrainingIndex() {
 
     return (
         <>
-            <Head title="Training & Development" />
+            <Head title="Training programs" />
 
             <PageBody>
                 <PageHeader
-                    title="Training & Development"
+                    title="Programs"
                     description="The organisation's training programs and who's enrolled."
+                    actions={<TrainingNav current="programs" counts={nav} />}
                 />
 
                 <TrainingStatsCards stats={stats} />
+
+                {can.manage && <RequestsCard requests={requests} showProgram />}
 
                 <div className="flex flex-col gap-3">
                     <ListToolbar
@@ -257,7 +263,7 @@ export default function TrainingIndex() {
                 </div>
             </PageBody>
 
-            <ProgramFormSheet
+            <ProgramFormModal
                 program={form.program}
                 open={form.open}
                 onOpenChange={(open) => setForm((prev) => ({ ...prev, open }))}
@@ -280,5 +286,8 @@ export default function TrainingIndex() {
 }
 
 TrainingIndex.layout = {
-    breadcrumbs: [{ title: 'Training', href: '/training' }],
+    breadcrumbs: [
+        { title: 'Training & Development', href: '/training' },
+        { title: 'Programs', href: '/training' },
+    ],
 };

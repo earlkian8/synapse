@@ -139,11 +139,13 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 summary: 'Appraisals, reviews, goals and calibration',
             },
             {
+                // One entry for everybody (ADR 0074): HR lands on the programs,
+                // someone who only takes part on their own training.
                 title: 'Training & Development',
                 href: '/training',
                 icon: GraduationCap,
-                permission: 'training.view',
-                summary: 'Programs and who is enrolled',
+                permissionAny: ['training.view', 'training.participate'],
+                summary: 'Programs, sessions, certificates and budget',
             },
             {
                 // One entry for everybody (ADR 0071): HR lands on the awards

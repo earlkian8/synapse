@@ -4,7 +4,9 @@
 > schema the migrations produce (every migration up to
 > `2026_10_05_000000_create_data_exports_table`, introspected on 2026-10-05; §8's
 > performance tables re-checked up to
-> `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10). It
+> `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10, and §8's
+> training tables up to `2026_10_11_000000_create_training_self_service_tables` on
+> 2026-10-11). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -567,10 +569,13 @@ erDiagram
     EMPLOYEE_CERTIFICATION {
         bigint id PK
         bigint employee_id FK
+        bigint training_enrollment_id FK "unique; from training"
         string name
         string issuer
+        string certificate_no
         date issued_date
         date expiry_date
+        datetime expiry_notified_at
         string file
     }
     EMPLOYEE_DOCUMENT {
@@ -981,6 +986,15 @@ calibration sessions whose every move is a row. `shared_at`, `acknowledged_by` a
 what the scorecard gave when calibration moved `result_band`. `calibration_participants`
 (session ↔ user) is a pivot confined through its session.
 
+Employees join training themselves and programs meet in sessions
+([ADR 0074](../decisions/0074-training-self-enrolment-sessions-and-attendance.md)): a
+request to join is a `training_enrollments` row (`requested` → `enrolled` | `declined`),
+and attendance is one row per session and enrollment. A certificate earned by
+completing a program is an `employee_certifications` row tied to its enrollment, and
+spend is the sum of `training_costs`, read against a program's `budget` and a year's
+`training_budgets`
+([ADR 0075](../decisions/0075-training-certificates-with-expiry-and-budgets-with-costs.md)).
+
 ```mermaid
 erDiagram
     EMPLOYEE ||--o{ PERFORMANCE_EVALUATION : appraised
@@ -1002,6 +1016,11 @@ erDiagram
     PERFORMANCE_EVALUATION ||--o{ CALIBRATION_ADJUSTMENT : "moved by"
     TRAINING_PROGRAM ||--o{ TRAINING_ENROLLMENT : enrolls
     EMPLOYEE ||--o{ TRAINING_ENROLLMENT : attends
+    TRAINING_PROGRAM ||--o{ TRAINING_SESSION : "meets in"
+    TRAINING_SESSION ||--o{ TRAINING_ATTENDANCE : "taken at"
+    TRAINING_ENROLLMENT ||--o{ TRAINING_ATTENDANCE : "marked in"
+    TRAINING_ENROLLMENT |o--o| EMPLOYEE_CERTIFICATION : earns
+    TRAINING_PROGRAM ||--o{ TRAINING_COST : spends
 
     PERFORMANCE_EVALUATION {
         bigint id PK
@@ -1129,6 +1148,10 @@ erDiagram
         date start_date
         date end_date
         int capacity
+        string enrollment_mode "closed|open|approval"
+        boolean issues_certificate
+        int certificate_validity_months
+        decimal budget
         json ai_insights
         datetime deleted_at
     }
@@ -1136,10 +1159,46 @@ erDiagram
         bigint id PK
         bigint training_program_id FK
         bigint employee_id FK "unique with program"
-        string status "enrolled|completed|dropped"
+        string status "requested|enrolled|completed|dropped|declined"
         decimal score
         datetime completed_at
         text remarks
+        bigint decided_by FK "users"
+        datetime decided_at
+        text decision_note
+    }
+    TRAINING_SESSION {
+        bigint id PK
+        bigint training_program_id FK
+        string title
+        date session_date
+        time starts_at
+        time ends_at
+        string location
+        text notes
+    }
+    TRAINING_ATTENDANCE {
+        bigint id PK
+        bigint training_session_id FK "unique with enrollment"
+        bigint training_enrollment_id FK
+        string status "present|late|absent|excused"
+        string note
+        bigint marked_by FK "users"
+    }
+    TRAINING_COST {
+        bigint id PK
+        bigint training_program_id FK
+        string category
+        string description
+        decimal amount
+        date incurred_on
+        bigint recorded_by FK "users"
+    }
+    TRAINING_BUDGET {
+        bigint id PK
+        int year "unique per organisation"
+        decimal amount
+        text notes
     }
 ```
 

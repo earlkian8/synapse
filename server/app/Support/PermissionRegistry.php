@@ -73,7 +73,8 @@ class PermissionRegistry
         ],
         'Training & Development' => [
             'training.view' => 'View training programs & enrollments',
-            'training.manage' => 'Manage programs, enroll employees & grade',
+            'training.manage' => 'Manage programs, enroll & grade; decide requests to join; run sessions & attendance; record costs & budgets',
+            'training.participate' => 'Browse training, join or ask to join a program & follow your own sessions and certificates (self-service)',
         ],
         'Awards & Recognition' => [
             'awards.view' => 'View awards & recognition',

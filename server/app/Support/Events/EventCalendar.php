@@ -3,11 +3,14 @@
 namespace App\Support\Events;
 
 use App\Models\Event;
+use App\Models\TrainingSession;
 use Carbon\CarbonInterface;
 
 /**
  * Events as iCalendar (RFC 5545) — the one place a VCALENDAR is written, for a
- * single event's download and for a person's subscription feed (ADR 0070).
+ * single event's download and for a person's subscription feed (ADR 0070). The
+ * training sessions a person holds a seat at are written here too (ADR 0074),
+ * so the same feed carries them.
  *
  * Each event keeps a stable `UID`, so a calendar app that subscribed replaces it
  * after an edit (a later `SEQUENCE`) and drops it once the feed no longer lists
@@ -20,8 +23,9 @@ final class EventCalendar
     /**
      * @param  iterable<Event>  $events
      * @param  array<int, string>  $responses  The person's response per event id (a tentative one is marked so).
+     * @param  iterable<TrainingSession>  $sessions  Training sessions, with their program loaded.
      */
-    public static function document(iterable $events, ?string $name = null, array $responses = []): string
+    public static function document(iterable $events, ?string $name = null, array $responses = [], iterable $sessions = []): string
     {
         $lines = [
             'BEGIN:VCALENDAR',
@@ -40,6 +44,10 @@ final class EventCalendar
 
         foreach ($events as $event) {
             array_push($lines, ...self::event($event, $responses[$event->id] ?? null));
+        }
+
+        foreach ($sessions as $session) {
+            array_push($lines, ...self::session($session));
         }
 
         $lines[] = 'END:VCALENDAR';
@@ -71,6 +79,33 @@ final class EventCalendar
             $where !== '' ? 'LOCATION:'.self::escape($where) : null,
             'STATUS:'.($response === 'tentative' ? 'TENTATIVE' : 'CONFIRMED'),
             'URL:'.url('/events/me?event='.$event->hashid),
+            'END:VEVENT',
+        ], fn (?string $line): bool => $line !== null));
+    }
+
+    /**
+     * A training session, on the organisation's clock, named for its program.
+     *
+     * @return list<string>
+     */
+    private static function session(TrainingSession $session): array
+    {
+        $program = $session->program;
+        $summary = trim(($program?->name ?? 'Training').($session->title ? ' — '.$session->title : ''));
+
+        return array_values(array_filter([
+            'BEGIN:VEVENT',
+            "UID:training-session-{$session->id}@".parse_url((string) config('app.url'), PHP_URL_HOST),
+            'DTSTAMP:'.self::utc(now()),
+            'SEQUENCE:'.min(max(0, ($session->updated_at?->getTimestamp() ?? 0) - ($session->created_at?->getTimestamp() ?? 0)), 2_000_000_000),
+            $session->updated_at ? 'LAST-MODIFIED:'.self::utc($session->updated_at) : null,
+            'DTSTART:'.self::utc($session->startsAt()),
+            'DTEND:'.self::utc($session->endsAt()),
+            'SUMMARY:'.self::escape($summary),
+            $session->notes ? 'DESCRIPTION:'.self::escape($session->notes) : null,
+            $session->location ? 'LOCATION:'.self::escape($session->location) : null,
+            'STATUS:CONFIRMED',
+            'URL:'.url('/training/me'),
             'END:VEVENT',
         ], fn (?string $line): bool => $line !== null));
     }

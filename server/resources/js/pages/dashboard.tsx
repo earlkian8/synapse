@@ -5,6 +5,7 @@ import {
     CalendarPlus,
     Clock3,
     Gauge,
+    GraduationCap,
     HandHeart,
     UserRound,
 } from 'lucide-react';
@@ -142,6 +143,12 @@ function PersonalStart() {
             icon: <Gauge className="size-5" />,
             title: 'My performance',
             desc: 'Your appraisals, goals and the reviews asked of you.',
+        },
+        can('training.participate') && {
+            href: '/training/me',
+            icon: <GraduationCap className="size-5" />,
+            title: 'My training',
+            desc: 'Your sessions and certificates; join a program.',
         },
         can('awards.participate') && {
             href: '/awards/wall',

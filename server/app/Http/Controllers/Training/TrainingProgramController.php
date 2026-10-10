@@ -20,18 +20,23 @@ use Inertia\Inertia;
  */
 class TrainingProgramController extends Controller
 {
+    use TrainingResponses;
+
     public function store(TrainingProgramRequest $request, TrainingWorkflow $workflow): RedirectResponse
     {
         $workflow->create($request->validated());
 
-        return $this->respond('Training program created.');
+        return $this->toast('Training program created.');
     }
 
     public function update(TrainingProgramRequest $request, TrainingProgram $trainingProgram, TrainingWorkflow $workflow): RedirectResponse
     {
-        $workflow->update($trainingProgram, $request->validated());
-
-        return $this->respond('Training program updated.');
+        return $this->attempt(
+            fn (): int => $workflow->update($trainingProgram, $request->validated()),
+            fn (int $issued): string => $issued === 0
+                ? 'Training program updated.'
+                : "Training program updated. {$issued} ".str('certificate')->plural($issued).' issued to people who had completed it.',
+        );
     }
 
     public function destroy(TrainingProgram $trainingProgram, TrainingWorkflow $workflow): RedirectResponse
@@ -58,7 +63,7 @@ class TrainingProgramController extends Controller
             subjectLabel: $model->name,
         );
 
-        return $this->respond('Training program restored.');
+        return $this->toast('Training program restored.');
     }
 
     public function forceDelete(string $trainingProgram): RedirectResponse
@@ -66,7 +71,7 @@ class TrainingProgramController extends Controller
         $model = $this->findTrashed($trainingProgram);
 
         if ($model->enrollments()->exists()) {
-            return $this->respond('This program has enrollments and cannot be permanently deleted.', 'warning');
+            return $this->toast('This program has enrollments and cannot be permanently deleted.', 'warning');
         }
 
         $name = $model->name;
@@ -79,7 +84,7 @@ class TrainingProgramController extends Controller
             subjectLabel: $name,
         );
 
-        return $this->respond('Training program permanently deleted.');
+        return $this->toast('Training program permanently deleted.');
     }
 
     private function findTrashed(string $hashid): TrainingProgram
@@ -89,12 +94,5 @@ class TrainingProgramController extends Controller
         abort_if($id === null, 404);
 
         return TrainingProgram::onlyTrashed()->findOrFail($id);
-    }
-
-    private function respond(string $message, string $type = 'success'): RedirectResponse
-    {
-        Inertia::flash('toast', ['type' => $type, 'message' => $message]);
-
-        return back();
     }
 }

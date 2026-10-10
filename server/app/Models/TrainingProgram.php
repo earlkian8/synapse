@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,6 +15,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * window and seat capacity. Employees are tied to it through
  * {@see TrainingEnrollment}. The lifecycle **status is derived** from the dates
  * (`upcoming → ongoing → completed`), never stored, so it cannot drift.
+ *
+ * It runs as dated {@see TrainingSession}s, says who may join it themselves
+ * (`enrollment_mode`, ADR 0074), may earn a certificate that is valid for some
+ * months, and carries a budget its {@see TrainingCost}s are read against (ADR 0075).
  */
 class TrainingProgram extends Model
 {
@@ -21,6 +26,12 @@ class TrainingProgram extends Model
 
     /** The derived lifecycle a program can be in. */
     public const STATUSES = ['upcoming', 'ongoing', 'completed'];
+
+    /**
+     * Who may put themselves on the roster: nobody (HR enrolls), anyone while
+     * seats remain, or anyone who asks and is approved.
+     */
+    public const ENROLLMENT_MODES = ['closed', 'open', 'approval'];
 
     protected $fillable = [
         'organization_id',
@@ -30,6 +41,10 @@ class TrainingProgram extends Model
         'start_date',
         'end_date',
         'capacity',
+        'enrollment_mode',
+        'issues_certificate',
+        'certificate_validity_months',
+        'budget',
         'ai_insights',
     ];
 
@@ -39,6 +54,9 @@ class TrainingProgram extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'capacity' => 'integer',
+            'issues_certificate' => 'boolean',
+            'certificate_validity_months' => 'integer',
+            'budget' => 'decimal:2',
             'ai_insights' => 'array',
         ];
     }
@@ -49,6 +67,43 @@ class TrainingProgram extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(TrainingEnrollment::class);
+    }
+
+    /**
+     * @return HasMany<TrainingSession, $this>
+     */
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(TrainingSession::class);
+    }
+
+    /**
+     * @return HasMany<TrainingCost, $this>
+     */
+    public function costs(): HasMany
+    {
+        return $this->hasMany(TrainingCost::class);
+    }
+
+    /**
+     * Whether an employee can put themselves on this program now: it lets
+     * people join (directly or by asking), and it is neither over nor archived.
+     */
+    public function acceptsSelfEnrollment(): bool
+    {
+        return $this->enrollment_mode !== 'closed'
+            && ! $this->trashed()
+            && $this->status() !== 'completed';
+    }
+
+    /**
+     * Whether a date falls inside the program's window. An open side (no start
+     * or no end date) takes any date on that side.
+     */
+    public function covers(CarbonInterface $date): bool
+    {
+        return ($this->start_date === null || $date->toDateString() >= $this->start_date->toDateString())
+            && ($this->end_date === null || $date->toDateString() <= $this->end_date->toDateString());
     }
 
     /**
@@ -82,7 +137,7 @@ class TrainingProgram extends Model
         }
 
         $taken = $this->active_enrollments_count
-            ?? $this->enrollments()->where('status', '!=', 'dropped')->count();
+            ?? $this->enrollments()->active()->count();
 
         return $taken >= $this->capacity;
     }
@@ -92,12 +147,13 @@ class TrainingProgram extends Model
      * completion rate, the average score and the at-risk headcount (still
      * enrolled after the program has ended). Uses the loaded `enrollments` when
      * present — the program screen loads them anyway — and loads them otherwise.
+     * Requests to join (and declined ones) are not on the roster and not counted.
      *
      * @return array{total: int, completed: int, dropped: int, enrolled: int, completion_rate: int|null, average_score: float|null, at_risk: int}
      */
     public function analytics(): array
     {
-        $enrollments = $this->enrollments;
+        $enrollments = $this->enrollments->whereIn('status', TrainingEnrollment::ROSTER_STATUSES);
         $total = $enrollments->count();
 
         $completed = $enrollments->where('status', 'completed')->count();

@@ -79,9 +79,12 @@ The hub. Soft-deletes.
 | --- | --- | --- |
 | `id` | bigint (PK) | |
 | `employee_id` | FK → employees | `cascadeOnDelete`. |
+| `training_enrollment_id` | FK → training_enrollments, nullable, unique | Set when it was earned by completing a training program ([ADR 0075](../decisions/0075-training-certificates-with-expiry-and-budgets-with-costs.md)); `cascadeOnDelete`. Such a row is issued and withdrawn by Training, never removed on the profile. |
 | `name` | string | |
 | `issuer` | string, nullable | |
+| `certificate_no` | string(40), nullable | Training certificates: `TC-<year>-<id>`. |
 | `issued_date` / `expiry_date` | date, nullable | Expiry surfaces an "Expired" badge. |
+| `expiry_notified_at` | timestamp, nullable | When a training certificate's holder was told it expires soon. |
 | `file` | string, nullable | |
 
 ## `employee_promotions`
