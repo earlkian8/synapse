@@ -3,9 +3,14 @@
 use App\Models\AttendancePolicy;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\EvaluationPeriod;
+use App\Models\KpiCriterion;
 use App\Models\Organization;
+use App\Models\PerformanceEvaluation;
 use App\Models\Permission;
+use App\Models\RatingScale;
 use App\Models\RecruitmentPipeline;
+use App\Models\ReviewTemplate;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkSchedule;
@@ -15,6 +20,8 @@ use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePolicySettings;
 use App\Support\Attendance\ScheduleAssigner;
 use App\Support\Attendance\SchedulePatternWriter;
+use App\Support\Performance\AppraisalWorkflow;
+use App\Support\Performance\EvaluationOpener;
 use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -311,4 +318,86 @@ function fakeAssistantModel(array $script = []): GeminiClient
 function modelCall(string $name, array $args = []): array
 {
     return ['functionCall' => ['name' => $name, 'args' => $args]];
+}
+
+/*
+| Performance taking part (ADRs 0072, 0073): people who take part, an appraisal
+| on a small two-line framework, and one rated and submitted.
+*/
+
+/**
+ * Someone who takes part in performance: a user holding
+ * `performance.participate` (and any extra permissions), linked to an active
+ * employee of the test tenant.
+ *
+ * @param  list<string>  $permissions
+ * @param  array<string, mixed>  $employee
+ * @return array{0: User, 1: Employee}
+ */
+function perfParticipant(array $permissions = [], array $employee = []): array
+{
+    $role = makeRole('perf-'.Str::random(8), ['performance.participate', ...$permissions]);
+    $user = User::factory()->create(['is_active' => true]);
+    $user->roles()->attach($role);
+
+    // A participant named by a test gets exactly that name: no random middle
+    // name or suffix to break a lookup or an assertion on it.
+    $plain = isset($employee['first_name']) ? ['middle_name' => null, 'suffix' => null] : [];
+    $person = Employee::factory()->create(['user_id' => $user->id, 'employment_status' => 'active', ...$plain, ...$employee]);
+
+    return [$user, $person];
+}
+
+/**
+ * An appraisal of `$employee` in an open cycle, opened by `$evaluator`, on two
+ * lines: goal attainment as a percentage (60 %) and teamwork on 1–5 (40 %).
+ */
+function perfAppraisal(Employee $employee, ?User $evaluator = null, ?EvaluationPeriod $period = null): PerformanceEvaluation
+{
+    $period ??= EvaluationPeriod::factory()->create([
+        'name' => 'H2 Review '.Str::random(4),
+        'start_date' => now()->subMonths(3)->toDateString(),
+        'end_date' => now()->addMonths(3)->toDateString(),
+    ]);
+
+    $percent = RatingScale::factory()->percentage()->create(['name' => 'Goal attainment '.Str::random(4)]);
+    $points = RatingScale::factory()->create(['name' => 'Five point '.Str::random(4), 'min' => 1, 'max' => 5]);
+
+    $template = ReviewTemplate::factory()->create([
+        'name' => 'Review '.Str::random(4),
+        'sections' => [
+            ['key' => 'goals', 'name' => 'Goals', 'description' => null, 'weight' => 60],
+            ['key' => 'values', 'name' => 'How we work', 'description' => null, 'weight' => 40],
+        ],
+    ]);
+
+    $template->items()->createMany([
+        [
+            'kpi_criterion_id' => KpiCriterion::factory()->create(['name' => 'Goal attainment '.Str::random(4), 'rating_scale_id' => $percent->id])->id,
+            'rating_scale_id' => $percent->id, 'section_key' => 'goals', 'name' => 'Goal attainment', 'weight' => 100, 'sort_order' => 0,
+        ],
+        [
+            'kpi_criterion_id' => KpiCriterion::factory()->create(['name' => 'Teamwork '.Str::random(4), 'rating_scale_id' => $points->id])->id,
+            'rating_scale_id' => $points->id, 'section_key' => 'values', 'name' => 'Teamwork', 'weight' => 100, 'sort_order' => 1,
+        ],
+    ]);
+
+    return app(EvaluationOpener::class)->open($employee, $period, $template->refresh(), $evaluator);
+}
+
+/**
+ * Rate both lines of a {@see perfAppraisal()} and submit it.
+ */
+function perfSubmit(PerformanceEvaluation $evaluation, float $goal = 80, float $teamwork = 4): PerformanceEvaluation
+{
+    $lines = $evaluation->scores()->orderBy('sort_order')->get();
+    $workflow = app(AppraisalWorkflow::class);
+
+    $workflow->rate($evaluation, [
+        $lines[0]->id => ['score' => $goal],
+        $lines[1]->id => ['score' => $teamwork],
+    ]);
+    $workflow->submit($evaluation);
+
+    return $evaluation->refresh();
 }

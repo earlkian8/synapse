@@ -45,7 +45,7 @@ labels in bold, numbered steps for procedures):
 | Getting started | Welcome, Finding your way around, Your dashboard, Setting up your company, Inviting your people |
 | Your account | Signing in and out, Profile and appearance, Password / two-factor / passkeys, Notifications, More than one company, Privacy and your data |
 | Talent acquisition | Job postings, Candidates and the pipeline, Interviews and hiring, The careers page, Onboarding new hires |
-| Workforce | Employee records, Reviewing attendance, Correcting and signing off attendance, Clocking in and out, Managing leave, Filing your own leave, Appraisals, Training, Awards, Events |
+| Workforce | Employee records, Reviewing attendance, Correcting and signing off attendance, Clocking in and out, Managing leave, Filing your own leave, Appraisals, Your appraisals and reviews, Goals and check-ins, Calibration sessions, Training, Awards, Events |
 | Offboarding | Offboarding an employee |
 | Analytics & AI | Attrition risk, Performance forecast, Promotion readiness, Training a model on your own records, Reports |
 | Company setup | Company profile, Departments and positions, Schedules and holidays, Shift roster, Attendance policies, Work locations, Leave types, Award types, Performance framework, Recruitment pipelines, Onboarding programs, Offboarding programs |

@@ -17,8 +17,8 @@ export default function SetupKpi() {
                     <p className="max-w-2xl text-sm text-muted-foreground">
                         How this company reviews its people: the frameworks
                         appraisals are conducted against, the scales they
-                        measure on, the criteria they draw from, and the cycles
-                        they run in.
+                        measure on, the criteria they draw from, the cycles they
+                        run in, and the goals teams start from.
                     </p>
                 </div>
 

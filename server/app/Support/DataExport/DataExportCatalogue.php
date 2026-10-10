@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
  *  - `members` — accounts with a membership in it (users are global identities);
  *  - `roles` — pivot rows of its roles;
  *  - `work_locations` — pivot rows of its work locations;
+ *  - `calibration_sessions` — pivot rows of its calibration sessions;
  *  - `global` — a catalogue shared by every organisation (permission names).
  *
  * `files` names the columns that hold a path on the `public` disk, copied into
@@ -97,15 +98,23 @@ final class DataExportCatalogue
         ],
         'performance' => [
             'label' => 'Performance', 'section' => 'Workforce', 'permission' => 'performance.view',
-            'description' => 'The appraisal framework — rating scales, criteria, review templates, cycles — and every evaluation with its scores.',
+            'description' => 'The appraisal framework — rating scales, criteria, review templates, the goal library, cycles — every evaluation with its scores, the reviews asked for it, goals and their check-ins, and calibration sessions with every rating they moved.',
             'tables' => [
                 ['table' => 'rating_scales'],
                 ['table' => 'kpi_criteria'],
                 ['table' => 'review_templates'],
                 ['table' => 'review_template_items'],
+                ['table' => 'goal_templates'],
                 ['table' => 'evaluation_periods'],
                 ['table' => 'performance_evaluations'],
                 ['table' => 'performance_scores'],
+                ['table' => 'appraisal_reviews'],
+                ['table' => 'appraisal_review_scores'],
+                ['table' => 'performance_goals'],
+                ['table' => 'goal_check_ins'],
+                ['table' => 'calibration_sessions'],
+                ['table' => 'calibration_participants', 'scope' => 'calibration_sessions', 'order' => ['calibration_session_id', 'user_id']],
+                ['table' => 'calibration_adjustments'],
             ],
         ],
         'training' => [
@@ -355,6 +364,7 @@ final class DataExportCatalogue
             'members' => $query->whereIn("{$table}.id", DB::table('organization_user')->select('user_id')->where('organization_id', $organizationId)),
             'roles' => $query->whereIn("{$table}.role_id", DB::table('roles')->select('id')->where('organization_id', $organizationId)),
             'work_locations' => $query->whereIn("{$table}.work_location_id", DB::table('work_locations')->select('id')->where('organization_id', $organizationId)),
+            'calibration_sessions' => $query->whereIn("{$table}.calibration_session_id", DB::table('calibration_sessions')->select('id')->where('organization_id', $organizationId)),
             'global' => null,
         };
 

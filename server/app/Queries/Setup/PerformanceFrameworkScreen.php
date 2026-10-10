@@ -4,11 +4,13 @@ namespace App\Queries\Setup;
 
 use App\Http\Requests\Employee\StoreEmployeeRequest;
 use App\Http\Resources\EvaluationPeriodResource;
+use App\Http\Resources\GoalTemplateResource;
 use App\Http\Resources\KpiCriterionResource;
 use App\Http\Resources\RatingScaleResource;
 use App\Http\Resources\ReviewTemplateResource;
 use App\Models\Department;
 use App\Models\EvaluationPeriod;
+use App\Models\GoalTemplate;
 use App\Models\KpiCriterion;
 use App\Models\Position;
 use App\Models\RatingScale;
@@ -20,7 +22,7 @@ use Illuminate\Http\Request;
 /**
  * Company Setup → Performance framework: the frameworks appraisals are conducted
  * against, the rating scales they measure on, the criteria catalogue they draw
- * from, and the review cycles they run in.
+ * from, the review cycles they run in, and the goal library (ADR 0073).
  */
 class PerformanceFrameworkScreen implements SetupScreen
 {
@@ -35,6 +37,8 @@ class PerformanceFrameworkScreen implements SetupScreen
             'archivedCriteria' => KpiCriterionResource::collection($this->criteria()->onlyTrashed()->get())->resolve($request),
             'periods' => EvaluationPeriodResource::collection($this->periods()->get())->resolve($request),
             'archivedPeriods' => EvaluationPeriodResource::collection($this->periods()->onlyTrashed()->get())->resolve($request),
+            'goalTemplates' => GoalTemplateResource::collection($this->goalTemplates()->get())->resolve($request),
+            'archivedGoalTemplates' => GoalTemplateResource::collection($this->goalTemplates()->onlyTrashed()->get())->resolve($request),
 
             // What an eligibility rule can point at, and the palette a band's
             // tone is chosen from — so the editor never invents its own values.
@@ -76,6 +80,14 @@ class PerformanceFrameworkScreen implements SetupScreen
     private function periods(): Builder
     {
         return EvaluationPeriod::query()->withCount('evaluations')->recentFirst();
+    }
+
+    /**
+     * @return Builder<GoalTemplate>
+     */
+    private function goalTemplates(): Builder
+    {
+        return GoalTemplate::query()->withCount('goals')->orderBy('name');
     }
 
     /**

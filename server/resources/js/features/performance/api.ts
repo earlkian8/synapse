@@ -1,6 +1,11 @@
 import { router } from '@inertiajs/react';
 import { performanceRoutes } from './routes';
-import type { PerformanceInsightResult } from './types';
+import type {
+    GoalHealth,
+    GoalMeasure,
+    PerformanceGoal,
+    PerformanceInsightResult,
+} from './types';
 
 /** Read Laravel's XSRF cookie so the plain fetch passes CSRF verification. */
 function xsrfToken(): string {
@@ -72,6 +77,9 @@ export type LaunchCyclePayload = {
     review_template_id: number | null;
     scope: 'all' | 'departments';
     department_ids: number[];
+    /** Ask each person for a self-review, and their manager for a review. */
+    self_reviews: boolean;
+    manager_reviews: boolean;
 };
 
 export type ScoreLinePayload = {
@@ -126,7 +134,7 @@ export function submitEvaluation(hashid: string, h: Handlers = {}): void {
     router.post(performanceRoutes.submit(hashid), {}, opts(h));
 }
 
-/** Acknowledge a submitted evaluation. */
+/** Record a sign-off on the employee's behalf (paper or in person). */
 export function acknowledgeEvaluation(hashid: string, h: Handlers = {}): void {
     router.post(performanceRoutes.acknowledge(hashid), {}, opts(h));
 }
@@ -134,4 +142,180 @@ export function acknowledgeEvaluation(hashid: string, h: Handlers = {}): void {
 /** Delete a draft evaluation; the server redirects to the index. */
 export function deleteEvaluation(hashid: string, h: Handlers = {}): void {
     router.delete(performanceRoutes.destroy(hashid), opts(h));
+}
+
+// ── Reviews (ADR 0072) ──────────────────────────────────────────────────────
+
+/** Ask colleagues to review an appraisal. */
+export function requestReviews(
+    hashid: string,
+    payload: { reviewer_ids: number[]; due_on: string | null },
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.requestReviews(hashid), payload, opts(h));
+}
+
+export function cancelReview(hashid: string, h: Handlers = {}): void {
+    router.post(performanceRoutes.reviewCancel(hashid), {}, opts(h));
+}
+
+export function remindReview(hashid: string, h: Handlers = {}): void {
+    router.post(performanceRoutes.reviewRemind(hashid), {}, opts(h));
+}
+
+export type ReviewPayload = {
+    scores: ScoreLinePayload[];
+    strengths: string | null;
+    improvements: string | null;
+};
+
+/** Save a reviewer's answers (any part of them). */
+export function saveReview(
+    hashid: string,
+    payload: ReviewPayload,
+    h: Handlers = {},
+): void {
+    router.patch(performanceRoutes.review(hashid), payload, opts(h));
+}
+
+/** Save and hand in a review. */
+export function submitReview(
+    hashid: string,
+    payload: ReviewPayload,
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.reviewSubmit(hashid), payload, opts(h));
+}
+
+export function declineReview(
+    hashid: string,
+    reason: string | null,
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.reviewDecline(hashid), { reason }, opts(h));
+}
+
+/** The employee acknowledges their own appraisal, with an optional comment. */
+export function acknowledgeOwnAppraisal(
+    hashid: string,
+    comment: string | null,
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.myAcknowledge(hashid), { comment }, opts(h));
+}
+
+// ── Goals (ADR 0073) ────────────────────────────────────────────────────────
+
+export type GoalPayload = {
+    employee_ids?: number[];
+    evaluation_period_id?: number;
+    goal_template_id?: number | null;
+    title: string;
+    description: string | null;
+    measure: GoalMeasure;
+    start_value: number | null;
+    target_value: number | null;
+    unit: string | null;
+    weight: number | null;
+    due_on: string | null;
+};
+
+/** HR sets a goal for one or more people. */
+export function createGoal(payload: GoalPayload, h: Handlers = {}): void {
+    router.post(performanceRoutes.goalsStore, payload, opts(h));
+}
+
+/** Someone adds a goal of their own. */
+export function createOwnGoal(payload: GoalPayload, h: Handlers = {}): void {
+    router.post(performanceRoutes.myGoalsStore, payload, opts(h));
+}
+
+export function updateGoal(
+    hashid: string,
+    payload: GoalPayload,
+    h: Handlers = {},
+): void {
+    router.patch(performanceRoutes.goal(hashid), payload, opts(h));
+}
+
+export type CheckInPayload = {
+    value: number;
+    health: GoalHealth;
+    note: string | null;
+};
+
+/** A check-in: by HR (`own` false) or by the goal's owner. */
+export function checkInGoal(
+    hashid: string,
+    payload: CheckInPayload,
+    own: boolean,
+    h: Handlers = {},
+): void {
+    router.post(
+        own
+            ? performanceRoutes.myGoalCheckIn(hashid)
+            : performanceRoutes.goalCheckIn(hashid),
+        payload,
+        opts(h),
+    );
+}
+
+export function setGoalStatus(
+    hashid: string,
+    status: PerformanceGoal['status'],
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.goalStatus(hashid), { status }, opts(h));
+}
+
+export function deleteGoal(
+    hashid: string,
+    own: boolean,
+    h: Handlers = {},
+): void {
+    router.delete(
+        own
+            ? performanceRoutes.myGoalDestroy(hashid)
+            : performanceRoutes.goal(hashid),
+        opts(h),
+    );
+}
+
+// ── Calibration (ADR 0073) ──────────────────────────────────────────────────
+
+export type SessionPayload = {
+    name: string;
+    evaluation_period_id?: number;
+    department_ids?: number[] | null;
+    scheduled_for: string | null;
+    notes: string | null;
+    participant_ids: number[];
+};
+
+export function createSession(payload: SessionPayload, h: Handlers = {}): void {
+    router.post(performanceRoutes.calibrationStore, payload, opts(h));
+}
+
+export function updateSession(
+    hashid: string,
+    payload: SessionPayload,
+    h: Handlers = {},
+): void {
+    router.patch(performanceRoutes.session(hashid), payload, opts(h));
+}
+
+export function adjustRating(
+    hashid: string,
+    payload: { evaluation_id: number; band: string; reason: string },
+    h: Handlers = {},
+): void {
+    router.post(performanceRoutes.sessionAdjust(hashid), payload, opts(h));
+}
+
+export function completeSession(hashid: string, h: Handlers = {}): void {
+    router.post(performanceRoutes.sessionComplete(hashid), {}, opts(h));
+}
+
+export function cancelSession(hashid: string, h: Handlers = {}): void {
+    router.post(performanceRoutes.sessionCancel(hashid), {}, opts(h));
 }

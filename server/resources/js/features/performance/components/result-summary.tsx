@@ -9,6 +9,11 @@ type Props = {
     display: ResultDisplay;
     /** Set while the appraisal is still being filled in. */
     live?: boolean;
+    /**
+     * The band calibration moved the rating to (ADR 0073). It becomes the
+     * rating; what the scorecard gave stays beside it, so the move is visible.
+     */
+    calibrated?: RatingBand | null;
 };
 
 /**
@@ -20,24 +25,33 @@ type Props = {
  * Below the headline sits the {@see RatingLadder}: the whole rating model, with
  * this result standing on it. A number nobody can place is not a result.
  */
-export function ResultSummary({ result, bands, display, live = false }: Props) {
-    const band = result.band;
+export function ResultSummary({
+    result,
+    bands,
+    display,
+    live = false,
+    calibrated = null,
+}: Props) {
+    const moved = calibrated !== null && calibrated.key !== result.band?.key;
+    const band = moved ? calibrated : result.band;
     const tone = bandTone(band?.tone);
     const unscored = result.percent === null;
 
-    const headline =
-        display === 'percent'
-            ? formatPercent(result.percent)
-            : display === 'points'
-              ? formatScore(result.normalized)
-              : (band?.label ?? 'Not yet rated');
+    const headline = moved
+        ? calibrated.label
+        : display === 'percent'
+          ? formatPercent(result.percent)
+          : display === 'points'
+            ? formatScore(result.normalized)
+            : (band?.label ?? 'Not yet rated');
 
-    const supporting =
-        display === 'band'
-            ? `${formatPercent(result.percent)} attainment`
-            : display === 'percent'
-              ? (band?.label ?? 'Not yet rated')
-              : `${band?.label ?? 'Not yet rated'} · ${formatPercent(result.percent)}`;
+    const supporting = moved
+        ? `Calibrated from “${result.band?.label ?? 'unrated'}” · ${formatPercent(result.percent)} attainment`
+        : display === 'band'
+          ? `${formatPercent(result.percent)} attainment`
+          : display === 'percent'
+            ? (band?.label ?? 'Not yet rated')
+            : `${band?.label ?? 'Not yet rated'} · ${formatPercent(result.percent)}`;
 
     return (
         <div
@@ -51,7 +65,11 @@ export function ResultSummary({ result, bands, display, live = false }: Props) {
             <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
                 <div className="min-w-0">
                     <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                        {live ? 'Result so far' : 'Result'}
+                        {live
+                            ? 'Result so far'
+                            : moved
+                              ? 'Calibrated result'
+                              : 'Result'}
                         {display === 'points' && ' · out of 5.00'}
                     </p>
                     <p

@@ -288,6 +288,26 @@ class Employee extends Model
     }
 
     /**
+     * This employee's goals, across review cycles (ADR 0073).
+     *
+     * @return HasMany<PerformanceGoal, $this>
+     */
+    public function performanceGoals(): HasMany
+    {
+        return $this->hasMany(PerformanceGoal::class);
+    }
+
+    /**
+     * The appraisal reviews this employee is asked to write (ADR 0072).
+     *
+     * @return HasMany<AppraisalReview, $this>
+     */
+    public function appraisalReviews(): HasMany
+    {
+        return $this->hasMany(AppraisalReview::class, 'reviewer_id');
+    }
+
+    /**
      * This employee's promotion-readiness scores (one per assessment run).
      *
      * @return HasMany<PromotionReadinessScore, $this>

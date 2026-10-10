@@ -5,19 +5,28 @@ namespace App\Http\Controllers\Performance;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EvaluationPeriodResource;
 use App\Http\Resources\PerformanceEvaluationResource;
+use App\Http\Resources\PerformanceGoalResource;
 use App\Http\Resources\ReviewTemplateResource;
+use App\Models\AppraisalReview;
+use App\Models\CalibrationAdjustment;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EvaluationPeriod;
 use App\Models\PerformanceEvaluation;
 use App\Models\PerformanceForecast;
+use App\Models\PerformanceGoal;
 use App\Support\ActivityLogger;
+use App\Support\Performance\AppraisalSharing;
+use App\Support\Performance\FeedbackSummary;
+use App\Support\Performance\GoalProgress;
 use App\Support\Performance\PerformanceCalibration;
 use App\Support\Performance\PerformanceInsights;
 use App\Support\Performance\PerformanceScorer;
+use App\Support\Performance\ReviewWorkflow;
 use App\Support\Performance\TemplateResolver;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,9 +40,15 @@ use Inertia\Response;
  *
  * Frameworks, criteria, scales and cycles are configured in Company Setup; this
  * module conducts the appraisals. Evaluations are addressed by hashid.
+ *
+ * Somebody who only takes part (`performance.participate`) is sent to their own
+ * appraisals (ADR 0072). The scorecard carries the reviews asked of the people
+ * around the appraisal, the person's goals for the cycle, and any calibration.
  */
 class PerformanceController extends Controller
 {
+    use PerformanceResponses;
+
     public function __construct(
         private readonly PerformanceCalibration $calibration,
         private readonly TemplateResolver $templates,
@@ -44,8 +59,14 @@ class PerformanceController extends Controller
      * distribution, per-department calibration and the appraisal list — plus
      * everything the "open one" and "launch the cycle" actions need.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if ($request->user()->cannot('performance.view')) {
+            abort_unless($request->user()->can('performance.participate'), 403);
+
+            return redirect()->route('performance.me');
+        }
+
         $periods = EvaluationPeriod::query()->withCount('evaluations')->recentFirst()->get();
         $period = $this->currentPeriod($request, $periods);
 
@@ -75,6 +96,7 @@ class PerformanceController extends Controller
             'distribution' => $this->calibration->distribution($evaluations),
             'byDepartment' => $this->calibration->byDepartment($evaluations),
             'can' => $this->permissions($request),
+            'nav' => $this->navCounts($request->user()),
         ]);
     }
 
@@ -82,23 +104,43 @@ class PerformanceController extends Controller
      * A single appraisal and its scorecard, plus per-employee decision support
      * (rating history, the latest ML forecast and any saved AI read).
      */
-    public function show(Request $request, PerformanceEvaluation $evaluation, PerformanceInsights $insights, PerformanceScorer $scorer): Response
+    public function show(Request $request, PerformanceEvaluation $evaluation, PerformanceInsights $insights, PerformanceScorer $scorer, FeedbackSummary $feedback, AppraisalSharing $sharing): Response
     {
         $evaluation->load([
-            'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id',
+            'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id,user_id,manager_id',
             'employee.department:id,name',
             'employee.position:id,title',
             'period:id,name,status,start_date,end_date',
             'evaluator:id,first_name,last_name',
+            'acknowledger:id,first_name,last_name',
             'scores' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'scores.criterion:id,name,is_active',
         ]);
+
+        $own = $evaluation->isAbout($request->user());
+        $holding = $evaluation->status === 'submitted' && $evaluation->shared_at === null
+            ? $sharing->holdingSession($evaluation)
+            : null;
 
         return Inertia::render('performance/show', [
             'evaluation' => (new PerformanceEvaluationResource($evaluation))->resolve($request),
             'result' => $scorer->score($evaluation->scores, $evaluation->bandList())->toArray(),
             'support' => $this->decisionSupport($evaluation, $insights),
-            'can' => $this->permissions($request),
+            'feedback' => $feedback->for($evaluation),
+            'goals' => $this->goals($request, $evaluation),
+            'calibration' => [
+                'adjustments' => $this->adjustments($evaluation),
+                'holding' => $holding ? ['hashid' => $holding->hashid, 'name' => $holding->name] : null,
+            ],
+            'reviewers' => $request->user()->can('performance.manage') && $evaluation->isEditable() && ! $own
+                ? $this->reviewCandidates($evaluation)
+                : [],
+            'can' => [
+                ...$this->permissions($request),
+                // Nobody conducts their own appraisal (ADR 0072).
+                'own' => $own,
+            ],
+            'nav' => $this->navCounts($request->user()),
         ]);
     }
 
@@ -204,6 +246,89 @@ class PerformanceController extends Controller
                 'is_current' => $e->id === $evaluation->id,
             ])
             ->values()
+            ->all();
+    }
+
+    /**
+     * The person's goals for the appraisal's cycle and what they add up to —
+     * decision support for the evaluator, never a rating.
+     *
+     * @return array{items: list<array<string, mixed>>, attainment: float|null}
+     */
+    private function goals(Request $request, PerformanceEvaluation $evaluation): array
+    {
+        $goals = PerformanceGoal::query()
+            ->forEmployee($evaluation->employee_id)
+            ->forPeriod($evaluation->evaluation_period_id)
+            ->withCount('checkIns')
+            ->orderByRaw("case status when 'active' then 0 when 'achieved' then 1 when 'missed' then 2 else 3 end")
+            ->orderBy('id')
+            ->get();
+
+        return [
+            'items' => PerformanceGoalResource::collection($goals)->resolve($request),
+            'attainment' => GoalProgress::attainment($goals),
+        ];
+    }
+
+    /**
+     * Every rating move calibration made on this appraisal, oldest first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function adjustments(PerformanceEvaluation $evaluation): array
+    {
+        return $evaluation->adjustments()
+            ->with(['session:id,name', 'adjuster:id,first_name,last_name'])
+            ->get()
+            ->map(fn (CalibrationAdjustment $a): array => [
+                'id' => $a->id,
+                'from_label' => $a->from_label,
+                'to_label' => $a->to_label,
+                'to_band' => $a->to_band,
+                'reason' => $a->reason,
+                'by' => $a->adjuster?->full_name,
+                'session' => $a->session ? ['hashid' => $a->session->hashid, 'name' => $a->session->name] : null,
+                'created_at' => $a->created_at?->toIso8601String(),
+            ])
+            ->all();
+    }
+
+    /**
+     * The colleagues HR can ask to review this appraisal: each with what they are
+     * to the person (derived from the reporting line), whether they have an
+     * account to answer with, and whether they have been asked already.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function reviewCandidates(PerformanceEvaluation $evaluation): array
+    {
+        $subject = $evaluation->employee;
+
+        if ($subject === null) {
+            return [];
+        }
+
+        $asked = AppraisalReview::query()
+            ->where('performance_evaluation_id', $evaluation->id)
+            ->pluck('status', 'reviewer_id');
+
+        return Employee::query()
+            ->where('employment_status', 'active')
+            ->with(['department:id,name', 'user:id,is_active'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'photo', 'department_id', 'manager_id', 'user_id'])
+            ->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'full_name' => $employee->full_name,
+                'initials' => $employee->initials(),
+                'department' => $employee->department?->name,
+                'relationship' => ReviewWorkflow::relationshipOf($employee, $subject),
+                'has_account' => $employee->user !== null && $employee->user->is_active,
+                'is_evaluator' => $evaluation->evaluator_id !== null && $employee->user_id === $evaluation->evaluator_id,
+                'asked' => in_array($asked->get($employee->id), ['pending', 'submitted'], true) ? $asked->get($employee->id) : null,
+            ])
             ->all();
     }
 

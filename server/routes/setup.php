@@ -7,6 +7,7 @@ use App\Http\Controllers\Setup\AwardTypeController;
 use App\Http\Controllers\Setup\CompanyProfileController;
 use App\Http\Controllers\Setup\DepartmentController;
 use App\Http\Controllers\Setup\EvaluationPeriodController;
+use App\Http\Controllers\Setup\GoalTemplateController;
 use App\Http\Controllers\Setup\HolidayController;
 use App\Http\Controllers\Setup\JoinCodeController;
 use App\Http\Controllers\Setup\KpiCriterionController;
@@ -168,6 +169,13 @@ Route::middleware(['auth', 'verified'])
         Route::delete('kpi/criteria/{kpiCriterion}', [KpiCriterionController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.destroy');
         Route::patch('kpi/criteria/{kpiCriterion}/restore', [KpiCriterionController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.restore');
         Route::delete('kpi/criteria/{kpiCriterion}/force', [KpiCriterionController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.criteria.force-delete');
+
+        // The goal library (ADR 0073).
+        Route::post('kpi/goals', [GoalTemplateController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.goals.store');
+        Route::post('kpi/goals/{goalTemplate}', [GoalTemplateController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.goals.update');
+        Route::delete('kpi/goals/{goalTemplate}', [GoalTemplateController::class, 'destroy'])->middleware('can:setup.kpi.manage')->name('kpi.goals.destroy');
+        Route::patch('kpi/goals/{goalTemplate}/restore', [GoalTemplateController::class, 'restore'])->middleware('can:setup.kpi.manage')->name('kpi.goals.restore');
+        Route::delete('kpi/goals/{goalTemplate}/force', [GoalTemplateController::class, 'forceDelete'])->middleware('can:setup.kpi.manage')->name('kpi.goals.force-delete');
 
         Route::post('kpi/periods', [EvaluationPeriodController::class, 'store'])->middleware('can:setup.kpi.manage')->name('kpi.periods.store');
         Route::post('kpi/periods/{evaluationPeriod}', [EvaluationPeriodController::class, 'update'])->middleware('can:setup.kpi.manage')->name('kpi.periods.update');

@@ -9,6 +9,7 @@ use App\Models\PerformanceScore;
 use App\Models\ReviewTemplate;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Notifier;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,12 @@ use Illuminate\Support\Facades\DB;
  *
  * `$channel` is appended to the audit description (" via assistant"), so the
  * trail says how a change was made as well as who made it.
+ *
+ * **Nobody conducts their own appraisal** (ADR 0072): rating, submitting and
+ * discarding one's own are refused — the self-review is where a person's view
+ * of themselves goes. Submitting shares the result with the employee unless a
+ * calibration session holds it ({@see AppraisalSharing}), and closes the reviews
+ * still waiting ({@see ReviewWorkflow}).
  */
 class AppraisalWorkflow
 {
@@ -32,7 +39,12 @@ class AppraisalWorkflow
         private readonly EvaluationOpener $opener,
         private readonly PerformanceScorer $scorer,
         private readonly TemplateResolver $templates,
+        private readonly ReviewWorkflow $reviews,
+        private readonly AppraisalSharing $sharing,
     ) {}
+
+    /** What the person appraised is told when they try to act as its evaluator. */
+    public const OWN_APPRAISAL = 'This is your own appraisal, so someone else rates it. Your self-review is where your view goes.';
 
     /**
      * Open an appraisal for one employee in one cycle, seeded from the framework
@@ -82,11 +94,13 @@ class AppraisalWorkflow
      *
      * @throws AppraisalException
      */
-    public function rate(PerformanceEvaluation $evaluation, array $lines, ?string $remarks = null, bool $setRemarks = false, string $channel = ''): ScoreResult
+    public function rate(PerformanceEvaluation $evaluation, array $lines, ?string $remarks = null, bool $setRemarks = false, string $channel = '', ?User $by = null): ScoreResult
     {
         if (! $evaluation->isEditable()) {
             throw new AppraisalException('A submitted appraisal can no longer be edited.');
         }
+
+        $this->assertNotOwn($evaluation, $by);
 
         $incoming = collect($lines);
         $scores = $evaluation->scores()->get();
@@ -138,15 +152,20 @@ class AppraisalWorkflow
     }
 
     /**
-     * Lock the appraisal and finalise its result. Every line must be rated.
+     * Lock the appraisal and finalise its result. Every line must be rated. The
+     * reviews still waiting are closed, and the result is shared with the
+     * employee — unless an open calibration session holds it back, in which case
+     * `shared_at` stays empty until the session ends.
      *
      * @throws AppraisalException
      */
-    public function submit(PerformanceEvaluation $evaluation, string $channel = ''): ScoreResult
+    public function submit(PerformanceEvaluation $evaluation, string $channel = '', ?User $by = null): ScoreResult
     {
         if (! $evaluation->isEditable()) {
             throw new AppraisalException('This appraisal has already been submitted.');
         }
+
+        $this->assertNotOwn($evaluation, $by);
 
         $result = $this->scorer->score($evaluation->scores()->get(), $evaluation->bandList());
 
@@ -154,10 +173,17 @@ class AppraisalWorkflow
             throw new AppraisalException('Rate every criterion before submitting.');
         }
 
-        $evaluation->applyResult($result);
-        $evaluation->status = 'submitted';
-        $evaluation->submitted_at = now();
-        $evaluation->save();
+        DB::transaction(function () use ($evaluation, $result): void {
+            $evaluation->applyResult($result);
+            $evaluation->status = 'submitted';
+            $evaluation->submitted_at = now();
+            $evaluation->save();
+
+            $this->reviews->closeOutstanding($evaluation);
+        });
+
+        $evaluation->loadMissing('employee.user', 'period');
+        $this->sharing->shareUnlessHeld($evaluation);
 
         ActivityLogger::log(
             event: 'submitted',
@@ -172,28 +198,66 @@ class AppraisalWorkflow
     }
 
     /**
-     * Record the employee's sign-off on a submitted appraisal.
+     * Record the employee's acknowledgement of a shared appraisal — by the
+     * employee themselves (`$by` is their account), or by HR on their behalf for a
+     * sign-off given on paper or in person. Acknowledging says they have read it,
+     * not that they agree; `$comment` is where they can say so. Final.
      *
      * @throws AppraisalException
      */
-    public function acknowledge(PerformanceEvaluation $evaluation, string $channel = ''): void
+    public function acknowledge(PerformanceEvaluation $evaluation, string $channel = '', ?User $by = null, ?string $comment = null): void
     {
+        if ($evaluation->status === 'acknowledged') {
+            throw new AppraisalException('This appraisal has already been acknowledged.');
+        }
+
         if ($evaluation->status !== 'submitted') {
             throw new AppraisalException('Only a submitted appraisal can be acknowledged.');
         }
 
+        if (! $evaluation->isShared()) {
+            $session = $this->sharing->holdingSession($evaluation);
+
+            throw new AppraisalException($session
+                ? "This appraisal is waiting on the calibration session “{$session->name}”. It can be acknowledged once it is shared."
+                : 'This appraisal hasn’t been shared with the employee yet.');
+        }
+
+        $comment = trim((string) $comment);
+        $own = $evaluation->isAbout($by);
+
         $evaluation->update([
             'status' => 'acknowledged',
             'acknowledged_at' => now(),
+            'acknowledged_by' => $by?->id,
+            'employee_comment' => $comment === '' ? null : $comment,
         ]);
+
+        $name = $evaluation->employee?->full_name;
 
         ActivityLogger::log(
             event: 'acknowledged',
-            description: "Acknowledged the appraisal for {$evaluation->employee?->full_name}{$channel}",
+            description: ($own
+                ? "{$name} acknowledged their appraisal"
+                : "Recorded {$name}'s acknowledgement of their appraisal").($comment !== '' ? ', with a comment' : '').$channel,
             subject: $evaluation,
             logName: 'performance',
-            subjectLabel: $evaluation->employee?->full_name,
+            subjectLabel: $name,
         );
+
+        $evaluator = $evaluation->evaluator;
+
+        if ($own && $evaluator !== null && $evaluator->is_active && $evaluator->id !== $by?->id) {
+            Notifier::toUser(
+                $evaluator,
+                'Appraisal acknowledged',
+                "{$name} acknowledged their appraisal".($comment !== '' ? ' and left a comment.' : '.'),
+                '/performance/'.$evaluation->hashid,
+                'success',
+                'performance',
+                $by,
+            );
+        }
     }
 
     /**
@@ -201,11 +265,13 @@ class AppraisalWorkflow
      *
      * @throws AppraisalException
      */
-    public function discard(PerformanceEvaluation $evaluation, string $channel = ''): void
+    public function discard(PerformanceEvaluation $evaluation, string $channel = '', ?User $by = null): void
     {
         if (! $evaluation->isEditable()) {
             throw new AppraisalException('A submitted appraisal cannot be deleted.');
         }
+
+        $this->assertNotOwn($evaluation, $by);
 
         $name = $evaluation->employee?->full_name;
         $evaluation->delete();
@@ -221,14 +287,23 @@ class AppraisalWorkflow
     /**
      * Open the appraisals for a whole population — every active employee, or the
      * active staff of some departments. Idempotent: anyone already appraised in
-     * the cycle is skipped, so it can be re-run as people join.
+     * the cycle is skipped, so it can be re-run as people join. Each new
+     * appraisal can ask for the person's self-review and their manager's review
+     * at once.
      *
      * @param  list<int>|null  $departmentIds  Null for everyone.
      *
      * @throws AppraisalException
      */
-    public function launch(EvaluationPeriod $period, ?array $departmentIds, ?ReviewTemplate $pinned, ?User $by, string $channel = ''): CycleLaunch
-    {
+    public function launch(
+        EvaluationPeriod $period,
+        ?array $departmentIds,
+        ?ReviewTemplate $pinned,
+        ?User $by,
+        string $channel = '',
+        bool $selfReviews = false,
+        bool $managerReviews = false,
+    ): CycleLaunch {
         if ($period->status !== 'open') {
             throw new AppraisalException('A cycle can only be launched while its review period is open.');
         }
@@ -249,6 +324,7 @@ class AppraisalWorkflow
         $opened = 0;
         $skipped = 0;
         $uncovered = 0;
+        $requested = 0;
 
         foreach ($employees as $employee) {
             if ($this->opener->blockedReason($employee, $period) !== null) {
@@ -267,8 +343,12 @@ class AppraisalWorkflow
                 continue;
             }
 
-            $this->opener->open($employee, $period, $template, $by);
+            $evaluation = $this->opener->open($employee, $period, $template, $by);
             $opened++;
+
+            if ($selfReviews || $managerReviews) {
+                $requested += $this->reviews->requestAtLaunch($evaluation, $selfReviews, $managerReviews, $by);
+            }
         }
 
         if ($opened > 0) {
@@ -281,7 +361,17 @@ class AppraisalWorkflow
             );
         }
 
-        return new CycleLaunch($opened, $skipped, $uncovered);
+        return new CycleLaunch($opened, $skipped, $uncovered, $requested);
+    }
+
+    /**
+     * @throws AppraisalException
+     */
+    private function assertNotOwn(PerformanceEvaluation $evaluation, ?User $by): void
+    {
+        if ($evaluation->isAbout($by)) {
+            throw new AppraisalException(self::OWN_APPRAISAL);
+        }
     }
 
     /**

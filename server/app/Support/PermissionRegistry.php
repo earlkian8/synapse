@@ -60,7 +60,8 @@ class PermissionRegistry
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
-            'performance.manage' => 'Open, score, submit & acknowledge evaluations',
+            'performance.manage' => 'Open, score & submit appraisals; ask for reviews; set goals; run calibration sessions',
+            'performance.participate' => 'See & acknowledge your own appraisals, write the reviews you\'re asked for & check in on your goals (self-service)',
         ],
         'Predictive Analytics' => [
             'analytics.promotion.view' => 'View promotion readiness',

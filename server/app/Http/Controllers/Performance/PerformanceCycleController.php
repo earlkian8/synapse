@@ -38,7 +38,14 @@ class PerformanceCycleController extends Controller
             : null;
 
         try {
-            $launch = $this->workflow->launch($period, $departments, $pinned, $request->user());
+            $launch = $this->workflow->launch(
+                $period,
+                $departments,
+                $pinned,
+                $request->user(),
+                selfReviews: (bool) ($data['self_reviews'] ?? false),
+                managerReviews: (bool) ($data['manager_reviews'] ?? false),
+            );
         } catch (AppraisalException $e) {
             return $this->back($e->getMessage(), 'warning');
         }

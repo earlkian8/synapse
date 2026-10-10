@@ -27,6 +27,13 @@ export const kpiConfigRoutes = {
         restore: (hashid: string) => `/setup/kpi/criteria/${hashid}/restore`,
         forceDelete: (hashid: string) => `/setup/kpi/criteria/${hashid}/force`,
     },
+    goals: {
+        store: '/setup/kpi/goals',
+        update: (hashid: string) => `/setup/kpi/goals/${hashid}`,
+        destroy: (hashid: string) => `/setup/kpi/goals/${hashid}`,
+        restore: (hashid: string) => `/setup/kpi/goals/${hashid}/restore`,
+        forceDelete: (hashid: string) => `/setup/kpi/goals/${hashid}/force`,
+    },
     periods: {
         store: '/setup/kpi/periods',
         update: (hashid: string) => `/setup/kpi/periods/${hashid}`,

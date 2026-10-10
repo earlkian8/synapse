@@ -3,6 +3,7 @@ import {
     Archive,
     ArchiveRestore,
     CalendarRange,
+    Flag,
     Layers,
     Pencil,
     Plus,
@@ -19,6 +20,7 @@ import { PeriodStatusBadge } from '@/features/performance/components/status-badg
 import { formatDate } from '@/features/performance/constants';
 import type {
     EvaluationPeriodOption,
+    GoalLibraryEntry,
     ReviewTemplateOption,
 } from '@/features/performance/types';
 import { cn } from '@/lib/utils';
@@ -30,6 +32,7 @@ import type {
 } from '../types';
 import { CriterionModal } from './criterion-modal';
 import { FrameworkModal } from './framework-modal';
+import { GoalTemplateModal } from './goal-template-modal';
 import { PeriodModal } from './period-modal';
 import { RatingScaleModal } from './rating-scale-modal';
 
@@ -40,13 +43,14 @@ type ConfirmConfig = {
     run: () => void;
 };
 
-export type KpiTab = 'frameworks' | 'scales' | 'criteria' | 'cycles';
+export type KpiTab = 'frameworks' | 'scales' | 'criteria' | 'cycles' | 'goals';
 
 const TABS: { value: KpiTab; label: string; icon: typeof Layers }[] = [
     { value: 'frameworks', label: 'Frameworks', icon: Layers },
     { value: 'scales', label: 'Rating scales', icon: Ruler },
     { value: 'criteria', label: 'Criteria', icon: Target },
     { value: 'cycles', label: 'Review cycles', icon: CalendarRange },
+    { value: 'goals', label: 'Goal library', icon: Flag },
 ];
 
 type Props = KpiSetupPageProps & {
@@ -56,8 +60,9 @@ type Props = KpiSetupPageProps & {
 
 /**
  * The performance framework (ADR 0028) with every action Company Setup offers
- * on it — frameworks, rating scales, the criteria catalogue and review cycles,
- * each created, edited, archived, restored and deleted in its own tab. Rendered
+ * on it — frameworks, rating scales, the criteria catalogue, review cycles and
+ * the goal library (ADR 0073), each created, edited, archived, restored and
+ * deleted in its own tab. Rendered
  * by the Performance framework screen and by the setup wizard's step for it,
  * from the same props.
  */
@@ -73,6 +78,8 @@ export function KpiManager({
     audiences,
     tones,
     defaultBands,
+    goalTemplates = [],
+    archivedGoalTemplates = [],
     can,
     initialTab = 'frameworks',
 }: Props) {
@@ -94,6 +101,11 @@ export function KpiManager({
         open: boolean;
         period: EvaluationPeriodOption | null;
     }>({ open: false, period: null });
+
+    const [goalForm, setGoalForm] = useState<{
+        open: boolean;
+        template: GoalLibraryEntry | null;
+    }>({ open: false, template: null });
 
     const [confirm, setConfirm] = useState<ConfirmConfig | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -553,6 +565,90 @@ export function KpiManager({
                 </ConfigSection>
             )}
 
+            {tab === 'goals' && (
+                <ConfigSection
+                    title="Goal library"
+                    subtitle="Goals HR and employees can start from, with their wording and target ready."
+                    canManage={can.manage}
+                    newLabel="New library goal"
+                    onNew={() => setGoalForm({ open: true, template: null })}
+                    empty={goalTemplates.length === 0}
+                    emptyLabel="No library goals yet. Add the ones your teams set every cycle."
+                    archived={archivedGoalTemplates}
+                    onRestore={(template) =>
+                        router.patch(
+                            kpiConfigRoutes.goals.restore(template.hashid),
+                            {},
+                            { preserveScroll: true },
+                        )
+                    }
+                    onForceDelete={(template) =>
+                        askConfirm(
+                            deleteAction(
+                                template.name,
+                                'This cannot be undone. Goals already set from it keep their copy.',
+                                () =>
+                                    router.delete(
+                                        kpiConfigRoutes.goals.forceDelete(
+                                            template.hashid,
+                                        ),
+                                        withProcessing,
+                                    ),
+                            ),
+                        )
+                    }
+                >
+                    {goalTemplates.map((template) => (
+                        <div
+                            key={template.id}
+                            className="flex items-center gap-3 px-4 py-3"
+                        >
+                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0a7d82] dark:text-[#3fd6d6]">
+                                <Flag className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate text-sm font-medium">
+                                        {template.name}
+                                    </p>
+                                    <Pill>{template.target_label}</Pill>
+                                </div>
+                                {template.description && (
+                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                        {template.description}
+                                    </p>
+                                )}
+                            </div>
+                            <span className="hidden text-xs text-muted-foreground tabular-nums sm:block">
+                                set {template.goals_count ?? 0}×
+                            </span>
+                            {can.manage && (
+                                <RowActions
+                                    onEdit={() =>
+                                        setGoalForm({ open: true, template })
+                                    }
+                                    onArchive={() =>
+                                        askConfirm(
+                                            archiveAction(
+                                                template.name,
+                                                'It stops being offered. Goals already set from it keep their copy.',
+                                                () =>
+                                                    router.delete(
+                                                        kpiConfigRoutes.goals.destroy(
+                                                            template.hashid,
+                                                        ),
+                                                        withProcessing,
+                                                    ),
+                                            ),
+                                        )
+                                    }
+                                />
+                            )}
+                        </div>
+                    ))}
+                </ConfigSection>
+            )}
+
             <FrameworkModal
                 template={frameworkForm.template}
                 scales={scales}
@@ -578,6 +674,13 @@ export function KpiManager({
                 open={criterionForm.open}
                 onOpenChange={(open) =>
                     setCriterionForm((prev) => ({ ...prev, open }))
+                }
+            />
+            <GoalTemplateModal
+                template={goalForm.template}
+                open={goalForm.open}
+                onOpenChange={(open) =>
+                    setGoalForm((prev) => ({ ...prev, open }))
                 }
             />
             <PeriodModal

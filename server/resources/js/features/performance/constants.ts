@@ -1,7 +1,12 @@
 import type {
     BandTone,
     EvaluationStatus,
+    GoalHealth,
+    GoalStatus,
     PeriodStatus,
+    ReviewRelationship,
+    ReviewStatus,
+    SessionStatus,
     RatingBand,
     ScaleLevel,
     ScaleType,
@@ -344,4 +349,161 @@ export function computeResult(
 
 function round(value: number): number {
     return Math.round(value * 100) / 100;
+}
+
+// ── Reviews, goals and calibration (ADRs 0072, 0073) ────────────────────────
+
+/** Who a reviewer is to the person appraised, as a label and as a phrase. */
+export const RELATIONSHIP_LABELS: Record<
+    ReviewRelationship,
+    { label: string; review: string }
+> = {
+    self: { label: 'Self', review: 'Self-review' },
+    manager: { label: 'Manager', review: 'Manager review' },
+    peer: { label: 'Peer', review: 'Peer review' },
+    direct_report: { label: 'Direct report', review: 'Upward review' },
+};
+
+export const REVIEW_STATUS: Record<
+    ReviewStatus,
+    { label: string; className: string }
+> = {
+    pending: {
+        label: 'Waiting',
+        className:
+            'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+    },
+    submitted: {
+        label: 'Answered',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    },
+    declined: {
+        label: 'Declined',
+        className:
+            'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400',
+    },
+    cancelled: {
+        label: 'Closed',
+        className: 'border-border bg-muted text-muted-foreground',
+    },
+};
+
+/** How a goal is going — one palette for the chip, the bar and the dot. */
+export const GOAL_HEALTH: Record<
+    GoalHealth,
+    { label: string; className: string; bar: string; dot: string }
+> = {
+    on_track: {
+        label: 'On track',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+        bar: 'bg-emerald-500',
+        dot: 'bg-emerald-500',
+    },
+    at_risk: {
+        label: 'At risk',
+        className:
+            'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+        bar: 'bg-amber-500',
+        dot: 'bg-amber-500',
+    },
+    off_track: {
+        label: 'Off track',
+        className:
+            'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400',
+        bar: 'bg-rose-500',
+        dot: 'bg-rose-500',
+    },
+};
+
+export const GOAL_STATUS: Record<
+    GoalStatus,
+    { label: string; className: string }
+> = {
+    active: {
+        label: 'Active',
+        className:
+            'border-[#0ABFBF]/30 bg-[#0ABFBF]/10 text-[#0a7d82] dark:text-[#3fd6d6]',
+    },
+    achieved: {
+        label: 'Achieved',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    },
+    missed: {
+        label: 'Missed',
+        className:
+            'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400',
+    },
+    dropped: {
+        label: 'Dropped',
+        className: 'border-border bg-muted text-muted-foreground',
+    },
+};
+
+export const SESSION_STATUS: Record<
+    SessionStatus,
+    { label: string; className: string }
+> = {
+    open: {
+        label: 'Open',
+        className:
+            'border-[#0ABFBF]/30 bg-[#0ABFBF]/10 text-[#0a7d82] dark:text-[#3fd6d6]',
+    },
+    completed: {
+        label: 'Completed',
+        className:
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    },
+    cancelled: {
+        label: 'Cancelled',
+        className: 'border-border bg-muted text-muted-foreground',
+    },
+};
+
+/** A multi-line field, styled as the app's other text areas. */
+export const TEXTAREA =
+    'flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none aria-invalid:border-destructive';
+
+/** The shape every status pill in the module shares. */
+export const PILL =
+    'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium';
+
+/** Format an ISO timestamp as "Jun 16, 2026". */
+export function formatTimestamp(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    return new Date(iso).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+/** "today", "3 days ago", "Jun 2" — how long since something happened. */
+export function sinceLabel(iso: string | null): string {
+    if (!iso) {
+        return 'never';
+    }
+
+    const days = Math.floor(
+        (Date.now() - new Date(iso).getTime()) / 86_400_000,
+    );
+
+    if (days <= 0) {
+        return 'today';
+    }
+
+    if (days === 1) {
+        return 'yesterday';
+    }
+
+    if (days < 30) {
+        return `${days} days ago`;
+    }
+
+    return formatTimestamp(iso);
 }

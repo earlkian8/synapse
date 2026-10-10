@@ -23,6 +23,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * canonical figure), `result_band` / `result_label` are what the tenant's rating
  * model calls it, and `overall_score` is the 1–5 projection everything outside
  * Performance reads. Status runs draft → submitted → acknowledged.
+ *
+ * A submitted appraisal is **shared** with the employee (`shared_at`) at once,
+ * unless an open {@see CalibrationSession} holds it back (ADR 0073); only then can
+ * it be acknowledged — by the employee themselves, or by HR on their behalf
+ * (`acknowledged_by` says which). When calibration moves the rating,
+ * `result_band` / `result_label` carry the calibrated band and `scored_band` /
+ * `scored_label` keep what the scorecard gave.
  */
 class PerformanceEvaluation extends Model
 {
@@ -45,9 +52,15 @@ class PerformanceEvaluation extends Model
         'overall_percent',
         'result_band',
         'result_label',
+        'scored_band',
+        'scored_label',
+        'calibrated_at',
         'status',
         'submitted_at',
+        'shared_at',
         'acknowledged_at',
+        'acknowledged_by',
+        'employee_comment',
         'remarks',
         'ai_insights',
     ];
@@ -60,7 +73,9 @@ class PerformanceEvaluation extends Model
             'template_sections' => 'array',
             'template_bands' => 'array',
             'submitted_at' => 'datetime',
+            'shared_at' => 'datetime',
             'acknowledged_at' => 'datetime',
+            'calibrated_at' => 'datetime',
             'ai_insights' => 'array',
         ];
     }
@@ -129,6 +144,37 @@ class PerformanceEvaluation extends Model
     }
 
     /**
+     * Who recorded the acknowledgement — the employee's own account, or HR's
+     * when it was recorded on their behalf.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function acknowledger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'acknowledged_by');
+    }
+
+    /**
+     * The reviews asked of the people around this appraisal (ADR 0072).
+     *
+     * @return HasMany<AppraisalReview, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(AppraisalReview::class);
+    }
+
+    /**
+     * Every band move calibration made on this appraisal, oldest first.
+     *
+     * @return HasMany<CalibrationAdjustment, $this>
+     */
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(CalibrationAdjustment::class)->orderBy('id');
+    }
+
+    /**
      * @return HasMany<PerformanceScore, $this>
      */
     public function scores(): HasMany
@@ -155,6 +201,52 @@ class PerformanceEvaluation extends Model
     }
 
     /**
+     * Whether the employee may see the result (and so acknowledge it).
+     */
+    public function isShared(): bool
+    {
+        return $this->shared_at !== null && $this->status !== 'draft';
+    }
+
+    /**
+     * Whether the employee acknowledged it from their own account, rather than
+     * HR recording it for them.
+     */
+    public function acknowledgedByEmployee(): bool
+    {
+        return $this->acknowledged_by !== null
+            && $this->acknowledged_by === $this->employee?->user_id;
+    }
+
+    /**
+     * Whether calibration moved the rating away from what the scorecard gave.
+     */
+    public function isCalibrated(): bool
+    {
+        return $this->scored_band !== null;
+    }
+
+    /**
+     * The band the scorecard itself gave — the calibrated one's origin, or the
+     * rating when nothing moved it.
+     */
+    public function scoredBandKey(): ?string
+    {
+        return $this->scored_band ?? $this->result_band;
+    }
+
+    /**
+     * Whether `$user` is the person appraised — the one person who never
+     * conducts this appraisal.
+     */
+    public function isAbout(?User $user): bool
+    {
+        return $user !== null
+            && $this->employee_id !== null
+            && Employee::query()->whereKey($this->employee_id)->where('user_id', $user->id)->exists();
+    }
+
+    /**
      * Limit to the appraisals of one review cycle.
      *
      * @param  Builder<PerformanceEvaluation>  $query
@@ -162,6 +254,31 @@ class PerformanceEvaluation extends Model
     public function scopeForPeriod(Builder $query, ?int $periodId): void
     {
         $query->when($periodId !== null, fn (Builder $q) => $q->where('evaluation_period_id', $periodId));
+    }
+
+    /**
+     * Limit to the appraisals of one person.
+     *
+     * @param  Builder<PerformanceEvaluation>  $query
+     */
+    public function scopeForEmployee(Builder $query, Employee|int $employee): void
+    {
+        $query->where('employee_id', $employee instanceof Employee ? $employee->id : $employee);
+    }
+
+    /**
+     * Limit to appraisals whose employee works in one of these departments
+     * (null: no limit).
+     *
+     * @param  Builder<PerformanceEvaluation>  $query
+     * @param  list<int>|null  $departmentIds
+     */
+    public function scopeInDepartments(Builder $query, ?array $departmentIds): void
+    {
+        $query->when($departmentIds !== null, fn (Builder $q) => $q->whereHas(
+            'employee',
+            fn (Builder $e) => $e->whereIn('department_id', $departmentIds),
+        ));
     }
 
     /**

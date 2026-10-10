@@ -15,7 +15,8 @@ use Illuminate\Validation\Rule;
  * The scope decides who is drawn in — everyone active, or the active staff of
  * chosen departments. The framework may be pinned for the whole launch, or left
  * out so each employee gets the one that covers them
- * (see {@see TemplateResolver}).
+ * (see {@see TemplateResolver}). Each appraisal opened can ask for the person's
+ * self-review and their manager's review at the same time.
  */
 class LaunchReviewCycleRequest extends FormRequest
 {
@@ -30,6 +31,10 @@ class LaunchReviewCycleRequest extends FormRequest
             'scope' => ['required', Rule::in(['all', 'departments'])],
             'department_ids' => ['nullable', 'array', 'required_if:scope,departments', 'max:50'],
             'department_ids.*' => ['integer', TenantRule::exists('departments', 'id')],
+            // Ask each new appraisal's person for a self-review, and their manager
+            // for a review (ADR 0072).
+            'self_reviews' => ['sometimes', 'boolean'],
+            'manager_reviews' => ['sometimes', 'boolean'],
         ];
     }
 

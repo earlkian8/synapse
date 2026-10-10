@@ -1,4 +1,4 @@
-**Company Setup** → **Performance Framework** holds everything an appraisal is scored against, in four tabs: **Frameworks**, **Rating scales**, **Criteria** and **Review cycles**. They build on each other — a scale measures a criterion, and a framework is made of criteria — so they are explained here from the bottom up.
+**Company Setup** → **Performance Framework** holds everything an appraisal is scored against, in five tabs: **Frameworks**, **Rating scales**, **Criteria**, **Review cycles** and **Goal library**. They build on each other — a scale measures a criterion, and a framework is made of criteria — so they are explained here from the bottom up.
 
 ## Rating scales
 
@@ -27,6 +27,15 @@ A **framework** is the appraisal form itself:
 Weights are relative twice over — a section's share of the appraisal, a line's share of its section — so the editor shows each line's resulting share of the whole, keeps running totals, and can split weights evenly for you.
 
 When an appraisal is opened, the most specific framework covering the person is chosen: position, then department, then employment type, then everyone, with your default breaking ties. HR can always choose another.
+
+## Goal library
+
+The **goal library** holds the goals your company sets often, for example _Reduce ticket backlog_ or _Complete a certification_. Each entry has its wording, what success looks like, and how it's measured:
+
+- **Progress to 100%**;
+- **A number to reach**, from a start to a target in a unit (for example 120 tickets → 20 tickets).
+
+When HR sets a goal, they can start from a library entry. The goal copies the entry's wording and target, so editing the entry later never changes a goal that's already been set. An entry you no longer use can be archived. See [Goals and check-ins](/help/workforce/goals-and-check-ins).
 
 ## Review cycles
 

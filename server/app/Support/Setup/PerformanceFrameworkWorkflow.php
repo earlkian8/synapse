@@ -7,6 +7,7 @@ use App\Http\Requests\Setup\KpiCriterionRequest;
 use App\Http\Requests\Setup\RatingScaleRequest;
 use App\Http\Requests\Setup\ReviewTemplateRequest;
 use App\Models\EvaluationPeriod;
+use App\Models\GoalTemplate;
 use App\Models\KpiCriterion;
 use App\Models\RatingScale;
 use App\Models\ReviewTemplate;
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Everything that changes the performance framework (ADR 0028): the appraisal
  * frameworks, the rating scales they measure on, the criteria catalogue they
- * draw from, and the review cycles they run in.
+ * draw from, the review cycles they run in, and the goal library goals start
+ * from (ADR 0073).
  *
  * The Performance framework screen and the assistant both come through here,
  * so each is written and recorded the same way whoever asked. Validation is the
@@ -255,6 +257,62 @@ class PerformanceFrameworkWorkflow
         $period->forceDelete();
 
         $this->log('deleted', "Permanently deleted evaluation period \"{$name}\"{$channel}", null, $name);
+    }
+
+    // ── Goal library (ADR 0073) ──────────────────────────────────────────────
+
+    /**
+     * Create a library entry (null) or update this one. A goal already set from
+     * it keeps the wording and target it was copied with.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function saveGoalTemplate(?GoalTemplate $template, array $data, string $channel = ''): GoalTemplate
+    {
+        $creating = $template === null;
+        $template ??= new GoalTemplate;
+
+        $percent = ($data['measure'] ?? 'percent') === 'percent';
+
+        $template->fill([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'measure' => $data['measure'] ?? 'percent',
+            'start_value' => $percent ? 0 : ($data['start_value'] ?? 0),
+            'target_value' => $percent ? 100 : $data['target_value'],
+            'unit' => $percent ? null : ($data['unit'] ?? null),
+            'is_active' => $data['is_active'] ?? true,
+        ])->save();
+
+        $this->log($creating ? 'created' : 'updated', ($creating ? 'Added' : 'Updated')." the library goal \"{$template->name}\"{$channel}", $template);
+
+        return $template;
+    }
+
+    public function archiveGoalTemplate(GoalTemplate $template, string $channel = ''): void
+    {
+        $name = $template->name;
+        $template->delete();
+
+        $this->log('archived', "Archived the library goal \"{$name}\"{$channel}", null, $name);
+    }
+
+    public function restoreGoalTemplate(GoalTemplate $template, string $channel = ''): void
+    {
+        $template->restore();
+
+        $this->log('restored', "Restored the library goal \"{$template->name}\"{$channel}", $template);
+    }
+
+    /**
+     * Goals set from the entry keep their copy; they only lose the link.
+     */
+    public function forceDeleteGoalTemplate(GoalTemplate $template, string $channel = ''): void
+    {
+        $name = $template->name;
+        $template->forceDelete();
+
+        $this->log('deleted', "Permanently deleted the library goal \"{$name}\"{$channel}", null, $name);
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
