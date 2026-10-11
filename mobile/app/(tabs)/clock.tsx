@@ -23,6 +23,7 @@ import { isOffline, newPunchId, punchQueue, useQueuedPunches } from '@/features/
 import { dayHeadline, shiftMinutes } from '@/features/attendance/shift';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useClockZone } from '@/lib/clock-zone';
 import { formatClock, formatDayHeading, formatElapsed, formatMinutes, formatTime } from '@/lib/format';
 import { getCurrentCoords, type Coords } from '@/lib/location';
 import { enter } from '@/lib/motion';
@@ -38,9 +39,10 @@ const DEFAULT_SHIFT = 8 * 60;
 
 export default function ClockScreen() {
   const { colors, fonts, spacing, status, readable } = useTheme();
-  const { user, organization } = useAuth();
-  // Times read on the organisation's clock, whatever zone the phone is in.
-  const timeZone = organization?.timezone;
+  const { user } = useAuth();
+  // Times read on the person's clock — their site's, or the company's
+  // (ADR 0036, 0079) — whatever zone the phone is in.
+  const zone = useClockZone();
   const toast = useToast();
 
   const today = useQuery<TodayResponse>(() => attendanceApi.today(), []);
@@ -62,6 +64,7 @@ export default function ClockScreen() {
   }, []);
 
   const record = today.data?.data;
+  const timeZone = record?.timezone ?? zone;
   const schedule = user?.employee?.schedule;
 
   // Punches saved on this phone while it was offline (ADR 0040). Until they are

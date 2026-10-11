@@ -65,7 +65,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards —
   plus **Events** and **Recognition** when the person may answer invitations or take
   part), an **Up next** card with the next invitation and one-tap answers, requests
-  awaiting approval, a snapping carousel of leave balances, and the latest award.
+  awaiting approval, a snapping carousel of leave balances, and the latest award. A
+  **search** button in the large title opens Search.
 - **Clock (DTR, the hero)** — a clock face: a ring that fills as the shift is worked,
   around the live time and the running time on the clock, then a state-driven primary
   button (Time In → Break → Time Out) driven by the server's `allowed` /
@@ -101,7 +102,35 @@ every `useQuery` screen refetches against the new company's tenant context.
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
   sign-out behind a system alert; and the employee's recognitions. The Profile list is
   also the hub for **My events**, **Recognition** and **Points & rewards** (shown by
-  permission) — the five tabs stay as they are.
+  permission), **Holidays**, **Resignation** (with `offboarding.resign`) and a **Help**
+  section (*Take the tour*, *Search*) — the five tabs stay as they are.
+- **Resignation** ([ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md),
+  [ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md)) —
+  `app/resignation/index.tsx` shows the same thing as My resignation on the web
+  (`MyExit`): with nothing under way, *Resign*; a waiting resignation with *Withdraw*
+  (confirmed by a system alert); a declined one with HR's note; once the exit starts, a
+  hero with the last day and clearance progress, the clearance item by item (a flag
+  with its reason), the exit interview and *Get my certificate*, which opens a
+  10-minute signed link in the browser. `resignation/new` files one (the notice is
+  counted as the day is picked, with a note under 30 days); `resignation/interview` is
+  the exit-interview survey: the reason, the seven ratings in one card with tappable
+  1–5 scores, the yes / maybe / no questions and the open answers.
+- **Holidays** ([ADR 0078](../decisions/0078-holidays-that-move-and-holidays-kept-at-some-sites.md))
+  — `app/holidays/index.tsx`: the year ahead as the person keeps it, by month, each
+  with its weekday, type, whether it is a day off, how it repeats, and a local one's
+  site.
+- **Search** ([ADR 0081](../decisions/0081-search-finds-attendance-days-and-the-app-searches-ones-own.md))
+  — `app/search.tsx`: the app's screens matched on the phone, and the person's own
+  leave, days, invitations, awards and holidays from the server, grouped; a result
+  opens its screen.
+- **The tour** ([ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md))
+  — `features/tour/tab-tour.tsx`: a spotlight over the tab bar with a card above it
+  (Home, Attendance, Clock, Leave, Profile), offered once after sign-in and replayed
+  from Profile. Each run is recorded.
+- **Site clocks** ([ADR 0079](../decisions/0079-shape-fences-and-a-clock-per-site.md))
+  — `lib/clock-zone.ts`: times are shown on the clock the person's days are judged on
+  (their base site's, else the company's); a day from the server carries its own
+  `timezone`.
 - **Events** ([ADR 0070](../decisions/0070-events-answered-by-invitees-repeating-rooms-reminders-and-a-calendar-feed.md))
   — `app/events/index.tsx` lists the person's invitations (upcoming / past) and
   `app/events/[id].tsx` shows one with its room, repeat and reminder, answers it (for
@@ -117,7 +146,7 @@ every `useQuery` screen refetches against the new company's tenant context.
 | Method & path | Purpose |
 |---|---|
 | `POST /api/auth/register` (public, throttled) | Create an identity; returns a session with `organization: null`, `needs_workspace: true` |
-| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) |
+| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) — unless the person's base site keeps its own (`employee.timezone`, ADR 0079). It also says whether the person may resign (`can_resign`) and owes the app's tour (`tour`) |
 | `POST /api/auth/switch` | Re-issue the token bound to another company the identity belongs to |
 | `POST /api/workspaces/preview` · `POST /api/workspaces/join` | Look up / redeem a company join code (throttled) |
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
@@ -130,6 +159,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/nominations` · `GET /api/nominations/types` · `POST /api/nominations` · `DELETE /api/nominations/{id}` | One's nominations |
 | `GET /api/points` · `GET /api/rewards` · `POST /api/rewards/{hashid}/redeem` · `PATCH /api/redemptions/{id}/cancel` | Points, rewards and redeeming |
 | `GET /api/leave/types` · `GET /api/leave/balances` · `GET /api/leave/requests` · `POST /api/leave/requests` · `PATCH /api/leave/requests/{id}/cancel` | Self-service leave |
+| `GET /api/holidays` | The holidays the person keeps over the next 365 days, local ones at their site included |
+| `GET /api/search?q=` | The person's own records (`MySearch`), throttled by `search` |
+| `GET /api/offboarding` · `POST /api/offboarding/resignation` · `PATCH /api/offboarding/resignation/{id}/withdraw` · `GET`/`POST /api/offboarding/exit-interview` · `POST /api/offboarding/certificate-link` | One's own exit (`offboarding.resign`) |
+| `GET /api/documents/certificate/{case}/{user}` (public, **signed**, throttled) | The Certificate of Employment PDF the link above points at, for 10 minutes |
+| `POST /api/tour/runs` · `PATCH /api/tour/runs/{id}` · `POST /api/tour/finish` | The app's tour: its runs and its answer |
 
 Leave filing reuses `LeaveCalculator` + `HolidayCalendar` (days computed
 server-side, never trusted from the client) and auto-approves types that don't

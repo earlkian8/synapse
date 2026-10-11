@@ -109,8 +109,10 @@ function Body({
     const isEdit = Boolean(record?.hashid);
     const lockedEmployee = record?.employee ?? null;
     // Times are read and written on the organisation's clock — the server reads
-    // "08:00" back as 08:00 there, whatever zone this browser is in.
-    const timeZone = useOrganizationTimeZone();
+    // "08:00" back as 08:00 there, whatever zone this browser is in — or on the
+    // day's own, when it was judged on the person's site's clock (ADR 0079).
+    const organizationZone = useOrganizationTimeZone();
+    const timeZone = record?.timezone ?? organizationZone;
     const today = todayIn(timeZone);
 
     const [employeeId, setEmployeeId] = useState<string>(

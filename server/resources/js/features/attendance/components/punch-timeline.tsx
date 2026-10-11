@@ -27,7 +27,14 @@ import type { Punch } from '../types';
  * says none of that, and "no evidence" and "evidence missing" are not the same
  * finding.
  */
-export function PunchTimeline({ punches }: { punches: Punch[] }) {
+export function PunchTimeline({
+    punches,
+    timeZone,
+}: {
+    punches: Punch[];
+    /** The clock the day was judged on, when it is a site's own (ADR 0079). */
+    timeZone?: string | null;
+}) {
     if (punches.length === 0) {
         return (
             <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-sm text-muted-foreground">
@@ -40,15 +47,26 @@ export function PunchTimeline({ punches }: { punches: Punch[] }) {
     return (
         <ol className="divide-y divide-border overflow-hidden rounded-lg border border-border">
             {punches.map((punch) => (
-                <PunchRow key={punch.id} punch={punch} />
+                <PunchRow
+                    key={punch.id}
+                    punch={punch}
+                    timeZone={timeZone ?? undefined}
+                />
             ))}
         </ol>
     );
 }
 
 /** One punch: what happened and when, where it came from, and the proof. */
-function PunchRow({ punch }: { punch: Punch }) {
-    const timeZone = useOrganizationTimeZone();
+function PunchRow({
+    punch,
+    timeZone: own,
+}: {
+    punch: Punch;
+    timeZone?: string;
+}) {
+    const organization = useOrganizationTimeZone();
+    const timeZone = own ?? organization;
     const meta = PUNCH_META[punch.type];
     const Icon = meta.icon;
     const hasGeo = punch.latitude !== null && punch.longitude !== null;
@@ -97,7 +115,7 @@ function PunchRow({ punch }: { punch: Punch }) {
                     {punch.recorder && <span>by {punch.recorder}</span>}
                 </div>
 
-                <Capture punch={punch} />
+                <Capture punch={punch} timeZone={timeZone} />
             </div>
 
             <PunchPhoto punch={punch} />
@@ -111,8 +129,15 @@ function PunchRow({ punch }: { punch: Punch }) {
  * when there is something to say — most web punches at a company without
  * locations have nothing here.
  */
-function Capture({ punch }: { punch: Punch }) {
-    const timeZone = useOrganizationTimeZone();
+function Capture({
+    punch,
+    timeZone: own,
+}: {
+    punch: Punch;
+    timeZone?: string;
+}) {
+    const organization = useOrganizationTimeZone();
+    const timeZone = own ?? organization;
     const skewMinutes =
         punch.clock_skew_seconds != null
             ? Math.round(Math.abs(punch.clock_skew_seconds) / 60)

@@ -21,6 +21,9 @@ use App\Support\OffboardingProvisioner;
  * ({@see OffboardingException}) — however it was asked for. Seeding the
  * checklist stays {@see OffboardingProvisioner}'s job.
  *
+ * Starting an exit sends the leaver the exit-interview survey
+ * ({@see ExitInterviews}), unless they were terminated.
+ *
  * The lifecycle is guarded: only an exit in progress can be completed or
  * cancelled, and only a closed one reopened. Completing moves the employee to
  * the exit type's employment status; cancelling or reopening returns them to
@@ -50,6 +53,15 @@ class OffboardingWorkflow
         }
 
         $case = OffboardingProvisioner::start($employee, $attributes, $program);
+
+        // A resignation waiting for HR is answered by starting the exit.
+        ResignationWorkflow::settleFor($case);
+
+        // The exit interview goes out with the exit (ADR 0076) — but not to
+        // somebody let go: HR sends that one by hand when it wants it.
+        if (ExitInterviews::shouldSendAutomatically($case)) {
+            app(ExitInterviews::class)->send($case, channel: $channel);
+        }
 
         ActivityLogger::log(
             event: 'created',

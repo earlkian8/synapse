@@ -98,7 +98,7 @@ class AttendanceController extends Controller
             'employee.position:id,title',
             'punches.recorder:id,first_name,middle_name,last_name,suffix',
             // Where each punch was (ADR 0040).
-            'punches.location:id,name,radius_meters',
+            'punches.location:id,name,radius_meters,fence_type',
             'replacedPunches',
             'approver:id,first_name,middle_name,last_name,suffix',
         ]);

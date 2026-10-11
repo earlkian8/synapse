@@ -2,12 +2,16 @@
 
 The tables behind the [Offboarding module](../modules/offboarding.md). The case and its
 checklist were created by `2026_06_19_000000_create_offboarding_tables`; the reusable
-**programs** (clearance templates) by `2026_07_05_000000_create_offboarding_program_tables`.
-All four are tenant-scoped — a non-null `organization_id` FK (ADR 0005), omitted from the
+**programs** (clearance templates) by `2026_07_05_000000_create_offboarding_program_tables`;
+resignations, exit interviews and the certificate's number by
+`2026_10_11_030000_create_resignations_and_exit_interviews` (ADRs 0076, 0077).
+All six are tenant-scoped — a non-null `organization_id` FK (ADR 0005), omitted from the
 columns below for brevity. The shape mirrors the [onboarding tables](./onboarding-tables.md)
 (a program, a parent case and a checklist). See
 [ADR 0016](../decisions/0016-offboarding-and-clearance.md) and
-[ADR 0056](../decisions/0056-assistant-recruitment-pipelines-and-clearance-templates.md).
+[ADR 0056](../decisions/0056-assistant-recruitment-pipelines-and-clearance-templates.md),
+[ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md) and
+[ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md).
 
 ## `offboarding_cases`
 
@@ -24,6 +28,8 @@ One employee's exit journey.
 | `reason` | text, nullable | Context for the exit. |
 | `status` | string | initiated / clearance / completed / cancelled. Indexed. |
 | `completed_at` | timestamp, nullable | Stamped when the exit is finalised. |
+| `certificate_no` | string(40), nullable | The Certificate of Employment's number, `COE-<year>-<id>`, given the first time it is issued and kept (ADR 0077). |
+| `certificate_issued_at` | timestamp, nullable | When it was first issued. |
 | timestamps | | |
 
 > **`clearance_status` is not a column** — it is **derived** from the items
@@ -47,6 +53,48 @@ A single clearance sign-off on a case.
 | `cleared_at` | timestamp, nullable | When it was signed off. |
 | `sort_order` | int | Default 0. |
 | timestamps | | |
+
+## `resignation_requests`
+
+A resignation the employee filed themselves (ADR 0076). Addressed by hashid.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `employee_id` | FK → employees | `cascadeOnDelete`. |
+| `user_id` | FK → users, nullable | Who filed it — the employee's own account. `nullOnDelete`. |
+| `proposed_last_day` | date | The last day they propose to work. Not in the past when filed. |
+| `reason` | text, nullable | Why, in their words. Never in the audit trail. |
+| `status` | string(16) | pending / accepted / declined / withdrawn. Default pending. |
+| `decided_by` | FK → users, nullable | Who accepted or declined it. `nullOnDelete`. |
+| `decided_at` | timestamp, nullable | When it was decided or withdrawn. |
+| `decision_note` | text, nullable | HR's note; required to decline. |
+| `offboarding_case_id` | FK → offboarding_cases, nullable | The exit an accepted one became. `nullOnDelete`. |
+| timestamps | | |
+
+Indexes: `(organization_id, status)`, `(employee_id, status)`. At most one `pending`
+per employee is enforced by `ResignationWorkflow`, not by an index.
+
+## `exit_interviews`
+
+The exit-interview survey sent to a leaver, one per exit (ADR 0076).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `offboarding_case_id` | FK → offboarding_cases | `cascadeOnDelete`. **Unique** — one per exit. |
+| `employee_id` | FK → employees | `cascadeOnDelete`. |
+| `status` | string(16) | pending / submitted / waived. Default pending. |
+| `questions` | json | The questions as they were asked (`ExitInterviewQuestionnaire::questions()`), so later wording changes never re-label old answers. |
+| `answers` | json, nullable | Keyed by question key: `reason`, `rating_<part>` (1–5), `recommend`, `return`, and the open answers. |
+| `sent_at` | timestamp, nullable | |
+| `reminded_at` | timestamp, nullable | The one reminder, after 3 days. |
+| `submitted_at` | timestamp, nullable | |
+| `waived_by` | FK → users, nullable | `nullOnDelete`. |
+| `waived_at` | timestamp, nullable | |
+| timestamps | | |
+
+Index: `(organization_id, status)`.
 
 ## `offboarding_programs`
 
@@ -98,4 +146,5 @@ checklist, skipping any whose label is already on it (case-insensitively).
 ## Per-tenant uniqueness
 
 `(organization_id)` scopes every table. `offboarding_cases.employee_id` is unique
-globally and therefore unique within a tenant (the employee already belongs to one).
+globally and therefore unique within a tenant (the employee already belongs to one), and
+so is `exit_interviews.offboarding_case_id`.

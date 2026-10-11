@@ -83,8 +83,9 @@ export type HolidayBlueprint = {
     name: string;
     date: string;
     type: HolidayType;
-    /** A fixed date, kept every year; a movable one is only its next date. */
+    /** Kept every year: a fixed date, or a movable one by its rule (ADR 0078). */
     is_recurring: boolean;
+    recurrence: 'yearly' | 'easter' | 'weekday';
 };
 
 /** A recognition most companies give out. */

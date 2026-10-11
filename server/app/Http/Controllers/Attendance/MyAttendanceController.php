@@ -7,6 +7,7 @@ use App\Http\Requests\Attendance\PunchRequest;
 use App\Http\Resources\AttendanceRecordResource;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\WorkLocation;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
@@ -41,7 +42,7 @@ class MyAttendanceController extends Controller
         $history = AttendanceRecord::query()
             ->with('punches')
             ->where('employee_id', $employee->id)
-            ->whereDate('work_date', '>=', CarbonImmutable::parse(OrganizationClock::today())->subDays(30)->toDateString())
+            ->whereDate('work_date', '>=', CarbonImmutable::parse(OrganizationClock::today(WorkLocation::timezoneFor($employee)))->subDays(30)->toDateString())
             ->orderByDesc('work_date')
             ->get();
 
@@ -133,7 +134,7 @@ class MyAttendanceController extends Controller
      */
     private function monthSummary(int $employeeId): array
     {
-        $now = OrganizationClock::now();
+        $now = OrganizationClock::now(WorkLocation::timezoneFor($employeeId));
 
         $records = AttendanceRecord::query()
             ->where('employee_id', $employeeId)

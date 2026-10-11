@@ -1,4 +1,4 @@
-import type { TourStepId, TourTrigger } from './types';
+import type { TourKind, TourStepId, TourTrigger } from './types';
 
 /**
  * The tour's running state, kept outside React.
@@ -15,6 +15,10 @@ export type TourState = {
     /** The steps this run takes, fixed when it starts. */
     stepIds: TourStepId[];
     trigger: TourTrigger;
+    /** The whole tour, or only what is new (ADR 0080). */
+    kind: TourKind;
+    /** The run as the server filed it, once it has answered. */
+    runId: number | null;
     /** Whether ending this run answers the tour the server says is owed. */
     records: boolean;
     /** The tour has already been offered on its own since the page loaded. */
@@ -31,6 +35,8 @@ const initialState: TourState = {
     index: 0,
     stepIds: [],
     trigger: 'auto',
+    kind: 'full',
+    runId: null,
     records: false,
     offered: false,
     answered: false,
@@ -62,13 +68,26 @@ export const tourStore = {
     start(run: {
         stepIds: TourStepId[];
         trigger: TourTrigger;
+        kind: TourKind;
         records: boolean;
     }): void {
         if (state.running || run.stepIds.length === 0) {
             return;
         }
 
-        update({ ...run, running: true, index: 0, offered: true });
+        update({ ...run, running: true, index: 0, offered: true, runId: null });
+    },
+
+    /** The server filed the run that is playing. */
+    filed(runId: number): void {
+        if (state.running) {
+            update({ runId });
+        }
+    },
+
+    /** The owed tour was answered without being shown (nothing new on screen). */
+    settle(): void {
+        update({ offered: true, answered: true });
     },
 
     go(index: number): void {
@@ -87,6 +106,7 @@ export const tourStore = {
             index: 0,
             stepIds: [],
             records: false,
+            runId: null,
             answered: state.answered || state.records,
         });
     },

@@ -198,7 +198,7 @@ function WeekTile({
 
     const worked = cell.worked_minutes > 0;
     const label = worked
-        ? formatTime(cell.first_in_at, timeZone)
+        ? formatTime(cell.first_in_at, cell.timezone ?? timeZone)
         : cell.status === 'on_leave'
           ? 'Leave'
           : cell.status === 'holiday'
@@ -237,9 +237,16 @@ function WeekTile({
                 )}
                 {worked && (
                     <span className="text-primary-foreground/80 tabular-nums">
-                        {formatTime(cell.first_in_at, timeZone)} →{' '}
-                        {formatTime(cell.last_out_at, timeZone)} ·{' '}
-                        {formatDuration(cell.worked_minutes)}
+                        {formatTime(
+                            cell.first_in_at,
+                            cell.timezone ?? timeZone,
+                        )}{' '}
+                        →{' '}
+                        {formatTime(
+                            cell.last_out_at,
+                            cell.timezone ?? timeZone,
+                        )}{' '}
+                        · {formatDuration(cell.worked_minutes)}
                     </span>
                 )}
                 {cell.late_minutes > 0 && (

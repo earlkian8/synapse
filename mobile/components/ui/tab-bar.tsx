@@ -31,6 +31,30 @@ function barBottom(bottomInset: number): number {
   return bottomInset > 0 ? Math.max(bottomInset - 8, 12) : 12;
 }
 
+/**
+ * Where each tab sits on screen, from the same numbers the bar is laid out
+ * with — so the app's tour (ADR 0080) can light one up without measuring it.
+ * Tabs are in the bar's order: Home, Attendance, Clock, Leave, Profile.
+ */
+export function tabRects(
+  window: { width: number; height: number },
+  bottomInset: number,
+  gutter: number,
+): { name: string; x: number; y: number; width: number; height: number }[] {
+  const names = Object.keys(TABS);
+  const inner = window.width - gutter * 2 - BAR_PADDING * 2;
+  const itemWidth = inner / names.length;
+  const top = window.height - barBottom(bottomInset) - BAR_HEIGHT + BAR_PADDING;
+
+  return names.map((name, index) => ({
+    name,
+    x: gutter + BAR_PADDING + index * itemWidth,
+    y: top,
+    width: itemWidth,
+    height: BAR_HEIGHT - BAR_PADDING * 2,
+  }));
+}
+
 /** How much room a tab screen leaves under its content so the last row clears the bar. */
 export function useTabBarInset(): number {
   const { bottom } = useSafeAreaInsets();

@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
 import { useQueuedPunches } from '@/features/attendance/punch-queue';
 import { profileApi } from '@/features/profile/api';
+import { useTabTour } from '@/features/tour/tab-tour';
 import { CompanyLogo, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/format';
@@ -34,6 +35,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const waiting = useQueuedPunches().length;
+  const { start: startTour } = useTabTour();
 
   const { data, loading, refreshing, refresh, error, reload } = useQuery<{ data: Profile }>(() => profileApi.show(), []);
   const profile = data?.data ?? null;
@@ -100,6 +102,15 @@ export default function ProfileScreen() {
                 title="My awards"
                 onPress={() => router.push('/awards')}
               />
+              <ListRow
+                icon="holiday"
+                iconColor={status.holiday}
+                title="Holidays"
+                onPress={() => router.push('/holidays')}
+              />
+              {user?.can_resign && (
+                <ListRow icon="exit" iconColor={status.rest} title="Resignation" onPress={() => router.push('/resignation')} />
+              )}
               {organization && (
                 <ListRow
                   leading={<CompanyLogo uri={organization.logo} initials={organization.initials} size={30} />}
@@ -141,6 +152,12 @@ export default function ProfileScreen() {
           </Animated.View>
         </>
       ) : null}
+
+      {/* Help */}
+      <ListSection header="Help" withIcons>
+        <ListRow icon="tour" iconColor={colors.tint} title="Take the tour" onPress={() => startTour('replay')} />
+        <ListRow icon="search" iconColor={status.leave} title="Search" onPress={() => router.push('/search')} />
+      </ListSection>
 
       {/* Appearance */}
       <ListSection header="Appearance" withIcons>

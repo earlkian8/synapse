@@ -1,5 +1,13 @@
 import { useForm } from '@inertiajs/react';
-import { LocateFixed, MapPinned, Search } from 'lucide-react';
+import {
+    Circle,
+    Eraser,
+    Hexagon,
+    LocateFixed,
+    MapPinned,
+    Search,
+    Undo2,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { FormField } from '@/components/form-field';
@@ -13,13 +21,16 @@ import {
     ModalHeader,
     ModalIcon,
 } from '@/components/modal';
+import { TimezoneSelect } from '@/components/timezone-select';
+import type { TimezoneOption } from '@/components/timezone-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { GEOCODER_URL, locationRoutes } from '../routes';
-import type { Fence, Ref, WorkLocation } from '../types';
-import { FencePicker } from './fence-map';
+import type { Corner, Fence, Ref, WorkLocation } from '../types';
+import { FencePicker, ShapePicker } from './fence-map';
 
 const NONE = '__none__';
 
@@ -35,6 +46,8 @@ type Props = {
     onOpenChange: (open: boolean) => void;
     schedules: Ref[];
     policies: Ref[];
+    timezones: TimezoneOption[];
+    organizationTimezone: string;
 };
 
 /**
@@ -42,6 +55,10 @@ type Props = {
  * people based there default to. The map is the quick way in; the coordinates
  * underneath it are the exact one, and the way in for anybody not using a
  * pointer.
+ *
+ * The fence is a circle, or a shape drawn corner by corner for a site no circle
+ * fits — a long warehouse, a campus along a road (ADR 0079). A site can also
+ * keep its own clock, for people who work in another time zone.
  */
 export function LocationFormModal({
     location,
@@ -49,6 +66,8 @@ export function LocationFormModal({
     onOpenChange,
     schedules,
     policies,
+    timezones,
+    organizationTimezone,
 }: Props) {
     return (
         <Modal open={open} onOpenChange={onOpenChange}>
@@ -60,7 +79,7 @@ export function LocationFormModal({
                         </ModalIcon>
                     }
                     title={location ? location.name : 'New location'}
-                    description="A site people punch at. The circle is its fence: a punch counts as on site when the phone’s position touches it."
+                    description="A site people punch at, and its fence: a punch counts as on site when the phone’s position touches it."
                 />
 
                 {open && (
@@ -69,6 +88,8 @@ export function LocationFormModal({
                         location={location}
                         schedules={schedules}
                         policies={policies}
+                        timezones={timezones}
+                        organizationTimezone={organizationTimezone}
                         onDone={() => onOpenChange(false)}
                     />
                 )}
@@ -83,14 +104,22 @@ function FormBody({
     location,
     schedules,
     policies,
+    timezones,
+    organizationTimezone,
     onDone,
 }: {
     location: WorkLocation | null;
     schedules: Ref[];
     policies: Ref[];
+    timezones: TimezoneOption[];
+    organizationTimezone: string;
     onDone: () => void;
 }) {
     const { data, setData, post, processing, errors, transform } = useForm({
+        fence_type: (location?.fence_type ?? 'circle') as 'circle' | 'polygon',
+        polygon: (location?.polygon ?? []) as Corner[],
+        own_clock: Boolean(location?.timezone),
+        timezone: location?.timezone ?? organizationTimezone,
         name: location?.name ?? '',
         address: location?.address ?? '',
         latitude: location ? String(location.latitude) : '',
@@ -120,6 +149,14 @@ function FormBody({
         Number.isFinite(latitude) && Number.isFinite(longitude)
             ? { latitude, longitude, radius_meters: data.radius_meters }
             : null;
+    const isShape = data.fence_type === 'polygon';
+    const ready = isShape ? data.polygon.length >= 3 : fence !== null;
+    const fieldErrors = errors as Record<string, string | undefined>;
+    const shapeError =
+        fieldErrors.polygon ??
+        Object.entries(fieldErrors).find(([key]) =>
+            key.startsWith('polygon.'),
+        )?.[1];
 
     const place = (next: Fence, bringIntoView = false) => {
         setData((current) => ({
@@ -226,8 +263,16 @@ function FormBody({
     const submit = (event: FormEvent) => {
         event.preventDefault();
 
-        transform((current) => ({
+        transform(({ own_clock, ...current }) => ({
             ...current,
+            polygon: current.fence_type === 'polygon' ? current.polygon : null,
+            latitude:
+                current.fence_type === 'polygon' ? null : current.latitude,
+            longitude:
+                current.fence_type === 'polygon' ? null : current.longitude,
+            radius_meters:
+                current.fence_type === 'polygon' ? null : current.radius_meters,
+            timezone: own_clock ? current.timezone : null,
             default_work_schedule_id: current.default_work_schedule_id || null,
             attendance_policy_id: current.attendance_policy_id || null,
         }));
@@ -312,65 +357,167 @@ function FormBody({
                         </p>
                     )}
 
+                    <div
+                        role="radiogroup"
+                        aria-label="Fence"
+                        className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1"
+                    >
+                        {(
+                            [
+                                {
+                                    value: 'circle',
+                                    label: 'Circle',
+                                    icon: Circle,
+                                },
+                                {
+                                    value: 'polygon',
+                                    label: 'Draw a shape',
+                                    icon: Hexagon,
+                                },
+                            ] as const
+                        ).map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                role="radio"
+                                aria-checked={data.fence_type === option.value}
+                                onClick={() =>
+                                    setData('fence_type', option.value)
+                                }
+                                className={cn(
+                                    'inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
+                                    data.fence_type === option.value
+                                        ? 'bg-background text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                )}
+                            >
+                                <option.icon className="size-4" />
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="relative overflow-hidden rounded-xl border border-border">
-                        <FencePicker
-                            fence={fence}
-                            onChange={(next) => place(next)}
-                            recenter={recenter}
-                            className="h-72 w-full sm:h-96"
-                        />
-                        {!fence && (
+                        {isShape ? (
+                            <ShapePicker
+                                corners={data.polygon}
+                                onChange={(corners) =>
+                                    setData('polygon', corners)
+                                }
+                                center={fence}
+                                recenter={recenter}
+                                className="h-72 w-full sm:h-96"
+                            />
+                        ) : (
+                            <FencePicker
+                                fence={fence}
+                                onChange={(next) => place(next)}
+                                recenter={recenter}
+                                className="h-72 w-full sm:h-96"
+                            />
+                        )}
+                        {!ready && (
                             <p className="pointer-events-none absolute inset-x-3 bottom-3 z-[1000] rounded-lg bg-background/90 px-3 py-2 text-center text-xs text-muted-foreground shadow-sm backdrop-blur">
-                                Search for the address, use your location, or
-                                click the site on the map.
+                                {isShape
+                                    ? data.polygon.length === 0
+                                        ? 'Click the map at each corner of the site, in order round it.'
+                                        : `${data.polygon.length} of at least 3 corners. Keep clicking round the site.`
+                                    : 'Search for the address, use your location, or click the site on the map.'}
                             </p>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <label
-                            htmlFor="fence-radius"
-                            className="shrink-0 text-sm"
-                        >
-                            Fence
-                        </label>
-                        <input
-                            id="fence-radius"
-                            type="range"
-                            min={25}
-                            max={SLIDER_MAX}
-                            step={5}
-                            value={Math.min(data.radius_meters, SLIDER_MAX)}
-                            onChange={(event) =>
-                                setData(
-                                    'radius_meters',
-                                    Number(event.target.value),
-                                )
-                            }
-                            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[#0ABFBF]"
-                        />
-                        <div className="flex shrink-0 items-center gap-1.5">
-                            <Input
-                                type="number"
-                                inputMode="numeric"
-                                min={25}
-                                max={5000}
-                                value={data.radius_meters}
-                                onChange={(event) =>
+                    {isShape ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="mr-auto text-sm text-muted-foreground tabular-nums">
+                                {data.polygon.length}{' '}
+                                {data.polygon.length === 1
+                                    ? 'corner'
+                                    : 'corners'}
+                                {data.polygon.length >= 3 &&
+                                    ' · the last joins the first'}
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={data.polygon.length === 0}
+                                onClick={() =>
                                     setData(
-                                        'radius_meters',
-                                        Number(event.target.value),
+                                        'polygon',
+                                        data.polygon.slice(0, -1),
                                     )
                                 }
-                                aria-label="Fence radius in metres"
-                                className="h-8 w-20 tabular-nums"
+                            >
+                                <Undo2 className="size-4" />
+                                Undo corner
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={data.polygon.length === 0}
+                                onClick={() => setData('polygon', [])}
+                            >
+                                <Eraser className="size-4" />
+                                Clear
+                            </Button>
+                            <InputError
+                                className="basis-full"
+                                message={shapeError}
                             />
-                            <span className="text-xs text-muted-foreground">
-                                m
-                            </span>
                         </div>
-                    </div>
-                    <InputError message={errors.radius_meters} />
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-3">
+                                <label
+                                    htmlFor="fence-radius"
+                                    className="shrink-0 text-sm"
+                                >
+                                    Radius
+                                </label>
+                                <input
+                                    id="fence-radius"
+                                    type="range"
+                                    min={25}
+                                    max={SLIDER_MAX}
+                                    step={5}
+                                    value={Math.min(
+                                        data.radius_meters,
+                                        SLIDER_MAX,
+                                    )}
+                                    onChange={(event) =>
+                                        setData(
+                                            'radius_meters',
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                    className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[#0ABFBF]"
+                                />
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                    <Input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={25}
+                                        max={5000}
+                                        value={data.radius_meters}
+                                        onChange={(event) =>
+                                            setData(
+                                                'radius_meters',
+                                                Number(event.target.value),
+                                            )
+                                        }
+                                        aria-label="Fence radius in metres"
+                                        className="h-8 w-20 tabular-nums"
+                                    />
+                                    <span className="text-xs text-muted-foreground">
+                                        m
+                                    </span>
+                                </div>
+                            </div>
+                            <InputError message={errors.radius_meters} />
+                        </>
+                    )}
                 </div>
 
                 {/* What the site is called, exactly where, and its defaults. */}
@@ -395,37 +542,78 @@ function FormBody({
                         />
                     </FormField>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <FormField
-                            label="Latitude"
-                            required
-                            error={errors.latitude}
-                        >
-                            <Input
-                                inputMode="decimal"
-                                value={data.latitude}
-                                onChange={(event) =>
-                                    setData('latitude', event.target.value)
+                    {!isShape && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <FormField
+                                label="Latitude"
+                                required
+                                error={errors.latitude}
+                            >
+                                <Input
+                                    inputMode="decimal"
+                                    value={data.latitude}
+                                    onChange={(event) =>
+                                        setData('latitude', event.target.value)
+                                    }
+                                    onBlur={() =>
+                                        setRecenter((count) => count + 1)
+                                    }
+                                    className="tabular-nums"
+                                />
+                            </FormField>
+                            <FormField
+                                label="Longitude"
+                                required
+                                error={errors.longitude}
+                            >
+                                <Input
+                                    inputMode="decimal"
+                                    value={data.longitude}
+                                    onChange={(event) =>
+                                        setData('longitude', event.target.value)
+                                    }
+                                    onBlur={() =>
+                                        setRecenter((count) => count + 1)
+                                    }
+                                    className="tabular-nums"
+                                />
+                            </FormField>
+                        </div>
+                    )}
+
+                    <div className="flex flex-col gap-3 rounded-lg border border-border px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-4">
+                            <label
+                                htmlFor="location-own-clock"
+                                className="min-w-0 cursor-pointer"
+                            >
+                                <span className="block text-sm">
+                                    Keeps its own clock
+                                </span>
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                    {data.own_clock
+                                        ? 'The people based here are judged on this site’s time: late, today, and which day a punch belongs to.'
+                                        : `Off: the company’s clock (${organizationTimezone.replace(/_/g, ' ')}).`}
+                                </span>
+                            </label>
+                            <Switch
+                                id="location-own-clock"
+                                checked={data.own_clock}
+                                onCheckedChange={(checked) =>
+                                    setData('own_clock', checked)
                                 }
-                                onBlur={() => setRecenter((count) => count + 1)}
-                                className="tabular-nums"
                             />
-                        </FormField>
-                        <FormField
-                            label="Longitude"
-                            required
-                            error={errors.longitude}
-                        >
-                            <Input
-                                inputMode="decimal"
-                                value={data.longitude}
-                                onChange={(event) =>
-                                    setData('longitude', event.target.value)
-                                }
-                                onBlur={() => setRecenter((count) => count + 1)}
-                                className="tabular-nums"
+                        </div>
+                        {data.own_clock && (
+                            <TimezoneSelect
+                                id="location-timezone"
+                                value={data.timezone}
+                                options={timezones}
+                                onChange={(zone) => setData('timezone', zone)}
+                                invalid={Boolean(errors.timezone)}
                             />
-                        </FormField>
+                        )}
+                        <InputError message={errors.timezone} />
                     </div>
 
                     <FormField
@@ -500,7 +688,7 @@ function FormBody({
                 <Button type="button" variant="ghost" onClick={onDone}>
                     Cancel
                 </Button>
-                <Button type="submit" disabled={processing || !fence}>
+                <Button type="submit" disabled={processing || !ready}>
                     {processing && <Spinner />}
                     {location ? 'Save location' : 'Create location'}
                 </Button>

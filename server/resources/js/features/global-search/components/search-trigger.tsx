@@ -6,6 +6,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { tourTarget } from '@/features/product-tour/targets';
 import { SearchPalette } from './search-palette';
 
 const isMac = () =>
@@ -47,6 +48,7 @@ export function SearchTrigger() {
                 onClick={() => setOpen(true)}
                 aria-haspopup="dialog"
                 aria-keyshortcuts="Meta+K Control+K"
+                {...tourTarget('search')}
                 className="hidden h-8 w-64 items-center gap-2 rounded-lg border border-input bg-muted/40 pr-1.5 pl-2.5 text-[13px] text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 lg:w-72 @4xl/header:flex"
             >
                 <Search className="size-4 shrink-0" />
@@ -66,6 +68,7 @@ export function SearchTrigger() {
                         onClick={() => setOpen(true)}
                         aria-label="Search"
                         aria-haspopup="dialog"
+                        {...tourTarget('search')}
                         className="size-8 text-muted-foreground hover:text-foreground @4xl/header:hidden"
                     >
                         <Search className="size-[18px]" />

@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { cn } from '@/lib/utils';
-import type { Fence } from '../types';
+import type { Corner, Fence } from '../types';
 
 /**
  * The maps on Company Setup → Locations (ADR 0040), on Leaflet with
@@ -217,6 +217,161 @@ export function FencePicker({
     );
 }
 
+const corner = (first: boolean) =>
+    L.divIcon({
+        className: first ? 'fence-corner is-first' : 'fence-corner',
+        html: '<span></span>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+    });
+
+/**
+ * A fence drawn as a shape (ADR 0079): each click on the map adds a corner
+ * after the last; a corner is dragged to move it. The outline closes itself —
+ * the last corner joins the first. `center` (a search result, "use my
+ * location") only moves the view; the shape is what is drawn.
+ */
+export function ShapePicker({
+    corners,
+    onChange,
+    center,
+    recenter,
+    className,
+}: {
+    corners: Corner[];
+    onChange: (corners: Corner[]) => void;
+    center: Fence | null;
+    recenter: number;
+    className?: string;
+}) {
+    const container = useRef<HTMLDivElement | null>(null);
+    const map = useRef<L.Map | null>(null);
+    const shape = useRef<L.Polygon | null>(null);
+    const handles = useRef<L.LayerGroup | null>(null);
+    const latest = useRef({ corners, onChange, center });
+
+    useEffect(() => {
+        latest.current = { corners, onChange, center };
+    }, [corners, onChange, center]);
+
+    useEffect(() => {
+        if (!container.current) {
+            return;
+        }
+
+        const instance = createMap(container.current);
+        map.current = instance;
+        handles.current = L.layerGroup().addTo(instance);
+
+        instance.on('click', (event: L.LeafletMouseEvent) => {
+            latest.current.onChange([
+                ...latest.current.corners,
+                [round(event.latlng.lat), round(event.latlng.lng)],
+            ]);
+        });
+
+        const first = latest.current.corners;
+
+        if (first.length > 0) {
+            instance.fitBounds(L.latLngBounds(first), {
+                maxZoom: 18,
+                padding: [32, 32],
+                animate: false,
+            });
+        } else if (latest.current.center) {
+            instance.setView(
+                [
+                    latest.current.center.latitude,
+                    latest.current.center.longitude,
+                ],
+                17,
+                { animate: false },
+            );
+        }
+
+        return () => {
+            instance.remove();
+            map.current = null;
+            shape.current = null;
+            handles.current = null;
+        };
+    }, []);
+
+    useResizeInvalidation(container, map);
+
+    // Draw the outline and a handle on every corner.
+    useEffect(() => {
+        const instance = map.current;
+        const group = handles.current;
+
+        if (!instance || !group) {
+            return;
+        }
+
+        group.clearLayers();
+
+        if (corners.length >= 2) {
+            if (!shape.current) {
+                shape.current = L.polygon(corners, {
+                    color: EDGE,
+                    weight: 2.5,
+                    fillColor: ACCENT,
+                    fillOpacity: corners.length >= 3 ? 0.2 : 0,
+                    interactive: false,
+                }).addTo(instance);
+            } else {
+                shape.current
+                    .setLatLngs(corners)
+                    .setStyle({ fillOpacity: corners.length >= 3 ? 0.2 : 0 });
+            }
+        } else {
+            shape.current?.remove();
+            shape.current = null;
+        }
+
+        corners.forEach((point, index) => {
+            const handle = L.marker(point, {
+                icon: corner(index === 0),
+                draggable: true,
+                keyboard: true,
+                title: `Corner ${index + 1} — drag to move it`,
+            });
+
+            handle.on('dragend', () => {
+                const at = handle.getLatLng();
+                const next = [...latest.current.corners];
+                next[index] = [round(at.lat), round(at.lng)];
+                latest.current.onChange(next);
+            });
+
+            group.addLayer(handle);
+        });
+    }, [corners]);
+
+    // Look where a search or "use my location" pointed.
+    useEffect(() => {
+        const instance = map.current;
+        const target = latest.current.center;
+
+        if (!instance || !target || recenter === 0) {
+            return;
+        }
+
+        instance.setView([target.latitude, target.longitude], 17, {
+            animate: false,
+        });
+    }, [recenter]);
+
+    return (
+        <div
+            ref={container}
+            className={cn('fence-map is-drawing isolate', className)}
+            role="application"
+            aria-label="Map. Click at each corner of the site to draw its outline; drag a corner to move it."
+        />
+    );
+}
+
 // ── The overview ─────────────────────────────────────────────────────────────
 
 export type SiteShape = {
@@ -226,6 +381,8 @@ export type SiteShape = {
     longitude: number;
     radius_meters: number;
     is_active: boolean;
+    /** A shape's corners (ADR 0079); null for a circle. */
+    polygon?: Corner[] | null;
 };
 
 /**
@@ -282,14 +439,22 @@ export function SitesMap({
         for (const site of sites) {
             const selected = site.id === selectedId;
 
-            L.circle([site.latitude, site.longitude], {
-                radius: site.radius_meters,
+            const style = {
                 color: EDGE,
                 weight: selected ? 3.5 : 2.5,
                 dashArray: site.is_active ? undefined : '5 5',
                 fillColor: ACCENT,
                 fillOpacity: selected ? 0.32 : 0.2,
-            })
+            };
+            const fence =
+                site.polygon && site.polygon.length >= 3
+                    ? L.polygon(site.polygon, style)
+                    : L.circle([site.latitude, site.longitude], {
+                          radius: site.radius_meters,
+                          ...style,
+                      });
+
+            fence
                 .bindTooltip(site.name, {
                     direction: 'top',
                     className: 'fence-tooltip',

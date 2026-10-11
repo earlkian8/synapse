@@ -90,6 +90,7 @@ class PermissionRegistry
             'offboarding.view' => 'View offboarding & clearance',
             'offboarding.manage' => 'Start exits, manage clearance & finalize',
             'offboarding.manage-programs' => 'Manage clearance templates (programs)',
+            'offboarding.resign' => 'File your own resignation, answer your exit interview & download your Certificate of Employment (self-service)',
         ],
         'Company Setup' => [
             'setup.company.view' => 'View company profile',
@@ -136,6 +137,9 @@ class PermissionRegistry
         ],
         'Notifications' => [
             'notifications.send' => 'Send & broadcast notifications',
+        ],
+        'Product Tour' => [
+            'product-tour.view' => 'See how people move through the product tour, stop by stop',
         ],
         'Data Export' => [
             'data-export.view' => 'View the data export history',

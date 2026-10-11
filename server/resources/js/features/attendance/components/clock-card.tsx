@@ -34,7 +34,9 @@ export function ClockCard({
     canClock,
 }: Props) {
     const now = useNow();
-    const timeZone = useOrganizationTimeZone();
+    // The clock the person keeps: their site's, when it keeps its own (ADR 0079).
+    const organizationZone = useOrganizationTimeZone();
+    const timeZone = today.timezone ?? organizationZone;
     const [processing, setProcessing] = useState<PunchType | null>(null);
     const [selfie, setSelfie] = useState<File | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);

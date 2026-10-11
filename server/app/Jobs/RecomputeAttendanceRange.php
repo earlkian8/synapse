@@ -70,7 +70,6 @@ class RecomputeAttendanceRange implements ShouldQueue
         }
 
         $tenancy->runFor($organization, function () use ($organization, $clock, $closer): void {
-            $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($this->from), CarbonImmutable::parse($this->to));
             $changed = 0;
 
             AttendanceRecord::query()
@@ -79,7 +78,14 @@ class RecomputeAttendanceRange implements ShouldQueue
                 ->with('employee')
                 ->orderBy('work_date')
                 ->orderBy('id')
-                ->chunk(200, function (Collection $records) use ($clock, $holidays, &$changed): void {
+                ->chunk(200, function (Collection $records) use ($clock, &$changed): void {
+                    // Each person's holidays, a local one at their site included (ADR 0078).
+                    $holidays = HolidayCalendar::forEmployees(
+                        $records->pluck('employee')->filter()->unique('id')->values(),
+                        CarbonImmutable::parse($this->from),
+                        CarbonImmutable::parse($this->to),
+                    );
+
                     foreach ($records as $record) {
                         /** @var AttendanceRecord $record */
                         $date = $record->work_date->toDateString();
@@ -90,7 +96,7 @@ class RecomputeAttendanceRange implements ShouldQueue
                             continue;
                         }
 
-                        $clock->syncHoliday($record, $holidays[$date] ?? null);
+                        $clock->syncHoliday($record, $holidays->on($date, $record->employee_id));
                         $clock->evaluate($record);
 
                         if ($record->isDirty()) {

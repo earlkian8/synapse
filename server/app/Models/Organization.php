@@ -51,6 +51,9 @@ class Organization extends Model
         // a month one person can give with points.
         'kudos_points',
         'kudos_monthly_limit',
+        // Who signs the documents the system generates (ADR 0077).
+        'document_signatory_name',
+        'document_signatory_title',
     ];
 
     /**

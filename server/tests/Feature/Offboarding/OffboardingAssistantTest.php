@@ -97,6 +97,7 @@ test('a viewer reads; a manager changes', function () {
 
     expect(offboardingAgentTools($viewer))->toEqualCanonicalizing([
         'find_offboarding_cases', 'get_offboarding_case', 'find_clearance_items', 'offboarding_summary',
+        'find_resignations', 'get_exit_interview', 'exit_interview_summary',
     ]);
 
     $manager = actingAsUserWith(['offboarding.view', 'offboarding.manage']);

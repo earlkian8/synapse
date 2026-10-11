@@ -124,7 +124,7 @@ final class HelpCenter
             'category' => 'getting-started', 'title' => 'Searching SYNAPSE',
             'summary' => 'Find a person, a record, a screen or a help article from any page with ⌘K or Ctrl+K, and open it straight away.',
             'any' => [],
-            'keywords' => ['search', 'find', 'look up', 'command palette', 'ctrl k', 'cmd k', 'shortcut', 'quick open'],
+            'keywords' => ['search', 'find', 'look up', 'command palette', 'ctrl k', 'cmd k', 'shortcut', 'quick open', 'attendance search', 'late', 'absent'],
             'related' => ['finding-your-way-around', 'meet-the-assistant'],
         ],
         'your-dashboard' => [
@@ -400,7 +400,23 @@ final class HelpCenter
             'any' => ['offboarding.view'],
             'keywords' => ['offboarding', 'exit', 'resignation', 'termination', 'retirement', 'end of contract', 'clearance', 'separation', 'last day'],
             'screens' => ['/offboarding', '/offboarding/*'],
-            'related' => ['offboarding-programs', 'employee-records'],
+            'related' => ['resignations-and-exit-interviews', 'offboarding-programs', 'employee-records'],
+        ],
+        'resignations-and-exit-interviews' => [
+            'category' => 'offboarding', 'title' => 'Resignations, exit interviews and exit papers',
+            'summary' => 'Decide the resignations people file themselves, read what leavers say in their exit interview, and print the clearance form and Certificate of Employment.',
+            'any' => ['offboarding.view'],
+            'keywords' => ['resignation', 'resign', 'notice period', 'exit interview', 'exit survey', 'why people leave', 'certificate of employment', 'coe', 'clearance form', 'pdf'],
+            'screens' => ['/offboarding/resignations', '/offboarding/interviews'],
+            'related' => ['offboarding-an-employee', 'resigning'],
+        ],
+        'resigning' => [
+            'category' => 'offboarding', 'title' => 'Resigning',
+            'summary' => 'File your resignation, follow your clearance, answer your exit interview, and get your Certificate of Employment.',
+            'any' => ['offboarding.resign'],
+            'keywords' => ['resign', 'resignation', 'quit', 'last day', 'notice', 'withdraw resignation', 'clearance', 'exit interview', 'certificate of employment', 'coe'],
+            'screens' => ['/offboarding/me', '/offboarding/me/*'],
+            'related' => ['more-in-the-app'],
         ],
 
         // ── Analytics & AI ───────────────────────────────────────────────────
@@ -465,7 +481,7 @@ final class HelpCenter
             'category' => 'company-setup', 'title' => 'Work schedules and holidays',
             'summary' => 'Shift templates — fixed, flexible, hours-only, rotating and split — the company default, and your holiday calendar.',
             'any' => ['setup.schedule.view'],
-            'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'rest day', 'night shift', 'rotation', 'split shift', 'grace'],
+            'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'rest day', 'night shift', 'rotation', 'split shift', 'grace', 'holy week', 'maundy thursday', 'good friday', 'easter', 'local holiday', 'regional holiday'],
             'screens' => ['/setup/schedule'],
             'related' => ['shift-roster', 'attendance-policies'],
         ],
@@ -489,7 +505,7 @@ final class HelpCenter
             'category' => 'company-setup', 'title' => 'Work locations',
             'summary' => 'Draw your sites on the map with a fence for clocking in, and base people at them.',
             'any' => ['setup.locations.view'],
-            'keywords' => ['location', 'site', 'branch', 'office', 'geofence', 'fence', 'map', 'radius'],
+            'keywords' => ['location', 'site', 'branch', 'office', 'geofence', 'fence', 'map', 'radius', 'polygon', 'shape', 'time zone', 'timezone'],
             'screens' => ['/setup/locations'],
             'related' => ['attendance-policies', 'clocking-in-and-out'],
         ],
@@ -583,6 +599,14 @@ final class HelpCenter
             'screens' => ['/system/data-export'],
             'related' => ['activity-logs', 'roles-and-permissions'],
         ],
+        'product-tour' => [
+            'category' => 'administration', 'title' => 'How people take the tour',
+            'summary' => 'Who finishes the tour of the app, who skips it, and the stop where the ones who leave it stop — on the web and in the app.',
+            'any' => ['product-tour.view'],
+            'keywords' => ['tour', 'product tour', 'onboarding tour', 'whats new', 'walkthrough', 'funnel', 'drop-off'],
+            'screens' => ['/system/product-tour'],
+            'related' => ['finding-your-way-around'],
+        ],
         'sending-announcements' => [
             'category' => 'administration', 'title' => 'Sending announcements',
             'summary' => 'Send a notification to everyone, to everybody with a role, or to one person.',
@@ -628,6 +652,13 @@ final class HelpCenter
             'any' => [],
             'keywords' => ['mobile leave', 'file leave on phone', 'balance', 'profile', 'awards', 'attendance calendar', 'events on phone', 'kudos on phone', 'points'],
             'related' => ['filing-your-own-leave', 'clocking-in-on-mobile', 'answering-event-invitations', 'kudos-points-and-rewards'],
+        ],
+        'more-in-the-app' => [
+            'category' => 'mobile-app', 'title' => 'Search, holidays, resigning and the tour in the app',
+            'summary' => 'Find your own records, see the holidays you keep, file a resignation and get your Certificate of Employment, and replay the tour — from your phone.',
+            'any' => [],
+            'keywords' => ['search on phone', 'holidays on phone', 'holy week', 'resign on phone', 'certificate of employment', 'app tour'],
+            'related' => ['resigning', 'leave-on-mobile', 'searching-synapse'],
         ],
 
         // ── Troubleshooting ──────────────────────────────────────────────────

@@ -297,7 +297,9 @@ test('the holiday calendar puts every movable holiday on its next date', functio
         ->and($before['national-heroes-day']['date'])->toBe('2026-08-31')
         ->and($after['maundy-thursday']['date'])->toBe('2027-03-25')
         ->and($after['national-heroes-day']['date'])->toBe('2027-08-30')
-        ->and($after['maundy-thursday']['is_recurring'])->toBeFalse()
+        // Kept every year by its rule (ADR 0078), not typed in for one year.
+        ->and($after['maundy-thursday'])->toMatchArray(['is_recurring' => true, 'recurrence' => 'easter', 'rule' => ['offset' => -3]])
+        ->and($after['national-heroes-day'])->toMatchArray(['recurrence' => 'weekday', 'rule' => ['month' => 8, 'weekday' => 1, 'week' => -1]])
         ->and($after['christmas-day'])->toMatchArray(['date' => '2026-12-25', 'type' => 'regular', 'is_recurring' => true])
         ->and($after['ninoy-aquino-day']['type'])->toBe('special_non_working');
 });

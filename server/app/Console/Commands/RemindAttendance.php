@@ -79,7 +79,7 @@ class RemindAttendance extends Command
 
         $shifts = (new ShiftResolver)->forMany($employees, $yesterday, $today);
         $policies = (new PolicyResolver)->forMany($employees, $shifts);
-        $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($yesterday), CarbonImmutable::parse($today));
+        $holidays = HolidayCalendar::forEmployees($employees, CarbonImmutable::parse($yesterday), CarbonImmutable::parse($today));
         $ids = $employees->pluck('id');
 
         $clockedIn = AttendanceRecord::query()
@@ -114,7 +114,7 @@ class RemindAttendance extends Command
                 if ($after === null || ! $shift->isWorkingDay || $start === null
                     || $now->lt($start->addMinutes($after)) || ($end !== null && $now->gte($end))
                     || $clockedIn->has($employee->id.'|'.$date)
-                    || DayRules::fromShift($shift, $holidays[$date] ?? null)->isNonWorkingHoliday()
+                    || DayRules::fromShift($shift, $holidays->on($date, $employee->id))->isNonWorkingHoliday()
                     || $covers($onLeave, $employee->id, $date)
                     || $employee->user === null || ! $employee->user->is_active) {
                     continue;
@@ -128,7 +128,7 @@ class RemindAttendance extends Command
                 $sent += Notifier::toUser(
                     $employee->user,
                     "You haven't clocked in",
-                    'Your shift started at '.OrganizationClock::local($start)->format('g:i A').'. Clock in now, or ask HR to record the time if you already started.',
+                    'Your shift started at '.OrganizationClock::local($start, $shift->timezone)->format('g:i A').'. Clock in now, or ask HR to record the time if you already started.',
                     url: '/attendance/me',
                     level: 'warning',
                     category: 'attendance',

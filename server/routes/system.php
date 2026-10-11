@@ -10,6 +10,7 @@ use App\Http\Controllers\RolePermission\RoleBulkActionController;
 use App\Http\Controllers\RolePermission\RoleController;
 use App\Http\Controllers\RolePermission\RoleExportController;
 use App\Http\Controllers\System\DataExportController;
+use App\Http\Controllers\System\ProductTourAnalyticsController;
 use App\Http\Controllers\System\TrashController;
 use App\Http\Controllers\UserManagement\UserBulkActionController;
 use App\Http\Controllers\UserManagement\UserController;
@@ -23,6 +24,9 @@ Route::middleware(['auth', 'verified'])
     ->prefix('system')
     ->name('system.')
     ->group(function () {
+        // How people move through the product tour, stop by stop (ADR 0080).
+        Route::get('product-tour', ProductTourAnalyticsController::class)->middleware('can:product-tour.view')->name('product-tour');
+
         // User Management
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/', [UserController::class, 'index'])->middleware('can:users.view')->name('index');

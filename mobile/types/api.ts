@@ -14,6 +14,8 @@ export type AuthEmployee = {
   employee_no: string | null;
   photo: string | null;
   schedule: Schedule | null;
+  /** The clock their days are judged on: their site's, or the company's (ADR 0079). */
+  timezone?: string | null;
 };
 
 /** A company the identity can act in. */
@@ -54,6 +56,10 @@ export type AuthUser = {
   can_respond_events: boolean;
   /** Recognition: kudos, nominations, points and rewards (ADR 0071). */
   can_recognize: boolean;
+  /** Leaving: their resignation, exit interview and certificate (ADR 0076). */
+  can_resign?: boolean;
+  /** The app's own tour (ADR 0080): still to be offered? */
+  tour?: { owed: boolean; version: number } | null;
 };
 
 /** An invitation waiting to be claimed (ADR 0026). */
@@ -88,7 +94,7 @@ export type Punch = {
   photo: string | null;
   note: string | null;
   /** Where it was (ADR 0040): the nearest site and whether it was on it. */
-  location?: { name: string; radius_meters: number } | null;
+  location?: { name: string; radius_meters: number; fence_type?: 'circle' | 'polygon' } | null;
   distance_meters?: number | null;
   within_geofence?: boolean | null;
   /** The phone saved it offline and sent it later. */
@@ -112,6 +118,8 @@ export type AttendanceRecord = {
   status: AttendanceStatus;
   scheduled_start: string | null;
   scheduled_end: string | null;
+  /** The clock the day was judged on, when it is a site's own (ADR 0079). */
+  timezone?: string | null;
   first_in_at: string | null;
   last_out_at: string | null;
   worked_minutes: number;
@@ -337,4 +345,108 @@ export type LedgerLine = {
   kind: 'award' | 'kudos' | 'redemption' | 'refund' | 'adjustment';
   note: string | null;
   at: string | null;
+};
+
+// ── Leaving (ADRs 0076, 0077) ───────────────────────────────────────────────
+
+export type ResignationStatus = 'pending' | 'accepted' | 'declined' | 'withdrawn';
+
+export type MyResignation = {
+  id: string;
+  status: ResignationStatus;
+  proposed_last_day: string;
+  reason: string | null;
+  filed_on: string | null;
+  notice_days: number;
+  decided_on: string | null;
+  decision_note: string | null;
+  decided_by: string | null;
+};
+
+export type ExitInterviewState = {
+  status: 'pending' | 'submitted' | 'waived';
+  sent_on: string | null;
+  submitted_on: string | null;
+  can_answer: boolean;
+};
+
+export type ClearanceStatus = 'pending' | 'cleared' | 'flagged';
+
+export type MyExit = {
+  has_employee: boolean;
+  can_resign: boolean;
+  notice_days: number;
+  today: string;
+  resignations: MyResignation[];
+  exit: {
+    id: string;
+    type: 'resignation' | 'termination' | 'retirement' | 'end_of_contract';
+    status: 'initiated' | 'clearance' | 'completed' | 'cancelled';
+    notice_date: string | null;
+    last_working_day: string | null;
+    completed_on: string | null;
+    clearance: { total: number; cleared: number; flagged: number; status: 'pending' | 'in_progress' | 'cleared' };
+    items: {
+      id: number;
+      item: string;
+      department: string | null;
+      status: ClearanceStatus;
+      remarks: string | null;
+      cleared_on: string | null;
+    }[];
+    certificate: { ready: boolean; number: string | null };
+  } | null;
+  interview: ExitInterviewState | null;
+};
+
+export type InterviewQuestion = {
+  key: string;
+  type: 'choice' | 'rating' | 'yes_no' | 'text';
+  label: string;
+  required: boolean;
+  group?: string;
+  options?: Record<string, string>;
+};
+
+export type ExitInterview = ExitInterviewState & {
+  questions: InterviewQuestion[];
+  answers: Record<string, string | number> | null;
+  scale: Record<string, string>;
+};
+
+// ── Holidays (ADR 0078) ─────────────────────────────────────────────────────
+
+export type UpcomingHoliday = {
+  id: string;
+  name: string;
+  date: string;
+  type: 'regular' | 'special_non_working' | 'special_working';
+  day_off: boolean;
+  repeats: string;
+  /** Kept at some sites only; `site` names the person's when it is one of them. */
+  local: boolean;
+  site: string | null;
+};
+
+// ── Search (ADR 0081) ───────────────────────────────────────────────────────
+
+export type SearchTarget =
+  | { screen: 'leave'; id: number }
+  | { screen: 'attendance'; date: string }
+  | { screen: 'event'; id: string }
+  | { screen: 'awards' }
+  | { screen: 'holidays' };
+
+export type SearchItem = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  hint: string | null;
+  target: SearchTarget;
+};
+
+export type SearchGroup = {
+  key: 'leave' | 'attendance' | 'events' | 'awards' | 'holidays';
+  label: string;
+  items: SearchItem[];
 };

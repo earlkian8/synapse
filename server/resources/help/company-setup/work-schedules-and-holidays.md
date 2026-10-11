@@ -33,7 +33,24 @@ The most specific one wins, in this order:
 
 ## Holidays
 
-Each holiday has a name, a date, a type, and whether it **repeats every year** on the same date:
+Each holiday has a name, a type, when it falls, and who keeps it. The list is a table, the next one first, with the date each falls on next and how it repeats.
+
+### When it falls
+
+| Repeats                                 | For                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------- |
+| **Doesn't repeat**                      | A one-off, or a day proclaimed for one year                                     |
+| **Every year on this date**             | New Year's Day, Independence Day, Christmas                                     |
+| **Every year, counted from Easter**     | Holy Week: Maundy Thursday (3 days before), Good Friday (2), Black Saturday (1) |
+| **Every year, on a weekday of a month** | National Heroes Day, the last Monday of August                                  |
+
+A holiday that follows Easter or a weekday is worked out for every year — you never re-enter it. The form shows the next two dates before you save. **Add Holy Week** puts Maundy Thursday, Good Friday, Black Saturday and National Heroes Day on the calendar this way in one go; if you had typed one in for a single year, it is turned into its rule rather than doubled.
+
+### Who keeps it
+
+A holiday is kept by **everyone**, or only at **some sites** — a city's charter day, a provincial feast. A local holiday is a day off only for the people whose base site (their primary [work location](/help/company-setup/work-locations), or their only one) is one of its sites: their leave isn't charged on it and their attendance reads it as a holiday. Everyone else works as usual. The [shift roster](/help/company-setup/shift-roster) marks it on the person's own cell.
+
+### Type
 
 | Type                    | What it means                                                                 |
 | ----------------------- | ----------------------------------------------------------------------------- |
@@ -44,7 +61,7 @@ Each holiday has a name, a date, a type, and whether it **repeats every year** o
 Someone who works on a non-working holiday has it counted as holiday work.
 
 > [!TIP]
-> The Setup Guide can add the Philippine holiday calendar for you. Holidays whose date moves each year, or that are proclaimed each year, are added for one year at a time — check them each December.
+> The Setup Guide can add the Philippine holiday calendar for you, Holy Week and National Heroes Day included as yearly rules. Holidays proclaimed afresh each year — Eid'l Fitr, Eid'l Adha, Chinese New Year — have no rule to follow: add each one when it is announced.
 
 ## Archiving
 

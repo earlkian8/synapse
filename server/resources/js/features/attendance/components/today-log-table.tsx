@@ -203,13 +203,13 @@ export function TodayLogTable({
                                     <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
                                         {formatTime(
                                             record.first_in_at,
-                                            timeZone,
+                                            record.timezone ?? timeZone,
                                         )}
                                     </TableCell>
                                     <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
                                         {formatTime(
                                             record.last_out_at,
-                                            timeZone,
+                                            record.timezone ?? timeZone,
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right text-sm font-medium tabular-nums">

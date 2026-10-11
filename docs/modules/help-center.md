@@ -37,21 +37,21 @@ reader — it opens with "About “<article>”: " typed, never sent), *Take the
 
 ## The content
 
-55 articles in 11 topics, written for the reader (second person, the screen's own
+70 articles in 11 topics, written for the reader (second person, the screen's own
 labels in bold, numbered steps for procedures):
 
 | Topic | Articles |
 | --- | --- |
-| Getting started | Welcome, Finding your way around, Your dashboard, Setting up your company, Inviting your people |
+| Getting started | Welcome, Finding your way around, Searching SYNAPSE, Your dashboard, Setting up your company, Inviting your people |
 | Your account | Signing in and out, Profile and appearance, Password / two-factor / passkeys, Notifications, More than one company, Privacy and your data |
 | Talent acquisition | Job postings, Candidates and the pipeline, Interviews and hiring, The careers page, Onboarding new hires |
-| Workforce | Employee records, Reviewing attendance, Correcting and signing off attendance, Clocking in and out, Managing leave, Filing your own leave, Appraisals, Your appraisals and reviews, Goals and check-ins, Calibration sessions, Training programs, Training sessions and attendance, Training certificates, Training budget and costs, Your training, Awards, Events |
-| Offboarding | Offboarding an employee |
+| Workforce | Employee records, Reviewing attendance, Correcting and signing off attendance, Clocking in and out, Managing leave, Filing your own leave, Appraisals, Your appraisals and reviews, Goals and check-ins, Calibration sessions, Training programs, Training sessions and attendance, Training certificates, Training budget and costs, Your training, Awards, Kudos / points and rewards, Events, Answering your invitations |
+| Offboarding | Offboarding an employee, Resignations / exit interviews and exit papers, Resigning |
 | Analytics & AI | Attrition risk, Performance forecast, Promotion readiness, Training a model on your own records, Reports |
 | Company setup | Company profile, Departments and positions, Schedules and holidays, Shift roster, Attendance policies, Work locations, Leave types, Award types, Performance framework, Recruitment pipelines, Onboarding programs, Offboarding programs |
-| Administration | User accounts, Roles and permissions, Activity logs, Trash bin, Sending announcements |
+| Administration | User accounts, Roles and permissions, Activity logs, Trash bin, Exporting your company's data, How people take the tour, Sending announcements |
 | The assistant | Meet the assistant, What it will and will not do |
-| The mobile app | Joining your company, Clocking in from your phone, Leave / awards / profile in the app |
+| The mobile app | Joining your company, Clocking in from your phone, Leave / events / recognition / profile in the app, Search / holidays / resigning and the tour in the app |
 | Troubleshooting | Frequently asked questions |
 
 Bodies are Markdown under `server/resources/help/<category>/<slug>.md`. Besides

@@ -108,7 +108,6 @@ class AttendanceReview
      */
     public function reapplyRange(string $from, string $to, ?int $departmentId = null, string $channel = ''): array
     {
-        $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
         $total = 0;
         $changed = 0;
 
@@ -121,7 +120,9 @@ class AttendanceReview
             ->with('employee')
             ->orderBy('work_date')
             ->orderBy('id')
-            ->chunk(200, function ($records) use ($holidays, &$total, &$changed): void {
+            ->chunk(200, function ($records) use ($from, $to, &$total, &$changed): void {
+                // Each person's holidays, a local one at their site included (ADR 0078).
+                $holidays = HolidayCalendar::forEmployees($records->pluck('employee')->filter()->unique('id')->values(), CarbonImmutable::parse($from), CarbonImmutable::parse($to));
                 $changed += $this->clock->reapplyMany($records, $holidays);
                 $total += $records->count();
             });

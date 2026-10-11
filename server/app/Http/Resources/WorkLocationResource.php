@@ -25,6 +25,12 @@ class WorkLocationResource extends JsonResource
             'latitude' => (float) $this->latitude,
             'longitude' => (float) $this->longitude,
             'radius_meters' => (int) $this->radius_meters,
+            // A circle, or a shape drawn corner by corner (ADR 0079).
+            'fence_type' => $this->fence_type ?? 'circle',
+            'polygon' => $this->shape(),
+            'fence_label' => $this->fenceLabel(),
+            // Null: the organisation's clock.
+            'timezone' => $this->timezone,
             'default_work_schedule_id' => $this->default_work_schedule_id,
             'attendance_policy_id' => $this->attendance_policy_id,
             'schedule_name' => $this->whenLoaded('defaultSchedule', fn () => $this->defaultSchedule?->name),

@@ -13,8 +13,13 @@ use App\Models\OffboardingCase;
 use App\Models\OffboardingProgram;
 use App\Queries\OffboardingCasesIndexQuery;
 use App\Queries\OffboardingStatistics;
+use App\Support\Offboarding\ExitInterviewQuestionnaire;
+use App\Support\Offboarding\MyExit;
+use App\Support\Offboarding\OffboardingDocuments;
 use App\Support\Offboarding\OffboardingException;
 use App\Support\Offboarding\OffboardingWorkflow;
+use App\Support\OrganizationClock;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -29,12 +34,22 @@ use Inertia\Response;
  */
 class OffboardingCaseController extends Controller
 {
+    use OffboardingResponses;
+
     /**
      * Display the offboarding overview — a board of in-flight (and past) exits.
      */
-    public function index(Request $request, OffboardingCasesIndexQuery $query, OffboardingStatistics $statistics): Response
+    public function index(Request $request, OffboardingCasesIndexQuery $query, OffboardingStatistics $statistics): Response|RedirectResponse
     {
+        // Somebody who only takes part goes to their own section (ADR 0076).
+        if ($request->user()->cannot('offboarding.view')) {
+            abort_unless($request->user()->can('offboarding.resign'), 403);
+
+            return redirect()->route('offboarding.me');
+        }
+
         return Inertia::render('offboarding/index', [
+            'nav' => $this->navCounts($request),
             'cases' => OffboardingCaseResource::collection($query->get($request))->resolve($request),
             'stats' => $statistics->toArray(),
             'options' => $this->indexOptions(),
@@ -59,13 +74,38 @@ class OffboardingCaseController extends Controller
             'employee.position:id,title',
             'program:id,name',
             'clearanceItems' => fn ($query) => $query->with('department:id,name', 'clearedBy:id,first_name,middle_name,last_name,suffix'),
+            'exitInterview.waiver:id,first_name,middle_name,last_name,suffix',
+            'resignation:id,offboarding_case_id,created_at,proposed_last_day',
         ]);
+
+        $interview = $case->exitInterview;
 
         return Inertia::render('offboarding/case', [
             'case' => (new OffboardingCaseResource($case))->resolve($request),
+            // The survey sent to the leaver and, once answered, what they said
+            // (ADR 0076) — `offboarding.view` reads it, as the route requires.
+            'interview' => $interview === null ? null : [
+                ...MyExit::interview($interview),
+                'questions' => $interview->questions,
+                'answers' => $interview->answers,
+                'reminded_on' => $interview->reminded_at !== null ? OrganizationClock::localDate(CarbonImmutable::instance($interview->reminded_at)) : null,
+                'waived_by' => $interview->waiver?->full_name,
+                'average' => ExitInterviewQuestionnaire::averageRating($interview->answers),
+            ],
+            'documents' => [
+                'certificate_ready' => OffboardingDocuments::certificateReady($case),
+                'certificate_no' => $case->certificate_no,
+            ],
+            'resignation' => $case->resignation === null ? null : [
+                'filed_on' => OrganizationClock::localDate(CarbonImmutable::instance($case->resignation->created_at)),
+                'proposed_last_day' => $case->resignation->proposed_last_day?->toDateString(),
+            ],
+            'scale' => ExitInterviewQuestionnaire::SCALE,
+            'tab' => $request->string('tab')->toString() === 'interview' ? 'interview' : 'clearance',
+            'nav' => $this->navCounts($request),
             'options' => [
                 'departments' => $this->departments(),
-                'programs' => $this->programs(),
+                'programs' => OffboardingProgram::options(),
             ],
             'can' => $this->permissions($request),
         ]);
@@ -158,7 +198,7 @@ class OffboardingCaseController extends Controller
     {
         return [
             'departments' => $this->departments(),
-            'programs' => $this->programs(),
+            'programs' => OffboardingProgram::options(),
             'employees' => Employee::query()
                 ->whereNotIn('employment_status', ['resigned', 'terminated'])
                 ->whereDoesntHave('offboardingCase')
@@ -181,29 +221,6 @@ class OffboardingCaseController extends Controller
     private function departments()
     {
         return Department::orderBy('name')->get(['id', 'name']);
-    }
-
-    /**
-     * Active clearance templates, for the start-offboarding picker and the
-     * apply-template dialog. Default first, then alphabetical.
-     *
-     * @return list<array{id: int, name: string, is_default: bool, items_count: int}>
-     */
-    private function programs(): array
-    {
-        return OffboardingProgram::query()
-            ->where('is_active', true)
-            ->withCount('items')
-            ->orderByDesc('is_default')
-            ->orderBy('name')
-            ->get(['id', 'name', 'is_default'])
-            ->map(fn (OffboardingProgram $program): array => [
-                'id' => $program->id,
-                'name' => $program->name,
-                'is_default' => $program->is_default,
-                'items_count' => (int) $program->items_count,
-            ])
-            ->all();
     }
 
     private function respond(string $message, string $type = 'success'): RedirectResponse

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\WorkLocation;
 use App\Support\Attendance\ShiftResolver;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -120,11 +121,18 @@ class MobileSession
                 // The shift the app shows on its clock card: today's, as the
                 // resolver says it (ADR 0037) — a roster override included.
                 'schedule' => $this->shiftPayload($employee),
+                // The clock their days are judged on: their base site's when it
+                // keeps its own zone (ADR 0079), the company's otherwise.
+                'timezone' => OrganizationClock::zone(WorkLocation::timezoneFor($employee)),
             ] : null,
             'can_clock' => $organization !== null && $user->can('attendance.clock'),
             // My events and recognition (ADR 0070, 0071).
             'can_respond_events' => $organization !== null && $user->can('events.respond'),
             'can_recognize' => $organization !== null && $user->can('awards.participate'),
+            // Leaving (ADR 0076): their resignation, exit interview and certificate.
+            'can_resign' => $organization !== null && $user->can('offboarding.resign'),
+            // The app's own tour (ADR 0080): owed until answered once.
+            'tour' => ['owed' => ProductTour::owesMobile($user), 'version' => ProductTour::MOBILE_VERSION],
         ];
     }
 
@@ -136,7 +144,7 @@ class MobileSession
      */
     private function shiftPayload(Employee $employee): array
     {
-        $shift = app(ShiftResolver::class)->for($employee, OrganizationClock::today());
+        $shift = app(ShiftResolver::class)->for($employee, OrganizationClock::today(WorkLocation::timezoneFor($employee)));
 
         return [
             'name' => $shift->scheduleName ?? 'Default hours',

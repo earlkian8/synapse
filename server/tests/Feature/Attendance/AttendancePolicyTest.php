@@ -12,6 +12,7 @@ use App\Queries\AttendanceMonthlyReport;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePolicyPresets;
 use App\Support\Attendance\AttendancePolicySettings;
+use App\Support\Attendance\DayRules;
 use App\Support\Attendance\PolicyResolver;
 use App\Support\Attendance\ScheduleAssigner;
 use App\Support\Attendance\SchedulePatternWriter;
@@ -285,7 +286,7 @@ test('a recorded day carries its policy, buckets and flags', function () {
 
     $record = enterDay($employee, '2026-09-14', '08:00', '19:00');
 
-    expect($record->rules['version'])->toBe(3)
+    expect($record->rules['version'])->toBe(DayRules::VERSION)
         ->and($record->rules['policy']['name'])->toBe('PH')
         ->and($record->rules['policy']['source'])->toBe('organization')
         ->and($record->worked_minutes)->toBe(600)

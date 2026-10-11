@@ -68,13 +68,13 @@ Each is guarded by the view permission of its screen.
 | | `training` | `training.view` | training_programs, training_enrollments, training_sessions, training_attendances, training_costs, training_budgets (certificates are rows of employee_certifications) |
 | | `awards` | `awards.view` | award_types, employee_awards |
 | | `events` | `events.view` | events, event_attendees |
-| Offboarding | `offboarding` | `offboarding.view` | offboarding_programs, offboarding_program_items, offboarding_cases, clearance_items |
+| Offboarding | `offboarding` | `offboarding.view` | offboarding_programs, offboarding_program_items, offboarding_cases, clearance_items, resignation_requests, exit_interviews |
 | Analytics & AI | `attrition` | `analytics.attrition.view` | attrition_risk_runs, attrition_risk_scores, local_models (attrition) |
 | | `performance-forecast` | `analytics.performance.view` | performance_forecast_runs, performance_forecasts, local_models (performance) |
 | | `promotion-readiness` | `analytics.promotion.view` | promotion_readiness_runs, promotion_readiness_scores, local_models (promotion) |
 | Company Setup | `company` | `setup.company.view` | organizations (its own row) 📎 |
 | | `structure` | `setup.departments.view` | departments, positions |
-| | `schedules` | `setup.schedule.view` | work_schedules, work_schedule_days, holidays |
+| | `schedules` | `setup.schedule.view` | work_schedules, work_schedule_days, holidays, holiday_work_location |
 | | `roster` | `setup.roster.view` | employee_schedule_assignments, shift_roster_entries |
 | | `attendance-policies` | `setup.attendance-policies.view` | attendance_policies |
 | | `locations` | `setup.locations.view` | work_locations, employee_work_locations |
@@ -89,7 +89,8 @@ Each is guarded by the view permission of its screen.
 `employee_invitations.token`, `code`; `organizations.join_code`. Tables
 (`DataExportCatalogue::EXCLUDED`): `assistant_conversations`, `assistant_messages`
 (each person's own), `personal_access_tokens` (credentials), `data_exports` (this
-screen's history). Global and framework tables (`notifications`, `push_subscriptions`,
+screen's history), `product_tour_runs` (usage telemetry about the app, not the
+company's records). Global and framework tables (`notifications`, `push_subscriptions`,
 `passkeys`, `sessions`, `jobs`, …) carry no `organization_id`.
 
 **Confinement.** Each table spec names a `scope`: `tenant` (`organization_id`, the

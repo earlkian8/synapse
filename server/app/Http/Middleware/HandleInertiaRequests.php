@@ -66,7 +66,7 @@ class HandleInertiaRequests extends Middleware
                 'is_super_admin' => $user?->isSuperAdmin() ?? false,
                 // Whether the first-run tour is still to be offered (ADR 0060).
                 // The app shell starts it; pages without the shell never do.
-                'tour' => $user ? ['owed' => ProductTour::owes($user)] : null,
+                'tour' => $user ? ProductTour::state($user) : null,
                 // Whether the assistant is offered here at all — the launcher, and
                 // the Help Center's articles about it, read this one answer.
                 'assistant' => $user !== null && AssistantAccess::offeredTo($user),

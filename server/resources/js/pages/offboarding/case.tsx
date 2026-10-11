@@ -6,6 +6,8 @@ import {
     CheckCircle2,
     ClipboardList,
     Download,
+    FileBadge,
+    FileText,
     ListPlus,
     MoreHorizontal,
     Plus,
@@ -28,6 +30,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ApplyProgramDialog } from '@/features/offboarding/components/apply-program-dialog';
+import { CaseInterviewPanel } from '@/features/offboarding/components/case-interview-panel';
 import { CaseSettingsDialog } from '@/features/offboarding/components/case-settings-dialog';
 import { CaseStatusBadge } from '@/features/offboarding/components/case-status-badge';
 import { ClearanceItemFormDialog } from '@/features/offboarding/components/clearance-item-form-dialog';
@@ -39,6 +42,8 @@ import {
     DERIVED_CLEARANCE_LABELS,
     EMPLOYMENT_TYPE_LABELS,
     formatDate,
+    formatDay,
+    INTERVIEW_STATUS_LABELS,
     TYPE_LABELS,
 } from '@/features/offboarding/constants';
 import { offboardingRoutes } from '@/features/offboarding/routes';
@@ -47,6 +52,7 @@ import type {
     ClearanceItem,
     ClearanceStatus,
 } from '@/features/offboarding/types';
+import { cn } from '@/lib/utils';
 
 type ConfirmConfig = {
     title: string;
@@ -62,7 +68,17 @@ function separationLabel(type: CasePageProps['case']['type']): string {
 }
 
 export default function OffboardingCasePage() {
-    const { case: c, options, can } = usePage<CasePageProps>().props;
+    const {
+        case: c,
+        options,
+        can,
+        interview,
+        documents,
+        resignation,
+        scale,
+        tab,
+    } = usePage<CasePageProps>().props;
+    const [view, setView] = useState<'clearance' | 'interview'>(tab);
     const employee = c.employee;
     const items = c.items ?? [];
 
@@ -252,16 +268,72 @@ export default function OffboardingCasePage() {
                         .join(' · ')}
                     actions={
                         <>
-                            <Button variant="outline" size="sm" asChild>
-                                <a
-                                    href={offboardingRoutes.clearanceExport(
-                                        c.hashid,
-                                    )}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                        <FileText className="size-4" />
+                                        Documents
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-64"
                                 >
-                                    <Download className="size-4" />
-                                    Export sheet
-                                </a>
-                            </Button>
+                                    <DropdownMenuItem asChild>
+                                        <a
+                                            href={offboardingRoutes.clearanceForm(
+                                                c.hashid,
+                                            )}
+                                            target="_blank"
+                                            rel="noopener"
+                                        >
+                                            <FileText className="size-4" />
+                                            Clearance form (PDF)
+                                        </a>
+                                    </DropdownMenuItem>
+                                    {documents.certificate_ready ? (
+                                        <DropdownMenuItem asChild>
+                                            <a
+                                                href={offboardingRoutes.certificate(
+                                                    c.hashid,
+                                                )}
+                                                target="_blank"
+                                                rel="noopener"
+                                            >
+                                                <FileBadge className="size-4" />
+                                                Certificate of Employment
+                                                {documents.certificate_no
+                                                    ? ` · ${documents.certificate_no}`
+                                                    : ' (PDF)'}
+                                            </a>
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        <DropdownMenuItem
+                                            disabled
+                                            className="flex-col items-start gap-0.5"
+                                        >
+                                            <span className="inline-flex items-center gap-2">
+                                                <FileBadge className="size-4" />
+                                                Certificate of Employment
+                                            </span>
+                                            <span className="pl-6 text-xs">
+                                                Once the exit is completed
+                                            </span>
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                        <a
+                                            href={offboardingRoutes.clearanceExport(
+                                                c.hashid,
+                                            )}
+                                        >
+                                            <Download className="size-4" />
+                                            Clearance sheet (CSV)
+                                        </a>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             {can.manage && (
                                 <>
                                     <Button size="sm" onClick={openAddItem}>
@@ -398,6 +470,13 @@ export default function OffboardingCasePage() {
                                 value={c.program}
                             />
                         )}
+                        {resignation && (
+                            <Meta
+                                icon={<FileText className="size-3.5" />}
+                                label="Resigned"
+                                value={`filed ${formatDay(resignation.filed_on)}, asked for ${formatDay(resignation.proposed_last_day)}`}
+                            />
+                        )}
                         {c.clearance.flagged > 0 && (
                             <span className="font-medium text-rose-600 dark:text-rose-400">
                                 {c.clearance.flagged} flagged
@@ -411,15 +490,60 @@ export default function OffboardingCasePage() {
                     )}
                 </div>
 
-                <ClearanceTable
-                    items={items}
-                    canManage={can.manage}
-                    onToggle={toggleItem}
-                    onEdit={openEditItem}
-                    onDelete={deleteItem}
-                    onAdd={openAddItem}
-                    onClearGroup={clearGroup}
-                />
+                <div
+                    role="tablist"
+                    aria-label="Exit"
+                    className="flex items-center gap-1 overflow-x-auto border-b border-border"
+                >
+                    {(
+                        [
+                            ['clearance', 'Clearance'],
+                            ['interview', 'Exit interview'],
+                        ] as const
+                    ).map(([key, title]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            role="tab"
+                            aria-selected={view === key}
+                            onClick={() => setView(key)}
+                            className={cn(
+                                'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+                                view === key
+                                    ? 'border-[#0ABFBF] text-foreground'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            {title}
+                            {key === 'interview' && interview && (
+                                <span className="text-xs font-normal text-muted-foreground">
+                                    ·{' '}
+                                    {INTERVIEW_STATUS_LABELS[interview.status]}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {view === 'clearance' ? (
+                    <ClearanceTable
+                        items={items}
+                        canManage={can.manage}
+                        onToggle={toggleItem}
+                        onEdit={openEditItem}
+                        onDelete={deleteItem}
+                        onAdd={openAddItem}
+                        onClearGroup={clearGroup}
+                    />
+                ) : (
+                    <CaseInterviewPanel
+                        caseHashid={c.hashid}
+                        interview={interview}
+                        scale={scale}
+                        canManage={can.manage}
+                        caseCancelled={c.status === 'cancelled'}
+                    />
+                )}
             </PageBody>
 
             <ClearanceItemFormDialog

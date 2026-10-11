@@ -76,7 +76,7 @@ export function ExceptionsTable({
                 records: missingOut,
                 detail: (r: AttendanceRecord) =>
                     r.first_in_at
-                        ? `In at ${formatTime(r.first_in_at, timeZone)} · never clocked out`
+                        ? `In at ${formatTime(r.first_in_at, r.timezone ?? timeZone)} · never clocked out`
                         : 'Never clocked out',
             },
             {
@@ -126,7 +126,7 @@ export function ExceptionsTable({
                 records: flagged('auto_closed'),
                 detail: (r: AttendanceRecord) =>
                     r.last_out_at
-                        ? `Clock-out written for ${formatTime(r.last_out_at, timeZone)}`
+                        ? `Clock-out written for ${formatTime(r.last_out_at, r.timezone ?? timeZone)}`
                         : 'Clock-out written by the policy',
             },
             {

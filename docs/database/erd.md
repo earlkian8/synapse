@@ -6,7 +6,8 @@
 > performance tables re-checked up to
 > `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10, and §8's
 > training tables up to `2026_10_11_000000_create_training_self_service_tables` on
-> 2026-10-11). It
+> 2026-10-11; the holiday, work-location, offboarding and tour tables of §1, §2a and §5
+> up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -116,6 +117,7 @@ erDiagram
     USER |o--o{ ACTIVITY_LOG : causes
     USER ||--o{ NOTIFICATION : receives
     USER ||--o{ PUSH_SUBSCRIPTION : subscribes
+    USER ||--o{ PRODUCT_TOUR_RUN : takes
 
     ORGANIZATION {
         bigint id PK
@@ -132,6 +134,8 @@ erDiagram
         string sss_employer_no
         string philhealth_employer_no
         string pagibig_employer_no
+        string document_signatory_name "signs generated documents"
+        string document_signatory_title
         string timezone "IANA, default Asia/Manila"
         bigint default_work_schedule_id FK
         datetime setup_completed_at "null = guided setup owed"
@@ -164,6 +168,9 @@ erDiagram
         datetime password_changed_at
         datetime tour_finished_at "null = first-run tour owed"
         string tour_outcome "completed|skipped"
+        smallint tour_version "web tour version answered"
+        smallint mobile_tour_version "null = the app's tour owed"
+        datetime mobile_tour_finished_at
         string remember_token
         datetime deleted_at
     }
@@ -266,8 +273,25 @@ erDiagram
         string auth_token
         string content_encoding
     }
+    PRODUCT_TOUR_RUN {
+        bigint id PK
+        bigint user_id FK
+        bigint organization_id FK "nullable"
+        string platform "web|mobile"
+        smallint version
+        string mode "first|whats_new|replay"
+        json steps "stop ids shown, in order"
+        smallint furthest_index
+        string last_step
+        string outcome "completed|skipped; null = running or abandoned"
+        datetime started_at
+        datetime finished_at
+    }
 ```
 
+> `product_tour_runs.organization_id` is **nullable** (null on delete); the model is
+> tenant-scoped ([ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md)).
+>
 > **Not tenant-stamped:** `users`, `permissions`, `role_user`, `permission_role`,
 > `passkeys`, `notifications` and `push_subscriptions` (global, or reached only
 > through a scoped side). `personal_access_tokens.organization_id` and
@@ -311,6 +335,8 @@ erDiagram
     WORK_SCHEDULE |o--o{ ORGANIZATION : "default hours of"
     WORK_LOCATION ||--o{ EMPLOYEE_WORK_LOCATION : bases
     EMPLOYEE ||--o{ EMPLOYEE_WORK_LOCATION : "based at"
+    HOLIDAY ||--o{ HOLIDAY_WORK_LOCATION : "kept at"
+    WORK_LOCATION ||--o{ HOLIDAY_WORK_LOCATION : keeps
 
     DEPARTMENT {
         bigint id PK
@@ -364,8 +390,15 @@ erDiagram
         string name
         date date
         string type "regular|special_non_working|special_working"
-        boolean is_recurring
+        boolean is_recurring "true for any repeating rule"
+        string recurrence "none|yearly|easter|weekday"
+        json rule "offset from Easter, or month/weekday/week"
         datetime deleted_at
+    }
+    HOLIDAY_WORK_LOCATION {
+        bigint id PK
+        bigint holiday_id FK
+        bigint work_location_id FK "unique with holiday_id"
     }
     ATTENDANCE_POLICY {
         bigint id PK
@@ -383,7 +416,10 @@ erDiagram
         string address
         decimal latitude
         decimal longitude
-        int radius_meters "the geofence"
+        int radius_meters "the geofence; a shape's reach"
+        string fence_type "circle|polygon"
+        json polygon "a shape's corners"
+        string timezone "IANA; null = the organisation's"
         bigint default_work_schedule_id FK
         bigint attendance_policy_id FK
         boolean is_active
@@ -397,8 +433,9 @@ erDiagram
     }
 ```
 
-> `employee_work_locations` is the one pivot without a tenant column: both sides are
-> already scoped.
+> `employee_work_locations` and `holiday_work_location` are the pivots without a tenant
+> column: both sides are already scoped. A holiday with no `holiday_work_location` row is
+> kept everywhere ([ADR 0078](../decisions/0078-holidays-that-move-and-holidays-kept-at-some-sites.md)).
 
 ### 2b. Catalogues: leave, awards and the performance framework
 
@@ -732,6 +769,9 @@ erDiagram
     EMPLOYEE ||--o| OFFBOARDING_CASE : exits
     OFFBOARDING_CASE ||--o{ CLEARANCE_ITEM : requires
     DEPARTMENT |o--o{ CLEARANCE_ITEM : "signs off"
+    EMPLOYEE ||--o{ RESIGNATION_REQUEST : files
+    RESIGNATION_REQUEST |o--o| OFFBOARDING_CASE : becomes
+    OFFBOARDING_CASE ||--o| EXIT_INTERVIEW : asks
 
     ONBOARDING_PROGRAM {
         bigint id PK
@@ -801,6 +841,33 @@ erDiagram
         text reason
         string status "initiated|clearance|completed|cancelled"
         datetime completed_at
+        string certificate_no "COE-<year>-<id>, given once"
+        datetime certificate_issued_at
+    }
+    RESIGNATION_REQUEST {
+        bigint id PK
+        bigint employee_id FK
+        bigint user_id FK "who filed it"
+        date proposed_last_day
+        text reason
+        string status "pending|accepted|declined|withdrawn"
+        bigint decided_by FK "users"
+        datetime decided_at
+        text decision_note
+        bigint offboarding_case_id FK "the exit it became"
+    }
+    EXIT_INTERVIEW {
+        bigint id PK
+        bigint offboarding_case_id FK "unique"
+        bigint employee_id FK
+        string status "pending|submitted|waived"
+        json questions "as asked"
+        json answers
+        datetime sent_at
+        datetime reminded_at
+        datetime submitted_at
+        bigint waived_by FK "users"
+        datetime waived_at
     }
     CLEARANCE_ITEM {
         bigint id PK
@@ -816,7 +883,9 @@ erDiagram
 ```
 
 > An offboarding case's **clearance status** is derived from its items, not stored.
-> Completing an exit sets the employee's `employment_status`.
+> Completing an exit sets the employee's `employment_status`. A resignation the employee
+> filed becomes the case when HR accepts it; every case but a termination sends the exit
+> interview ([ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md)).
 
 ---
 

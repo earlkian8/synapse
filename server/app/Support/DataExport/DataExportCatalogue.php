@@ -156,12 +156,14 @@ final class DataExportCatalogue
         // ── Offboarding ──────────────────────────────────────────────────────
         'offboarding' => [
             'label' => 'Offboarding', 'section' => 'Offboarding', 'permission' => 'offboarding.view',
-            'description' => 'Clearance templates, exit cases and every clearance sign-off.',
+            'description' => 'Clearance templates, exit cases, every clearance sign-off, the resignations employees filed and their exit-interview answers.',
             'tables' => [
                 ['table' => 'offboarding_programs'],
                 ['table' => 'offboarding_program_items'],
                 ['table' => 'offboarding_cases'],
                 ['table' => 'clearance_items'],
+                ['table' => 'resignation_requests'],
+                ['table' => 'exit_interviews'],
             ],
         ],
 
@@ -217,6 +219,8 @@ final class DataExportCatalogue
                 ['table' => 'work_schedules'],
                 ['table' => 'work_schedule_days'],
                 ['table' => 'holidays'],
+                // Which sites a local holiday is kept at (ADR 0078).
+                ['table' => 'holiday_work_location', 'scope' => 'work_locations'],
             ],
         ],
         'roster' => [
@@ -282,6 +286,7 @@ final class DataExportCatalogue
         'personal_access_tokens' => 'Sign-in credentials for the mobile app.',
         'calendar_feeds' => 'Each person\'s private calendar link — a secret that opens their invitations, not a record.',
         'data_exports' => 'This screen\'s own history of archives.',
+        'product_tour_runs' => 'How people moved through the product tour — usage telemetry about the app, not the company\'s records.',
     ];
 
     /**

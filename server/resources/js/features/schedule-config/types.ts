@@ -53,6 +53,23 @@ export type WorkSchedule = {
 
 export type HolidayType = 'regular' | 'special_non_working' | 'special_working';
 
+/**
+ * How a holiday repeats (ADR 0078): not at all, on the same date every year, a
+ * number of days from Easter Sunday, or on the n-th weekday of a month.
+ */
+export type HolidayRecurrence = 'none' | 'yearly' | 'easter' | 'weekday';
+
+/** A movable holiday's numbers. `week` −1 is the last; `weekday` 1 is Monday. */
+export type HolidayRule = {
+    offset?: number;
+    month?: number;
+    weekday?: number;
+    week?: number;
+};
+
+/** A site, as a local holiday names it. */
+export type HolidaySite = { id: number; name: string };
+
 export type Holiday = {
     id: number;
     hashid: string;
@@ -60,8 +77,16 @@ export type Holiday = {
     date: string | null; // "Y-m-d"
     type: HolidayType;
     is_recurring: boolean;
+    recurrence: HolidayRecurrence;
+    rule: HolidayRule | null;
+    /** How it repeats, in words: "Every year, 3 days before Easter". */
+    repeats: string;
     month: number | null;
     day: number | null;
+    /** The next date it falls on; null for a one-off that has passed. */
+    next_date: string | null;
+    /** The sites a local holiday is kept at; empty = everywhere. */
+    locations?: HolidaySite[];
 };
 
 export type SchedulePermissions = {
@@ -77,5 +102,7 @@ export type ScheduleSetupPageProps = {
     defaultScheduleId: number | null;
     /** The attendance policies a schedule can be judged by. */
     policies: { id: number; name: string; is_default: boolean }[];
+    /** The active sites a local holiday can be kept at. */
+    locations: HolidaySite[];
     can: SchedulePermissions;
 };

@@ -3,7 +3,8 @@
 The **Daily Time Record (DTR)**: employees clock in/out (and breaks) from the web or a
 mobile app; HR sees the whole team's day, corrects records, and approves. Worked hours,
 lateness, undertime and overtime are computed server-side against **the shift that
-applies to that person on that day**, on the **organisation's clock**. The *why* is in
+applies to that person on that day**, on the **organisation's clock** — or their base
+site's, when it keeps its own ([ADR 0079](../decisions/0079-shape-fences-and-a-clock-per-site.md)). The *why* is in
 [ADR 0010](../decisions/0010-attendance-and-mobile-api.md) (the two-table punch model +
 the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md)
 (local time, shift-anchored work dates, frozen rules, holidays) and
@@ -82,8 +83,8 @@ Everything is tenant-scoped (ADR 0005).
   **Recording or correcting a day** opens its own centred modal, with the four punches on
   one row in the order they happen and a running read-out of what they add up to
   ("8h 30m worked after a 45m break") — lateness and overtime stay the server's, since
-  they need the employee's schedule. Times are readings on the organisation's clock for
-  the work date; one earlier than the time before it is the next morning, so a night
+  they need the employee's schedule. Times are readings on the day's clock (the
+  organisation's, or the person's site's) for the work date; one earlier than the time before it is the next morning, so a night
   shift is entered as in 22:00, out 06:00.
 
   **Re-apply rules** (page header, `attendance.manage`) re-judges every recorded day
@@ -108,8 +109,9 @@ Everything is tenant-scoped (ADR 0005).
 - **Mobile API** (`/api`, token-authenticated) — the same clock engine for the DTR app:
   `POST /api/auth/login`, `GET /api/attendance/today` (the current shift, as on the web
   card), `POST /api/attendance/punch` (with GPS + selfie), `GET /api/attendance/records`,
-  `GET /api/attendance/summary`. The session payload's `organization.timezone` is the
-  clock the app shows every time on. A punch may carry `client_id` (a resend returns
+  `GET /api/attendance/summary`. The session payload's `employee.timezone` (the base
+  site's clock, else `organization.timezone`) is the clock the app shows times on; a
+  day carries its own `timezone`. A punch may carry `client_id` (a resend returns
   `duplicate`), `punched_at` (the phone's time, for a punch queued offline) and
   `sent_at` (the phone's clock when it sent, to measure skew) — see
   [Mobile App](./mobile-app.md).
@@ -167,6 +169,16 @@ reading as the UTC instant it names), `localDate()` and `local()`. The board's "
 the self-service month, the assistant's 30-day window, the export's time columns and the
 seeder all read it. The web app and the mobile app format times with the same zone.
 
+**A site's clock** (ADR 0079). A work location may keep its own `timezone`. A person is
+judged on their base site's (`WorkLocation::timezoneFor()`, the primary or only site),
+else the organisation's. Every `OrganizationClock` method takes an optional zone;
+`ShiftResolver` puts it on the `ResolvedShift` (`inZone()`), so the shift's instants and
+windows are that clock's; `workDateFor()` turns the date over at that site's midnight;
+and `DayRules` **version 4** snapshots the `timezone` the day was judged on (null = the
+organisation's). `AttendanceRecordResource` exposes it, and the board, the drawer, the
+weekly grid, exceptions, manual entry, My attendance and the app show each day's times
+on it.
+
 ### Which shift applies
 
 **`ShiftResolver::for(employee, date)`** is the only answer to "what is this person due
@@ -199,7 +211,8 @@ belongs to:
 2. otherwise a **clock-in** belongs to today's or yesterday's *working* day whose window —
    from the policy's `early_clock_in_minutes` (4 hours by default) before its start to its
    end — contains it, so a 21:30 or a late 00:30 clock-in belongs to the 22:00 shift;
-3. otherwise the organisation's calendar date.
+3. otherwise the calendar date on the person's clock (their site's, else the
+   organisation's).
 
 ### Punching
 
@@ -229,7 +242,8 @@ instants (the end rolled to the next morning when it is at or before the start) 
 `version: 2` — the schedule's `type`, the day's `segments`, the flexible core window as
 instants, `unpaid_break_minutes` and the resolver's `source`; from `version: 3` — the
 **attendance policy** the day is judged by (id, name, source and complete settings, chosen
-by `PolicyResolver`). Every recompute reads the snapshot, so **editing a schedule or a
+by `PolicyResolver`); from `version: 4` — the `timezone` the day was judged on (ADR
+0079). Every recompute reads the snapshot, so **editing a schedule or a
 policy never changes a day already recorded**. `reapplySchedule()` — the day modal's and
 the board's *Re-apply rules* — replaces it with the employee's current schedule, policy and
 holiday, and is activity-logged. A record from before snapshots existed is given one from what it recorded
@@ -266,7 +280,9 @@ working day. A clocked-in-but-not-out day is `incomplete`. A punched working day
 **`half_day`**, or `absent`, when the policy's lateness or short-day thresholds say so. A
 holiday somebody worked is judged like any day, keeps its holiday in the snapshot, and its
 minutes are bucketed as holiday minutes. The roster queries synthesise no-punch days
-through the same `noPunchStatus()`, loading the range's holidays once.
+through the same `noPunchStatus()`, loading the range's holidays once — per person, as a
+`HolidayMap`, since a local holiday is kept only by the people based at its sites (ADR
+0078).
 
 Leave-awareness checks approved leave covering the date, so an approved leave day is
 never flagged absent.

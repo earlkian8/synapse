@@ -39,6 +39,7 @@ screens and at the top on phones.
 | Onboarding | `onboarding.view` | the new hire | `/onboarding/<case>` |
 | Offboarding | `offboarding.view` | the leaver | `/offboarding/<case>` |
 | Leave requests | `leave.view` | the employee, the leave type | `/leave?status=all&search=<no>&open=<hashid>` |
+| Attendance | `attendance.view` | a day or month, the kind of day, the person — only when the words say attendance (below) | `/attendance?date=<day>&search=<no>&open=<hashid>` |
 | Appraisals | `performance.view` | the employee, the cycle | `/performance/<evaluation>` |
 | Training | `training.view` | name, provider | `/training/<program>` |
 | Events | `events.view` | title, location | `/events/<event>` |
@@ -61,10 +62,32 @@ appraisals of an archived employee (archiving does not cascade, but the person i
 shown anywhere); the reason given for leave or for leaving; pay, government ID, bank and
 address fields.
 
+## Attendance days (ADR 0081)
+
+`App\Support\Search\AttendanceSearchQuery` reads the words for a **day** (today,
+yesterday, `2026-10-03`, `10/3`, `oct 3`, `3 october 2026`), a **month** (`october`,
+`oct 2026`), the **kind of day** (late, absent, undertime, overtime, on leave, holiday,
+incomplete, present, half-day, rest day and their synonyms) and the words *attendance*,
+*DTR*, *timesheet*, *punches*. What is left is the person.
+`Sources\AttendanceRecordSource` answers **only when one of those cues is there**, so a
+name alone still means the person and is not buried under a month of their days.
+"Leave", "holiday", "present" and "rest" cue it only beside a person or a day, since
+alone they mean a screen. "maria late", "absent today" and "santos oct 3" each find days, newest first, and a
+result opens the board on that day with its drawer open.
+
+## The app's search
+
+`GET /api/search` (`Api\SearchController`, the same `search` throttle) runs
+`App\Support\Search\MySearch`: **the signed-in person's own** leave requests (by type,
+status or date), attendance days (by date or kind), invitations (with
+`events.respond`), awards and the holidays they keep. Each result names the app screen
+that opens it. The app's own screens are matched on the phone. See
+[Mobile app](./mobile-app.md).
+
 ## Opening a record that lives in a drawer
 
-Employees, leave requests, applications, departments, users and roles open as a drawer
-over their list. Their pages call `useLinkedRecord(rows, keyOf, open)`
+Employees, leave requests, attendance days, applications, departments, users and roles
+open as a drawer over their list. Their pages call `useLinkedRecord(rows, keyOf, open)`
 (`resources/js/hooks/use-linked-record.ts`): when the address carries `?open=<key>`
 and the row is on the page, the page's own handler opens it, and `open` is then dropped
 from the address with a client-side `router.replace` — so a reload, the redirect after
@@ -120,5 +143,5 @@ drawer, call `useLinkedRecord` on its list page.
 
 ## Not covered
 
-The mobile app; attendance records (dozens per person — the Attendance screen and the
-employee's drawer cover them); recent searches.
+Recent searches; punches by place or device; in the app, anybody's records but one's
+own.

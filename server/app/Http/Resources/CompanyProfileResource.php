@@ -32,6 +32,8 @@ class CompanyProfileResource extends JsonResource
             'sss_employer_no' => $this->sss_employer_no,
             'philhealth_employer_no' => $this->philhealth_employer_no,
             'pagibig_employer_no' => $this->pagibig_employer_no,
+            'document_signatory_name' => $this->document_signatory_name,
+            'document_signatory_title' => $this->document_signatory_title,
             'logo' => $this->logo,
             'logo_url' => $this->logo_url,
             'initials' => $this->initials(),

@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Services\Assistant\Modules\SchedulesModule;
 use App\Services\Assistant\Retrieval\Retriever;
@@ -299,4 +300,41 @@ test('another workspace’s holidays and schedules are never found', function ()
     expect(schedulesAgent($user, 'find_holidays')->cards)->toBe([])
         ->and(schedulesAgent($user, 'get_work_schedule', ['schedule' => 'Their Shift'])->failed())->toBeTrue()
         ->and(schedulesAgent($user, 'archive_holiday', ['holiday' => 'Their Holiday'])->failed())->toBeTrue();
+});
+
+test('a movable holiday is added as a rule, and a local one is kept at its sites (ADR 0078)', function () {
+    $user = actingAsSuperAdmin();
+    $cebu = WorkLocation::create(['name' => 'Cebu Office', 'latitude' => 10.3157, 'longitude' => 123.8854, 'radius_meters' => 150]);
+
+    expect(schedulesAgent($user, 'add_holiday', ['name' => 'Good Friday', 'type' => 'regular', 'repeats' => 'easter'])->detail)
+        ->toContain('days from Easter');
+
+    $friday = schedulesAgent($user, 'add_holiday', ['name' => 'Good Friday', 'type' => 'regular', 'repeats' => 'easter', 'easter_offset' => -2]);
+    $heroes = schedulesAgent($user, 'add_holiday', ['name' => 'National Heroes Day', 'type' => 'regular', 'repeats' => 'weekday', 'month' => 8, 'weekday' => 'monday', 'week' => 'last']);
+    $local = schedulesAgent($user, 'add_holiday', ['name' => 'Cebu Charter Day', 'date' => '2027-02-24', 'type' => 'special_non_working', 'repeats' => 'yearly', 'sites' => ['cebu office']]);
+
+    expect($friday->failed())->toBeFalse()
+        ->and($friday->cards[0]['subtitle'])->toContain('2 days before Easter')
+        ->and(Holiday::query()->where('name', 'Good Friday')->first()->occurrenceIn(2027)->toDateString())->toBe('2027-03-26')
+        ->and($heroes->failed())->toBeFalse()
+        ->and(Holiday::query()->where('name', 'National Heroes Day')->first()->occurrenceIn(2027)->toDateString())->toBe('2027-08-30')
+        ->and($local->cards[0]['meta'])->toContain('Only at Cebu Office')
+        ->and(schedulesAgent($user, 'add_holiday', ['name' => 'Good Friday', 'type' => 'regular', 'repeats' => 'easter', 'easter_offset' => -2])->detail)->toContain('already on the calendar')
+        ->and(schedulesAgent($user, 'add_holiday', ['name' => 'Fiesta', 'date' => '2027-01-15', 'type' => 'regular', 'sites' => ['Mars Base']])->detail)->toContain('No work location is called');
+
+    // A date for a movable one is refused; made company-wide, the sites go.
+    expect(schedulesAgent($user, 'update_holiday', ['holiday' => 'Good Friday', 'date' => '2027-04-01'])->detail)->toContain('worked out every year');
+
+    schedulesAgent($user, 'update_holiday', ['holiday' => 'Cebu Charter Day', 'everywhere' => true]);
+
+    expect(Holiday::query()->where('name', 'Cebu Charter Day')->first()->locations()->count())->toBe(0)
+        ->and(Holiday::query()->where('name', 'Cebu Charter Day')->value('recurrence'))->toBe('yearly');
+
+    // Pinned to a date again.
+    schedulesAgent($user, 'update_holiday', ['holiday' => 'Good Friday', 'repeats' => 'none', 'date' => '2027-03-26']);
+
+    expect(Holiday::query()->where('name', 'Good Friday')->first())
+        ->recurrence->toBe('none')
+        ->rule->toBeNull()
+        ->and(Holiday::query()->where('name', 'Good Friday')->first()->date->toDateString())->toBe('2027-03-26');
 });

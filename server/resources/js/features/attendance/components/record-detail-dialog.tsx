@@ -305,9 +305,17 @@ function Body({
                         </p>
                     </div>
 
-                    <PunchTimeline punches={punches} />
+                    <PunchTimeline
+                        punches={punches}
+                        timeZone={detail.timezone}
+                    />
 
-                    {replaced.length > 0 && <Replaced punches={replaced} />}
+                    {replaced.length > 0 && (
+                        <Replaced
+                            punches={replaced}
+                            timeZone={detail.timezone}
+                        />
+                    )}
                 </section>
 
                 <section className="grid gap-3 sm:grid-cols-2">
@@ -393,8 +401,15 @@ function Body({
  * Punches an HR edit replaced — kept, and shown so a fixed day still says what
  * it said before.
  */
-function Replaced({ punches }: { punches: ReplacedPunch[] }) {
-    const timeZone = useOrganizationTimeZone();
+function Replaced({
+    punches,
+    timeZone: own,
+}: {
+    punches: ReplacedPunch[];
+    timeZone?: string | null;
+}) {
+    const organization = useOrganizationTimeZone();
+    const timeZone = own ?? organization;
 
     return (
         <div className="rounded-lg border border-dashed border-border px-3 py-2">

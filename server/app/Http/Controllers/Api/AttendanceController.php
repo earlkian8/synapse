@@ -7,6 +7,7 @@ use App\Http\Requests\Attendance\PunchRequest;
 use App\Http\Resources\AttendanceRecordResource;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\WorkLocation;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
@@ -121,8 +122,10 @@ class AttendanceController extends Controller
     {
         $employee = $this->employee($request);
 
-        $from = $request->filled('from') ? $request->date('from') : OrganizationClock::now()->startOfMonth();
-        $to = $request->filled('to') ? $request->date('to') : OrganizationClock::now()->endOfMonth();
+        // This month on the clock the person keeps (ADR 0079).
+        $now = OrganizationClock::now(WorkLocation::timezoneFor($employee));
+        $from = $request->filled('from') ? $request->date('from') : $now->startOfMonth();
+        $to = $request->filled('to') ? $request->date('to') : $now->endOfMonth();
 
         $records = AttendanceRecord::query()
             ->where('employee_id', $employee->id)

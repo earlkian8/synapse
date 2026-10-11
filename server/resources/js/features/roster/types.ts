@@ -32,6 +32,8 @@ export type RosterCell = {
     source: ShiftSource;
     /** Set when this day carries a one-off override, so it can be cleared. */
     entry_hashid: string | null;
+    /** The person's holiday that day — a local one at their site included (ADR 0078). */
+    holiday: string | null;
     reason: string | null;
 };
 

@@ -2,6 +2,7 @@
 
 namespace App\Support\Setup;
 
+use App\Models\Holiday;
 use App\Models\OnboardingTask;
 use App\Support\OffboardingProvisioner;
 use App\Support\Performance\RatingScales;
@@ -342,12 +343,13 @@ class SetupBlueprints
      *
      * A fixed-date holiday is offered as recurring, so one row honours it every
      * year. A movable one — Holy Week, which follows Easter, and National Heroes
-     * Day, the last Monday of August — is offered on its next date and not as
-     * recurring, because next year it falls somewhere else. The days proclaimed
-     * afresh each year (Eid'l Fitr, Eid'l Adha, Chinese New Year) are not here:
-     * there is no date to offer until the proclamation names one.
+     * Day, the last Monday of August — is offered with its rule ({@see
+     * movableHolidays()}), so it too is kept every year from one row; its date is
+     * the next one it falls on (ADR 0078). The days proclaimed afresh each year
+     * (Eid'l Fitr, Eid'l Adha, Chinese New Year) are not here: there is no date to
+     * offer until the proclamation names one.
      *
-     * @return list<array{key: string, name: string, date: string, type: string, is_recurring: bool}>
+     * @return list<array{key: string, name: string, date: string, type: string, is_recurring: bool, recurrence: string, rule: array<string, int>|null}>
      */
     public static function holidays(CarbonInterface $today): array
     {
@@ -377,29 +379,22 @@ class SetupBlueprints
             'date' => "{$year}-{$holiday[2]}",
             'type' => $holiday[3],
             'is_recurring' => true,
+            'recurrence' => 'yearly',
+            'rule' => null,
         ], $fixed);
 
-        // The movable ones, each on the next date it falls on.
-        $movable = [
-            ['maundy-thursday', 'Maundy Thursday', 'regular', fn (int $y): CarbonImmutable => self::easter($y)->subDays(3)],
-            ['good-friday', 'Good Friday', 'regular', fn (int $y): CarbonImmutable => self::easter($y)->subDays(2)],
-            ['black-saturday', 'Black Saturday', 'special_non_working', fn (int $y): CarbonImmutable => self::easter($y)->subDay()],
-            ['national-heroes-day', 'National Heroes Day', 'regular', fn (int $y): CarbonImmutable => CarbonImmutable::create($y, 8, 1)->lastOfMonth(CarbonImmutable::MONDAY)],
-        ];
-
-        foreach ($movable as [$key, $name, $type, $on]) {
-            $date = $on($year);
-
-            if ($date->lt($today)) {
-                $date = $on($year + 1);
-            }
+        // The movable ones, each with its rule, on the next date it falls on.
+        foreach (self::movableHolidays() as $movable) {
+            $holiday = new Holiday(['recurrence' => $movable['recurrence'], 'rule' => $movable['rule']]);
 
             $holidays[] = [
-                'key' => $key,
-                'name' => $name,
-                'date' => $date->toDateString(),
-                'type' => $type,
-                'is_recurring' => false,
+                'key' => $movable['key'],
+                'name' => $movable['name'],
+                'date' => $holiday->nextOccurrence($today)?->toDateString() ?? $today->toDateString(),
+                'type' => $movable['type'],
+                'is_recurring' => true,
+                'recurrence' => $movable['recurrence'],
+                'rule' => $movable['rule'],
             ];
         }
 
@@ -407,6 +402,22 @@ class SetupBlueprints
         usort($holidays, fn (array $a, array $b): int => substr($a['date'], 5) <=> substr($b['date'], 5));
 
         return $holidays;
+    }
+
+    /**
+     * The Philippine holidays whose date moves (ADR 0078): Holy Week, counted
+     * from Easter Sunday, and National Heroes Day, the last Monday of August.
+     *
+     * @return list<array{key: string, name: string, type: string, recurrence: string, rule: array<string, int>}>
+     */
+    public static function movableHolidays(): array
+    {
+        return [
+            ['key' => 'maundy-thursday', 'name' => 'Maundy Thursday', 'type' => 'regular', 'recurrence' => 'easter', 'rule' => ['offset' => -3]],
+            ['key' => 'good-friday', 'name' => 'Good Friday', 'type' => 'regular', 'recurrence' => 'easter', 'rule' => ['offset' => -2]],
+            ['key' => 'black-saturday', 'name' => 'Black Saturday', 'type' => 'special_non_working', 'recurrence' => 'easter', 'rule' => ['offset' => -1]],
+            ['key' => 'national-heroes-day', 'name' => 'National Heroes Day', 'type' => 'regular', 'recurrence' => 'weekday', 'rule' => ['month' => 8, 'weekday' => 1, 'week' => Holiday::LAST_WEEK]],
+        ];
     }
 
     /**
@@ -475,30 +486,6 @@ class SetupBlueprints
                 'items' => OffboardingProvisioner::STANDARD_ITEMS,
             ],
         ];
-    }
-
-    /**
-     * Easter Sunday in the given year — the anonymous Gregorian computation, so
-     * Holy Week needs neither the calendar extension nor a table of dates.
-     */
-    private static function easter(int $year): CarbonImmutable
-    {
-        $a = $year % 19;
-        $b = intdiv($year, 100);
-        $c = $year % 100;
-        $d = intdiv($b, 4);
-        $e = $b % 4;
-        $f = intdiv($b + 8, 25);
-        $g = intdiv($b - $f + 1, 3);
-        $h = (19 * $a + $b - $d - $g + 15) % 30;
-        $i = intdiv($c, 4);
-        $k = $c % 4;
-        $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
-        $m = intdiv($a + 11 * $h + 22 * $l, 451);
-        $month = intdiv($h + $l - 7 * $m + 114, 31);
-        $day = (($h + $l - 7 * $m + 114) % 31) + 1;
-
-        return CarbonImmutable::create($year, $month, $day);
     }
 
     /**

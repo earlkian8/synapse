@@ -20,6 +20,10 @@ use DateTimeZone;
  * The zone is read from the bound tenant ({@see Tenancy}), so a console command
  * that walks organisations with `Tenancy::runFor()` gets each one's clock in turn.
  * With nothing bound, the application zone is used.
+ *
+ * A site can keep its own clock (ADR 0079). Every method that reads the wall
+ * takes an optional `$zone`, so a person based there is judged on their site's
+ * clock; null (or empty) means the organisation's.
  */
 class OrganizationClock
 {
@@ -40,19 +44,27 @@ class OrganizationClock
     }
 
     /**
-     * The present moment on the organisation's clock.
+     * The zone to read: the one given (a site's), or the organisation's.
      */
-    public static function now(): CarbonImmutable
+    public static function zone(?string $zone = null): string
     {
-        return CarbonImmutable::now(self::timezone());
+        return is_string($zone) && $zone !== '' ? $zone : self::timezone();
     }
 
     /**
-     * The organisation's calendar date right now, as "Y-m-d".
+     * The present moment on the organisation's clock (or a site's).
      */
-    public static function today(): string
+    public static function now(?string $zone = null): CarbonImmutable
     {
-        return self::now()->toDateString();
+        return CarbonImmutable::now(self::zone($zone));
+    }
+
+    /**
+     * The organisation's calendar date right now, as "Y-m-d" (or a site's).
+     */
+    public static function today(?string $zone = null): string
+    {
+        return self::now($zone)->toDateString();
     }
 
     /**
@@ -60,26 +72,26 @@ class OrganizationClock
      * returned as the UTC instant they name — "08:00" on 2026-09-14 in Manila is
      * 2026-09-14 00:00Z. A time that daylight saving skips resolves forward.
      */
-    public static function at(string $date, string $time): CarbonImmutable
+    public static function at(string $date, string $time, ?string $zone = null): CarbonImmutable
     {
-        return CarbonImmutable::parse($date.' '.$time, self::timezone())->utc();
+        return CarbonImmutable::parse($date.' '.$time, self::zone($zone))->utc();
     }
 
     /**
      * The organisation's calendar date at an instant, as "Y-m-d".
      */
-    public static function localDate(CarbonInterface $instant): string
+    public static function localDate(CarbonInterface $instant, ?string $zone = null): string
     {
-        return self::local($instant)->toDateString();
+        return self::local($instant, $zone)->toDateString();
     }
 
     /**
      * An instant as the organisation's clock shows it — for formatting a stored
      * UTC timestamp for people, never for arithmetic.
      */
-    public static function local(CarbonInterface $instant): CarbonImmutable
+    public static function local(CarbonInterface $instant, ?string $zone = null): CarbonImmutable
     {
-        return CarbonImmutable::instance($instant)->setTimezone(self::timezone());
+        return CarbonImmutable::instance($instant)->setTimezone(self::zone($zone));
     }
 
     /**
@@ -87,9 +99,9 @@ class OrganizationClock
      * 14:00" — read as the organisation's wall clock and returned as the UTC
      * instant it names. A value that carries its own offset keeps it.
      */
-    public static function parse(string $wallClock): CarbonImmutable
+    public static function parse(string $wallClock, ?string $zone = null): CarbonImmutable
     {
-        return CarbonImmutable::parse($wallClock, self::timezone())->utc();
+        return CarbonImmutable::parse($wallClock, self::zone($zone))->utc();
     }
 
     /**

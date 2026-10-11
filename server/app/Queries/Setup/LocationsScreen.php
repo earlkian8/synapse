@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
+use App\Support\OrganizationClock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -27,6 +28,9 @@ class LocationsScreen implements SetupScreen
                 'schedules' => WorkSchedule::query()->orderBy('name')->get(['id', 'name']),
                 'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
                 'departments' => Department::query()->orderBy('name')->get(['id', 'name']),
+                // A site can keep its own clock (ADR 0079); null keeps the company's.
+                'timezones' => OrganizationClock::options(),
+                'organizationTimezone' => OrganizationClock::timezone(),
                 'employees' => Employee::query()
                     ->orderBy('first_name')
                     ->orderBy('last_name')

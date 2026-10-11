@@ -6,6 +6,7 @@ use App\Http\Resources\HolidayResource;
 use App\Http\Resources\WorkScheduleResource;
 use App\Models\AttendancePolicy;
 use App\Models\Holiday;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,6 +34,8 @@ class WorkScheduleScreen implements SetupScreen
             'defaultScheduleId' => $this->tenancy->organization()?->default_work_schedule_id,
             // The policies a schedule can be judged by (ADR 0038).
             'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name', 'is_default']),
+            // The sites a local holiday can be kept at (ADR 0078).
+            'locations' => WorkLocation::query()->active()->orderBy('name')->get(['id', 'name']),
             'can' => ['manage' => $request->user()->can('setup.schedule.manage')],
         ];
     }
@@ -53,6 +56,6 @@ class WorkScheduleScreen implements SetupScreen
      */
     private function holidays(): Builder
     {
-        return Holiday::query()->chronological();
+        return Holiday::query()->with('locations:id,name')->chronological();
     }
 }

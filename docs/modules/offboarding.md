@@ -3,11 +3,15 @@
 The structured exit of a departing employee — the mirror image of
 [Onboarding](./onboarding.md). An offboarding **case** opens a **clearance**
 checklist routed to the responsible departments; finalising it separates the
-employee. The *why* is in [ADR 0016](../decisions/0016-offboarding-and-clearance.md);
-this is the *how*. Everything is tenant-scoped (ADR 0005). Data model is ERD §9.
+employee. The *why* is in [ADR 0016](../decisions/0016-offboarding-and-clearance.md),
+with the employee's own resignation and the exit interview in
+[ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md)
+and the generated papers in
+[ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md); this is the
+*how*. Everything is tenant-scoped (ADR 0005). Data model is ERD §9.
 
 > Status: **Active** · Route prefix: `/offboarding`
-> Sidebar: Offboarding (gated by `offboarding.view`)
+> Sidebar: Offboarding (shown for `offboarding.view` or `offboarding.resign`)
 
 ## Where it sits in the life cycle
 
@@ -16,8 +20,15 @@ hire ─▶ Onboarding ─▶ … productive tenure … ─▶ Offboarding ─�
         └ ADR 0007 ┘                            └ this module ┘
 ```
 
-A case is started **manually** by HR for a leaving employee. Completing it marks the
-employee `resigned` / `terminated` — the canonical way they leave `active`.
+A case is started by HR for a leaving employee, or by HR **accepting a resignation the
+employee filed**. Completing it marks the employee `resigned` / `terminated` — the
+canonical way they leave `active`.
+
+## Sections
+
+The header's sections (`OffboardingNav`) are **My resignation ‖ Exits · Resignations
+(pending count) · Exit interviews**. Somebody who may only resign sees *My
+resignation* alone, and `/offboarding` sends them there.
 
 ## Surfaces
 
@@ -50,6 +61,38 @@ toolbar · table · pagination), from the shared table kit
     Each item row has a tick-box, its status, who signed it off and when, and remarks
     (red when flagged). Its menu flags or unflags the item, edits it or deletes it, and
     for managers the row opens the item to edit.
+  - Underline tabs **Clearance · Exit interview**. The second shows the survey's state
+    (waiting, answered, waived), *Send* or *Waive*, and, once answered, the answers:
+    the reason, the seven ratings as a table with the average, would-recommend,
+    would-return and the open answers.
+  - A **Documents** menu downloads the clearance form (any time) and the Certificate
+    of Employment (once completed, with its number).
+  - When the exit came from a resignation, the header says so, with the day it was
+    filed.
+- **`/offboarding/resignations`** (`offboarding.view`): resignations employees filed.
+  - Tiles: waiting, short notice, and accepted and withdrawn in the last 30 days.
+  - Search, department and status filters, and a table: employee, filed, proposed last
+    day, notice (red under 30 days), status.
+  - *Review* opens a modal with the reason. *Accept* sets the last working day (the
+    proposed one by default) and an optional clearance template; *Decline* needs a
+    note. `?open=<hashid>` opens one (from the notification).
+- **`/offboarding/interviews`** (`offboarding.view`): what leavers say, over 3, 6 or 12
+  months or all time.
+  - Tiles: sent, answered (with the response rate), waiting, average rating, would
+    recommend us.
+  - **Why people leave** (reason, count, share bar) and **How leavers rate us** (each
+    rating's average and spread).
+  - Every survey of the period, filtered by status, as a table that opens its exit's
+    *Exit interview* tab.
+- **`/offboarding/me`** (`offboarding.resign`): **My resignation**.
+  - With nothing under way: *Resign* opens a modal for the proposed last day (the
+    notice is counted as it is picked, with a note under 30 days) and an optional
+    reason.
+  - A waiting resignation can be withdrawn. A declined one shows HR's note.
+  - Once the exit starts: its dates, the clearance item by item (a flag shows its
+    reason), the exit interview (*Answer* while it waits) and the Certificate of
+    Employment once ready.
+- **`/offboarding/me/exit-interview`**: the survey, with the ratings as a matrix table.
 - **Employee detail → Offboarding tab**: a read-only summary of the employee's exit
   (type, status, clearance progress, last day), linking to the case.
 
@@ -65,6 +108,14 @@ toolbar · table · pagination), from the shared table kit
 - A **clearance item** is one sign-off: a label, an owning `department_id`, a status
   (`pending → cleared`, or `flagged`), the `cleared_by` user + `cleared_at`, and
   `remarks` (the sign-off note / flag reason).
+- A case's Certificate of Employment number and first issue: `certificate_no`
+  (`COE-<year>-<id>`), `certificate_issued_at`.
+- A **resignation request** (`resignation_requests`, hashid) is one the employee
+  filed: proposed last day, reason, `pending → accepted | declined | withdrawn`, who
+  decided and the note, and the exit it became.
+- An **exit interview** (`exit_interviews`, one per case): `pending | submitted |
+  waived`, the questions as asked and the answers (JSON), and the sent / reminded /
+  submitted / waived stamps.
 
 ## Backend
 
@@ -79,6 +130,25 @@ toolbar · table · pagination), from the shared table kit
   **standard clearance checklist**, routing each item to its department (IT / Finance /
   HR by code, or the employee's own department); idempotent per employee. It is also
   the single source of truth for the **derived clearance status** (`clearanceStatus()`).
+- **`App\Support\Offboarding\ResignationWorkflow`** — file, withdraw, accept (it
+  becomes the exit through `OffboardingWorkflow::start`, or reopens a cancelled one)
+  and decline; `settleFor()` marks a waiting resignation accepted when HR starts the
+  exit by hand.
+- **`ExitInterviews`** — send (automatically with every exit but a termination, or by
+  hand), submit (signs off pending items mentioning "exit interview"), waive, and
+  `sendDueReminders()` for `offboarding:exit-interview-reminders` (daily 09:00, once
+  after 3 days). **`ExitInterviewQuestionnaire`** — the fixed survey, its validation
+  and `summarize()`.
+- **`OffboardingDocuments`** — the clearance form and the Certificate of Employment
+  as PDFs (Dompdf, remote fetching off, logo embedded). **`MyExit`** — one person's
+  view of leaving, for the web and the app.
+- Controllers `ResignationController`, `ExitInterviewController`,
+  `MyOffboardingController` and `OffboardingDocumentController` share the
+  `OffboardingResponses` trait (toast on an `OffboardingException`, nav counts).
+- The app: `Api\OffboardingController` (`/api/offboarding`, `resignation`,
+  `resignation/{id}/withdraw`, `exit-interview`, `certificate-link`, all
+  `can:offboarding.resign`) and `Public\CertificateDownloadController` (the signed,
+  10-minute certificate link).
 - Requests under `app/Http/Requests/Offboarding/`; resources `OffboardingCaseResource`
   (with a derived `clearance` summary) + `ClearanceItemResource`; queries
   `OffboardingCasesIndexQuery` (filtered, with clearance counts — no pagination, the
@@ -116,8 +186,12 @@ toolbar · table · pagination), from the shared table kit
 
 ## Frontend
 
-`features/offboarding/` holds the types, routes, constants (status, type and clearance
-meta) and the filter hook, and these components:
+`features/offboarding/` holds the types, routes, constants (status, type, clearance,
+resignation and interview meta, and day arithmetic) and the filter hook, and these
+components:
+
+- `offboarding-nav` (the header sections), `status-pill`;
+- `resign-dialog`, `resignation-review-dialog`, `case-interview-panel`;
 
 - `offboarding-stats` (stat tiles);
 - `case-table` and `case-row-actions`;
@@ -128,22 +202,30 @@ meta) and the filter hook, and these components:
   `FormField` / `FormSelect`, the same as Onboarding: `initiate-offboarding-dialog`,
   `clearance-item-form-dialog`, `case-settings-dialog` and `apply-program-dialog`.
 
-Pages are `pages/offboarding/index.tsx` and `case.tsx`. The clearance templates'
+Pages are `pages/offboarding/index.tsx`, `case.tsx`, `resignations.tsx`,
+`interviews.tsx`, `me.tsx` and `exit-interview.tsx`. PDFs are rendered from
+`resources/views/documents/`. The clearance templates'
 screen (`programs-manager`, `program-form-sheet`) belongs to Company Setup. The sidebar
-**Offboarding** link is gated on `offboarding.view`.
+**Offboarding** link shows for `offboarding.view` or `offboarding.resign`.
 
 ## Permissions
 
-`offboarding.view` (overview + detail) and `offboarding.manage` (start exits, manage
-clearance, lifecycle). Built-in **HR Manager** gets both; Super Admin / Administrator
-get them via the all-permissions grant.
+`offboarding.view` (overview + detail, resignations, exit-interview answers and the
+papers) and `offboarding.manage` (start exits, manage clearance, lifecycle, decide
+resignations, send or waive surveys). `offboarding.resign` (ADR 0076) is one's own
+exit: file and withdraw a resignation, follow the clearance, answer the survey,
+download the certificate. Built-in **HR Manager** gets all three; **Department Head**
+and **Staff** get `offboarding.resign`; Super Admin / Administrator get them via the
+all-permissions grant.
 
 ## Seeding
 
 `OffboardingSeeder` (in `DatabaseSeeder`) seeds 5 exits across the
 lifecycle — completed (employee separated), in clearance, in clearance with a flagged
 item, just initiated, and cancelled — each with the standard 10-item clearance
-checklist, on active employees. Idempotent: it seeds when no exit is in flight — the
+checklist, on active employees. It adds exit interviews to up to 40 past exits (other
+than terminations; answered for those completed within a year) and two waiting
+resignations, one with short notice. Idempotent: it seeds when no exit is in flight — the
 completed cases the workforce history leaves behind (`WorkforceHistorySeeder`, about
 230 past departures for [model graduation](./model-graduation.md#demo-history)) are the
 past, not the board's demo cases.
@@ -178,7 +260,15 @@ past, not the board's demo cases.
   - a question about a person carries their exit, the reason, and what is flagged or
     pending;
   - "who is leaving soon?" carries the board.
-- **No self-service.** As on the screens, one's own exit needs `offboarding.view`.
+- **Resignations and exit interviews** (ADR 0076): `find_resignations` and
+  `get_exit_interview` (audited as `viewed`) and `exit_interview_summary` read;
+  `send_exit_interview` runs on a plain instruction; `decide_resignation` (accept with
+  the last day agreed and an optional template, or decline with a note) and
+  `waive_exit_interview` wait for Confirm.
+- **One's own exit** (`offboarding.resign`): `get_my_exit` reads what My resignation
+  shows; `file_my_resignation` and `withdraw_my_resignation` wait for Confirm. The
+  survey is answered on its page or in the app, not in chat; the papers are downloaded,
+  not made in chat.
 
 ### Clearance templates in the assistant
 
@@ -205,5 +295,6 @@ which the Offboarding Programs screen uses too.
 
 ## Out of scope (this cut)
 
-Auto exit-interview surveys, document generation (clearance form / COE PDF), a
-self-service employee resignation request, and final-pay computation from the case.
+Final-pay computation from the case; questions of the company's own in the exit
+interview; a Certificate of Employment for people still employed; templates and
+letterheads per document; answering the survey in chat.

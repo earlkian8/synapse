@@ -153,3 +153,19 @@ test('only the workspace the user is in is ever read or changed', function () {
         ->and(testOrganization()->fresh()->name)->toBe('Renamed')
         ->and($other->fresh()->name)->toBe('Other Co');
 });
+
+test('who signs the company\'s documents is set and read in chat (ADR 0077)', function () {
+    $user = actingAsSuperAdmin();
+
+    $result = companyAgent($user, 'update_company_profile', ['document_signatory_name' => 'Ana Reyes', 'document_signatory_title' => 'HR Manager']);
+    $organization = testOrganization()->refresh();
+
+    expect($result->failed())->toBeFalse()
+        ->and($organization->document_signatory_name)->toBe('Ana Reyes')
+        ->and($organization->document_signatory_title)->toBe('HR Manager')
+        ->and(companyAgent($user, 'get_company_profile')->cards[0]['meta'])->toContain('Documents signed by: Ana Reyes, HR Manager');
+
+    companyAgent($user, 'update_company_profile', ['clear' => ['document_signatory_title']]);
+
+    expect(testOrganization()->refresh()->document_signatory_title)->toBeNull();
+});

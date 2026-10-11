@@ -12,7 +12,11 @@ use Illuminate\Support\Collection;
  * scale of a building. A phone reports how sure it is (`accuracy`, the radius in
  * metres it is 68% confident of), and that doubt is given to the person: a punch
  * is **inside** a fence when `distance − accuracy ≤ radius` — when the circle the
- * phone might be anywhere in touches the site. A fix that says "somewhere within
+ * phone might be anywhere in touches the site.
+ *
+ * A fence drawn as a shape (ADR 0079) has no radius: its distance is 0 inside it
+ * and the way to its nearest edge outside, and a punch is inside when
+ * `distance − accuracy ≤ 0` — the same benefit of the doubt. A fix that says "somewhere within
  * two kilometres" therefore reaches most fences; the distance and the accuracy
  * are both kept on the punch, so a reviewer can see how much benefit of the doubt
  * it took.
@@ -58,10 +62,7 @@ final class GeofenceCheck
     public static function check(float $latitude, float $longitude, ?float $accuracy, Collection $locations): ?GeofenceVerdict
     {
         $measured = $locations
-            ->map(fn (WorkLocation $location): array => [
-                $location,
-                self::distanceMeters($latitude, $longitude, (float) $location->latitude, (float) $location->longitude),
-            ])
+            ->map(fn (WorkLocation $location): array => [$location, ...self::measure($latitude, $longitude, $location)])
             ->sortBy(fn (array $pair): float => $pair[1])
             ->values();
 
@@ -69,9 +70,30 @@ final class GeofenceCheck
             return null;
         }
 
-        $inside = $measured->first(fn (array $pair): bool => self::inside($pair[1], $accuracy, (int) $pair[0]->radius_meters));
+        $inside = $measured->first(fn (array $pair): bool => self::inside($pair[1], $accuracy, $pair[2]));
         [$location, $distance] = $inside ?? $measured->first();
 
         return new GeofenceVerdict($location, (int) round($distance), $inside !== null);
+    }
+
+    /**
+     * How far a position is from a site, and how far from its measuring point
+     * still counts as on it: the centre and the radius for a circle; the shape's
+     * edge (0 inside it) and nothing more for a shape.
+     *
+     * @return array{0: float, 1: int}
+     */
+    public static function measure(float $latitude, float $longitude, WorkLocation $location): array
+    {
+        $shape = $location->shape();
+
+        if ($shape !== null) {
+            return [FenceGeometry::distanceMeters($latitude, $longitude, $shape), 0];
+        }
+
+        return [
+            self::distanceMeters($latitude, $longitude, (float) $location->latitude, (float) $location->longitude),
+            (int) $location->radius_meters,
+        ];
     }
 }

@@ -49,7 +49,9 @@ class ShiftRosterQuery
             ->get();
 
         $shifts = $this->shifts->forMany($employees, $start->toDateString(), $end->toDateString());
-        $holidays = HolidayCalendar::inRange($start, $end);
+        // The headers name the holidays kept everywhere; a cell names the
+        // person's own, a local one at their site included (ADR 0078).
+        $holidays = HolidayCalendar::forEmployees($employees, $start, $end);
 
         // Which cells carry an override, so one can be edited or cleared without
         // guessing from the source alone.
@@ -65,7 +67,7 @@ class ShiftRosterQuery
         return [
             'start' => $start->toDateString(),
             'end' => $end->toDateString(),
-            'days' => $this->days($start, $today, $holidays),
+            'days' => $this->days($start, $today, $holidays->everywhere()),
             'rows' => $employees
                 ->map(fn (Employee $employee): array => [
                     'employee' => [
@@ -82,6 +84,7 @@ class ShiftRosterQuery
                         $shifts[$employee->id] ?? [],
                         $entries->get($employee->id) ?? collect(),
                         $start,
+                        $holidays->for($employee->id),
                     ),
                 ])
                 ->all(),
@@ -120,9 +123,10 @@ class ShiftRosterQuery
      *
      * @param  array<string, ResolvedShift>  $shifts
      * @param  Collection<string, ShiftRosterEntry>  $entries
+     * @param  array<string, Holiday>  $holidays  The person's, keyed "Y-m-d".
      * @return list<array<string, mixed>>
      */
-    private function cells(array $shifts, Collection $entries, CarbonImmutable $start): array
+    private function cells(array $shifts, Collection $entries, CarbonImmutable $start, array $holidays): array
     {
         $out = [];
 
@@ -138,6 +142,7 @@ class ShiftRosterQuery
                 'is_working_day' => $shift->isWorkingDay,
                 'segments' => $shift->segments,
                 'required_minutes' => $shift->requiredMinutes,
+                'holiday' => $holidays[$date]?->name ?? null,
                 'schedule_name' => $shift->scheduleName,
                 'source' => $shift->source,
                 'entry_hashid' => $entry?->hashid,

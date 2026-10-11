@@ -28,6 +28,9 @@ Schedule::command('events:remind')->everyFiveMinutes()->withoutOverlapping();
 // expires within 60 days, and tell whoever runs training how many are coming up.
 Schedule::command('training:certificate-reminders')->dailyAt('07:00')->withoutOverlapping();
 
+// Exit interviews (ADR 0076): remind a leaver, once, about a survey that has
+// waited three days while their exit is in progress.
+Schedule::command('offboarding:exit-interview-reminders')->dailyAt('09:00')->withoutOverlapping();
 // Data Export (ADR 0066): delete archives past their keep-until date, and close
 // exports whose build died before it finished.
 Schedule::command('data-export:prune')->hourly()->withoutOverlapping();

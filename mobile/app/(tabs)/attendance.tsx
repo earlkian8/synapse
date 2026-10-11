@@ -17,7 +17,7 @@ import { AppText } from '@/components/ui/text';
 import { Touchable } from '@/components/ui/touchable';
 import { attendanceApi } from '@/features/attendance/api';
 import { MonthCalendar } from '@/features/attendance/components/month-calendar';
-import { useAuth } from '@/lib/auth';
+import { useClockZone } from '@/lib/clock-zone';
 import { formatMinutes, formatMonthYear, formatTime, parseDateOnly } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
@@ -40,7 +40,7 @@ type AttData = { records: AttendanceRecord[]; summary: AttendanceSummary };
 export default function AttendanceScreen() {
   const { colors, spacing, status, readable } = useTheme();
   const router = useRouter();
-  const { organization } = useAuth();
+  const zone = useClockZone();
 
   const [month, setMonth] = useState(() => {
     const t = new Date();
@@ -220,7 +220,7 @@ export default function AttendanceScreen() {
                       }
                       title={
                         record.first_in_at
-                          ? `${formatTime(record.first_in_at, organization?.timezone)} – ${formatTime(record.last_out_at, organization?.timezone)}`
+                          ? `${formatTime(record.first_in_at, record.timezone ?? zone)} – ${formatTime(record.last_out_at, record.timezone ?? zone)}`
                           : 'No punches'
                       }
                       subtitle={`${formatMinutes(record.worked_minutes)} worked`}
