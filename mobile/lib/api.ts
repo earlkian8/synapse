@@ -36,6 +36,19 @@ export function setTokenProvider(provider: TokenProvider) {
   getToken = provider;
 }
 
+let onUnauthorized: () => void = () => {};
+
+/**
+ * What to do when the server stops accepting the token — it was revoked by a new
+ * password set elsewhere, a password reset, or HR (ADR 0082). App tokens never
+ * expire on their own, so a 401 to a request that carried one means the session
+ * is over, and the auth layer signs the app out rather than leave every screen
+ * failing.
+ */
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   let message = `Request failed (${response.status})`;
   const fieldErrors: Record<string, string> = {};
@@ -98,6 +111,11 @@ async function request<T>(method: string, path: string, body?: unknown, options:
     });
 
     if (!response.ok) {
+      // Only a token the server refused ends the session, never a failed sign-in.
+      if (response.status === 401 && token && token === getToken()) {
+        onUnauthorized();
+      }
+
       throw await parseError(response);
     }
 
@@ -122,5 +140,6 @@ export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, undefined, options),
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, body, options),
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PATCH', path, body, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, body, options),
   delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };

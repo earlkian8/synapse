@@ -20,7 +20,12 @@ More about how leave works: [Filing your own leave](/help/workforce/filing-your-
 
 ## Your profile and awards
 
-**Profile** shows your employee record — your personal, contact and employment details. Government ID numbers are masked, and your salary isn't shown. To correct something, ask your HR team.
+**Profile** shows your employee record: your personal, contact and employment details. Government ID numbers are masked, and your salary isn't shown. HR keeps this record, so ask your HR team to correct anything in it.
+
+Your **account** is different: it's how you sign in, and it's yours in every company you belong to. Change it from **Profile** → **Account**:
+
+- **Name and email.** Changing the email you sign in with asks for your current password, and we send a code to the new address to confirm it. It doesn't change the work email on your employee record.
+- **Change password.** Enter your current password, then the new one twice. Saving signs the app out on your other phones. Forgotten your current one? Choose **Forgot your current password?** for a reset link by email.
 
 Your **awards** — every recognition you've received, with its citation — are in the app too.
 

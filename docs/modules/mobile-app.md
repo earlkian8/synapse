@@ -12,8 +12,10 @@ tokens), and mirrors the web brand so the two read as one product. See
 `POST /api/auth/register` (throttled) takes a name, any email address they choose,
 and a password. It creates no employment and joins no company: the response is a
 real session whose `organization` is `null` and whose `needs_workspace` is `true`.
-The ERP never issues, knows, or can reset anybody's password — forgotten passwords
-go through Fortify's web forgot-password flow.
+The ERP never issues or knows anybody's password. A forgotten one is reset through
+Fortify's reset link, which the app's **Forgot password?** asks for
+(`POST /api/auth/forgot-password`, [ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
+it answers the same whatever the address, and the link opens the web's reset page.
 
 Connecting that account to an employer is a second, separate step, with two routes:
 
@@ -55,6 +57,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 - **Sign in / Create account** — `app/(auth)/login.tsx` and
   `app/(auth)/register.tsx`. Registration asks for nothing about work: the account
   is the person's own, and connecting it to a company is the next screen.
+  **Forgot password?** under the password field opens `app/(auth)/forgot-password.tsx`
+  (the typed address carried over): one field, then *Check your email* with the three
+  steps and *Send it again* once the broker's minute is up. When the server refuses the
+  phone's token (a new password, a reset, HR), the app signs out and sign-in says why
+  (ADR 0082).
 - **Join a company** (`app/join.tsx`) — where an account with no employer lands.
   Invitations addressed to them are listed unprompted and joined in one tap; below
   that, a single code field takes either an invitation code or the company join
@@ -102,8 +109,21 @@ every `useQuery` screen refetches against the new company's tenant context.
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
   sign-out behind a system alert; and the employee's recognitions. The Profile list is
   also the hub for **My events**, **Recognition** and **Points & rewards** (shown by
-  permission), **Holidays**, **Resignation** (with `offboarding.resign`) and a **Help**
-  section (*Take the tour*, *Search*) — the five tabs stay as they are.
+  permission), **My schedule** (with an employee record), **Holidays**, **Resignation**
+  (with `offboarding.resign`) and a **Help** section (*Take the tour*, *Search*) — the
+  five tabs stay as they are. The employee record is read-only and says HR keeps it.
+  An **Account** section edits the person's own sign-in account
+  ([ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
+  **Name and email** (`account/details`, a form sheet; a new address asks for the current
+  password and is confirmed by a mailed code) and **Change password** (`account/password`,
+  which signs the app out on the person's other phones, and offers the reset link for a
+  forgotten current one).
+- **My schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)) —
+  `app/schedule/index.tsx`, from Profile, the Clock tab's shift row and Search: one's own
+  week, Monday to Sunday, as the roster has it. A week switcher (and a sideways swipe),
+  the week's shifts and hours, and the seven days: hours (or the holiday, the leave,
+  *Rest day*) and a pill for *Holiday*, *On leave*, *Half day*, *Pending* or *Changed*. A
+  day that has started opens its attendance record.
 - **Resignation** ([ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md),
   [ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md)) —
   `app/resignation/index.tsx` shows the same thing as My resignation on the web
@@ -152,6 +172,9 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics. A punch may carry `client_id` (idempotency), `punched_at` (the phone's time; marks it offline, judged against the policy's offline window) and `sent_at` (to measure clock skew) |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
+| `POST /api/auth/forgot-password` (public, throttled) | Mail Fortify's reset link; the same answer for any address (503 if mail fails) |
+| `GET` · `PATCH /api/account` · `PUT /api/account/password` | One's own sign-in account: name and email (a new address needs `current_password`), and the password (ends the other app sessions) |
+| `GET /api/schedule?week=` | One's own week of shifts (`MySchedule`): hours, holiday, leave, whether HR changed the day, and the week's totals |
 | `GET /api/awards` | Own recognitions |
 | `GET /api/events` · `GET /api/events/{hashid}` · `POST /api/events/{hashid}/respond` | Own invitations and answering them (`events.respond`) |
 | `GET /api/calendar-feed` · `POST /api/calendar-feed/reset` | The person's calendar-feed links |
@@ -184,7 +207,9 @@ Against a deployed server ([Deployment](../deployment.md)), set
 
 ## Conventions
 
-- `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing).
+- `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing). A 401
+  to a request carrying the current token calls the auth layer's unauthorized handler,
+  which signs the phone out (ADR 0082).
 - `lib/auth.tsx` — one identity, one org-bound token in SecureStore, re-hydrated from
   `/me` on boot. `login` / `switchTo` / `logout` / `refresh`; `switchTo` swaps in a
   token bound to the chosen company. `lib/active-workspace.ts` republishes the active
@@ -234,7 +259,7 @@ Against a deployed server ([Deployment](../deployment.md)), set
     `destructive`), `input.tsx` (filled field, animated focus edge, `secureToggle`,
     `ref` for focus chaining), `sheet.tsx` (springs up, drag down to dismiss, rides
     above the keyboard), `toast.tsx` (a frosted banner dropped from the top; flick it away),
-    `segmented.tsx` (sliding thumb), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
+    `segmented.tsx` (sliding thumb), `step-button.tsx` (the chevron that steps a month or week), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
     `EmptyState`/`ErrorState`, `ProgressBar`, `Section`, `ToneWell`.
   - `entry-screen.tsx`: `EntryScreen`, the ground of the entry screens (cold-start
     splash, sign-in, register, workspace picker). It is white and light-scheme whatever

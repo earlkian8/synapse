@@ -7,14 +7,13 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState, ErrorState } from '@/components/ui/empty-state';
-import { Icon } from '@/components/ui/icon';
 import { ListRow, ListSection } from '@/components/ui/list';
 import { Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
 import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StepButton } from '@/components/ui/step-button';
 import { AppText } from '@/components/ui/text';
-import { Touchable } from '@/components/ui/touchable';
 import { attendanceApi } from '@/features/attendance/api';
 import { MonthCalendar } from '@/features/attendance/components/month-calendar';
 import { useClockZone } from '@/lib/clock-zone';
@@ -238,36 +237,6 @@ export default function AttendanceScreen() {
   );
 }
 
-function StepButton({
-  icon,
-  label,
-  onPress,
-  disabled,
-}: {
-  icon: 'chevronLeft' | 'chevronRight';
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  const { colors } = useTheme();
-
-  return (
-    <Touchable
-      onPress={onPress}
-      disabled={disabled}
-      haptic="selection"
-      scaleTo={0.88}
-      hitSlop={6}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
-      style={[styles.step, { backgroundColor: colors.fill }]}
-    >
-      <Icon name={icon} size={14} color={disabled ? colors.textTertiary : colors.tintText} weight="bold" />
-    </Touchable>
-  );
-}
-
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metric} accessible accessibilityLabel={`${label}: ${value}`}>
@@ -285,7 +254,6 @@ const styles = StyleSheet.create({
   stack: { gap: 24 },
   switcher: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -6 },
   switcherActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  step: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   distribution: { height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row', gap: 2 },
   metrics: { flexDirection: 'row' },
   metric: { flex: 1, alignItems: 'center', gap: 2 },

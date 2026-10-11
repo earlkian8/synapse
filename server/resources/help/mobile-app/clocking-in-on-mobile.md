@@ -21,6 +21,10 @@ Your company's policy sets how old an offline punch may be when it finally arriv
 
 The app tells you why — for example that you're outside your work site's fence, with the nearest site and how far away you are. A refused punch records nothing. Ask your HR team to record the time for you. See [Clocking in and out](/help/workforce/clocking-in-and-out) for the full list of reasons.
 
+## Your schedule
+
+**My schedule** shows your week from Monday to Sunday: your hours each day, your rest days, holidays and your own leave. A day HR changed just for you shows **Changed**. Step or swipe to another week, back or ahead, and tap a day that has started to see its attendance record. Open it from the shift on the **Clock** tab, or from **Profile**.
+
 ## Your attendance
 
 The **Attendance** tab shows the month as a calendar, each day marked with its status, plus a summary: days present, late and absent, hours rendered, and late and overtime minutes. Tap a day to see its punches, with where each was made and whether it was sent offline.

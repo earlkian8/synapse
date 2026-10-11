@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
@@ -40,6 +41,7 @@ const DEFAULT_SHIFT = 8 * 60;
 export default function ClockScreen() {
   const { colors, fonts, spacing, status, readable } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   // Times read on the person's clock — their site's, or the company's
   // (ADR 0036, 0079) — whatever zone the phone is in.
   const zone = useClockZone();
@@ -349,6 +351,9 @@ export default function ClockScreen() {
                 }
                 subtitle={schedule?.name}
                 value={schedule?.start_time ? formatMinutes(target) : undefined}
+                // The rest of the week (ADR 0083).
+                onPress={() => router.push('/schedule')}
+                accessibilityLabel={`Today's shift${schedule?.start_time ? `, ${formatClock(schedule.start_time)} to ${formatClock(schedule.end_time)}` : ', none'}. Opens your schedule.`}
               />
             </ListSection>
           </Animated.View>

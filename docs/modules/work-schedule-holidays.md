@@ -12,6 +12,8 @@ controller per catalogue.
 Who works which of these templates on which date — the **shift roster** — is its own
 Company Setup page beside this one (`/setup/roster`, Company Setup → Shift Roster, gated
 by `setup.roster.view`); see [Attendance → Shift Roster](./attendance.md#shift-roster).
+Employees see their own week of it, holidays included, in the mobile app's **My
+schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)).
 
 ## Surfaces
 

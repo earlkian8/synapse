@@ -139,6 +139,10 @@ function RootNavigator() {
         <Stack.Screen name="resignation/interview" />
         <Stack.Screen name="holidays/index" />
         <Stack.Screen name="search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* One's own account (ADR 0082) and week of shifts (ADR 0083). */}
+        <Stack.Screen name="account/details" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="account/password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="schedule/index" />
       </Stack>
     </>
   );

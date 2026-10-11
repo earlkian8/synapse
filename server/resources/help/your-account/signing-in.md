@@ -24,7 +24,9 @@ If you belong to more than one company, you then choose which one to work in. Se
 
 ## Forgot your password?
 
-Choose **Forgot your password?** on the sign-in screen and enter your email address. SYNAPSE emails you a link to choose a new one.
+Choose **Forgot your password?** on the sign-in screen and enter your email address. SYNAPSE emails you a link to choose a new one. In the mobile app, it's **Forgot password?** under the password field, and the link opens on your phone.
+
+Choosing a new password signs the mobile app out on every phone that was signed in with the old one.
 
 Nobody at your company can see your password, set it, or reset it for you — only you can, from this link.
 

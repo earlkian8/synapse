@@ -159,6 +159,14 @@ the Trash Bin (`TrashBin`) and the assistant alike. Refusals are
 - **Bulk actions** apply the same rules per account, skip the refused ones, and report
   how many and why; one summary entry is still logged per sweep.
 
+**The holder's own changes** go through `App\Support\Users\OwnAccount`
+([ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
+Settings → Profile and → Security on the web, the mobile app's Account screens, and a
+forgotten-password reset. A new email address is marked unconfirmed and mailed a code;
+a new password stamps `password_changed_at` and revokes the phone tokens, all of them
+from the web or a reset link, all but the phone making the change from the app. They
+are not activity-logged: the account is not a workspace's record.
+
 `UserResource` carries `shared_account` and `manageable` (computed in
 `UsersIndexQuery`), and each assignable role carries `givable`. The form locks what
 cannot change and says why; the row menu hides what would be refused and calls the

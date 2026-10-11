@@ -641,16 +641,16 @@ final class HelpCenter
         ],
         'clocking-in-on-mobile' => [
             'category' => 'mobile-app', 'title' => 'Clocking in from your phone',
-            'summary' => 'The Clock tab, your location and selfie, and punching when you have no signal.',
+            'summary' => 'The Clock tab, your location and selfie, punching when you have no signal, and your week’s schedule.',
             'any' => [],
-            'keywords' => ['mobile clock in', 'phone', 'offline', 'no signal', 'queued punch', 'gps', 'selfie', 'send now'],
+            'keywords' => ['mobile clock in', 'phone', 'offline', 'no signal', 'queued punch', 'gps', 'selfie', 'send now', 'my schedule', 'shift', 'roster', 'rest day'],
             'related' => ['clocking-in-and-out', 'joining-your-company-on-mobile'],
         ],
         'leave-on-mobile' => [
             'category' => 'mobile-app', 'title' => 'Your leave, events, recognition and profile in the app',
-            'summary' => 'File and cancel leave, answer invitations, send kudos and spend points, and see your profile and awards from your phone.',
+            'summary' => 'File and cancel leave, answer invitations, send kudos and spend points, see your profile and awards, and change your name, email or password from your phone.',
             'any' => [],
-            'keywords' => ['mobile leave', 'file leave on phone', 'balance', 'profile', 'awards', 'attendance calendar', 'events on phone', 'kudos on phone', 'points'],
+            'keywords' => ['mobile leave', 'file leave on phone', 'balance', 'profile', 'awards', 'attendance calendar', 'events on phone', 'kudos on phone', 'points', 'edit profile', 'change email on phone', 'change password on phone'],
             'related' => ['filing-your-own-leave', 'clocking-in-on-mobile', 'answering-event-invitations', 'kudos-points-and-rewards'],
         ],
         'more-in-the-app' => [

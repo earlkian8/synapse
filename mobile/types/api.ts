@@ -450,3 +450,56 @@ export type SearchGroup = {
   label: string;
   items: SearchItem[];
 };
+
+// ── Account (ADR 0082) ──────────────────────────────────────────────────────
+
+/** One's own sign-in account: the person's in every company, never HR's record. */
+export type Account = {
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  full_name: string;
+  email: string;
+  email_verified: boolean;
+  password_changed_at: string | null;
+};
+
+// ── My schedule (ADR 0083) ──────────────────────────────────────────────────
+
+export type ScheduleDay = {
+  date: string;
+  is_today: boolean;
+  is_past: boolean;
+  is_working_day: boolean;
+  type: 'fixed' | 'flexible' | 'hours_only' | string;
+  /** The server's reading: "08:00–17:00 · 18:00–20:00", "8h" or "Rest day". */
+  label: string;
+  segments: { start: string; end: string }[];
+  required_minutes: number;
+  /** A flexible day's core hours, when it sets them. */
+  core: { start: string; end: string } | null;
+  schedule_name: string | null;
+  /** HR changed the shift for this date only. */
+  changed: boolean;
+  holiday: { name: string; type: UpcomingHoliday['type']; day_off: boolean } | null;
+  leave: {
+    id: number;
+    type: string;
+    color: string | null;
+    status: 'approved' | 'pending';
+    half_day: boolean;
+    half_day_period: 'morning' | 'afternoon' | null;
+  } | null;
+  /** Work is expected: a working day no holiday or approved leave excuses. */
+  is_due: boolean;
+  due_minutes: number;
+};
+
+export type ScheduleWeek = {
+  start: string;
+  end: string;
+  today: string;
+  timezone: string;
+  days: ScheduleDay[];
+  totals: { shifts: number; minutes: number };
+};

@@ -5,17 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\ForgotPasswordRequest;
 use App\Models\User;
 use App\Support\MobileSession;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Identity for the mobile app: registering one, exchanging it for a token, and
- * moving it between companies.
+ * Identity for the mobile app: registering one, exchanging it for a token,
+ * moving it between companies, and the link for a forgotten password.
  *
  * Since ADR 0026 people create their own accounts here rather than receiving one
  * from an employer, so this controller answers a question it used to refuse:
@@ -91,6 +93,33 @@ class AuthController extends Controller
         return response()->json(
             $this->session->open($user, $user->defaultOrganization(), $credentials['device_name'] ?? null),
         );
+    }
+
+    /**
+     * Email a link to choose a new password (ADR 0082) — Fortify's own reset
+     * link, so it opens the web's reset page, valid for the broker's lifetime.
+     *
+     * The answer is the same whether or not an account uses the address, and
+     * whether or not a link went out a minute ago (the broker sends one a
+     * minute at most): this endpoint is public, and must not tell a stranger
+     * which addresses have accounts.
+     */
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        try {
+            Password::broker(config('fortify.passwords'))->sendResetLink($request->only('email'));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'The email could not be sent just now. Try again in a few minutes.'], 503);
+        }
+
+        $minutes = (int) config('auth.passwords.'.config('fortify.passwords').'.expire', 60);
+
+        return response()->json([
+            'message' => 'If an account uses that address, a link to reset its password is on its way.',
+            'expires_minutes' => $minutes,
+        ]);
     }
 
     /**

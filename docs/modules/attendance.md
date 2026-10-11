@@ -312,6 +312,12 @@ it is what attendance is judged *against*, not what happened. Gated on
 `setup.roster.view` / `setup.roster.manage`; built by `ShiftRosterQuery`, written by
 `Setup\ShiftRosterController` through `RosterWriter` and `ScheduleAssigner`.
 
+Each employee sees **their own row** in the mobile app's **My schedule**
+(`GET /api/schedule`, `MySchedule`,
+[ADR 0083](../decisions/0083-my-schedule-in-the-app.md)): a week at a time, from the same
+resolver and holiday calendar, with their own leave on it. A day with an override says
+*Changed*; the override's reason stays on the roster.
+
 ## Closing days
 
 **`attendance:close-day`** (hourly, ADR 0041) closes each date on the organisation's own

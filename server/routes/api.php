@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OffboardingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RecognitionController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\TourController;
 use App\Http\Controllers\Api\WorkspaceController;
@@ -38,6 +40,12 @@ Route::post('auth/login', [AuthController::class, 'login'])
 Route::post('auth/register', [AuthController::class, 'register'])
     ->middleware('throttle:6,1')
     ->name('api.auth.register');
+
+// A forgotten password (ADR 0082): Fortify's reset link, mailed. Public, so it
+// answers the same for any address and is capped like the other public posts.
+Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])
+    ->middleware('throttle:6,1')
+    ->name('api.auth.forgot-password');
 
 // A person's calendar subscription (ADR 0070). Fetched by calendar apps with no
 // session or token header: the secret in the address is the key, so it is
@@ -94,6 +102,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // The employee's own 201 profile and recognitions.
     Route::get('profile', [ProfileController::class, 'show'])->name('api.profile.show');
     Route::get('awards', [AwardController::class, 'index'])->name('api.awards.index');
+
+    // One's own sign-in account (ADR 0082) — the name, email and password, never
+    // the HR record — and one's own week of shifts (ADR 0083).
+    Route::get('account', [AccountController::class, 'show'])->name('api.account.show');
+    Route::patch('account', [AccountController::class, 'update'])->middleware('throttle:10,1')->name('api.account.update');
+    Route::put('account/password', [AccountController::class, 'password'])->middleware('throttle:6,1')->name('api.account.password');
+    Route::get('schedule', [ScheduleController::class, 'show'])->name('api.schedule.show');
 
     // My events (ADR 0070): own invitations, answered from the phone, and the
     // calendar subscription link.

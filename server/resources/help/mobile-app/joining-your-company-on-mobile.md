@@ -28,4 +28,6 @@ If you work for more than one company, join each of them the same way. Switch be
 
 ## Forgot your password?
 
-Reset it from the web sign-in screen with **Forgot your password?** — see [Signing in and out](/help/your-account/signing-in).
+On the app's sign-in screen, choose **Forgot password?** and enter the email you sign in with. We email you a link that works for an hour. Open it on your phone, choose a new password, then come back to the app and sign in with it.
+
+Choosing a new password signs the app out on any other phone that was still signed in. More: [Signing in and out](/help/your-account/signing-in).

@@ -47,6 +47,7 @@ const GLYPHS = {
   // Records and people
   calendar: { ios: 'calendar', android: 'calendar_month' },
   calendarPlus: { ios: 'calendar.badge.plus', android: 'edit_calendar' },
+  schedule: { ios: 'calendar.badge.clock', android: 'event_upcoming' },
   hourglass: { ios: 'hourglass', android: 'hourglass_empty' },
   trophy: { ios: 'trophy.fill', android: 'trophy' },
   rosette: { ios: 'rosette', android: 'military_tech' },

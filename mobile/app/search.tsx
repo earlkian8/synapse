@@ -68,6 +68,7 @@ export default function SearchScreen() {
     { title: 'My attendance', keywords: 'attendance days calendar late absent dtr', icon: 'attendance', href: '/(tabs)/attendance' },
     { title: 'My leave', keywords: 'leave requests balances vacation sick', icon: 'leave', href: '/(tabs)/requests' },
     { title: 'File leave', keywords: 'file leave request vacation sick new', icon: 'calendarPlus', href: '/leave/new' },
+    { title: 'My schedule', keywords: 'schedule shift shifts roster week rest day hours work plan', icon: 'schedule', href: '/schedule', show: !!user?.employee },
     { title: 'Holidays', keywords: 'holidays holy week next day off calendar', icon: 'holiday', href: '/holidays' },
     { title: 'My events', keywords: 'events invitations meetings rsvp', icon: 'calendar', href: '/events', show: user?.can_respond_events },
     { title: 'Recognition', keywords: 'recognition kudos thanks nominate', icon: 'heart', href: '/recognition', show: user?.can_recognize },
@@ -75,6 +76,8 @@ export default function SearchScreen() {
     { title: 'My awards', keywords: 'awards trophy recognition', icon: 'trophy', href: '/awards' },
     { title: 'Resignation', keywords: 'resign resignation quit leave the company exit clearance certificate of employment coe interview', icon: 'exit', href: '/resignation', show: user?.can_resign },
     { title: 'Profile', keywords: 'profile details government ids sss tin philhealth pag-ibig', icon: 'profile', href: '/(tabs)/profile' },
+    { title: 'Name and email', keywords: 'account name email address change edit sign in', icon: 'person', href: '/account/details' },
+    { title: 'Change password', keywords: 'account password change security sign in', icon: 'lock', href: '/account/password' },
   ];
 
   const words = term.toLowerCase().split(/\s+/).filter(Boolean);
