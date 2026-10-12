@@ -79,15 +79,20 @@ class RecomputeAttendance extends Command
                     return;
                 }
 
-                // The span's holidays once per organisation, not once per day.
-                $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($first), CarbonImmutable::parse($last));
-
                 // In date order: weekly overtime and a monthly grace allowance read
                 // the days before each one as they have just been saved (ADR 0038).
                 $query->with('employee:id,first_name,middle_name,last_name,suffix')
                     ->orderBy('work_date')
                     ->orderBy('id')
-                    ->chunk(200, function (Collection $records) use ($organization, $clock, $holidays, $dryRun, &$report, &$checked, &$filled): void {
+                    ->chunk(200, function (Collection $records) use ($organization, $clock, $first, $last, $dryRun, &$report, &$checked, &$filled): void {
+                        // The span's holidays once per chunk, not once per day: each
+                        // person's, a local one at their site included (ADR 0078).
+                        $holidays = HolidayCalendar::forEmployees(
+                            $records->pluck('employee')->filter()->unique('id')->values(),
+                            CarbonImmutable::parse($first),
+                            CarbonImmutable::parse($last),
+                        );
+
                         foreach ($records as $record) {
                             /** @var AttendanceRecord $record */
                             $checked++;

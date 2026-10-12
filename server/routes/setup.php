@@ -87,6 +87,8 @@ Route::middleware(['auth', 'verified'])
         Route::delete('schedule/work-schedules/{workSchedule}/force', [WorkScheduleController::class, 'forceDelete'])->middleware('can:setup.schedule.manage')->name('schedule.work-schedules.force-delete');
 
         Route::post('schedule/holidays', [HolidayController::class, 'store'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.store');
+        // Holy Week and National Heroes Day as yearly rules (ADR 0078) — literal, before the wildcard.
+        Route::post('schedule/holidays/movable', [HolidayController::class, 'adoptMovable'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.movable');
         Route::post('schedule/holidays/{holiday}', [HolidayController::class, 'update'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.update');
         Route::delete('schedule/holidays/{holiday}', [HolidayController::class, 'destroy'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.destroy');
         Route::patch('schedule/holidays/{holiday}/restore', [HolidayController::class, 'restore'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.restore');

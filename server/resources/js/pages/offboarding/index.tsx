@@ -16,6 +16,7 @@ import { CaseTable } from '@/features/offboarding/components/case-table';
 import type { CaseSort } from '@/features/offboarding/components/case-table';
 import { ConfirmDialog } from '@/features/offboarding/components/confirm-dialog';
 import { InitiateOffboardingDialog } from '@/features/offboarding/components/initiate-offboarding-dialog';
+import { OffboardingNav } from '@/features/offboarding/components/offboarding-nav';
 import { OffboardingStatsCards } from '@/features/offboarding/components/offboarding-stats';
 import {
     DEFAULT_FILTERS,
@@ -84,7 +85,7 @@ function separationLabel(type: OffboardingCase['type']): string {
  * clearance; its menu completes, reopens, cancels or removes the exit.
  */
 export default function OffboardingIndex() {
-    const { cases, stats, options, can, filters } =
+    const { cases, stats, options, can, filters, nav } =
         usePage<IndexPageProps>().props;
     const table = useOffboardingFilters(filters);
 
@@ -242,6 +243,7 @@ export default function OffboardingIndex() {
                 <PageHeader
                     title="Offboarding"
                     description="Employee exits end to end — clearance sign-offs, final dates and a clean separation."
+                    actions={<OffboardingNav current="exits" counts={nav} />}
                 />
 
                 <OffboardingStatsCards stats={stats} />

@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { ListRow, ListSection } from '@/components/ui/list';
-import { Page } from '@/components/ui/page';
+import { BarButton, Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { Section } from '@/components/ui/section';
@@ -32,6 +32,7 @@ import { leaveApi } from '@/features/leave/api';
 import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useClockZone } from '@/lib/clock-zone';
 import { dayParts, formatClock, formatDate, formatDayHeading, formatMinutes, formatShortDate, formatTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
@@ -131,6 +132,7 @@ export default function HomeScreen() {
     <Page
       title={`${greeting()}, ${firstName}`}
       eyebrow={formatDayHeading(new Date(), organization?.timezone)}
+      right={<BarButton icon="search" label="Search" onPress={() => router.push('/search')} />}
       titleAccessory={
         <Touchable
           onPress={() => router.push('/(tabs)/profile')}
@@ -298,10 +300,12 @@ export default function HomeScreen() {
  */
 function TodayCard({ today, onOpen }: { today: TodayResponse; onOpen: () => void }) {
   const { colors, radius, squircle } = useTheme();
-  const { user, organization } = useAuth();
-  const timeZone = organization?.timezone;
+  const { user } = useAuth();
+  const zone = useClockZone();
 
   const record = today.data;
+  // The day's own clock (ADR 0079), else the person's.
+  const timeZone = record.timezone ?? zone;
   const schedule = user?.employee?.schedule;
   const clockedIn = !!record.first_in_at && !record.last_out_at;
   const completed = today.next_expected === null && !!record.last_out_at;

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * One employee's exit — a {@see ClearanceItem} checklist with a deliberate
@@ -59,6 +60,8 @@ class OffboardingCase extends Model
         'reason',
         'status',
         'completed_at',
+        'certificate_no',
+        'certificate_issued_at',
     ];
 
     protected function casts(): array
@@ -67,6 +70,7 @@ class OffboardingCase extends Model
             'notice_date' => 'date',
             'last_working_day' => 'date',
             'completed_at' => 'datetime',
+            'certificate_issued_at' => 'datetime',
         ];
     }
 
@@ -99,6 +103,26 @@ class OffboardingCase extends Model
     public function clearanceItems(): HasMany
     {
         return $this->hasMany(ClearanceItem::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * The survey sent to the leaver (ADR 0076).
+     *
+     * @return HasOne<ExitInterview, $this>
+     */
+    public function exitInterview(): HasOne
+    {
+        return $this->hasOne(ExitInterview::class);
+    }
+
+    /**
+     * The resignation the employee filed that became this exit, if they did.
+     *
+     * @return HasOne<ResignationRequest, $this>
+     */
+    public function resignation(): HasOne
+    {
+        return $this->hasOne(ResignationRequest::class);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

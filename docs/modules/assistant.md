@@ -4,7 +4,7 @@ The chat assistant, opened from the **Assistant** button in the top bar (or ⌘J
 as a panel at the right edge of every page. It does two jobs. It **answers** questions about the workspace from records it
 reads for the asker, and it **acts**, through named, permission-checked tools that call
 the same code as the screens, and keeps going until the request is done: look up, act,
-act again (ADR 0068). It covers the whole system: 33 modules and 278 tools, each offered
+act again (ADR 0068). It covers the whole system: 33 modules and 319 tools, each offered
 only to the people whose role allows it, and each request carries only the tools it is
 about. It runs on Google Gemini, server-side.
 
@@ -250,13 +250,13 @@ workspace brief (W). Tools marked † always wait for Confirm.
 | Training | `training` | `training.view` or `training.participate` | P, W | 23: programs and enrollments, requests to join, sessions and attendance, certificates, budget and costs; `decide_training_request`†, `remove_from_training`†, `archive_training_program`†; self-service: `find_my_training`, `find_open_trainings`, `join_training`†, `leave_training`† |
 | Awards | `awards` | `awards.view` | P, W | `find_awards`, `list_award_types`, `awards_summary`, `get_award_nominees`, `give_award`, `update_award`, `remove_award`† |
 | Events | `events` | `events.view` | P, W | 9: events and invitees; `invite_to_event`†, `remind_event_invitees`†, `remove_event_attendee`†, `archive_event`† |
-| Offboarding | `offboarding` | `offboarding.view` | P, W | 14: cases and clearance items, `apply_clearance_template`; `start_offboarding`†, `set_offboarding_status`†, `delete_offboarding_case`†, `remove_clearance_item`†, `clear_pending_clearance`† |
+| Offboarding | `offboarding` | `offboarding.view` or `offboarding.resign` | P, W | 23: cases and clearance items, `apply_clearance_template`; `start_offboarding`†, `set_offboarding_status`†, `delete_offboarding_case`†, `remove_clearance_item`†, `clear_pending_clearance`†; resignations and exit interviews (ADR 0076): `find_resignations`, `decide_resignation`†, `get_exit_interview`, `exit_interview_summary`, `send_exit_interview`, `waive_exit_interview`†; self-service: `get_my_exit`, `file_my_resignation`†, `withdraw_my_resignation`† |
 | Reports | `reports` | any report the user may run | W | `list_reports`, `run_report` |
 | Departments | `departments` | `setup.departments.view` | W | 11: departments and positions; `archive_department`†, `delete_position`† |
-| Company profile | `company` | `setup.company.view` | W | `get_company_profile`, `update_company_profile`, `set_company_timezone`† |
-| Schedules & holidays | `schedules` | `setup.schedule.view` | W | 12; updating, archiving or making default a schedule, and archiving a holiday † |
+| Company profile | `company` | `setup.company.view` | W | `get_company_profile`, `update_company_profile` (including who signs generated documents), `set_company_timezone`† |
+| Schedules & holidays | `schedules` | `setup.schedule.view` | W | 12; holidays take a rule (yearly, from Easter, on a weekday of a month) and the sites that keep them (ADR 0078); updating, archiving or making default a schedule, and archiving a holiday † |
 | Attendance policies | `attendance-policies` | `setup.attendance-policies.view` | W | 9, including `get_worked_example`, `get_applicable_policy`; update, default and archive † |
-| Work locations | `locations` | `setup.locations.view` | W | 7; `update_location`†, `archive_location`†. A geofence is never drawn in chat. |
+| Work locations | `locations` | `setup.locations.view` | W | 7; `update_location`† (including a site's own clock, ADR 0079), `archive_location`†. A geofence — circle or shape — is never drawn in chat. |
 | Leave types | `leave-types` | `setup.leave-types.view` | W | 6; `update_leave_type`†, `archive_leave_type`† |
 | Award types | `award-types` | `setup.award-types.view` | — | 6; `archive_award_type`† |
 | Performance framework | `performance-framework` | `setup.kpi.view` | W | 19: frameworks, criteria, rating scales, review cycles; most edits to a framework in use † |

@@ -20,6 +20,7 @@ export type SearchGroupKey =
     | 'onboarding'
     | 'offboarding'
     | 'leave'
+    | 'attendance'
     | 'appraisals'
     | 'training'
     | 'events'

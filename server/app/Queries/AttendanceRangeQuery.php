@@ -68,8 +68,9 @@ class AttendanceRangeQuery
             ->get(['employee_id', 'start_date', 'end_date'])
             ->groupBy('employee_id');
 
-        // The window's holidays, loaded once and keyed by date.
-        $holidays = HolidayCalendar::inRange($startDate, $endDate);
+        // The window's holidays, loaded once — each person's, their site's
+        // local ones included (ADR 0078).
+        $holidays = HolidayCalendar::forEmployees($employees, $startDate, $endDate);
 
         // Every shift in the window, resolved in a fixed number of queries
         // however wide the range is (ADR 0037).
@@ -92,7 +93,7 @@ class AttendanceRangeQuery
                         $ownShifts[$date] ?? ResolvedShift::fallback($date),
                         $own,
                         $ownLeaves,
-                        $holidays[$date] ?? null,
+                        $holidays->on($date, $employee->id),
                     );
                 }
 
@@ -137,6 +138,8 @@ class AttendanceRangeQuery
                 'holiday_minutes' => (int) $record->holiday_minutes,
                 'flags' => array_values($record->flags ?? []),
                 'first_in_at' => $record->first_in_at?->toIso8601String(),
+                // The clock the day was judged on, when it is a site's own (ADR 0079).
+                'timezone' => filled($record->rules['timezone'] ?? null) ? $record->rules['timezone'] : null,
                 'last_out_at' => $record->last_out_at?->toIso8601String(),
                 // The holiday the day was judged with, which is not necessarily
                 // the calendar's today (ADR 0036).

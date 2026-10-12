@@ -12,6 +12,8 @@ controller per catalogue.
 Who works which of these templates on which date — the **shift roster** — is its own
 Company Setup page beside this one (`/setup/roster`, Company Setup → Shift Roster, gated
 by `setup.roster.view`); see [Attendance → Shift Roster](./attendance.md#shift-roster).
+Employees see their own week of it, holidays included, in the mobile app's **My
+schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)).
 
 ## Surfaces
 
@@ -29,10 +31,21 @@ permanently-delete (mirrors the KPI setup page):
   one is the **company default**. A schedule can also name the **attendance policy** its
   days are judged by (ADR 0038); a policy that sets its own grace overrides the
   schedule's.
-- **Holidays** — a named **date** with a **type** (regular / special non-working /
-  special working) and an optional **yearly recurrence** (repeats on the same
-  month/day). Recurring entries show a "Yearly" marker; the date renders as
-  `Jan 1 · yearly` or `Jan 1, 2026`.
+- **Holidays** — a **table**: holiday, next date (with the day of the week), type,
+  *Kept by* (Everyone, or the sites), and a menu. A holiday has a **type** (regular /
+  special non-working / special working) and **repeats** by one rule
+  ([ADR 0078](../decisions/0078-holidays-that-move-and-holidays-kept-at-some-sites.md)):
+  - *Doesn't repeat* — one date;
+  - *Every year on this date*;
+  - *From Easter* — a preset (Maundy Thursday, Good Friday, Black Saturday, Easter
+    Sunday) or a number of days before or after Easter Sunday;
+  - *On a weekday of a month* — the first to fourth, or last, weekday of a month.
+
+  The form previews the next three dates. **Who keeps it** is *Everyone* or *Some
+  sites*, ticked from the work locations: a local holiday is kept only by the people
+  based at those sites. **Add Holy Week** puts Maundy Thursday, Good Friday, Black
+  Saturday and National Heroes Day on as rules, turning one already typed in for a year
+  into its rule.
 
 ## Data model
 
@@ -48,8 +61,12 @@ permanently-delete (mirrors the KPI setup page):
 - **`organizations.default_work_schedule_id`** — the company's default hours, chosen with
   the star on a schedule's row.
 - **`holidays`** *(new)* — `name`, `date`, `type` (`regular` / `special_non_working` /
-  `special_working`), `is_recurring`, soft-deletes + hashid. See the
-  [schema doc](../database/work-schedule-holidays-tables.md).
+  `special_working`), `is_recurring`, soft-deletes + hashid. ADR 0078 adds
+  `recurrence` (`none` / `yearly` / `easter` / `weekday`) and `rule` (JSON: `{offset}`
+  from Easter Sunday, or `{month, weekday, week}` with −1 for last). A movable holiday
+  stores its next occurrence in `date`; `is_recurring` is true for any repeating rule.
+- **`holiday_work_location`** *(ADR 0078)* — the sites a local holiday is kept at;
+  none = everywhere. See the [schema doc](../database/work-schedule-holidays-tables.md).
 
 ## Backend
 
@@ -79,12 +96,18 @@ permanently-delete (mirrors the KPI setup page):
 ### Integration — holidays make leave holiday-aware
 
 `App\Support\HolidayCalendar::datesInRange()` resolves the **non-working** holiday dates
-(`regular` + `special_non_working`) in a range, **expanding yearly-recurring holidays onto
-whichever year(s) the range spans** (so one New-Year row is honoured every year).
+(`regular` + `special_non_working`) in a range, **placing each repeating holiday on
+whichever year(s) the range spans** — on its date, from Easter
+(`App\Support\MovableDates`) or on its weekday — so one row is honoured every year.
+Every lookup takes an optional **site** (`HolidayCalendar::siteOf($employee)`, the
+person's primary work location): a local holiday counts only there. For many people
+across a range, `HolidayCalendar::forEmployees()` returns a `HolidayMap` answering
+`on($date, $employeeId)` from one query.
 `App\Support\LeaveCalculator` now takes an optional holiday set, so a leave request is **not
 charged on a holiday** (it stays a pure date utility — the DB lookup lives in
 `HolidayCalendar`). Wired into `LeaveRequestController` (file / edit) and the assistant's
-`LeaveModule`. `special_working` holidays remain ordinary working days.
+`LeaveModule`, and the app's leave endpoints, each for the person's own site.
+`special_working` holidays remain ordinary working days.
 
 ### Integration — attendance judges by the resolved shift and the holiday, frozen per day
 
@@ -94,13 +117,14 @@ answer onto the day** (ADR 0036): the resolved segments become instants in the
 organisation's zone (an end at or before its start ends the next morning), and the day's
 type, grace, required minutes, core window and holiday go into the record's `rules`
 snapshot. `HolidayCalendar::on()` / `inRange()` return the holiday on a date of **any**
-type (a non-working one wins when two share a date). A `regular` or
+type (a non-working one wins when two share a date), at the person's site. A `regular` or
 `special_non_working` holiday nobody worked is recorded as `holiday`; a `special_working`
 holiday is an ordinary working day.
 
-> **Editing a schedule or adding a holiday does not change days already recorded.** HR
-> re-applies the current schedule from the attendance board when a past day should be
-> judged by the change.
+> **Editing a schedule does not change days already recorded.** HR re-applies the
+> current schedule from the attendance board when a past day should be judged by the
+> change. A holiday change — its date, rule, type or sites — queues a recompute of
+> every date it fell on before and falls on now (`AttendanceInputs::holidayChanged`).
 
 ## The assistant
 
@@ -117,7 +141,11 @@ the chat assistant ([ADR 0053](../decisions/0053-assistant-company-profile-sched
     to it.
 - **Writes** (`setup.schedule.manage`), through the workflows and the screen's rules:
   - `add_holiday` / `update_holiday`:
-    - dates are `YYYY-MM-DD`;
+    - dates are `YYYY-MM-DD`; `repeats` (`none` / `yearly` / `easter` / `weekday`)
+      with `easter_offset`, or `month`, `weekday` and `week` (first–fourth, last);
+      `sites` makes it local, `everywhere` company-wide again;
+    - a movable holiday needs no date, and a date for one is refused unless it is
+      re-ruled;
     - a holiday of the same name on the same date is refused;
     - two holidays of one name are told apart by `on`;
     - a date already passed gets a note that recorded days keep their judgement;
@@ -146,14 +174,15 @@ both; Super Admin / Administrator via the all-permissions grant. The sidebar ite
 ## Seeding
 
 `HolidaySeeder` (in `DatabaseSeeder`) seeds the Philippine statutory calendar:
-fixed regular and special non-working holidays as recurring entries, plus the movable National
-Heroes Day (last Monday of August). Work schedules (Day / Night Shift) are seeded by
+fixed regular and special non-working holidays as yearly entries, plus the movable ones as
+rules: Maundy Thursday, Good Friday and Black Saturday from Easter, and National Heroes Day
+(last Monday of August). No local holidays are seeded. Work schedules (Day / Night Shift) are seeded by
 `OrganizationSeeder`. Idempotent.
 
 ## Out of scope (this cut)
 
-Half-day/holiday **pay** rules, movable-feast auto-calculation (Holy Week), and
-region-specific local holidays. How lateness, overtime and breaks are *judged* beyond the
+Half-day/holiday **pay** rules, and holidays proclaimed each year on dates no rule gives
+(Eid'l Fitr and Eid'l Adha are entered as dates). How lateness, overtime and breaks are *judged* beyond the
 three schedule types — rounding, overtime thresholds, auto-deducted breaks, night
 differential — is the [attendance policy](./attendance-policies.md) (ADR 0038), set on
 its own Company Setup screen.

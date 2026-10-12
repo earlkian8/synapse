@@ -29,6 +29,10 @@ use Illuminate\Support\Collection;
  *  6. **organization** — the company's default schedule.
  *  7. **fallback** — Mon–Fri 08:00–17:00, eight hours ({@see ResolvedShift::fallback()}).
  *
+ * Whatever the link, the shift is read on the clock of the person's base site
+ * when that site keeps its own zone (ADR 0079), and on the organisation's
+ * otherwise.
+ *
  * {@see forMany()} answers for a whole roster over a whole range in a fixed
  * number of queries — six, whatever the range — so the weekly grid and the
  * monthly report do not grow a query per day.
@@ -72,10 +76,13 @@ class ShiftResolver
         $roster = $this->rosterEntries($ids, $from, $to);
         $assignments = $this->assignments($ids, $from, $to);
         $departmentDefaults = $this->departmentDefaults($employees);
+        $bases = WorkLocation::primaryFor($employees);
         $locationDefaults = array_map(
             fn (WorkLocation $location): ?int => $location->default_work_schedule_id !== null ? (int) $location->default_work_schedule_id : null,
-            WorkLocation::primaryFor($employees),
+            $bases,
         );
+        // The clock each person's base site keeps, when it keeps its own (ADR 0079).
+        $zones = array_map(fn (WorkLocation $location): ?string => filled($location->timezone) ? (string) $location->timezone : null, $bases);
         $organizationDefault = $this->organizationDefault();
 
         $this->preloadSchedules(array_filter(array_merge(
@@ -94,6 +101,7 @@ class ShiftResolver
             $ownAssignments = $assignments->get($employee->id) ?? collect();
             $departmentDefault = $departmentDefaults[$employee->department_id] ?? null;
             $locationDefault = $locationDefaults[$employee->id] ?? null;
+            $zone = $zones[$employee->id] ?? null;
 
             foreach ($dates as $date) {
                 $out[$employee->id][$date] = $this->resolve(
@@ -104,7 +112,7 @@ class ShiftResolver
                     $departmentDefault,
                     $locationDefault,
                     $organizationDefault,
-                );
+                )->inZone($zone);
             }
         }
 

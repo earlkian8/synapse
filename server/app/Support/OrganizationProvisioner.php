@@ -172,7 +172,7 @@ class OrganizationProvisioner
                     // Self-service (as an employee themselves)
                     'attendance.clock', 'leave.request',
                     'events.respond', 'awards.participate', 'performance.participate',
-                    'training.participate',
+                    'training.participate', 'offboarding.resign',
                     // Team visibility
                     'employees.view',
                     'attendance.view',
@@ -192,7 +192,8 @@ class OrganizationProvisioner
             //    file/cancel their own leave, answer their event invitations, take
             //    part in recognition, take part in their own appraisal — read and
             //    acknowledge it, write the reviews asked of them, check in on goals —
-            //    and join training and follow their own sessions and certificates.
+            //    join training and follow their own sessions and certificates, and
+            //    resign, answer their exit interview and download their COE.
             [
                 'name' => Role::STAFF,
                 'label' => 'Staff',
@@ -205,6 +206,7 @@ class OrganizationProvisioner
                     'awards.participate',
                     'performance.participate',
                     'training.participate',
+                    'offboarding.resign',
                 ],
             ],
         ];

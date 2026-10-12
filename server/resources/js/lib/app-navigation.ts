@@ -20,6 +20,7 @@ import {
     MapPinned,
     Medal,
     Network,
+    Route,
     Scale,
     ScrollText,
     ShieldCheck,
@@ -172,11 +173,13 @@ export const APP_NAVIGATION: AppNavGroup[] = [
         label: 'Offboarding',
         items: [
             {
+                // One entry for everybody (ADR 0076): HR lands on every exit,
+                // someone who only takes part on their own resignation.
                 title: 'Offboarding',
                 href: '/offboarding',
                 icon: UserRoundMinus,
-                permission: 'offboarding.view',
-                summary: 'Exits and their clearance checklists',
+                permissionAny: ['offboarding.view', 'offboarding.resign'],
+                summary: 'Exits, resignations and exit interviews',
             },
         ],
     },
@@ -376,6 +379,14 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: DatabaseBackup,
                 permission: 'data-export.view',
                 summary: "A copy of your company's records",
+            },
+            {
+                // Who takes the tour, and where they stop (ADR 0080).
+                title: 'Product Tour',
+                href: '/system/product-tour',
+                icon: Route,
+                permission: 'product-tour.view',
+                summary: 'Who takes the tour, and where they stop',
             },
         ],
     },

@@ -85,7 +85,7 @@ class LeaveController extends Controller
 
         $range = $request->dateRange();
         $type = LeaveType::findOrFail($request->integer('leave_type_id'));
-        $holidays = HolidayCalendar::datesInRange($range['start'], $range['end']);
+        $holidays = HolidayCalendar::datesInRange($range['start'], $range['end'], HolidayCalendar::siteOf($employee));
         $days = LeaveCalculator::chargeableDays($range['start'], $range['end'], $range['isHalfDay'], $holidays);
 
         if ($days <= 0) {

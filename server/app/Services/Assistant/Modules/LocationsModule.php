@@ -126,14 +126,14 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
         $manage = $this->allows($user, 'setup.locations.manage')
             ? <<<'TXT'
 
-            - update_location changes a site's name, address, fence radius (metres), default schedule, attendance policy or whether it is active; archive_location archives one. Both wait for the user's confirmation. restore_location brings one back.
+            - update_location changes a site's name, address, fence radius (metres), default schedule, attendance policy, its own clock or whether it is active; archive_location archives one. A site's clock (timezone, an IANA name such as Asia/Tokyo; clear_timezone goes back to the company's) is the one the days of the people based there are judged on, from the next day recorded. A fence drawn as a shape has no radius: it is redrawn on the map. Both wait for the user's confirmation. restore_location brings one back.
             - base_at_location / unbase_from_location say who is based at a site (at most 25 people at a time); primary makes it their primary site, whose schedule and policy they default to.
             - Creating a site and moving its pin are done on the map on the Locations screen (/setup/locations), as is permanent deletion — say so if asked. Never supply coordinates.
             TXT
             : '';
 
         return <<<TXT
-        LOCATIONS — the company's sites. Each is a fence (a point and a radius) that web and app punches are placed against, and may give the people based there a default schedule and attendance policy. Whether a punch off site is flagged or refused is each attendance policy's setting.
+        LOCATIONS — the company's sites. Each is a fence — a circle (a point and a radius) or a shape drawn on the map — that web and app punches are placed against, may keep its own clock, and may give the people based there a default schedule and attendance policy. Whether a punch off site is flagged or refused is each attendance policy's setting.
         - find_locations lists sites (or, given an employee, where they are based); get_location reads one: its fence, who is based there, its defaults, and its punches this month.{$manage}
         TXT;
     }
@@ -163,7 +163,7 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
             ],
             [
                 'name' => 'update_location',
-                'description' => "Change a work location's name, address, fence radius, default schedule, attendance policy or active flag. Only the fields given change.",
+                'description' => "Change a work location's name, address, fence radius, default schedule, attendance policy, own clock (time zone) or active flag. Only the fields given change.",
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
@@ -175,6 +175,8 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
                         'clear_default_schedule' => ['type' => 'BOOLEAN'],
                         'attendance_policy' => ['type' => 'STRING', 'description' => 'Attendance policy name.'],
                         'clear_attendance_policy' => ['type' => 'BOOLEAN'],
+                        'timezone' => ['type' => 'STRING', 'description' => 'The site keeps its own clock: an IANA time zone, e.g. Asia/Tokyo.'],
+                        'clear_timezone' => ['type' => 'BOOLEAN', 'description' => 'The site goes back to the company\'s clock.'],
                         'active' => ['type' => 'BOOLEAN'],
                     ],
                     'required' => ['location'],
@@ -240,7 +242,7 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
         return ContextSection::of('Work locations', [
             $sites->isEmpty()
                 ? 'No work locations have been drawn.'
-                : 'Sites: '.$sites->take(self::MAX_LISTED)->map(fn (WorkLocation $l): string => "{$l->name} ({$l->radius_meters} m fence; {$l->employees_count} based".($l->is_active ? '' : '; inactive').')')->implode('; ').'.',
+                : 'Sites: '.$sites->take(self::MAX_LISTED)->map(fn (WorkLocation $l): string => "{$l->name} ({$l->fenceLabel()} fence; {$l->employees_count} based".(filled($l->timezone) ? "; keeps {$l->timezone} time" : '').($l->is_active ? '' : '; inactive').')')->implode('; ').'.',
             $checking === []
                 ? 'No attendance policy checks where people punch.'
                 : 'Policies checking where people punch: '.implode(', ', $checking).'.',
@@ -353,7 +355,10 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
         $card = $this->locationCard($location, 'insight', 'info', $location->is_active ? 'Active' : 'Inactive');
         $card['meta'] = array_values(array_filter([
             filled($location->address) ? 'Address: '.Str::limit((string) $location->address, 160) : 'No address on file',
-            "Fence: {$location->radius_meters} m around {$location->latitude}, {$location->longitude}",
+            $location->shape() !== null
+                ? "Fence: {$location->fenceLabel()}, centred on {$location->latitude}, {$location->longitude}"
+                : "Fence: {$location->radius_meters} m around {$location->latitude}, {$location->longitude}",
+            'Clock: '.(filled($location->timezone) ? $location->timezone : 'the company’s ('.$location->clockZone().')'),
             $people->isEmpty()
                 ? 'Nobody is based here'
                 : $this->people($people->count()).' based here ('.$people->filter(fn (Employee $e): bool => (bool) $e->pivot->is_primary)->count().' as their primary site): '
@@ -395,11 +400,22 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
         }
 
         if (isset($args['radius_meters'])) {
+            // A shape has no radius to change: it is redrawn on the map (ADR 0079).
+            if ($location->shape() !== null) {
+                return ToolResult::error('Updated the location', "{$location->name}’s fence is drawn as a shape, so it has no radius. Redraw it on Company Setup → Locations.");
+            }
+
             $changes['radius_meters'] = (int) $args['radius_meters'];
         }
 
         if (is_bool($args['active'] ?? null)) {
             $changes['is_active'] = $args['active'];
+        }
+
+        if (filled($args['timezone'] ?? null)) {
+            $changes['timezone'] = trim((string) $args['timezone']);
+        } elseif (($args['clear_timezone'] ?? false) === true) {
+            $changes['timezone'] = null;
         }
 
         foreach ([
@@ -420,11 +436,11 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
         }
 
         if ($changes === []) {
-            return ToolResult::error('Updated the location', 'Say what to change: its name, address, fence radius, default schedule, attendance policy or whether it is active.');
+            return ToolResult::error('Updated the location', 'Say what to change: its name, address, fence radius, default schedule, attendance policy, its clock or whether it is active.');
         }
 
         $merged = [
-            ...Arr::only($location->getAttributes(), ['name', 'address', 'latitude', 'longitude', 'radius_meters', 'default_work_schedule_id', 'attendance_policy_id']),
+            ...Arr::only($location->getAttributes(), ['name', 'address', 'latitude', 'longitude', 'radius_meters', 'timezone', 'default_work_schedule_id', 'attendance_policy_id']),
             'is_active' => (bool) $location->is_active,
             ...$changes,
         ];
@@ -439,7 +455,9 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
 
         return ToolResult::ok(
             "Updated {$location->name}",
-            'It applies to punches from now on; punches already made keep where they were judged.',
+            array_key_exists('timezone', $changes)
+                ? 'The days of the people based there are judged on '.($changes['timezone'] ?? 'the company’s clock').' from the next one recorded; days already recorded keep their clock.'
+                : 'It applies to punches from now on; punches already made keep where they were judged.',
             $this->locationCard($location->fresh(['defaultSchedule:id,name', 'policy:id,name'])->loadCount('employees'), 'edit', 'info', 'Updated'),
         );
     }
@@ -644,7 +662,7 @@ class LocationsModule extends Module implements ContributesTopicContext, Explain
             tone: $tone,
             badge: $badge,
             title: $location->name,
-            subtitle: trim("{$location->radius_meters} m fence".(filled($location->address) ? ' · '.Str::limit((string) $location->address, 80) : '')),
+            subtitle: trim("{$location->fenceLabel()} fence".(filled($location->address) ? ' · '.Str::limit((string) $location->address, 80) : '')),
             meta: $meta ?? [
                 isset($location->employees_count) ? $location->employees_count.' based here' : null,
                 $location->relationLoaded('defaultSchedule') && $location->defaultSchedule ? 'Schedule: '.$location->defaultSchedule->name : null,

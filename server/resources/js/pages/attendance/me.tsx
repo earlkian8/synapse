@@ -108,7 +108,10 @@ export default function MyAttendance() {
 
                         <TableCard title="Today's punches">
                             <div className="px-4 py-3">
-                                <PunchTimeline punches={today.punches ?? []} />
+                                <PunchTimeline
+                                    punches={today.punches ?? []}
+                                    timeZone={today.timezone}
+                                />
                             </div>
                         </TableCard>
                     </div>
@@ -157,13 +160,13 @@ export default function MyAttendance() {
                                             <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
                                                 {formatTime(
                                                     record.first_in_at,
-                                                    timeZone,
+                                                    record.timezone ?? timeZone,
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
                                                 {formatTime(
                                                     record.last_out_at,
-                                                    timeZone,
+                                                    record.timezone ?? timeZone,
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right text-sm font-medium tabular-nums">

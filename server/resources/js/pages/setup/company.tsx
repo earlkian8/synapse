@@ -3,6 +3,7 @@ import {
     Building2,
     Clock,
     Contact,
+    FileSignature,
     Landmark,
     Trash2,
     Upload,
@@ -35,6 +36,8 @@ export default function CompanyProfilePage() {
             sss_employer_no: company.sss_employer_no ?? '',
             philhealth_employer_no: company.philhealth_employer_no ?? '',
             pagibig_employer_no: company.pagibig_employer_no ?? '',
+            document_signatory_name: company.document_signatory_name ?? '',
+            document_signatory_title: company.document_signatory_title ?? '',
             logo: null as File | null,
             remove_logo: false,
         });
@@ -91,6 +94,8 @@ export default function CompanyProfilePage() {
             sss_employer_no: payload.sss_employer_no || null,
             philhealth_employer_no: payload.philhealth_employer_no || null,
             pagibig_employer_no: payload.pagibig_employer_no || null,
+            document_signatory_name: payload.document_signatory_name || null,
+            document_signatory_title: payload.document_signatory_title || null,
         }));
 
         post(companyProfileRoutes.update, {
@@ -349,6 +354,48 @@ export default function CompanyProfilePage() {
                                     )
                                 }
                                 placeholder="0000-0000-0000"
+                                disabled={readOnly}
+                            />
+                        </Field>
+                    </div>
+                </Section>
+
+                {/* Who signs generated documents */}
+                <Section
+                    icon={<FileSignature className="size-4" />}
+                    title="Documents"
+                    description="The name and title printed under the signature line of the Certificates of Employment the system issues."
+                >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label="Signed by"
+                            error={errors.document_signatory_name}
+                        >
+                            <Input
+                                value={data.document_signatory_name}
+                                onChange={(e) =>
+                                    setData(
+                                        'document_signatory_name',
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="Maria Santos"
+                                disabled={readOnly}
+                            />
+                        </Field>
+                        <Field
+                            label="Their title"
+                            error={errors.document_signatory_title}
+                        >
+                            <Input
+                                value={data.document_signatory_title}
+                                onChange={(e) =>
+                                    setData(
+                                        'document_signatory_title',
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="HR Manager"
                                 disabled={readOnly}
                             />
                         </Field>

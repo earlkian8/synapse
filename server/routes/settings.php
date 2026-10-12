@@ -29,4 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // The first-run tour closing — finished or skipped (ADR 0060). A background
     // call from the tour, so the page it closes over is left alone.
     Route::post('settings/tour', [ProductTourController::class, 'finish'])->name('tour.finish');
+    // Each run of the tour, for the per-stop numbers (ADR 0080).
+    Route::post('settings/tour/runs', [ProductTourController::class, 'start'])->middleware('throttle:30,1')->name('tour.runs.start');
+    Route::patch('settings/tour/runs/{run}', [ProductTourController::class, 'reach'])->middleware('throttle:120,1')->name('tour.runs.reach');
 });

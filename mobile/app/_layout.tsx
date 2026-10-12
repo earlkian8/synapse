@@ -133,6 +133,16 @@ function RootNavigator() {
         <Stack.Screen name="recognition/kudos" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="recognition/nominate" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="rewards/index" />
+        {/* Leaving (ADRs 0076, 0077), holidays (ADR 0078) and search (ADR 0081). */}
+        <Stack.Screen name="resignation/index" />
+        <Stack.Screen name="resignation/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="resignation/interview" />
+        <Stack.Screen name="holidays/index" />
+        <Stack.Screen name="search" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* One's own account (ADR 0082) and week of shifts (ADR 0083). */}
+        <Stack.Screen name="account/details" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="account/password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="schedule/index" />
       </Stack>
     </>
   );

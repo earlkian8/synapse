@@ -27,8 +27,8 @@ self.addEventListener('push', (event) => {
     const title = payload.title || 'SYNAPSE';
     const options = {
         body: payload.body || '',
-        icon: payload.icon || '/favicon.ico',
-        badge: payload.badge || '/favicon.ico',
+        icon: payload.icon || '/icon-192.png',
+        badge: payload.badge || '/badge-96.png',
         tag: payload.tag,
         data: payload.data || {},
         requireInteraction: false,

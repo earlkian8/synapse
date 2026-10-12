@@ -1,5 +1,7 @@
 import type {
     Holiday,
+    HolidayRecurrence,
+    HolidayRule,
     HolidayType,
     ScheduleDay,
     ScheduleType,
@@ -98,19 +100,228 @@ const MONTHS = [
     'Dec',
 ];
 
+export const RECURRENCE_OPTIONS: {
+    value: HolidayRecurrence;
+    label: string;
+    hint: string;
+}[] = [
+    { value: 'none', label: "Doesn't repeat", hint: 'Kept on this date only.' },
+    {
+        value: 'yearly',
+        label: 'Every year on this date',
+        hint: "New Year's Day, Christmas, Independence Day.",
+    },
+    {
+        value: 'easter',
+        label: 'Every year, counted from Easter',
+        hint: 'Holy Week moves with Easter. It is worked out for every year.',
+    },
+    {
+        value: 'weekday',
+        label: 'Every year, on a weekday of a month',
+        hint: 'National Heroes Day is the last Monday of August.',
+    },
+];
+
+/** The days of Holy Week and around it, as days from Easter Sunday. */
+export const EASTER_PRESETS: { offset: number; label: string }[] = [
+    { offset: -46, label: 'Ash Wednesday' },
+    { offset: -7, label: 'Palm Sunday' },
+    { offset: -3, label: 'Maundy Thursday' },
+    { offset: -2, label: 'Good Friday' },
+    { offset: -1, label: 'Black Saturday' },
+    { offset: 0, label: 'Easter Sunday' },
+    { offset: 1, label: 'Easter Monday' },
+];
+
+export const WEEK_OPTIONS: { value: number; label: string }[] = [
+    { value: 1, label: 'First' },
+    { value: 2, label: 'Second' },
+    { value: 3, label: 'Third' },
+    { value: 4, label: 'Fourth' },
+    { value: -1, label: 'Last' },
+];
+
+export const WEEKDAY_NAMES = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+];
+
+export const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
+/** Easter Sunday in a year (the anonymous Gregorian computation), as the server has it. */
+export function easterSunday(year: number): Date {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+    return new Date(year, month - 1, day);
+}
+
+/**
+ * Where a holiday falls in a year, by its rule — the same arithmetic as the
+ * server's `Holiday::occurrenceIn()`, so the form can preview the next dates.
+ */
+export function occurrenceIn(
+    recurrence: HolidayRecurrence,
+    rule: HolidayRule | null,
+    date: string | null,
+    year: number,
+): Date | null {
+    if (recurrence === 'easter') {
+        const easter = easterSunday(year);
+        easter.setDate(easter.getDate() + (rule?.offset ?? 0));
+
+        return easter;
+    }
+
+    if (recurrence === 'weekday') {
+        const month = (rule?.month ?? 1) - 1;
+        const weekday = rule?.weekday ?? 1;
+        const week = rule?.week ?? 1;
+
+        if (week === -1) {
+            const last = new Date(year, month + 1, 0);
+            const back = (isoWeekday(last) - weekday + 7) % 7;
+            last.setDate(last.getDate() - back);
+
+            return last;
+        }
+
+        const first = new Date(year, month, 1);
+        const found = new Date(
+            year,
+            month,
+            1 + ((weekday - isoWeekday(first) + 7) % 7) + 7 * (week - 1),
+        );
+
+        return found.getMonth() === month ? found : null;
+    }
+
+    if (!date) {
+        return null;
+    }
+
+    const [y, m, d] = date.split('-').map(Number);
+
+    if (recurrence === 'yearly') {
+        const found = new Date(year, m - 1, d);
+
+        return found.getMonth() === m - 1 ? found : null;
+    }
+
+    return y === year ? new Date(y, m - 1, d) : null;
+}
+
+/** The next `count` dates a rule gives, from today. */
+export function upcomingDates(
+    recurrence: HolidayRecurrence,
+    rule: HolidayRule | null,
+    date: string | null,
+    count = 2,
+): Date[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const found: Date[] = [];
+
+    for (
+        let year = today.getFullYear();
+        year <= today.getFullYear() + 5 && found.length < count;
+        year++
+    ) {
+        const next = occurrenceIn(recurrence, rule, date, year);
+
+        if (next && next >= today) {
+            found.push(next);
+        }
+    }
+
+    return found;
+}
+
+function isoWeekday(date: Date): number {
+    return ((date.getDay() + 6) % 7) + 1;
+}
+
+/** "Thu, Apr 2, 2026" from a Date or a "Y-m-d" string. */
+export function formatLongDate(value: Date | string): string {
+    const date =
+        typeof value === 'string' ? new Date(`${value}T00:00:00`) : value;
+
+    return date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+/** "in 12 days", "tomorrow", "today" — how far off a date is. */
+export function untilLabel(value: string): string {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.round(
+        (new Date(`${value}T00:00:00`).getTime() - today.getTime()) /
+            MILLISECONDS_PER_DAY,
+    );
+
+    if (days === 0) {
+        return 'Today';
+    }
+
+    if (days === 1) {
+        return 'Tomorrow';
+    }
+
+    if (days < 45) {
+        return `In ${days} days`;
+    }
+
+    const months = Math.round(days / 30.4);
+
+    return `In ${months} ${months === 1 ? 'month' : 'months'}`;
+}
+
 /** A recurring holiday reads as "Jan 1 · yearly"; a one-off as "Jan 1, 2026". */
 export function formatHolidayDate(holiday: Holiday): string {
+    if (holiday.next_date) {
+        return formatLongDate(holiday.next_date);
+    }
+
     if (!holiday.date || holiday.month === null || holiday.day === null) {
         return '—';
     }
 
-    const base = `${MONTHS[holiday.month - 1]} ${holiday.day}`;
-
-    if (holiday.is_recurring) {
-        return `${base} · yearly`;
-    }
-
-    return `${base}, ${holiday.date.slice(0, 4)}`;
+    return `${MONTHS[holiday.month - 1]} ${holiday.day}, ${holiday.date.slice(0, 4)}`;
 }
 
 /** A short human description of a schedule's hours and working days. */

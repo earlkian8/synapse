@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AppText } from '@/components/ui/text';
 import { useQueuedPunches } from '@/features/attendance/punch-queue';
 import { profileApi } from '@/features/profile/api';
+import { useTabTour } from '@/features/tour/tab-tour';
 import { CompanyLogo, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { useAuth } from '@/lib/auth';
 import { formatDate, humanize } from '@/lib/format';
@@ -34,6 +35,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const waiting = useQueuedPunches().length;
+  const { start: startTour } = useTabTour();
 
   const { data, loading, refreshing, refresh, error, reload } = useQuery<{ data: Profile }>(() => profileApi.show(), []);
   const profile = data?.data ?? null;
@@ -85,6 +87,9 @@ export default function ProfileScreen() {
 
           <Animated.View entering={enter(1)}>
             <ListSection withIcons>
+              {user?.employee && (
+                <ListRow icon="schedule" iconColor={colors.primary} title="My schedule" onPress={() => router.push('/schedule')} />
+              )}
               {user?.can_respond_events && (
                 <ListRow icon="calendar" iconColor={status.leave} title="My events" onPress={() => router.push('/events')} />
               )}
@@ -100,6 +105,15 @@ export default function ProfileScreen() {
                 title="My awards"
                 onPress={() => router.push('/awards')}
               />
+              <ListRow
+                icon="holiday"
+                iconColor={status.holiday}
+                title="Holidays"
+                onPress={() => router.push('/holidays')}
+              />
+              {user?.can_resign && (
+                <ListRow icon="exit" iconColor={status.rest} title="Resignation" onPress={() => router.push('/resignation')} />
+              )}
               {organization && (
                 <ListRow
                   leading={<CompanyLogo uri={organization.logo} initials={organization.initials} size={30} />}
@@ -113,11 +127,17 @@ export default function ProfileScreen() {
           </Animated.View>
 
           <Animated.View entering={enter(2)} style={styles.sections}>
-            <ListSection header="Personal">
-              <ListRow title="Birth date" value={formatDate(profile.birth_date)} />
-              <ListRow title="Gender" value={humanize(profile.gender)} />
-              <ListRow title="Civil status" value={humanize(profile.civil_status)} />
-            </ListSection>
+            {/* The 201 file is HR's (ADR 0082): the app shows it, and says who changes it. */}
+            <View style={styles.record}>
+              <AppText variant="footnote" tone="secondary" style={styles.recordNote}>
+                Your employee record, as HR keeps it. Ask them to correct anything that’s wrong.
+              </AppText>
+              <ListSection header="Personal">
+                <ListRow title="Birth date" value={formatDate(profile.birth_date)} />
+                <ListRow title="Gender" value={humanize(profile.gender)} />
+                <ListRow title="Civil status" value={humanize(profile.civil_status)} />
+              </ListSection>
+            </View>
 
             <ListSection header="Contact">
               <ListRow title="Email" value={profile.email ?? '—'} />
@@ -141,6 +161,24 @@ export default function ProfileScreen() {
           </Animated.View>
         </>
       ) : null}
+
+      {/* One's own sign-in account (ADR 0082): theirs, in every company. */}
+      <ListSection header="Account" footer="How you sign in to SYNAPSE, the same in every company you belong to." withIcons>
+        <ListRow
+          icon="person"
+          iconColor={colors.primary}
+          title="Name and email"
+          subtitle={user?.email}
+          onPress={() => router.push('/account/details')}
+        />
+        <ListRow icon="lock" iconColor={status.rest} title="Change password" onPress={() => router.push('/account/password')} />
+      </ListSection>
+
+      {/* Help */}
+      <ListSection header="Help" withIcons>
+        <ListRow icon="tour" iconColor={colors.tint} title="Take the tour" onPress={() => startTour('replay')} />
+        <ListRow icon="search" iconColor={status.leave} title="Search" onPress={() => router.push('/search')} />
+      </ListSection>
 
       {/* Appearance */}
       <ListSection header="Appearance" withIcons>
@@ -175,6 +213,8 @@ const styles = StyleSheet.create({
   names: { gap: 3, alignItems: 'center', paddingHorizontal: 16 },
   pills: { flexDirection: 'row', gap: 8 },
   sections: { gap: 28 },
+  record: { gap: 10 },
+  recordNote: { paddingHorizontal: 16 },
   footer: { gap: 16 },
   signOut: { alignSelf: 'stretch' },
 });

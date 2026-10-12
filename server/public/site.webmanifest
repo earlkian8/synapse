@@ -4,7 +4,7 @@
     "description": "Intelligent HR Management for Philippine institutions",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#0F2044",
+    "background_color": "#FFFFFF",
     "theme_color": "#0F2044",
     "icons": [
         {

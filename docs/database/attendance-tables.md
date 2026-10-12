@@ -37,7 +37,7 @@ day's punches (never trusted from the client).
 | `work_schedule_id` | FK → work_schedules, nullable | Snapshot of the schedule the resolver picked for this day. |
 | `scheduled_start` / `scheduled_end` | time, nullable | Snapshot of the shift's clock-face edges — the first segment's start and the last segment's end (for display). |
 | `scheduled_start_at` / `scheduled_end_at` | timestamp, nullable | The shift as UTC instants, worked out in the organisation's zone; the end is the next morning when it is at or before the start. What lateness and undertime are measured against. |
-| `rules` | json, nullable | The `DayRules` snapshot the day is judged by: `version`, `grace_minutes`, `required_minutes`, `is_working_day`, `work_schedule_id`, `schedule_name`, `holiday_type`, `holiday_name`, and — from `version: 2` (ADR 0037) — `type`, `segments`, `core_start_at` / `core_end_at`, `unpaid_break_minutes` and `source`; from `version: 3` (ADR 0038) — `policy`: `{id, name, source, settings_version, settings}`, the complete attendance policy the day is judged by. Changes only when HR re-applies the current schedule and policy. Null on rows from before ADR 0036 until they are recomputed; a `version: 1` snapshot still reads as a fixed shift, and a `version: 1` or `2` one is judged by the built-in fallback policy. |
+| `rules` | json, nullable | The `DayRules` snapshot the day is judged by: `version`, `grace_minutes`, `required_minutes`, `is_working_day`, `work_schedule_id`, `schedule_name`, `holiday_type`, `holiday_name`, and — from `version: 2` (ADR 0037) — `type`, `segments`, `core_start_at` / `core_end_at`, `unpaid_break_minutes` and `source`; from `version: 3` (ADR 0038) — `policy`: `{id, name, source, settings_version, settings}`, the complete attendance policy the day is judged by; from `version: 4` (ADR 0079) — `timezone`, the clock the day was judged on (null = the organisation's). Changes only when HR re-applies the current schedule and policy. Null on rows from before ADR 0036 until they are recomputed; a `version: 1` snapshot still reads as a fixed shift, and a `version: 1` or `2` one is judged by the built-in fallback policy. |
 | `status` | string | `present \| late \| undertime \| half_day \| absent \| on_leave \| day_off \| holiday \| incomplete`. `half_day` (ADR 0038) is very late or very short by the policy's thresholds; a threshold can also make a punched day `absent`. |
 | `flags` | json, nullable | Everything more specific than the status (ADR 0038): `late`, `undertime`, `half_day`, `late_absent`, `below_minimum`, `break_deducted`, `break_exceeded`, `unapproved_overtime`, `rest_day_worked`, `holiday_worked`; and from approved requests (ADR 0039) `official_business`, `remote_work`; from capture (ADR 0040) `outside_geofence`, `source_not_allowed`, `clock_skew` (and, on days judged before ADR 0054, `device_sequence_anomaly`); from the end-of-day job (ADR 0041) `auto_closed`, and `missing_clock_out` on a day it closed still open. |
 | `first_in_at` / `last_out_at` | timestamp, nullable | Derived from the punches. |
@@ -130,8 +130,11 @@ the shift and policy precedence chains. See [Work Locations](../modules/work-loc
 | `organization_id` | FK → organizations | Tenant. Cascade on delete. |
 | `name` | string | Unique per tenant among live rows (validated). |
 | `address` | string, nullable | |
-| `latitude` / `longitude` | decimal(10,7) | The fence's centre. |
-| `radius_meters` | uint | Default 150; 25–5000 (validated). |
+| `latitude` / `longitude` | decimal(10,7) | The fence's centre. For a shape, its centroid, worked out on save. |
+| `radius_meters` | uint | Default 150; 25–5000 (validated). For a shape, how far its furthest corner reaches from the centre (derived). |
+| `fence_type` | string(16) | `circle` (default) or `polygon` (ADR 0079). |
+| `polygon` | json, nullable | A shape's corners, `[[lat, lng], …]`, 3–50, not self-crossing, at least a 25 m square in area, within 5 km of the centre. Null for a circle. |
+| `timezone` | string(64), nullable | The site's own clock (an IANA zone, ADR 0079). Null = the organisation's. The days of the people based here are judged on it. |
 | `default_work_schedule_id` | FK → work_schedules, nullable | The shift for people based here, between department and organisation (null on delete). |
 | `attendance_policy_id` | FK → attendance_policies, nullable | Likewise for the policy (null on delete). |
 | `is_active` | boolean | Default true. An inactive site checks nothing and sits in neither chain. |

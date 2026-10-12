@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 
 import { TabBar } from '@/components/ui/tab-bar';
 import { PunchQueueRunner } from '@/features/attendance/punch-queue-runner';
+import { TabTour } from '@/features/tour/tab-tour';
 import { useTheme } from '@/theme/theme';
 
 export default function TabsLayout() {
@@ -11,6 +12,8 @@ export default function TabsLayout() {
     <>
       {/* Sends punches saved while offline, wherever the app is open. */}
       <PunchQueueRunner />
+      {/* The app's own tour (ADR 0080): offered once, replayed from Profile. */}
+      <TabTour />
       <Tabs
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{

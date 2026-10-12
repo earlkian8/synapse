@@ -5,6 +5,7 @@ namespace App\Support\Search;
 use App\Models\User;
 use App\Support\Search\Sources\ApplicantSource;
 use App\Support\Search\Sources\AppraisalSource;
+use App\Support\Search\Sources\AttendanceRecordSource;
 use App\Support\Search\Sources\DepartmentSource;
 use App\Support\Search\Sources\EmployeeSource;
 use App\Support\Search\Sources\EventSource;
@@ -55,6 +56,7 @@ final class GlobalSearch
         OnboardingCaseSource::class,
         OffboardingCaseSource::class,
         LeaveRequestSource::class,
+        AttendanceRecordSource::class,
         AppraisalSource::class,
         TrainingProgramSource::class,
         EventSource::class,

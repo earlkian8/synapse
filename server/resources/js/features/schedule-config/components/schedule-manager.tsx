@@ -7,6 +7,7 @@ import {
     Pencil,
     Plus,
     Repeat,
+    Sparkles,
     Star,
     Trash2,
     Users,
@@ -17,7 +18,6 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-    formatHolidayDate,
     formatScheduleHours,
     isRotation,
     SCHEDULE_TYPE_LABELS,
@@ -25,7 +25,7 @@ import {
 import { scheduleConfigRoutes } from '../routes';
 import type { Holiday, ScheduleSetupPageProps, WorkSchedule } from '../types';
 import { HolidayFormSheet } from './holiday-form-sheet';
-import { HolidayTypeBadge } from './holiday-type-badge';
+import { HolidayTable } from './holiday-table';
 import { WorkScheduleFormModal } from './work-schedule-form-modal';
 
 type ConfirmConfig = {
@@ -48,6 +48,7 @@ export function ScheduleManager({
     archivedHolidays,
     defaultScheduleId,
     policies,
+    locations,
     can,
 }: ScheduleSetupPageProps) {
     const [scheduleForm, setScheduleForm] = useState<{
@@ -195,11 +196,35 @@ export function ScheduleManager({
             <ConfigSection
                 icon={CalendarDays}
                 title="Holidays"
-                subtitle="The company holiday calendar, by date."
+                subtitle="The company calendar, soonest first. A holiday can follow Easter, fall on a weekday of a month, or be kept at some sites only."
                 canManage={can.manage}
                 onNew={() => setHolidayForm({ open: true, holiday: null })}
-                empty={holidays.length === 0}
-                emptyLabel="No holidays yet."
+                empty={false}
+                emptyLabel=""
+                bare
+                extraActions={
+                    can.manage && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={processing}
+                            onClick={() =>
+                                router.post(
+                                    scheduleConfigRoutes.holidays.movable,
+                                    {},
+                                    {
+                                        preserveScroll: true,
+                                        onStart: () => setProcessing(true),
+                                        onFinish: () => setProcessing(false),
+                                    },
+                                )
+                            }
+                        >
+                            <Sparkles className="size-4" />
+                            Add Holy Week
+                        </Button>
+                    )
+                }
                 archived={archivedHolidays}
                 onRestore={(h) =>
                     router.patch(
@@ -223,55 +248,28 @@ export function ScheduleManager({
                     })
                 }
             >
-                {holidays.map((holiday) => (
-                    <div
-                        key={holiday.id}
-                        className="flex items-center gap-3 px-4 py-3"
-                    >
-                        <span className="flex size-9 shrink-0 flex-col items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0a8b91] dark:text-[#0ABFBF]">
-                            <CalendarDays className="size-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <p className="truncate text-sm font-medium">
-                                    {holiday.name}
-                                </p>
-                                <HolidayTypeBadge type={holiday.type} />
-                                {holiday.is_recurring && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                                        <Repeat className="size-3" />
-                                        Yearly
-                                    </span>
-                                )}
-                            </div>
-                            <p className="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
-                                {formatHolidayDate(holiday)}
-                            </p>
-                        </div>
-                        {can.manage && (
-                            <RowActions
-                                onEdit={() =>
-                                    setHolidayForm({ open: true, holiday })
-                                }
-                                onArchive={() =>
-                                    askConfirm({
-                                        title: `Archive "${holiday.name}"?`,
-                                        description:
-                                            'It is removed from the calendar. You can restore it later.',
-                                        confirmLabel: 'Archive',
-                                        run: () =>
-                                            router.delete(
-                                                scheduleConfigRoutes.holidays.destroy(
-                                                    holiday.hashid,
-                                                ),
-                                                withProcessing,
-                                            ),
-                                    })
-                                }
-                            />
-                        )}
-                    </div>
-                ))}
+                <HolidayTable
+                    holidays={holidays}
+                    canManage={can.manage}
+                    onEdit={(holiday) =>
+                        setHolidayForm({ open: true, holiday })
+                    }
+                    onArchive={(holiday) =>
+                        askConfirm({
+                            title: `Archive "${holiday.name}"?`,
+                            description:
+                                'It is removed from the calendar. You can restore it later.',
+                            confirmLabel: 'Archive',
+                            run: () =>
+                                router.delete(
+                                    scheduleConfigRoutes.holidays.destroy(
+                                        holiday.hashid,
+                                    ),
+                                    withProcessing,
+                                ),
+                        })
+                    }
+                />
             </ConfigSection>
 
             <WorkScheduleFormModal
@@ -284,6 +282,7 @@ export function ScheduleManager({
             />
             <HolidayFormSheet
                 holiday={holidayForm.holiday}
+                locations={locations ?? []}
                 open={holidayForm.open}
                 onOpenChange={(open) =>
                     setHolidayForm((prev) => ({ ...prev, open }))
@@ -319,6 +318,8 @@ function ConfigSection<T extends ArchivedItem>({
     archived,
     onRestore,
     onForceDelete,
+    bare = false,
+    extraActions,
     children,
 }: {
     icon: React.ComponentType<{ className?: string }>;
@@ -331,14 +332,18 @@ function ConfigSection<T extends ArchivedItem>({
     archived: T[];
     onRestore: (item: T) => void;
     onForceDelete: (item: T) => void;
+    /** The children bring their own body (a table), drawn in the card as they are. */
+    bare?: boolean;
+    /** Buttons beside New. */
+    extraActions?: ReactNode;
     children: ReactNode;
 }) {
     const [showArchived, setShowArchived] = useState(false);
 
     return (
         <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
                     <span className="flex size-8 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF]">
                         <Icon className="size-4" />
                     </span>
@@ -366,6 +371,7 @@ function ConfigSection<T extends ArchivedItem>({
                             </span>
                         </Button>
                     )}
+                    {extraActions}
                     {canManage && (
                         <Button size="sm" onClick={onNew}>
                             <Plus className="size-4" />
@@ -380,7 +386,12 @@ function ConfigSection<T extends ArchivedItem>({
                     {emptyLabel}
                 </p>
             ) : (
-                <div className="divide-y divide-border overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
+                <div
+                    className={cn(
+                        'overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border',
+                        !bare && 'divide-y divide-border',
+                    )}
+                >
                     {children}
                 </div>
             )}

@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { useAppNavigation } from '@/hooks/use-app-navigation';
 import { usePermissions } from '@/hooks/use-permissions';
-import { finishTour } from './api';
+import { finishTour, reachStep, startRun } from './api';
 import { buildNextSteps, buildTourStops } from './steps';
 import { tourStore } from './store';
 import { findTourTarget } from './targets';
@@ -73,6 +73,8 @@ export function useProductTour() {
     // The shared prop says whether the tour is owed as of this page; the store
     // knows if it was answered since.
     const owed = (auth.tour?.owed ?? false) && !state.answered;
+    const owedMode = auth.tour?.mode ?? null;
+    const seenVersion = auth.tour?.seen_version ?? 0;
 
     const start = (trigger: TourTrigger) => {
         // Only what is on screen right now: a phone has no sidebar to point
@@ -81,34 +83,89 @@ export function useProductTour() {
             (stop) => findTourTarget(stop.target) !== null,
         );
 
+        // Offered on its own to somebody who answered an earlier version, it
+        // is a "What's new" of the stops added since (ADR 0080).
+        const whatsNew = trigger === 'auto' && owed && owedMode === 'whats_new';
+        const shown = whatsNew
+            ? available.filter((stop) => stop.since > seenVersion)
+            : available;
+
+        if (whatsNew && shown.length === 0) {
+            // Nothing new on this screen (a phone without the new stop's
+            // target): answer it quietly rather than show an empty tour.
+            tourStore.settle();
+            void finishTour('completed').catch(() => {});
+
+            return;
+        }
+
+        const stepIds = [
+            WELCOME.id,
+            ...shown.map((stop) => stop.id),
+            FINISH.id,
+        ];
+
         tourStore.start({
-            stepIds: [
-                WELCOME.id,
-                ...available.map((stop) => stop.id),
-                FINISH.id,
-            ],
+            stepIds,
             trigger,
+            kind: whatsNew ? 'whats_new' : 'full',
             records: owed,
+        });
+
+        // File the run for the per-stop numbers; the tour does not wait for it.
+        const mode =
+            owed && trigger === 'auto'
+                ? whatsNew
+                    ? 'whats_new'
+                    : 'first'
+                : 'replay';
+
+        void startRun(mode, stepIds).then((id) => {
+            if (id === null) {
+                return;
+            }
+
+            tourStore.filed(id);
+
+            // Somebody quick may have moved on before the run was filed.
+            const { running, index } = tourStore.getSnapshot();
+
+            if (running && index > 0) {
+                reachStep(id, index);
+            }
         });
     };
 
     const goTo = (target: number) => {
         reveal(steps[target]);
         tourStore.go(target);
+
+        const { runId } = tourStore.getSnapshot();
+
+        if (runId !== null) {
+            reachStep(runId, target);
+        }
     };
 
     const end = (outcome: TourOutcome) => {
-        const { records } = tourStore.getSnapshot();
+        const { records, runId } = tourStore.getSnapshot();
 
         tourStore.end();
 
-        if (!records) {
+        if (!records && runId === null) {
             return;
         }
 
         // Fire and forget. Should it fail, the tour is simply offered again on
-        // a later visit — nothing the person is doing depends on it.
-        void finishTour(outcome).catch(() => {});
+        // a later visit — nothing the person is doing depends on it. A replay
+        // only closes its run; it never answers the tour.
+        void finishTour(outcome, { run: runId, answers: records }).catch(
+            () => {},
+        );
+
+        if (!records) {
+            return;
+        }
 
         if (outcome === 'skipped') {
             toast('Tour skipped', {
@@ -122,6 +179,8 @@ export function useProductTour() {
         running: state.running,
         offered: state.offered,
         trigger: state.trigger,
+        /** The whole tour, or only what is new since last time. */
+        kind: state.kind,
         owed,
         steps,
         step,

@@ -8,6 +8,7 @@ import type { AppNavSection } from '@/lib/app-navigation';
 export type TourTarget =
     | 'workspace'
     | `nav-${AppNavSection}`
+    | 'search'
     | 'notifications'
     | 'help'
     | 'account'
@@ -28,24 +29,28 @@ export function findTourTarget(target: TourTarget): HTMLElement | null {
         return null;
     }
 
-    const element = document.querySelector<HTMLElement>(
+    // A target can be marked twice — the wide search field and the icon that
+    // replaces it on a narrow bar — of which only one shows at a time.
+    const elements = document.querySelectorAll<HTMLElement>(
         `[data-tour="${target}"]`,
     );
 
-    if (!element) {
-        return null;
+    for (const element of elements) {
+        // `checkVisibility` sees `display: none` on any ancestor; browsers that
+        // predate it (Safari before 17.4) fall back to the size check alone.
+        if (
+            typeof element.checkVisibility === 'function' &&
+            !element.checkVisibility()
+        ) {
+            continue;
+        }
+
+        const rect = element.getBoundingClientRect();
+
+        if (rect.width > 0 && rect.height > 0) {
+            return element;
+        }
     }
 
-    // `checkVisibility` sees `display: none` on any ancestor; browsers that
-    // predate it (Safari before 17.4) fall back to the size check alone.
-    if (
-        typeof element.checkVisibility === 'function' &&
-        !element.checkVisibility()
-    ) {
-        return null;
-    }
-
-    const rect = element.getBoundingClientRect();
-
-    return rect.width > 0 && rect.height > 0 ? element : null;
+    return null;
 }

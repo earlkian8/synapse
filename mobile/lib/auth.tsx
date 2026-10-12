@@ -16,6 +16,11 @@
  * organisation-bound token the server issues on the way through.
  *
  * On boot we restore the token and re-hydrate from `/me`.
+ *
+ * **A token the server refuses ends the session here too (ADR 0082).** App tokens
+ * never expire, but a new password set elsewhere, a password reset or HR revokes
+ * them; `lib/api.ts` reports the 401 and the app signs out, with `sessionEnded`
+ * telling the sign-in screen why.
  */
 import * as SecureStore from 'expo-secure-store';
 import {
@@ -31,7 +36,7 @@ import {
 
 import { acceptInvitation, joinWorkspace } from '@/features/workspaces/api';
 import { setActiveWorkspaceId } from '@/lib/active-workspace';
-import { api, setTokenProvider } from '@/lib/api';
+import { api, setTokenProvider, setUnauthorizedHandler } from '@/lib/api';
 import type { AuthOrganization, AuthUser, JoinOutcome, PendingJoinRequest } from '@/types/api';
 
 const TOKEN_KEY = 'synapse.token';
@@ -55,6 +60,12 @@ type AuthValue = {
   needsWorkspace: boolean;
   /** Join requests HR hasn't answered yet. */
   pendingRequests: PendingJoinRequest[];
+  /**
+   * The server stopped accepting this phone's session — a new password was set
+   * elsewhere, or the password was reset (ADR 0082). Sign-in says so; it clears on
+   * the next sign-in.
+   */
+  sessionEnded: boolean;
   login: (email: string, password: string) => Promise<void>;
   /** Create a brand-new identity. Joins no company — `needsWorkspace` follows. */
   register: (input: RegisterInput) => Promise<void>;
@@ -88,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Returning (restored) sessions skip the picker; a fresh multi-company login flips
   // this off so the root navigator routes through it.
   const [hasEnteredWorkspace, setHasEnteredWorkspace] = useState(true);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   // The api client reads the token through this ref so we can point requests at a
   // token synchronously (e.g. while validating on boot).
@@ -111,6 +123,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
   }, []);
+
+  // A token the server refuses is a session that is over: sign out here too.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (tokenRef.current === null) return;
+
+      setSessionEnded(true);
+      setHasEnteredWorkspace(true);
+      void apply(null, null);
+    });
+  }, [apply]);
 
   // On first mount, restore any stored session.
   useEffect(() => {
@@ -148,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await apply(result.token, result.user);
+      setSessionEnded(false);
       // More than one company? Send them through the picker before the app shell.
       setHasEnteredWorkspace((result.user.organizations?.length ?? 0) <= 1);
     },
@@ -162,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await apply(result.token, result.user);
+      setSessionEnded(false);
       // Nowhere to pick between — the join screen is the next stop.
       setHasEnteredWorkspace(true);
     },
@@ -246,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Trust the server's flag: it knows about memberships this token predates.
       needsWorkspace: user?.needs_workspace ?? false,
       pendingRequests: user?.pending_requests ?? [],
+      sessionEnded,
       login,
       register,
       joinWithCode,
@@ -260,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       user,
       hasEnteredWorkspace,
+      sessionEnded,
       login,
       register,
       joinWithCode,

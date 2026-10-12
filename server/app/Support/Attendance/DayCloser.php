@@ -114,7 +114,7 @@ class DayCloser
         $now = CarbonImmutable::now();
         $shifts = $this->shifts->forMany($employees, $from, $to);
         $policies = $this->policies->forMany($employees, $shifts);
-        $holidays = HolidayCalendar::inRange(CarbonImmutable::parse($from), CarbonImmutable::parse($to));
+        $holidays = HolidayCalendar::forEmployees($employees, CarbonImmutable::parse($from), CarbonImmutable::parse($to));
 
         $existing = AttendanceRecord::query()
             ->whereIn('employee_id', $employees->pluck('id'))
@@ -134,7 +134,7 @@ class DayCloser
                     continue;
                 }
 
-                $this->clock->materialise($employee, $shift, $holidays[$date] ?? null, $policies[$employee->id][$date] ?? null);
+                $this->clock->materialise($employee, $shift, $holidays->on($date, $employee->id), $policies[$employee->id][$date] ?? null);
                 $written++;
             }
         }
@@ -346,7 +346,7 @@ class DayCloser
      */
     private function hasEnded(ResolvedShift $shift, CarbonImmutable $now): bool
     {
-        $end = $shift->endsAt() ?? OrganizationClock::at(CarbonImmutable::parse($shift->date)->addDay()->toDateString(), '00:00');
+        $end = $shift->endsAt() ?? OrganizationClock::at(CarbonImmutable::parse($shift->date)->addDay()->toDateString(), '00:00', $shift->timezone);
 
         return $now->gte($end);
     }

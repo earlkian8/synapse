@@ -9,6 +9,8 @@ Changing your email address means confirming the new one before you carry on, wi
 > [!NOTE]
 > Your employee record — the 201 file your HR team keeps — is separate from your account. Ask HR to correct details there, such as your position or department.
 
+In the mobile app, the same name and email are under **Profile** → **Account** → **Name and email**. Changing the email there asks for your current password first.
+
 ## Light, dark or system
 
 **Settings** → **Appearance** offers **Light**, **Dark** and **System** (follow your device's setting). The sun/moon button in the top bar switches between light and dark from any page. The choice is remembered on the device you made it on.

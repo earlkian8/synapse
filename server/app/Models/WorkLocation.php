@@ -4,9 +4,11 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
+use App\Support\Attendance\FenceGeometry;
 use App\Support\Attendance\GeofenceCheck;
 use App\Support\Attendance\PolicyResolver;
 use App\Support\Attendance\ShiftResolver;
+use App\Support\OrganizationClock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -16,9 +18,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection as SupportCollection;
 
 /**
- * A place a company's people work from (ADR 0040): a point and a radius — the
- * fence a punch is checked against ({@see GeofenceCheck}) — and, optionally, the
- * schedule and attendance policy the people based there default to. Those two
+ * A place a company's people work from (ADR 0040): a point and a radius, or a
+ * shape drawn corner by corner (ADR 0079) — the fence a punch is checked against
+ * ({@see GeofenceCheck}) — and, optionally, the schedule and attendance policy
+ * the people based there default to, and the clock they keep. Those two
  * sit between the department and the organisation in the precedence chains
  * ({@see ShiftResolver}, {@see PolicyResolver}), read from somebody's primary
  * location.
@@ -35,6 +38,12 @@ class WorkLocation extends Model
 
     public const MAX_RADIUS_METERS = 5000;
 
+    /** A fence is a circle, or a shape drawn corner by corner (ADR 0079). */
+    public const FENCE_TYPES = ['circle', 'polygon'];
+
+    /** The most corners a shape may have. */
+    public const MAX_POLYGON_POINTS = 50;
+
     protected $fillable = [
         'organization_id',
         'name',
@@ -42,6 +51,9 @@ class WorkLocation extends Model
         'latitude',
         'longitude',
         'radius_meters',
+        'fence_type',
+        'polygon',
+        'timezone',
         'default_work_schedule_id',
         'attendance_policy_id',
         'is_active',
@@ -53,6 +65,7 @@ class WorkLocation extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'radius_meters' => 'integer',
+            'polygon' => 'array',
             'is_active' => 'boolean',
         ];
     }
@@ -142,6 +155,7 @@ class WorkLocation extends Model
                 'work_locations.name',
                 'work_locations.default_work_schedule_id',
                 'work_locations.attendance_policy_id',
+                'work_locations.timezone',
                 'employee_work_locations.employee_id as based_employee_id',
                 'employee_work_locations.is_primary as based_primary',
             ])
@@ -159,6 +173,62 @@ class WorkLocation extends Model
         }
 
         return $out;
+    }
+
+    /**
+     * The fence in words: "150 m circle", "Shape · 6 corners · 1.2 ha".
+     */
+    public function fenceLabel(): string
+    {
+        $shape = $this->shape();
+
+        if ($shape === null) {
+            return "{$this->radius_meters} m circle";
+        }
+
+        $area = FenceGeometry::areaSquareMeters($shape);
+        $size = $area >= 10000
+            ? number_format($area / 10000, 1).' ha'
+            : number_format($area).' m²';
+
+        return 'Shape · '.count($shape).' corners · '.$size;
+    }
+
+    /**
+     * The clock the site keeps: its own zone, or the organisation's.
+     */
+    public function clockZone(): string
+    {
+        return filled($this->timezone) ? (string) $this->timezone : OrganizationClock::timezone();
+    }
+
+    /**
+     * The fence's corners when it is drawn as a shape, or null for a circle.
+     *
+     * @return list<array{0: float, 1: float}>|null
+     */
+    public function shape(): ?array
+    {
+        if ($this->fence_type !== 'polygon' || ! is_array($this->polygon) || count($this->polygon) < 3) {
+            return null;
+        }
+
+        return array_values(array_map(
+            fn (array $corner): array => [(float) $corner[0], (float) $corner[1]],
+            $this->polygon,
+        ));
+    }
+
+    /**
+     * The zone a person's base site keeps, or null when it keeps the
+     * organisation's — or they have no base (ADR 0079).
+     */
+    public static function timezoneFor(Employee|int $employee): ?string
+    {
+        $id = $employee instanceof Employee ? $employee->id : $employee;
+        $zone = (static::primaryFor(collect([['id' => $id]]))[$id] ?? null)?->timezone;
+
+        return filled($zone) ? (string) $zone : null;
     }
 
     /**

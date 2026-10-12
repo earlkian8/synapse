@@ -101,16 +101,18 @@ class AttendanceRecordsIndexQuery
             ->pluck('employee_id')
             ->flip();
 
-        // Once for the day, not once per person.
-        $holiday = HolidayCalendar::on($date);
+        // Once for the day, not once per person — the person's own, a local one
+        // at their site included (ADR 0078).
+        $day = CarbonImmutable::parse($date);
+        $holidays = HolidayCalendar::forEmployees($employees, $day, $day);
 
         return $employees
-            ->map(function (Employee $employee) use ($records, $date, $onLeave, $holiday, $shifts): AttendanceRecord {
+            ->map(function (Employee $employee) use ($records, $date, $onLeave, $holidays, $shifts): AttendanceRecord {
                 $record = $records->get($employee->id) ?? $this->synthesize(
                     $employee,
                     $shifts[$employee->id][$date] ?? ResolvedShift::fallback($date),
                     $onLeave->has($employee->id),
-                    $holiday,
+                    $holidays->on($date, $employee->id),
                 );
                 $record->setRelation('employee', $employee);
 

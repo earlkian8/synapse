@@ -3,7 +3,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { AppText } from '@/components/ui/text';
 import { Touchable } from '@/components/ui/touchable';
-import { useAuth } from '@/lib/auth';
+import { useClockZone } from '@/lib/clock-zone';
 import { todayDateKey } from '@/lib/format';
 import { attendanceMeta } from '@/lib/status';
 import { composite, withAlpha } from '@/theme/color';
@@ -31,14 +31,14 @@ function toKey(year: number, month: number, day: number): string {
  */
 export function MonthCalendar({ month, byDate, onSelectDay }: MonthCalendarProps) {
   const { colors, readable, scheme } = useTheme();
-  const { organization } = useAuth();
+  const zone = useClockZone();
 
   const year = month.getFullYear();
   const m = month.getMonth();
   const firstWeekday = new Date(year, m, 1).getDay();
   const daysInMonth = new Date(year, m + 1, 0).getDate();
-  // Today is the organisation's date, the day attendance is being recorded under.
-  const todayKey = todayDateKey(organization?.timezone);
+  // Today is the person's date — their site's clock, or the company's (ADR 0079).
+  const todayKey = todayDateKey(zone);
   const alpha = scheme === 'dark' ? 0.26 : 0.16;
 
   const cells: (number | null)[] = [

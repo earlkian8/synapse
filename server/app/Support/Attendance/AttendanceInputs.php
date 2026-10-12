@@ -9,6 +9,7 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\ShiftRosterEntry;
 use App\Support\OrganizationClock;
+use App\Support\Setup\HolidayWorkflow;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  *  - **leave** approved, cancelled, deleted, or moved while approved;
  *  - **holidays** created, moved, deleted or restored — every year's occurrence
- *    for a recurring one, back to the first recorded day;
+ *    for a repeating one, back to the first recorded day;
  *  - **schedule assignments** and **roster entries** written or removed — the
  *    dates they covered before and after.
  *
@@ -58,15 +59,7 @@ class AttendanceInputs
             }
         });
 
-        $holiday = function (Holiday $holiday): void {
-            $dates = [self::date($holiday->date), self::date($holiday->getOriginal('date'))];
-
-            foreach (array_unique(array_filter($dates)) as $date) {
-                foreach ($holiday->is_recurring || $holiday->getOriginal('is_recurring') ? self::everyYear($date) : [$date] as $occurrence) {
-                    self::queue($holiday, null, [$occurrence], "the holiday \"{$holiday->name}\" changed");
-                }
-            }
-        };
+        $holiday = fn (Holiday $holiday) => self::holidayChanged($holiday);
 
         Holiday::saved($holiday);
         Holiday::deleted($holiday);
@@ -95,6 +88,33 @@ class AttendanceInputs
     }
 
     /**
+     * A holiday was added, moved, re-ruled, re-sited, archived or restored:
+     * queue every date it fell on before or falls on now, in every year
+     * attendance has been recorded through next year — Holy Week lands on a
+     * different date each year (ADR 0078). Saving fires this even when only its
+     * sites changed ({@see HolidayWorkflow} saves before it syncs them), and the
+     * recompute runs after the response, by when the sites are written.
+     */
+    public static function holidayChanged(Holiday $holiday): void
+    {
+        $before = (new Holiday)->forceFill(array_intersect_key(
+            $holiday->getOriginal(),
+            array_flip(['date', 'is_recurring', 'recurrence', 'rule']),
+        ));
+
+        foreach (self::years() as $year) {
+            $dates = array_filter([
+                $holiday->occurrenceIn($year)?->toDateString(),
+                $holiday->wasRecentlyCreated ? null : $before->occurrenceIn($year)?->toDateString(),
+            ]);
+
+            foreach (array_unique($dates) as $date) {
+                self::queue($holiday, null, [$date], "the holiday \"{$holiday->name}\" changed");
+            }
+        }
+    }
+
+    /**
      * Queue the recompute over the span of the dates given.
      *
      * @param  list<int>|null  $employeeIds
@@ -119,28 +139,17 @@ class AttendanceInputs
     }
 
     /**
-     * A recurring holiday's date in every year attendance has been recorded,
-     * through next year.
+     * Every year attendance has been recorded in, through next year.
      *
-     * @return list<string>
+     * @return list<int>
      */
-    private static function everyYear(string $date): array
+    private static function years(): array
     {
         $first = AttendanceRecord::query()->min('work_date');
-        $from = $first !== null ? (int) substr((string) $first, 0, 4) : (int) substr(OrganizationClock::today(), 0, 4);
         $to = (int) substr(OrganizationClock::today(), 0, 4) + 1;
-        [, $month, $day] = explode('-', $date);
+        $from = $first !== null ? (int) substr((string) $first, 0, 4) : $to - 1;
 
-        $out = [];
-
-        for ($year = $from; $year <= $to; $year++) {
-            // 29 February only lands on leap years.
-            if (checkdate((int) $month, (int) $day, $year)) {
-                $out[] = sprintf('%04d-%s-%s', $year, $month, $day);
-            }
-        }
-
-        return $out;
+        return range(min($from, $to), $to);
     }
 
     private static function date(mixed $value): ?string

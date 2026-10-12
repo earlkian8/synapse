@@ -20,6 +20,7 @@ import type {
     AttendanceIndexPageProps,
     AttendanceRecord,
 } from '@/features/attendance/types';
+import { useLinkedRecord } from '@/hooks/use-linked-record';
 
 export default function AttendanceIndex() {
     const { records, week, report, stats, options, can, filters } =
@@ -112,6 +113,10 @@ export default function AttendanceIndex() {
         setDetail(record);
         setDetailOpen(true);
     };
+
+    // A link — global search's, a notification's — can name a day to open
+    // (ADR 0081): `?date=…&search=…&open=<hashid>` puts it on the board.
+    useLinkedRecord(records, (record) => record.hashid ?? '', openDetail);
 
     const openManual = (record: AttendanceRecord | null) => {
         setDetailOpen(false);

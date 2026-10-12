@@ -26,8 +26,8 @@ type Props = StepControls & {
  *
  * What the step adds is the calendar a Philippine employer keeps anyway. Every
  * holiday on it is ticked, because they are set by law rather than chosen; the
- * fixed ones are kept every year from one row, and the movable ones (Holy Week,
- * National Heroes Day) are offered on their next date. A holiday is never
+ * fixed ones are kept every year from one row, and so are the movable ones (Holy
+ * Week, National Heroes Day), worked out from their rule (ADR 0078). A holiday is never
  * charged as leave and is recorded as a holiday by attendance, so this is worth
  * doing before the first leave request is filed.
  */
@@ -144,14 +144,15 @@ export default function ScheduleStep({
                                             </span>
                                         }
                                         aside={
-                                            holiday.is_recurring ? (
-                                                <span className="inline-flex items-center gap-1">
-                                                    <Repeat className="size-3" />
-                                                    Every year
-                                                </span>
-                                            ) : (
-                                                'This date only'
-                                            )
+                                            <span className="inline-flex items-center gap-1">
+                                                <Repeat className="size-3" />
+                                                {holiday.recurrence === 'easter'
+                                                    ? 'Follows Easter'
+                                                    : holiday.recurrence ===
+                                                        'weekday'
+                                                      ? 'Moves each year'
+                                                      : 'Every year'}
+                                            </span>
                                         }
                                     />
                                 </li>

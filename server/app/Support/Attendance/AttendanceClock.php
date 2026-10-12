@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Support\HolidayCalendar;
+use App\Support\HolidayMap;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -28,7 +29,8 @@ use Symfony\Component\HttpFoundation\IpUtils;
  *
  *  - **A day is the organisation's day.** "Today", a shift's start and the date a
  *    punch is filed under are read on the tenant's clock ({@see OrganizationClock}),
- *    never on UTC's.
+ *    never on UTC's — or on the person's base site's clock, when it keeps its
+ *    own zone (ADR 0079). The zone a day was judged on is frozen with its rules.
  *  - **A day is anchored to its shift.** A clock-out at 06:00 closes the night
  *    shift that opened at 22:00 the evening before; it does not open a day of its
  *    own ({@see workDateFor()}).
@@ -138,16 +140,17 @@ class AttendanceClock
             $date = $this->workDateFor($employee, $at, $type);
 
             $record = $this->findRecord($employee->id, $date, lock: true) ?? $this->newRecord($employee, $date);
-            $policy = $this->rulesFor($record)->policy;
+            $rules = $this->rulesFor($record);
+            $policy = $rules->policy;
 
             // Checked before anything is written, so a refused punch leaves no row.
             $this->assertSourceAllowed($policy, $source);
 
             if ($offline) {
-                $this->assertWithinOfflineWindow($policy, $at, $receivedAt);
+                $this->assertWithinOfflineWindow($policy, $at, $receivedAt, $rules->timezone);
             }
 
-            $this->assertAllowedAt($record, $type, $at);
+            $this->assertAllowedAt($record, $type, $at, $rules->timezone);
             $this->assertCaptureRules($policy, $source, $context);
 
             $placement = $this->place($employee, $policy, $source, $context);
@@ -206,7 +209,7 @@ class AttendanceClock
             return $open->work_date->toDateString();
         }
 
-        $today = OrganizationClock::localDate($at);
+        $today = OrganizationClock::localDate($at, WorkLocation::timezoneFor($employee));
 
         if ($type === 'clock_in') {
             $yesterday = CarbonImmutable::parse($today)->subDay()->toDateString();
@@ -298,6 +301,8 @@ class AttendanceClock
 
         $date = $record->work_date->toDateString();
         $nextDate = CarbonImmutable::parse($date)->addDay()->toDateString();
+        // The clock the day was judged on: the person's site's, or the company's.
+        $zone = $this->rulesFor($record)->timezone;
         $map = ['time_in' => 'clock_in', 'break_start' => 'break_start', 'break_end' => 'break_end', 'time_out' => 'clock_out'];
         $previous = null;
 
@@ -308,10 +313,10 @@ class AttendanceClock
                 continue;
             }
 
-            $at = OrganizationClock::at($date, $time);
+            $at = OrganizationClock::at($date, $time, $zone);
 
             if ($previous !== null && $at->lt($previous)) {
-                $at = OrganizationClock::at($nextDate, $time);
+                $at = OrganizationClock::at($nextDate, $time, $zone);
             }
 
             $record->punches()->create([
@@ -497,7 +502,7 @@ class AttendanceClock
         return new DayContext(
             scheduledStart: $record->scheduled_start_at !== null ? CarbonImmutable::instance($record->scheduled_start_at)->utc() : null,
             scheduledEnd: $record->scheduled_end_at !== null ? CarbonImmutable::instance($record->scheduled_end_at)->utc() : null,
-            timezone: OrganizationClock::timezone(),
+            timezone: OrganizationClock::zone($rules->timezone),
             onApprovedLeave: $this->isOnApprovedLeave($record->employee_id, $date->toDateString()),
             weekRegularMinutesBefore: $rules->policy->needsWeekContext()
                 ? $sum('regular_minutes', $date->startOfWeek(CarbonInterface::MONDAY))
@@ -515,9 +520,9 @@ class AttendanceClock
      * holiday calendar — the one deliberate way a day's snapshot changes. Saves, and returns whether
      * anything about the day moved. The caller logs it.
      *
-     * @param  array<string, Holiday>|null  $holidays  The range's holidays keyed by "Y-m-d", when the caller has already loaded them.
+     * @param  HolidayMap|null  $holidays  The range's holidays, when the caller has already loaded them.
      */
-    public function reapplySchedule(AttendanceRecord $record, ?array $holidays = null): bool
+    public function reapplySchedule(AttendanceRecord $record, ?HolidayMap $holidays = null): bool
     {
         $date = $record->work_date->toDateString();
 
@@ -530,7 +535,7 @@ class AttendanceClock
         $this->snapshot(
             $record,
             $shift,
-            $holidays !== null ? ($holidays[$date] ?? null) : HolidayCalendar::on($date),
+            $holidays !== null ? $holidays->on($date, $record->employee_id) : HolidayCalendar::on($date, HolidayCalendar::siteOf($record->employee)),
             $record->employee !== null ? $this->policies->for($record->employee, $shift) : null,
         );
         $this->evaluate($record);
@@ -554,9 +559,9 @@ class AttendanceClock
      * is 6,000 days.
      *
      * @param  EloquentCollection<int, AttendanceRecord>  $records  With `employee` loaded.
-     * @param  array<string, Holiday>  $holidays  The range's holidays keyed by "Y-m-d".
+     * @param  HolidayMap  $holidays  The range's holidays, each person's.
      */
-    public function reapplyMany(EloquentCollection $records, array $holidays): int
+    public function reapplyMany(EloquentCollection $records, HolidayMap $holidays): int
     {
         if ($records->isEmpty()) {
             return 0;
@@ -575,7 +580,7 @@ class AttendanceClock
             $this->snapshot(
                 $record,
                 $shifts[$record->employee_id][$date] ?? ResolvedShift::fallback($date),
-                $holidays[$date] ?? null,
+                $holidays->on($date, $record->employee_id),
                 $policies[$record->employee_id][$date] ?? null,
             );
             $this->evaluate($record);
@@ -655,9 +660,9 @@ class AttendanceClock
      * (archived or not) — never the employee's schedule today. Does not save;
      * returns whether anything was filled.
      *
-     * @param  array<string, Holiday>|null  $holidays  The range's holidays keyed by "Y-m-d", when the caller has already loaded them.
+     * @param  HolidayMap|null  $holidays  The range's holidays, when the caller has already loaded them.
      */
-    public function fillSnapshot(AttendanceRecord $record, ?array $holidays = null): bool
+    public function fillSnapshot(AttendanceRecord $record, ?HolidayMap $holidays = null): bool
     {
         $date = $record->work_date->toDateString();
         $filled = false;
@@ -672,7 +677,9 @@ class AttendanceClock
         }
 
         if ($record->rules === null) {
-            $holiday = $holidays !== null ? ($holidays[$date] ?? null) : HolidayCalendar::on($date);
+            $holiday = $holidays !== null
+                ? $holidays->on($date, $record->employee_id)
+                : HolidayCalendar::on($date, HolidayCalendar::siteOf($record->employee_id));
 
             $record->rules = DayRules::fromShift($this->legacyShift($record, $date), $holiday)->toArray();
             $filled = true;
@@ -798,7 +805,7 @@ class AttendanceClock
      *
      * @throws AttendancePunchException
      */
-    private function assertAllowedAt(AttendanceRecord $record, string $type, CarbonImmutable $at): void
+    private function assertAllowedAt(AttendanceRecord $record, string $type, CarbonImmutable $at, ?string $zone = null): void
     {
         $punches = $this->orderedPunches($record);
         $before = $punches->filter(fn (AttendancePunch $punch): bool => $punch->punched_at->getTimestamp() <= $at->getTimestamp());
@@ -827,7 +834,7 @@ class AttendanceClock
             if (! in_array($punch->type, $this->allowedFor($state), true)) {
                 throw new AttendancePunchException(
                     'That punch would come before one already recorded at '
-                    .OrganizationClock::local($punch->punched_at)->format('g:i A').'. Ask HR to fix the day instead.',
+                    .OrganizationClock::local($punch->punched_at, $zone)->format('g:i A').'. Ask HR to fix the day instead.',
                 );
             }
 
@@ -860,11 +867,11 @@ class AttendanceClock
      *
      * @throws AttendancePunchException
      */
-    private function assertWithinOfflineWindow(AttendancePolicySettings $policy, CarbonImmutable $at, CarbonImmutable $receivedAt): void
+    private function assertWithinOfflineWindow(AttendancePolicySettings $policy, CarbonImmutable $at, CarbonImmutable $receivedAt, ?string $zone = null): void
     {
         if ($at->lt($receivedAt->subHours($policy->offlineWindowHours))) {
             throw new AttendancePunchException(
-                'This punch was made '.OrganizationClock::local($at)->format('M j, g:i A')
+                'This punch was made '.OrganizationClock::local($at, $zone)->format('M j, g:i A')
                 .', more than '.$policy->offlineWindowHours.' hours ago. Ask HR to enter it instead.',
             );
         }
@@ -1112,7 +1119,7 @@ class AttendanceClock
 
         $shift = $this->shifts->for($employee, $date);
 
-        $this->snapshot($record, $shift, HolidayCalendar::on($date), $this->policies->for($employee, $shift));
+        $this->snapshot($record, $shift, HolidayCalendar::on($date, HolidayCalendar::siteOf($employee)), $this->policies->for($employee, $shift));
         $record->setRelation('punches', new EloquentCollection);
 
         return $record;

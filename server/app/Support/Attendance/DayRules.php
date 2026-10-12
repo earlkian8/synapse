@@ -30,10 +30,14 @@ use Carbon\CarbonImmutable;
  * like editing a schedule, never re-judges a day already recorded. A version 1 or
  * 2 snapshot has none and reads as the built-in fallback, which judges exactly as
  * attendance did before policies existed.
+ *
+ * **Version 4** (ADR 0079) adds the `timezone` the day was judged on — the
+ * person's base site's, when it keeps its own clock. Null (every older snapshot)
+ * is the organisation's.
  */
 final readonly class DayRules
 {
-    public const VERSION = 3;
+    public const VERSION = 4;
 
     /** What a day requires when no schedule says otherwise — the historical eight hours. */
     public const DEFAULT_REQUIRED_MINUTES = 480;
@@ -59,6 +63,7 @@ final readonly class DayRules
         public ?int $policyId = null,
         public ?string $policyName = null,
         public string $policySource = 'fallback',
+        public ?string $timezone = null,
     ) {}
 
     /**
@@ -89,6 +94,7 @@ final readonly class DayRules
             policyId: $policy->id,
             policyName: $policy->name,
             policySource: $policy->source,
+            timezone: $shift->timezone,
         );
     }
 
@@ -117,6 +123,7 @@ final readonly class DayRules
             policyId: isset($rules['policy']['id']) ? (int) $rules['policy']['id'] : null,
             policyName: isset($rules['policy']['name']) ? (string) $rules['policy']['name'] : null,
             policySource: isset($rules['policy']['source']) ? (string) $rules['policy']['source'] : 'fallback',
+            timezone: isset($rules['timezone']) && $rules['timezone'] !== '' ? (string) $rules['timezone'] : null,
         );
     }
 
@@ -149,6 +156,7 @@ final readonly class DayRules
                 'settings_version' => AttendancePolicySettings::VERSION,
                 'settings' => $this->policy->toArray(),
             ],
+            'timezone' => $this->timezone,
         ];
     }
 

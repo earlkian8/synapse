@@ -22,16 +22,31 @@ class HolidayController extends Controller
 
     public function store(HolidayRequest $request): RedirectResponse
     {
-        $this->workflow->create($request->validated());
+        $this->workflow->create($request->holiday(), locationIds: $request->locationIds());
 
         return $this->respond('Holiday added.');
     }
 
     public function update(HolidayRequest $request, Holiday $holiday): RedirectResponse
     {
-        $this->workflow->update($holiday, $request->validated());
+        $this->workflow->update($holiday, $request->holiday(), locationIds: $request->locationIds());
 
         return $this->respond('Holiday updated.');
+    }
+
+    /**
+     * Put Holy Week and National Heroes Day on the calendar as yearly rules
+     * (ADR 0078), turning any typed in for one year into their rule.
+     */
+    public function adoptMovable(): RedirectResponse
+    {
+        ['added' => $added, 'converted' => $converted] = $this->workflow->adoptMovable();
+
+        if ($added + $converted === 0) {
+            return $this->respond('Holy Week and National Heroes Day are already worked out every year.', 'info');
+        }
+
+        return $this->respond('Holy Week and National Heroes Day now fall on the right date every year.');
     }
 
     public function destroy(Holiday $holiday): RedirectResponse

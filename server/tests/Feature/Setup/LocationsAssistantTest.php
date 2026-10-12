@@ -175,3 +175,20 @@ test('archiving and restoring go through the workflow, and another workspace’s
         ->and(locationsAgent($user, 'get_location', ['location' => 'Their Site'])->failed())->toBeTrue()
         ->and(array_column(locationsAgent($user, 'find_locations')->cards, 'title'))->toBe(['Makati Office']);
 });
+
+test('a site is given its own clock, and back to the company\'s (ADR 0079)', function () {
+    $user = actingAsSuperAdmin();
+    site('Tokyo Office');
+
+    expect(locationsAgent($user, 'update_location', ['location' => 'Tokyo Office', 'timezone' => 'Mars/Olympus'])->failed())->toBeTrue();
+
+    $set = locationsAgent($user, 'update_location', ['location' => 'Tokyo Office', 'timezone' => 'Asia/Tokyo']);
+
+    expect($set->failed())->toBeFalse()
+        ->and($set->detail)->toContain('judged on Asia/Tokyo')
+        ->and(WorkLocation::query()->where('name', 'Tokyo Office')->value('timezone'))->toBe('Asia/Tokyo');
+
+    locationsAgent($user, 'update_location', ['location' => 'Tokyo Office', 'clear_timezone' => true]);
+
+    expect(WorkLocation::query()->where('name', 'Tokyo Office')->value('timezone'))->toBeNull();
+});

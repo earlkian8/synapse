@@ -23,6 +23,11 @@ A single, sectioned edit form (no list — there is exactly one profile per tena
   with one click when it differs.
 - **Government & statutory** — the employer registration numbers payroll remits against:
   **TIN**, **SSS**, **PhilHealth** and **Pag-IBIG** employer numbers.
+- **Documents** — who signs the papers SYNAPSE generates: the **signatory's name** and
+  **title**, printed under the signature line of the Certificate of Employment and the
+  clearance form ([ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md)).
+  The documents' letterhead is this profile: the legal name, address, contacts and
+  logo.
 
 Without `setup.company.manage` the form renders **read-only** (inputs disabled, no save
 bar), so viewers can see the profile but not change it.
@@ -33,7 +38,8 @@ No new table. The editable fields already exist on `organizations` (added with
 multi-tenancy): `name`, `legal_name`, `logo`, `email`, `phone`, `address`, `tin`,
 `sss_employer_no`, `philhealth_employer_no`, `pagibig_employer_no` — plus `timezone`,
 added by ADR 0036 (IANA identifier, existing organisations back-filled with
-`Asia/Manila`). The `slug` (tenant
+`Asia/Manila`), and `document_signatory_name` / `document_signatory_title`, added by
+ADR 0077. The `slug` (tenant
 identity) is **not** editable here. `Organization::logo_url` resolves the stored logo
 path to a public URL; `Organization::initials()` powers the avatar fallback.
 
@@ -106,5 +112,6 @@ assistant ([ADR 0053](../decisions/0053-assistant-company-profile-schedules-and-
 
 ## Out of scope (this cut)
 
-Multiple branches / locations, per-document letterheads, tax-filing exports, and editing
+Multiple branches / locations (sites are [Work Locations](./work-locations.md)),
+per-document letterheads, tax-filing exports, and editing
 the tenant `slug` (it is the stable tenant identity).

@@ -85,7 +85,7 @@ export default function RegisterScreen() {
   return (
     <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
-        <BrandLockup markWidth={88} />
+        <BrandLockup markSize={67} />
       </Animated.View>
 
       <Animated.View entering={enter(1)} style={styles.heading}>

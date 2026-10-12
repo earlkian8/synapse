@@ -93,6 +93,11 @@ export type AttendanceRecord = {
     scheduled_end_at?: string | null;
     /** The schedule the day was judged by, as it was named then. */
     schedule_name?: string | null;
+    /**
+     * The clock the day was judged on, when it is the person's site's own
+     * (ADR 0079). Null: the organisation's — show its times on that.
+     */
+    timezone?: string | null;
     /** The holiday the day fell on, when it was judged. */
     holiday?: AttendanceHoliday | null;
     /** The attendance policy the day was judged by; no name is the built-in rules. */
@@ -199,6 +204,8 @@ export type WeekCell = {
     undertime_minutes: number;
     first_in_at: string | null;
     last_out_at: string | null;
+    /** The clock the day was judged on, when it is a site's own (ADR 0079). */
+    timezone?: string | null;
     flags: AttendanceFlag[];
     /** The holiday's name, when the day is one. */
     holiday: string | null;

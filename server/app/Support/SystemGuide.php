@@ -232,10 +232,31 @@ final class SystemGuide
         ],
         'offboarding' => [
             'title' => 'Offboarding', 'menu' => 'Offboarding', 'path' => '/offboarding', 'any' => ['offboarding.view'],
-            'about' => 'Exits: the reason and last day, and a clearance checklist signed off by departments.',
-            'tasks' => ['Start an exit', 'Track and sign off clearance items', 'Complete, cancel or reopen an exit'],
-            'assistant' => 'Everything on this screen; starting, completing, deleting and bulk sign-offs wait for your confirmation.',
-            'keywords' => ['exit', 'resignation', 'separation', 'clearance', 'offboard', 'leaving'],
+            'about' => 'Exits: the reason and last day, a clearance checklist signed off by departments, the exit interview sent to the leaver, and the papers — the clearance form and, once the exit is completed, the Certificate of Employment — as PDFs.',
+            'tasks' => ['Start an exit', 'Track and sign off clearance items', 'Complete, cancel or reopen an exit', 'Print the clearance form', 'Issue a Certificate of Employment'],
+            'assistant' => 'Everything on this screen but the PDFs; starting, completing, deleting and bulk sign-offs wait for your confirmation.',
+            'keywords' => ['exit', 'separation', 'clearance', 'offboard', 'leaving', 'clearance form', 'certificate of employment', 'coe'],
+        ],
+        'resignations' => [
+            'title' => 'Resignations', 'menu' => 'Offboarding', 'path' => '/offboarding/resignations', 'any' => ['offboarding.view'],
+            'about' => 'Resignations employees filed themselves, from the web or the app, waiting ones first, with the notice each gives (the Labor Code asks for 30 days). Accept one — agreeing the last day — and their exit and clearance start; decline one with a note they see.',
+            'tasks' => ['Accept a resignation', 'Decline a resignation'],
+            'assistant' => 'Not in chat: decide resignations on this screen.',
+            'keywords' => ['resignation', 'resign', 'resignation letter', 'notice period', 'quit'],
+        ],
+        'exit-interviews' => [
+            'title' => 'Exit interviews', 'menu' => 'Offboarding', 'path' => '/offboarding/interviews', 'any' => ['offboarding.view'],
+            'about' => 'What leavers said in the survey sent with every exit (but a termination): why people leave, how they rate seven parts of their time here, whether they would recommend you or come back — over the last 3, 6 or 12 months — and every survey, answered or not.',
+            'tasks' => ['See why people leave', 'Read one leaver\'s answers', 'Send or waive an exit interview'],
+            'assistant' => 'Not in chat: read exit interviews on this screen.',
+            'keywords' => ['exit interview', 'exit survey', 'why people leave', 'leaver feedback', 'turnover reasons'],
+        ],
+        'my-resignation' => [
+            'title' => 'My resignation', 'menu' => 'Offboarding (also the mobile app)', 'path' => '/offboarding/me', 'any' => ['offboarding.resign'],
+            'about' => 'File your resignation with the last day you propose, and withdraw it while HR has not decided. Once HR accepts it, follow your exit: your last day, your clearance item by item, your exit interview, and your Certificate of Employment once the exit is completed.',
+            'tasks' => ['File your resignation', 'Withdraw your resignation', 'Answer your exit interview', 'Download your Certificate of Employment'],
+            'assistant' => 'Not in chat: resign on this screen or in the app.',
+            'keywords' => ['resign', 'resignation', 'quit', 'leave the company', 'last day', 'certificate of employment', 'coe', 'exit interview', 'clearance'],
         ],
         'attrition' => [
             'title' => 'Attrition Risk', 'menu' => 'Analytics & AI', 'path' => '/analytics/attrition', 'any' => ['analytics.attrition.view'],
@@ -288,10 +309,10 @@ final class SystemGuide
         ],
         'schedule' => [
             'title' => 'Work Schedule & Holidays', 'menu' => 'Company Setup', 'path' => '/setup/schedule', 'any' => ['setup.schedule.view'],
-            'about' => 'Work schedules (days and hours) and the holiday calendar.',
-            'tasks' => ['Create and edit schedules', 'Set the company default schedule', 'Add holidays'],
+            'about' => 'Work schedules (days and hours) and the holiday calendar. A holiday can fall on the same date every year, follow Easter (Holy Week), fall on a weekday of a month (National Heroes Day), or be kept at some sites only (a local holiday).',
+            'tasks' => ['Create and edit schedules', 'Set the company default schedule', 'Add holidays', 'Add Holy Week', 'Add a local holiday for a site'],
             'assistant' => 'Everything on this screen.',
-            'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'calendar', 'rest day'],
+            'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'calendar', 'rest day', 'holy week', 'maundy thursday', 'good friday', 'local holiday', 'regional holiday'],
         ],
         'roster' => [
             'title' => 'Shift Roster', 'menu' => 'Company Setup', 'path' => '/setup/roster', 'any' => ['setup.roster.view'],
@@ -309,10 +330,10 @@ final class SystemGuide
         ],
         'locations' => [
             'title' => 'Locations', 'menu' => 'Company Setup', 'path' => '/setup/locations', 'any' => ['setup.locations.view'],
-            'about' => 'Work sites, their geofence for clocking in, and who is based where.',
-            'tasks' => ['Add and edit sites', 'Base people at a site'],
+            'about' => 'Work sites, their geofence for clocking in — a circle, or a shape drawn corner by corner — the clock each keeps, and who is based where.',
+            'tasks' => ['Add and edit sites', 'Draw a site\'s fence as a shape', 'Give a site its own time zone', 'Base people at a site'],
             'assistant' => 'Read, update, base and unbase people, archive and restore.',
-            'keywords' => ['location', 'site', 'branch', 'office', 'geofence'],
+            'keywords' => ['location', 'site', 'branch', 'office', 'geofence', 'polygon', 'time zone', 'timezone'],
         ],
         'leave-types' => [
             'title' => 'Leave Types', 'menu' => 'Company Setup', 'path' => '/setup/leave-types', 'any' => ['setup.leave-types.view'],
@@ -398,6 +419,13 @@ final class SystemGuide
             'assistant' => 'Point you to it; exports are prepared and downloaded on the screen, never in chat.',
             'keywords' => ['export', 'data export', 'backup', 'back up', 'download all', 'copy of our data', 'archive', 'data portability', 'leave synapse', 'migrate'],
         ],
+        'product-tour' => [
+            'title' => 'Product Tour', 'menu' => 'System', 'path' => '/system/product-tour', 'any' => ['product-tour.view'],
+            'about' => 'How the workspace\'s people move through the tour of the app, on the web or in the mobile app: how many runs start, walk to the end, are skipped or left part-way, and, stop by stop, how many reach each one and where people stop. Filter by version of the tour and by period.',
+            'tasks' => ['See how many people finish the tour', 'Find the stop where people leave it', 'Compare the web and the mobile app tours'],
+            'assistant' => 'Point you to it; the figures are read on the screen.',
+            'keywords' => ['tour analytics', 'tour completion', 'tour funnel', 'who finished the tour', 'tour drop-off', 'tour stats'],
+        ],
         'settings' => [
             'title' => 'Your settings', 'menu' => 'Account menu → Settings', 'path' => '/settings/profile', 'any' => [],
             'about' => 'Your own profile, password, two-step sign-in and passkeys, and light or dark appearance.',
@@ -435,8 +463,8 @@ final class SystemGuide
         ],
         'tour' => [
             'title' => 'The product tour', 'menu' => 'Help (the question mark in the top bar) → Take the tour', 'path' => '', 'any' => [],
-            'about' => 'A one-minute walk around the app — the sidebar sections you can open, notifications, your account menu and this assistant — shown once on your first visit, and any time again from the Help menu.',
-            'tasks' => ['Replay the tour from the Help menu'],
+            'about' => 'A one-minute walk around the app — the sidebar sections you can open, search, notifications, your account menu and this assistant — shown once on your first visit, and any time again from the Help menu. When the tour gains new stops, people who already took it are offered a short "What\'s new" with just those. The mobile app has its own short tour of its tabs, replayed from Profile → Take the tour.',
+            'tasks' => ['Replay the tour from the Help menu', 'Take the app\'s tour again from Profile → Take the tour'],
             'assistant' => 'Point you to it; the tour is started from the Help menu, not from chat.',
             'keywords' => ['tour', 'tutorial', 'walkthrough', 'getting started', 'show me around', 'new here', 'first time'],
         ],

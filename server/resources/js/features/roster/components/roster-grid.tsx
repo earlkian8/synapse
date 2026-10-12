@@ -104,10 +104,17 @@ export function RosterGrid({
                                 </div>
                             </div>
 
-                            {row.cells.map((cell) => (
+                            {row.cells.map((cell, index) => (
                                 <ShiftCell
                                     key={cell.date}
                                     cell={cell}
+                                    localHoliday={
+                                        cell.holiday &&
+                                        cell.holiday !==
+                                            roster.days[index]?.holiday
+                                            ? cell.holiday
+                                            : null
+                                    }
                                     employeeName={row.employee.full_name}
                                     canManage={canManage}
                                     onPick={() => onPickCell(row, cell)}
@@ -130,11 +137,14 @@ export function RosterGrid({
 
 function ShiftCell({
     cell,
+    localHoliday,
     employeeName,
     canManage,
     onPick,
 }: {
     cell: RosterCell;
+    /** A holiday only this person's site keeps, which the column does not name. */
+    localHoliday: string | null;
     employeeName: string;
     canManage: boolean;
     onPick: () => void;
@@ -163,9 +173,14 @@ function ShiftCell({
             >
                 {cell.label}
             </span>
-            {cell.is_working_day && cell.schedule_name && (
+            {cell.is_working_day && cell.schedule_name && !localHoliday && (
                 <span className="max-w-full truncate text-[10px] text-muted-foreground">
                     {cell.schedule_name}
+                </span>
+            )}
+            {localHoliday && (
+                <span className="max-w-full truncate text-[10px] text-indigo-600 dark:text-indigo-400">
+                    {localHoliday}
                 </span>
             )}
         </span>
@@ -195,6 +210,11 @@ function ShiftCell({
                 </p>
                 {cell.reason && (
                     <p className="text-xs opacity-80">{cell.reason}</p>
+                )}
+                {localHoliday && (
+                    <p className="text-xs opacity-80">
+                        {localHoliday} — a holiday at their site
+                    </p>
                 )}
             </TooltipContent>
         </Tooltip>

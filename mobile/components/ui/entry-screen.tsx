@@ -84,24 +84,23 @@ function Ground({ children, scroll, grouped, keyboardAnchor, contentStyle }: Ent
 }
 
 type BrandLockupProps = {
-  /** Width of the mark in points; the wordmark scales with it. */
-  markWidth?: number;
+  /** Height of the mark in points; the wordmark scales with it. */
+  markSize?: number;
   tagline?: string;
 };
 
 /**
- * The mark over the SYNAPSE wordmark, in navy. The mark is its original colourway —
- * navy figure, teal network — the one drawn for a light ground. The wordmark is
- * widely tracked, as a wordmark is, and set a weight lighter than a heading so it
- * reads as a name rather than a shout.
+ * The mark over the SYNAPSE wordmark, in navy. The mark is its original colourway,
+ * the one drawn for a light ground. The wordmark is widely tracked, as a wordmark is,
+ * and set a weight lighter than a heading so it reads as a name rather than a shout.
  */
-export function BrandLockup({ markWidth = 152, tagline }: BrandLockupProps) {
+export function BrandLockup({ markSize = 112, tagline }: BrandLockupProps) {
   const { colors } = useTheme();
-  const size = Math.round(markWidth * 0.16);
+  const size = Math.round(markSize * 0.21);
 
   return (
     <View style={styles.lockup} accessibilityRole="header" accessibilityLabel="SYNAPSE">
-      <Logo width={markWidth} surface="light" />
+      <Logo size={markSize} surface="light" />
       <AppText
         weight="semibold"
         color={colors.brandText}

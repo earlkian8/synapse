@@ -113,8 +113,8 @@ class SystemNotification extends Notification implements ShouldQueue
     {
         return (new WebPushMessage)
             ->title($this->title)
-            ->icon('/favicon.ico')
-            ->badge('/favicon.ico')
+            ->icon('/icon-192.png')
+            ->badge('/badge-96.png')
             ->body($this->body)
             ->tag($notification->id)
             ->data(['url' => $this->url, 'id' => $notification->id])

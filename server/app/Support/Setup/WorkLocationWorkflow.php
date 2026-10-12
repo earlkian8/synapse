@@ -33,7 +33,9 @@ class WorkLocationWorkflow
     {
         $location = WorkLocation::create($attributes);
 
-        $this->log('created', "Created work location \"{$location->name}\" ({$location->radius_meters} m fence){$channel}", $location);
+        $fence = $location->shape() !== null ? 'a fence of '.count($location->shape()).' corners' : "{$location->radius_meters} m fence";
+
+        $this->log('created', "Created work location \"{$location->name}\" ({$fence}){$channel}", $location);
 
         return $location;
     }

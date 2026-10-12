@@ -44,9 +44,11 @@ export function TourFinish({ tour }: { tour: ProductTourApi }) {
                         Tour complete
                     </p>
                     <DialogPrimitive.Title className="mt-1.5 text-xl leading-snug font-semibold tracking-tight">
-                        {firstVisit
-                            ? `You're all set, ${auth.user.first_name}.`
-                            : "That's the tour."}
+                        {tour.kind === 'whats_new'
+                            ? "That's what's new."
+                            : firstVisit
+                              ? `You're all set, ${auth.user.first_name}.`
+                              : "That's the tour."}
                     </DialogPrimitive.Title>
                 </div>
             </div>

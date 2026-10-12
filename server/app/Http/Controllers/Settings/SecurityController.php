@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Support\Users\OwnAccount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -51,13 +52,12 @@ class SecurityController extends Controller
     }
 
     /**
-     * Update the user's password.
+     * Update the user's password. The mobile app is signed out on every phone,
+     * since the old password may be what signed it in ({@see OwnAccount}).
      */
-    public function update(PasswordUpdateRequest $request): RedirectResponse
+    public function update(PasswordUpdateRequest $request, OwnAccount $account): RedirectResponse
     {
-        $request->user()->update([
-            'password' => $request->password,
-        ]);
+        $account->changePassword($request->user(), $request->string('password')->toString());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Password updated.')]);
 

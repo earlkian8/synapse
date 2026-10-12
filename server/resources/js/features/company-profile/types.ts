@@ -14,6 +14,9 @@ export type CompanyProfile = {
     sss_employer_no: string | null;
     philhealth_employer_no: string | null;
     pagibig_employer_no: string | null;
+    /** Who signs the documents the system generates (ADR 0077). */
+    document_signatory_name: string | null;
+    document_signatory_title: string | null;
     logo: string | null;
     logo_url: string | null;
     initials: string;

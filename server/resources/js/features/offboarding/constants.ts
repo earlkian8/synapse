@@ -3,7 +3,9 @@ import type {
     ClearanceStatus,
     DerivedClearanceStatus,
     EmploymentType,
+    InterviewStatus,
     OffboardingType,
+    ResignationStatus,
 } from './types';
 
 export const DEFAULT_FILTERS = {
@@ -120,4 +122,108 @@ export function formatShortDate(date: string): string {
         month: 'short',
         day: 'numeric',
     });
+}
+
+// ── Resignations and exit interviews (ADR 0076) ──────────────────────────────
+
+export const RESIGNATION_STATUS_LABELS: Record<ResignationStatus, string> = {
+    pending: 'Waiting for HR',
+    accepted: 'Accepted',
+    declined: 'Declined',
+    withdrawn: 'Withdrawn',
+};
+
+export const RESIGNATION_STATUS_STYLES: Record<ResignationStatus, string> = {
+    pending:
+        'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    accepted:
+        'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    declined:
+        'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    withdrawn:
+        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+};
+
+export const RESIGNATION_FILTERS = [
+    { value: 'pending', label: 'Waiting for HR' },
+    { value: 'accepted', label: 'Accepted' },
+    { value: 'declined', label: 'Declined' },
+    { value: 'withdrawn', label: 'Withdrawn' },
+    { value: 'all', label: 'All statuses' },
+] as const;
+
+export const INTERVIEW_STATUS_LABELS: Record<InterviewStatus, string> = {
+    pending: 'Waiting for answers',
+    submitted: 'Answered',
+    waived: 'Waived',
+};
+
+export const INTERVIEW_STATUS_STYLES: Record<InterviewStatus, string> = {
+    pending:
+        'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    submitted:
+        'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    waived: 'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+};
+
+export const YES_MAYBE_NO_LABELS: Record<'yes' | 'maybe' | 'no', string> = {
+    yes: 'Yes',
+    maybe: 'Maybe',
+    no: 'No',
+};
+
+/** A calendar date ("Y-m-d") read as a day, not as UTC midnight. */
+function asDay(iso: string): Date {
+    return new Date(`${iso.slice(0, 10)}T00:00:00`);
+}
+
+/** "Oct 11, 2026" from a calendar date, whatever zone the browser is in. */
+export function formatDay(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    return asDay(iso).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+/** Whole days from one calendar date to another (negative when before). */
+export function daysBetween(from: string, to: string): number {
+    return Math.round(
+        (asDay(to).getTime() - asDay(from).getTime()) / 86_400_000,
+    );
+}
+
+/** A calendar date `days` after another, as "Y-m-d". */
+export function addDays(iso: string, days: number): string {
+    const date = asDay(iso);
+    date.setDate(date.getDate() + days);
+
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+}
+
+/** "in 12 days", "tomorrow", "today", "3 days ago". */
+export function relativeDay(today: string, iso: string): string {
+    const days = daysBetween(today, iso);
+
+    if (days === 0) {
+        return 'today';
+    }
+
+    if (days === 1) {
+        return 'tomorrow';
+    }
+
+    if (days === -1) {
+        return 'yesterday';
+    }
+
+    return days > 0 ? `in ${days} days` : `${-days} days ago`;
 }

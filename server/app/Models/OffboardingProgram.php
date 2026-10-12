@@ -65,4 +65,28 @@ class OffboardingProgram extends Model
     {
         return $this->hasMany(OffboardingCase::class);
     }
+
+    /**
+     * Active clearance templates as a picker offers them — starting an exit,
+     * accepting a resignation, adding a template's items. Default first, then
+     * alphabetical.
+     *
+     * @return list<array{id: int, name: string, is_default: bool, items_count: int}>
+     */
+    public static function options(): array
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->withCount('items')
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_default'])
+            ->map(fn (OffboardingProgram $program): array => [
+                'id' => $program->id,
+                'name' => $program->name,
+                'is_default' => (bool) $program->is_default,
+                'items_count' => (int) $program->items_count,
+            ])
+            ->all();
+    }
 }

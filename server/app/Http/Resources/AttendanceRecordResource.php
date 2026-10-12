@@ -41,6 +41,9 @@ class AttendanceRecordResource extends JsonResource
                 'source' => $this->rules['policy']['source'] ?? 'fallback',
             ],
             'flags' => array_values($this->flags ?? []),
+            // The clock the day was judged on, when it is a site's own (ADR 0079).
+            // Null: the organisation's — show its times on that.
+            'timezone' => filled($this->rules['timezone'] ?? null) ? $this->rules['timezone'] : null,
 
             'first_in_at' => $this->first_in_at?->toIso8601String(),
             'last_out_at' => $this->last_out_at?->toIso8601String(),
@@ -107,7 +110,7 @@ class AttendanceRecordResource extends JsonResource
                     // whether the punch was on it, and whether a phone queued it
                     // while offline.
                     'location' => $punch->relationLoaded('location') && $punch->location !== null
-                        ? ['name' => $punch->location->name, 'radius_meters' => (int) $punch->location->radius_meters]
+                        ? ['name' => $punch->location->name, 'radius_meters' => (int) $punch->location->radius_meters, 'fence_type' => $punch->location->fence_type ?? 'circle']
                         : null,
                     'distance_meters' => $punch->distance_meters,
                     'within_geofence' => $punch->within_geofence,

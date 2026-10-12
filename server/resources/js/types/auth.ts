@@ -36,8 +36,16 @@ export type Auth = {
     roles: string[];
     permissions: string[];
     is_super_admin: boolean;
-    /** The first-run tour (ADR 0060): whether it is still to be offered. */
-    tour: { owed: boolean } | null;
+    /**
+     * The tour (ADRs 0060, 0080): whether one is still to be offered — the
+     * first, or a "What's new" of the stops added since `seen_version`.
+     */
+    tour: {
+        owed: boolean;
+        mode: 'first' | 'whats_new' | null;
+        version: number;
+        seen_version: number | null;
+    } | null;
     /** Whether the assistant is offered in this workspace (AssistantAccess). */
     assistant: boolean;
 };

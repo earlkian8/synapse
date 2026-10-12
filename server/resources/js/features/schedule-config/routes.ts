@@ -18,6 +18,8 @@ export const scheduleConfigRoutes = {
     },
     holidays: {
         store: '/setup/schedule/holidays',
+        /** Holy Week and National Heroes Day as yearly rules (ADR 0078). */
+        movable: '/setup/schedule/holidays/movable',
         update: (hashid: string) => `/setup/schedule/holidays/${hashid}`,
         destroy: (hashid: string) => `/setup/schedule/holidays/${hashid}`,
         restore: (hashid: string) =>

@@ -12,7 +12,8 @@ use Carbon\CarbonImmutable;
  *
  * Clock-face times (`segments`, `coreStart`, …) are how the schedule is written;
  * the instants beside them ({@see instants()}, {@see startsAt()}) are those
- * readings turned into moments on the organisation's clock, with each segment
+ * readings turned into moments on the organisation's clock — or the person's
+ * base site's, when it keeps its own (`timezone`, ADR 0079) — with each segment
  * rolled forward when it lands before the one before it — so a 22:00–06:00 shift
  * ends the next morning and an evening half of a split shift stays after the
  * morning half.
@@ -44,7 +45,39 @@ final readonly class ResolvedShift
         public ?string $scheduleName = null,
         public ?int $cycleOffset = null,
         public ?int $dayIndex = null,
+        public ?string $timezone = null,
     ) {}
+
+    /**
+     * The same shift read on another clock — the person's base site's, when it
+     * keeps its own (ADR 0079). Null is the organisation's.
+     */
+    public function inZone(?string $timezone): self
+    {
+        if ($timezone === $this->timezone) {
+            return $this;
+        }
+
+        return new self(
+            date: $this->date,
+            type: $this->type,
+            isWorkingDay: $this->isWorkingDay,
+            segments: $this->segments,
+            requiredMinutes: $this->requiredMinutes,
+            graceMinutes: $this->graceMinutes,
+            unpaidBreakMinutes: $this->unpaidBreakMinutes,
+            source: $this->source,
+            coreStart: $this->coreStart,
+            coreEnd: $this->coreEnd,
+            earliestStart: $this->earliestStart,
+            latestEnd: $this->latestEnd,
+            scheduleId: $this->scheduleId,
+            scheduleName: $this->scheduleName,
+            cycleOffset: $this->cycleOffset,
+            dayIndex: $this->dayIndex,
+            timezone: $timezone,
+        );
+    }
 
     /**
      * The shift a tenant with nothing configured works: Mon–Fri, 08:00–17:00,
@@ -81,20 +114,20 @@ final readonly class ResolvedShift
 
         foreach ($this->segments as $segment) {
             $date = $this->date;
-            $start = OrganizationClock::at($date, $segment['start']);
+            $start = OrganizationClock::at($date, $segment['start'], $this->timezone);
 
             // A segment that would begin before the previous one ended belongs to
             // the next day: the second half of a split shift that runs past
             // midnight, or a rotation's late start.
             if ($floor !== null && $start->lt($floor)) {
                 $date = CarbonImmutable::parse($date)->addDay()->toDateString();
-                $start = OrganizationClock::at($date, $segment['start']);
+                $start = OrganizationClock::at($date, $segment['start'], $this->timezone);
             }
 
-            $end = OrganizationClock::at($date, $segment['end']);
+            $end = OrganizationClock::at($date, $segment['end'], $this->timezone);
 
             if ($end->lte($start)) {
-                $end = OrganizationClock::at(CarbonImmutable::parse($date)->addDay()->toDateString(), $segment['end']);
+                $end = OrganizationClock::at(CarbonImmutable::parse($date)->addDay()->toDateString(), $segment['end'], $this->timezone);
             }
 
             $out[] = [$start, $end];
@@ -153,11 +186,11 @@ final readonly class ResolvedShift
             return [null, null];
         }
 
-        $start = OrganizationClock::at($this->date, $this->coreStart);
-        $end = OrganizationClock::at($this->date, $this->coreEnd);
+        $start = OrganizationClock::at($this->date, $this->coreStart, $this->timezone);
+        $end = OrganizationClock::at($this->date, $this->coreEnd, $this->timezone);
 
         if ($end->lte($start)) {
-            $end = OrganizationClock::at(CarbonImmutable::parse($this->date)->addDay()->toDateString(), $this->coreEnd);
+            $end = OrganizationClock::at(CarbonImmutable::parse($this->date)->addDay()->toDateString(), $this->coreEnd, $this->timezone);
         }
 
         return [$start, $end];
@@ -172,11 +205,11 @@ final readonly class ResolvedShift
     public function acceptWindow(): array
     {
         if ($this->type === 'flexible' && $this->earliestStart !== null && $this->latestEnd !== null) {
-            $start = OrganizationClock::at($this->date, $this->earliestStart);
-            $end = OrganizationClock::at($this->date, $this->latestEnd);
+            $start = OrganizationClock::at($this->date, $this->earliestStart, $this->timezone);
+            $end = OrganizationClock::at($this->date, $this->latestEnd, $this->timezone);
 
             if ($end->lte($start)) {
-                $end = OrganizationClock::at(CarbonImmutable::parse($this->date)->addDay()->toDateString(), $this->latestEnd);
+                $end = OrganizationClock::at(CarbonImmutable::parse($this->date)->addDay()->toDateString(), $this->latestEnd, $this->timezone);
             }
 
             return [$start, $end];

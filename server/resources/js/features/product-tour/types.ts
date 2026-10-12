@@ -12,6 +12,15 @@ export type TourOutcome = 'completed' | 'skipped';
  */
 export type TourTrigger = 'auto' | 'manual';
 
+/**
+ * What a run is (ADR 0080): the whole tour, or only the stops added since the
+ * version the person last answered.
+ */
+export type TourKind = 'full' | 'whats_new';
+
+/** How the server files a run. Mirrors `ProductTourRun::MODES`. */
+export type TourRunMode = 'first' | 'whats_new' | 'replay';
+
 /** Which side of its target a stop's card sits on. */
 export type TourSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -33,6 +42,11 @@ export type TourStop = {
     padding: number;
     /** The spotlight's corner radius — a round button gets a round light. */
     radius: number;
+    /**
+     * The tour version that added (or changed) this stop (ADR 0080). Somebody
+     * who answered an earlier version is shown it in "What's new".
+     */
+    since: number;
 };
 
 /** The opening card, centred, before any stop. */

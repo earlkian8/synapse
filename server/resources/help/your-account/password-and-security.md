@@ -4,6 +4,8 @@ Everything that protects your account is under your account menu → **Settings*
 
 Enter your current password, then the new one twice, and choose **Save**. Use a long password you don't use anywhere else — a password manager can make one for you.
 
+A new password signs the SYNAPSE mobile app out on every phone, so sign in there again with it. You can also change your password in the app, from **Profile** → **Account** → **Change password**.
+
 ## Two-factor authentication
 
 With two-factor authentication on, signing in takes your password **and** a 6-digit code from an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, 1Password and similar). Someone who learns your password still can't get in.

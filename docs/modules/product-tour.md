@@ -8,7 +8,9 @@ replayed any time from **Help** in the top bar.
 
 > Status: **Active** · Endpoint: `POST /settings/tour`
 > Replayed from: the top bar → Help (the question mark) → *Take the tour*
-> See [ADR 0060](../decisions/0060-a-first-run-tour-of-the-app.md).
+> See [ADR 0060](../decisions/0060-a-first-run-tour-of-the-app.md), and
+> [ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md)
+> for versions, recorded runs, System → Product Tour and the app's tour.
 
 ## Why it exists
 
@@ -33,10 +35,11 @@ what that person's role can open.
 | 6 | Analytics & AI | the section | 〃 |
 | 7 | Company setup | the section | 〃 |
 | 8 | System | the section | 〃 |
-| 9 | Notifications | the bell | always |
-| 10 | Help | the question mark | always; points at the [Help Center](./help-center.md), and mentions the Setup Guide to `setup.company.manage` |
-| 11 | Your account | the avatar | always |
-| 12 | Assistant | the Assistant button in the top bar | the assistant is offered to the person |
+| 9 | Search | the search box in the top bar (or its icon on a phone) | always; added in version 2 |
+| 10 | Notifications | the bell | always |
+| 11 | Help | the question mark | always; points at the [Help Center](./help-center.md), and mentions the Setup Guide to `setup.company.manage` |
+| 12 | Your account | the avatar | always |
+| 13 | Assistant | the Assistant button in the top bar | the assistant is offered to the person |
 | — | **Send-off** | centred | always: up to three places to start, and where the tour lives now |
 
 A section's card lists **the section's screens the person can open**, each with a
@@ -52,8 +55,8 @@ hiring* (`recruitment.view`), *Review leave requests* (`leave.view` and
 (`attendance.clock`), and *Complete your profile* (everyone). An owner is pointed at
 bringing people in; a member of staff at their own time record.
 
-In practice, the built-in **HR Manager** gets all 12 stops and **Staff** get 6
-(workspace, dashboard, system, notifications, help, account).
+In practice, the built-in **HR Manager** gets all 13 stops and **Staff** get 7
+(workspace, dashboard, system, search, notifications, help, account).
 
 ### Only what is on screen
 
@@ -77,23 +80,71 @@ card is shown in the middle of the screen instead of pointing at nothing.
   records `skipped`. A toast then says where to replay it. Finishing on the send-off,
   by any means (its button, Escape, or one of its suggestions), records `completed`.
   A click on the dimmed page does nothing, so nobody leaves by accident.
-- **Replays are not recorded.** Once answered, the tour can be taken again from Help as
-  often as wanted. The first answer stands on the server, and a double submit cannot
-  rewrite it.
+- **Replays change nothing owed.** Once answered, the tour can be taken again from Help
+  as often as wanted. The first answer stands on the server, and a double submit cannot
+  rewrite it. Every run, replays included, is still recorded for the per-stop numbers
+  (below).
 - **The keyboard works it.** Focus opens on the forward button, so Enter walks the tour.
   → and ← step through it, and Escape leaves. Every card is a modal dialog with a
   labelled title and description.
 - **Motion.** The spotlight glides from stop to stop and each card animates in from
   its target's side. Under `prefers-reduced-motion` both are still.
 
+## Versions and *What's new*
+
+`ProductTour::VERSION` is the web tour's version (**2**: version 2 added *Search*). A
+stop added later carries `since` that version in `steps.ts` (default 1).
+`ProductTour::mode()` says what is owed: **first** (never answered), **whats_new**
+(answered an earlier version) or nothing. A *What's new* run shows only the stops
+added since the version the person answered, under a *What's new* welcome and its
+own send-off. Answering it moves `tour_version` on and never
+touches the first answer.
+
+To add a stop: raise `VERSION`, mark the stop `since` it, and add its label to
+`ProductTourFunnel::LABELS`.
+
+## Every run is recorded
+
+The browser opens a run when a tour starts (`POST /settings/tour/runs`, with the mode
+and the stop ids it will show), moves it on at each stop (`PATCH
+/settings/tour/runs/{run}`; going back never lowers how far it got), and closes it with
+its answer (`run` on `POST /settings/tour`). The app does the same on `/api/tour/…`.
+
+**System → Product Tour** (`/system/product-tour`, `product-tour.view`, granted to HR
+Manager) reads them through `ProductTourFunnel`, for one platform (web or app), one
+version, over the last 1, 3, 6 or 12 months:
+
+- tiles: runs started (and by how many people), walked to the end, skipped, and left
+  part-way (no answer an hour after starting), with first runs, *What's new* and
+  replays counted beneath;
+- **Stop by stop**, a table: each stop in order, how many runs showed it, a bar of how
+  many of those reached it, and how many runs ended there without finishing. A stop
+  where a quarter or more of the leavers left is marked.
+
+## The app's tour
+
+The mobile app has its own tour (`MOBILE_VERSION` = 1): a spotlight over the tab bar
+with a card above it, stopping at Home, Attendance, Clock, Leave and Profile between a
+welcome and a send-off. The session's `user.tour.owed` offers it once after sign-in;
+**Profile → Take the tour** replays it. It is answered on `POST /api/tour/finish` and
+recorded apart from the web's (`mobile_tour_version`, `mobile_tour_finished_at`): the
+two walk different screens.
+
 ## Data model
 
-No new table. Two columns on `users` (see [users table](../database/users-table.md)):
+Columns on `users` (see [users table](../database/users-table.md)):
 
 | Column | Notes |
 | --- | --- |
 | `tour_finished_at` | Null means "offer the tour". Set the first time it is finished or skipped. |
 | `tour_outcome` | `completed` or `skipped`. Null on accounts back-filled by the migration, which were never offered the tour. |
+| `tour_version` | The web tour version last answered (ADR 0080). Back-filled to 1 for everybody who had finished. |
+| `mobile_tour_version`, `mobile_tour_finished_at` | The app's tour, answered (ADR 0080). |
+
+And `product_tour_runs`, one row per run: user, platform, version, mode, the stop ids,
+the furthest stop reached and the last shown, the outcome, and when it started and
+ended. It is tenant-scoped and left out of the data export (product telemetry, not an
+HR record).
 
 The tour belongs to the **person**, not to a workspace, because it describes the app
 and the app is the same in every company they belong to. Neither column is fillable or
@@ -116,8 +167,11 @@ login is therefore offered the tour once.
   `204 No Content`. It is a background call, so the page underneath must not reload.
 - **Route:** `POST /settings/tour` → `tour.finish`, under `auth` + `verified` beside the
   other account settings.
-- **Shared props:** `HandleInertiaRequests` adds `auth.tour = { owed: bool }` (null for
-  guests).
+- **Shared props:** `HandleInertiaRequests` adds `auth.tour = ProductTour::state()` —
+  `{ owed, mode, version, seen_version }` (null for guests).
+- **Runs:** `ProductTour::startRun / reach / endRun`, through
+  `ProductTourController@start` / `@reach` (`StartTourRunRequest`,
+  `ReachTourStepRequest`) and `Api\TourController` for the app.
 - **Not activity-logged.** Like a profile edit, it is the person's own account state,
   not something the company keeps.
 - **The assistant** knows where the tour is: `SystemGuide` has a `tour` entry ("how do
@@ -176,7 +230,8 @@ Around it:
 - **Assistant**: a tour stop, and the tour is a `SystemGuide` entry.
 - **Help Center** ([module doc](./help-center.md)): reached from the same Help menu,
   and its *Still need help?* panel replays the tour.
-- **Tests**: `Settings/ProductTourTest` covers the owed flag in the shared props, the
+- **Tests**: `Settings/ProductTourVersionsTest` covers versions, *What's new*, runs,
+  the funnel and the app's tour. `Settings/ProductTourTest` covers the owed flag in the shared props, the
   flag kept off the user payload, finishing, skipping, the first answer standing,
   `updated_at` left alone, validation, guests, a new registration owing the tour, the
   migration's back-fill, and the guide entry.

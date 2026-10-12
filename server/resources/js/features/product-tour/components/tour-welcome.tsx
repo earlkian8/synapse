@@ -21,6 +21,7 @@ export function TourWelcome({ tour }: { tour: ProductTourApi }) {
     const primary = useRef<HTMLButtonElement>(null);
 
     const firstVisit = tour.trigger === 'auto';
+    const whatsNew = tour.kind === 'whats_new';
     const organization = auth.organization?.name ?? 'your company';
     const count = tour.stops.length;
 
@@ -43,21 +44,29 @@ export function TourWelcome({ tour }: { tour: ProductTourApi }) {
                 <div className="relative">
                     <AppLogoIcon surface="dark" className="h-8 w-auto" />
                     <p className="mt-5 text-[11px] font-semibold tracking-[0.14em] text-[#0ABFBF] uppercase">
-                        {firstVisit ? 'Welcome to SYNAPSE' : 'Product tour'}
+                        {whatsNew
+                            ? "What's new"
+                            : firstVisit
+                              ? 'Welcome to SYNAPSE'
+                              : 'Product tour'}
                     </p>
                     <DialogPrimitive.Title className="mt-1.5 text-xl leading-snug font-semibold tracking-tight">
-                        {firstVisit
-                            ? `Hi ${auth.user.first_name}, let's show you around.`
-                            : 'A quick look around.'}
+                        {whatsNew
+                            ? `New since you last looked, ${auth.user.first_name}.`
+                            : firstVisit
+                              ? `Hi ${auth.user.first_name}, let's show you around.`
+                              : 'A quick look around.'}
                     </DialogPrimitive.Title>
                 </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-5">
                 <DialogPrimitive.Description className="text-sm leading-relaxed text-muted-foreground">
-                    {firstVisit
-                        ? `You're in ${organization}. In about a minute we'll point out where everything you can use lives, and where to find help later.`
-                        : `Where everything you can use in ${organization} lives, and where to find help later.`}
+                    {whatsNew
+                        ? `SYNAPSE has changed since your tour. Here ${count === 1 ? 'is the one thing' : `are the ${count} things`} worth knowing — a few seconds each.`
+                        : firstVisit
+                          ? `You're in ${organization}. In about a minute we'll point out where everything you can use lives, and where to find help later.`
+                          : `Where everything you can use in ${organization} lives, and where to find help later.`}
                 </DialogPrimitive.Description>
 
                 {count > 0 && (
@@ -81,8 +90,9 @@ export function TourWelcome({ tour }: { tour: ProductTourApi }) {
 
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock3 className="size-3.5 shrink-0" />
-                    {count === 1 ? '1 stop' : `${count} stops`} · about a minute
-                    · leave any time with Esc
+                    {count === 1 ? '1 stop' : `${count} stops`} ·{' '}
+                    {whatsNew ? 'a few seconds' : 'about a minute'} · leave any
+                    time with Esc
                 </p>
             </div>
 
@@ -93,7 +103,7 @@ export function TourWelcome({ tour }: { tour: ProductTourApi }) {
                     onClick={tour.skip}
                     className="text-muted-foreground"
                 >
-                    {firstVisit ? 'Skip for now' : 'Not now'}
+                    {firstVisit && !whatsNew ? 'Skip for now' : 'Not now'}
                 </Button>
                 <Button
                     ref={primary}
@@ -101,7 +111,11 @@ export function TourWelcome({ tour }: { tour: ProductTourApi }) {
                     onClick={tour.next}
                     className="sm:ml-auto"
                 >
-                    {count > 0 ? 'Show me around' : 'Continue'}
+                    {whatsNew
+                        ? 'Show me'
+                        : count > 0
+                          ? 'Show me around'
+                          : 'Continue'}
                     <ArrowRight className="size-4" />
                 </Button>
             </div>

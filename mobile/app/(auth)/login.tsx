@@ -5,6 +5,7 @@ import Animated from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { BrandLockup, EntryScreen, entryColors } from '@/components/ui/entry-screen';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { AppText } from '@/components/ui/text';
 import { Touchable } from '@/components/ui/touchable';
@@ -14,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { enter } from '@/lib/motion';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, sessionEnded } = useAuth();
   const toast = useToast();
   // The form's button: it rises above the keyboard with whichever field has focus.
   const submitRef = useRef<View>(null);
@@ -54,7 +55,7 @@ export default function LoginScreen() {
   return (
     <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
-        <BrandLockup markWidth={112} />
+        <BrandLockup markSize={85} />
       </Animated.View>
 
       <Animated.View entering={enter(1)} style={styles.heading}>
@@ -65,6 +66,20 @@ export default function LoginScreen() {
           Sign in to clock in, file leave and see your records.
         </AppText>
       </Animated.View>
+
+      {/* The server ended this phone's session: a new password, set here or elsewhere (ADR 0082). */}
+      {sessionEnded && (
+        <Animated.View
+          entering={enter(1)}
+          style={[styles.notice, { backgroundColor: entryColors.background }]}
+          accessibilityRole="alert"
+        >
+          <Icon name="info" size={17} color={entryColors.tintText} />
+          <AppText variant="footnote" tone="secondary" style={styles.flex}>
+            You were signed out on this phone, as happens when your password changes. Sign in again to carry on.
+          </AppText>
+        </Animated.View>
+      )}
 
       <Animated.View entering={enter(2)} style={styles.form}>
         <Input
@@ -101,6 +116,16 @@ export default function LoginScreen() {
           editable={!submitting}
         />
 
+        <View style={styles.forgot}>
+          <Link href={{ pathname: '/(auth)/forgot-password', params: email.trim() ? { email: email.trim() } : {} }} replace asChild>
+            <Touchable feedback="opacity" hitSlop={10} accessibilityRole="link">
+              <AppText variant="subheadline" weight="medium" color={entryColors.brandText}>
+                Forgot password?
+              </AppText>
+            </Touchable>
+          </Link>
+        </View>
+
         <View ref={submitRef} collapsable={false}>
           <Button
             label="Sign in"
@@ -134,8 +159,11 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   brand: { alignItems: 'center', marginTop: 28, marginBottom: 36 },
   heading: { gap: 6, marginBottom: 28 },
+  flex: { flex: 1 },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 12, borderCurve: 'continuous', marginTop: -12, marginBottom: 24 },
   form: { gap: 16 },
-  submit: { marginTop: 8 },
+  forgot: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: -6 },
+  submit: { marginTop: 0 },
   spacer: { flexGrow: 1, minHeight: 32 },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
 });

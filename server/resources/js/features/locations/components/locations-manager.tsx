@@ -2,6 +2,8 @@ import { router } from '@inertiajs/react';
 import {
     Archive,
     ArchiveRestore,
+    Clock,
+    Hexagon,
     MapPinned,
     Pencil,
     Plus,
@@ -12,7 +14,27 @@ import {
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import {
+    DataTable,
+    RowMenuTrigger,
+    rowOpens,
+    TableCard,
+} from '@/components/data-table';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { locationRoutes } from '../routes';
 import type { LocationsPageProps, WorkLocation } from '../types';
@@ -150,46 +172,75 @@ export function LocationsManager({
                     )}
                 </div>
             ) : (
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-                    <div className="divide-y divide-border self-start overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-                        {locations.map((location) => (
-                            <LocationRow
-                                key={location.id}
-                                location={location}
-                                selected={location.id === selectedId}
-                                canManage={can.manage}
-                                onSelect={() => setSelectedId(location.id)}
-                                onEdit={() => setForm({ open: true, location })}
-                                onPeople={() =>
-                                    setPeople({ open: true, location })
-                                }
-                                onArchive={() =>
-                                    askConfirm({
-                                        title: `Archive "${location.name}"?`,
-                                        description:
-                                            'Punches stop being checked against it, and its people stop defaulting to its schedule and policy. Punches already made keep saying they were made there.',
-                                        confirmLabel: 'Archive',
-                                        run: () =>
-                                            router.delete(
-                                                locationRoutes.destroy(
-                                                    location.hashid,
-                                                ),
-                                                withProcessing,
-                                            ),
-                                    })
-                                }
-                            />
-                        ))}
-                    </div>
-
-                    <div className="order-first overflow-hidden rounded-xl border border-sidebar-border/70 lg:sticky lg:top-4 lg:order-none lg:self-start dark:border-sidebar-border">
+                <div className="flex flex-col gap-4">
+                    <div className="overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                         <SitesMap
                             sites={locations}
                             selectedId={selectedId}
                             onSelect={setSelectedId}
-                            className="h-72 w-full lg:h-[28rem]"
+                            className="h-72 w-full lg:h-96"
                         />
                     </div>
+
+                    <TableCard>
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Site</TableHead>
+                                    <TableHead>Fence</TableHead>
+                                    <TableHead>Clock</TableHead>
+                                    <TableHead className="text-right">
+                                        People
+                                    </TableHead>
+                                    <TableHead>Defaults</TableHead>
+                                    {can.manage && (
+                                        <TableHead className="w-10">
+                                            <span className="sr-only">
+                                                Actions
+                                            </span>
+                                        </TableHead>
+                                    )}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {locations.map((location) => (
+                                    <LocationRow
+                                        key={location.id}
+                                        location={location}
+                                        selected={location.id === selectedId}
+                                        canManage={can.manage}
+                                        organizationTimezone={
+                                            options.organizationTimezone
+                                        }
+                                        onSelect={() =>
+                                            setSelectedId(location.id)
+                                        }
+                                        onEdit={() =>
+                                            setForm({ open: true, location })
+                                        }
+                                        onPeople={() =>
+                                            setPeople({ open: true, location })
+                                        }
+                                        onArchive={() =>
+                                            askConfirm({
+                                                title: `Archive "${location.name}"?`,
+                                                description:
+                                                    'Punches stop being checked against it, and its people stop defaulting to its schedule and policy. Punches already made keep saying they were made there.',
+                                                confirmLabel: 'Archive',
+                                                run: () =>
+                                                    router.delete(
+                                                        locationRoutes.destroy(
+                                                            location.hashid,
+                                                        ),
+                                                        withProcessing,
+                                                    ),
+                                            })
+                                        }
+                                    />
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
                 </div>
             )}
 
@@ -258,6 +309,8 @@ export function LocationsManager({
                 onOpenChange={(open) => setForm((prev) => ({ ...prev, open }))}
                 schedules={options.schedules}
                 policies={options.policies}
+                timezones={options.timezones}
+                organizationTimezone={options.organizationTimezone}
             />
 
             <LocationPeopleDialog
@@ -286,11 +339,12 @@ export function LocationsManager({
     );
 }
 
-/** One site: its fence, who is based there, what they default to. */
+/** One site: its fence, its clock, who is based there, what they default to. */
 function LocationRow({
     location,
     selected,
     canManage,
+    organizationTimezone,
     onSelect,
     onEdit,
     onPeople,
@@ -299,6 +353,7 @@ function LocationRow({
     location: WorkLocation;
     selected: boolean;
     canManage: boolean;
+    organizationTimezone: string;
     onSelect: () => void;
     onEdit: () => void;
     onPeople: () => void;
@@ -310,31 +365,19 @@ function LocationRow({
     ].filter(Boolean);
 
     return (
-        <div
+        <TableRow
+            {...rowOpens(onSelect)}
+            aria-selected={selected}
             className={cn(
-                'flex items-start gap-3 px-4 py-3 transition-colors',
-                selected && 'bg-[#0ABFBF]/[0.06]',
+                rowOpens(onSelect).className,
+                selected && 'bg-[#0ABFBF]/[0.06] hover:bg-[#0ABFBF]/[0.08]',
             )}
         >
-            <button
-                type="button"
-                onClick={onSelect}
-                aria-label={`Show ${location.name} on the map`}
-                className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#0ABFBF]/10 text-[#0ABFBF] transition-colors hover:bg-[#0ABFBF]/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-                <MapPinned className="size-4" />
-            </button>
-            <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={onSelect}
-                        className="truncate text-left text-sm font-medium hover:underline"
-                    >
-                        {location.name}
-                    </button>
+            <TableCell className="max-w-72">
+                <div className="flex items-center gap-2">
+                    <p className="truncate font-medium">{location.name}</p>
                     {!location.is_active && (
-                        <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                             Not checking punches
                         </span>
                     )}
@@ -344,53 +387,69 @@ function LocationRow({
                         {location.address}
                     </p>
                 )}
-                <p className="mt-1 text-xs text-muted-foreground">
-                    <span className="tabular-nums">
-                        {location.radius_meters} m fence
+            </TableCell>
+            <TableCell className="whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 text-sm tabular-nums">
+                    {location.fence_type === 'polygon' ? (
+                        <Hexagon className="size-3.5 text-[#0a8b91] dark:text-[#0ABFBF]" />
+                    ) : (
+                        <MapPinned className="size-3.5 text-[#0a8b91] dark:text-[#0ABFBF]" />
+                    )}
+                    {location.fence_label}
+                </span>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">
+                {location.timezone ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm">
+                        <Clock className="size-3.5 text-muted-foreground" />
+                        {location.timezone.replace(/_/g, ' ')}
                     </span>
-                    {' · '}
-                    {location.employees_count === 0
-                        ? 'Nobody based here'
-                        : `${location.employees_count} ${location.employees_count === 1 ? 'person' : 'people'} based here`}
-                </p>
-                {defaults.length > 0 && (
-                    <p className="mt-0.5 text-xs text-muted-foreground/80">
-                        {defaults.join(' · ')}
-                    </p>
+                ) : (
+                    <span
+                        className="text-sm text-muted-foreground"
+                        title={organizationTimezone.replace(/_/g, ' ')}
+                    >
+                        Company’s
+                    </span>
                 )}
-            </div>
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+                {location.employees_count}
+            </TableCell>
+            <TableCell className="max-w-64">
+                <p className="truncate text-xs text-muted-foreground">
+                    {defaults.length > 0 ? defaults.join(' · ') : '—'}
+                </p>
+            </TableCell>
             {canManage && (
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={onPeople}
-                        aria-label="People based here"
-                        title="People based here"
-                    >
-                        <Users className="size-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={onEdit}
-                        aria-label="Edit"
-                    >
-                        <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-muted-foreground hover:text-destructive"
-                        onClick={onArchive}
-                        aria-label="Archive"
-                    >
-                        <Archive className="size-4" />
-                    </Button>
-                </div>
+                <TableCell>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <RowMenuTrigger
+                                label={`Actions for ${location.name}`}
+                            />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onSelect={onPeople}>
+                                <Users className="size-4" />
+                                People based here
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={onEdit}>
+                                <Pencil className="size-4" />
+                                Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={onArchive}
+                            >
+                                <Archive className="size-4" />
+                                Archive
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </TableCell>
             )}
-        </div>
+        </TableRow>
     );
 }

@@ -8,6 +8,7 @@ use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\Holiday;
 use App\Models\User;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Models\WorkScheduleDay;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
@@ -55,6 +56,12 @@ use Illuminate\Validation\Validator;
  */
 class SchedulesModule extends Module implements ContributesTopicContext, ExplainsConsequences
 {
+    /** The weekdays a holiday rule names, Monday = 1. */
+    private const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    /** Which week of the month a holiday rule names. */
+    private const WEEKS = ['first' => 1, 'second' => 2, 'third' => 3, 'fourth' => 4, 'last' => Holiday::LAST_WEEK];
+
     /** How many holidays or schedules a list returns. */
     private const MAX_RESULTS = 40;
 
@@ -170,7 +177,7 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
         $manage = $this->allows($user, 'setup.schedule.manage')
             ? <<<'TXT'
 
-            - add_holiday / update_holiday take a date as YYYY-MM-DD and a type; recurring repeats every year on the same date. archive_holiday waits for the user's confirmation; restore_holiday brings one back.
+            - add_holiday / update_holiday take a type and how it repeats (repeats): none (one date), yearly (the same date every year), easter (easter_offset days from Easter Sunday — Maundy Thursday −3, Good Friday −2, Black Saturday −1) or weekday (the n-th weekday of a month: month 1–12, weekday, week first–fourth or last — National Heroes Day is the last Monday of August). A date (YYYY-MM-DD) is needed for none and yearly only; easter and weekday holidays are worked out every year. sites makes it a local holiday, kept only by people based at those work locations; everywhere = true makes a local one company-wide again. archive_holiday waits for the user's confirmation; restore_holiday brings one back.
             - create_work_schedule makes a weekly schedule with the same hours on each working day: work_days, start and end (HH:MM; an end before the start crosses midnight), required_minutes (default 480), unpaid_break_minutes, grace_minutes, and for a flexible one core_start/core_end. update_work_schedule changes one; set_default_schedule and archive_work_schedule too. These three wait for the user's confirmation.
             - Rotations, split shifts, different hours on different days, and permanent deletion are done on the Work Schedule & Holidays screen (/setup/schedule), not here — say so if asked.
             TXT
@@ -187,6 +194,15 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
     {
         $holiday = ['type' => 'STRING', 'description' => 'The holiday, by name.'];
         $on = ['type' => 'STRING', 'description' => 'Its date (YYYY-MM-DD), when more than one holiday has the name.'];
+        $rule = [
+            'repeats' => ['type' => 'STRING', 'enum' => Holiday::RECURRENCES, 'description' => 'none: one date; yearly: its date every year; easter: days from Easter Sunday; weekday: the n-th weekday of a month.'],
+            'easter_offset' => ['type' => 'INTEGER', 'description' => 'With repeats = easter: days from Easter Sunday, negative before it (Good Friday = -2).'],
+            'month' => ['type' => 'INTEGER', 'description' => 'With repeats = weekday: the month, 1–12.'],
+            'weekday' => ['type' => 'STRING', 'enum' => self::WEEKDAY_NAMES, 'description' => 'With repeats = weekday.'],
+            'week' => ['type' => 'STRING', 'enum' => array_keys(self::WEEKS), 'description' => 'With repeats = weekday: which one in the month.'],
+            'sites' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Work locations, by name, whose people keep it — a local holiday.'],
+            'everywhere' => ['type' => 'BOOLEAN', 'description' => 'true: kept by everyone (clears the sites).'],
+        ];
         $schedule = ['type' => 'STRING', 'description' => 'The work schedule, by name.'];
         $hours = [
             'type' => ['type' => 'STRING', 'enum' => array_keys(self::SCHEDULE_TYPES), 'description' => 'fixed: late against the start; flexible: late only after the core hours open; hours_only: never late, only the hours count.'],
@@ -239,21 +255,22 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
             ],
             [
                 'name' => 'add_holiday',
-                'description' => 'Add a holiday to the calendar.',
+                'description' => 'Add a holiday to the calendar — on a date, every year on its date, a number of days from Easter, or on the n-th weekday of a month; everywhere, or only at some sites.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
                         'name' => ['type' => 'STRING'],
-                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD.'],
+                        'date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD. Not needed when it repeats from Easter or on a weekday.'],
                         'type' => ['type' => 'STRING', 'enum' => array_keys(self::HOLIDAY_TYPES)],
-                        'recurring' => ['type' => 'BOOLEAN', 'description' => 'Repeats every year on the same date.'],
+                        'recurring' => ['type' => 'BOOLEAN', 'description' => 'Repeats every year on the same date (the same as repeats = yearly).'],
+                        ...$rule,
                     ],
-                    'required' => ['name', 'date', 'type'],
+                    'required' => ['name', 'type'],
                 ],
             ],
             [
                 'name' => 'update_holiday',
-                'description' => "Change a holiday's name, date, type or yearly recurrence. Only the fields given change.",
+                'description' => "Change a holiday's name, date, type, how it repeats, or the sites that keep it. Only the fields given change.",
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
@@ -263,6 +280,7 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
                         'date' => ['type' => 'STRING', 'description' => 'The new date, YYYY-MM-DD.'],
                         'type' => ['type' => 'STRING', 'enum' => array_keys(self::HOLIDAY_TYPES)],
                         'recurring' => ['type' => 'BOOLEAN'],
+                        ...$rule,
                     ],
                     'required' => ['holiday'],
                 ],
@@ -539,9 +557,17 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
      */
     private function addHoliday(User $user, array $args): ToolResult
     {
-        $date = $this->isoDate($args['date'] ?? null);
+        $recurring = ($args['recurring'] ?? false) === true;
+        [$repeat, $sites, $error] = $this->holidayRule($args, $recurring ? 'yearly' : 'none');
 
-        if ($date === null) {
+        if ($error !== null) {
+            return ToolResult::error('Added the holiday', $error);
+        }
+
+        $movable = in_array($repeat['recurrence'], Holiday::MOVABLE, true);
+        $date = $movable ? null : $this->isoDate($args['date'] ?? null);
+
+        if (! $movable && $date === null) {
             return ToolResult::error('Added the holiday', 'Give the date as YYYY-MM-DD.');
         }
 
@@ -549,28 +575,96 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
             'name' => trim((string) ($args['name'] ?? '')),
             'date' => $date,
             'type' => (string) ($args['type'] ?? ''),
-            'is_recurring' => ($args['recurring'] ?? false) === true,
+            ...$repeat,
         ];
 
-        if (($problem = $this->invalid($data, (new HolidayRequest)->rules())) !== null) {
+        if (($problem = $this->invalid([...$data, 'location_ids' => $sites ?? []], (new HolidayRequest)->rules(), (new HolidayRequest)->messages())) !== null) {
             return ToolResult::error('Added the holiday', $problem);
         }
 
-        $day = CarbonImmutable::parse($date);
-        $same = Holiday::query()->whereRaw('lower(name) = ?', [Str::lower($data['name'])])->get()
-            ->first(fn (Holiday $h): bool => $h->fallsOn($day) || ($data['is_recurring'] && $h->date !== null && $h->date->format('m-d') === $day->format('m-d')));
+        $named = Holiday::query()->whereRaw('lower(name) = ?', [Str::lower($data['name'])])->get();
 
-        if ($same !== null) {
-            return ToolResult::error('Added the holiday', "“{$same->name}” is already on the calendar for {$same->date?->format('M j, Y')}".($same->is_recurring ? ', every year' : '').'.');
+        if ($movable) {
+            $same = $named->first(fn (Holiday $h): bool => $h->isMovable());
+        } else {
+            $day = CarbonImmutable::parse($date);
+            $same = $named->first(fn (Holiday $h): bool => $h->fallsOn($day) || ($data['recurrence'] === 'yearly' && $h->date !== null && $h->date->format('m-d') === $day->format('m-d')));
         }
 
-        $holiday = $this->holidays->create($data, ' via assistant');
+        if ($same !== null) {
+            return ToolResult::error('Added the holiday', "“{$same->name}” is already on the calendar".($same->isMovable() ? ' — '.lcfirst($same->repeatsLabel()) : " for {$same->date?->format('M j, Y')}".($same->is_recurring ? ', every year' : '')).'.');
+        }
+
+        $holiday = $this->holidays->create($data, ' via assistant', $sites);
+        $holiday->load('locations:id,name');
 
         return ToolResult::ok(
             "Added {$holiday->name}",
-            $this->recordedNote($day, $data['is_recurring']),
+            $this->recordedNote(CarbonImmutable::parse($holiday->date), (bool) $holiday->is_recurring),
             $this->holidayCard($holiday, $holiday->date, 'add', 'positive', 'Added'),
         );
+    }
+
+    /**
+     * How a holiday repeats and where it is kept, from the arguments: the
+     * recurrence and its rule (`$default` when nothing about repeating is
+     * said), and the site ids — `[]` for everywhere, null when not said.
+     *
+     * @param  array<string, mixed>  $args
+     * @return array{0: array{recurrence?: string, rule?: array<string, int>|null}, 1: list<int>|null, 2: string|null}
+     */
+    private function holidayRule(array $args, ?string $default): array
+    {
+        $recurrence = in_array($args['repeats'] ?? null, Holiday::RECURRENCES, true) ? (string) $args['repeats'] : $default;
+        $repeat = [];
+
+        if ($recurrence !== null) {
+            $repeat['recurrence'] = $recurrence;
+            $repeat['rule'] = null;
+        }
+
+        if ($recurrence === 'easter') {
+            if (! is_numeric($args['easter_offset'] ?? null)) {
+                return [[], null, 'Say how many days from Easter Sunday it falls (Good Friday is -2).'];
+            }
+
+            $repeat['rule'] = ['offset' => (int) $args['easter_offset']];
+        }
+
+        if ($recurrence === 'weekday') {
+            $weekday = array_search(Str::title((string) ($args['weekday'] ?? '')), self::WEEKDAY_NAMES, true);
+            $week = self::WEEKS[Str::lower((string) ($args['week'] ?? ''))] ?? null;
+
+            if (! is_numeric($args['month'] ?? null) || $weekday === false || $week === null) {
+                return [[], null, 'Say the month (1–12), the weekday and which week — first to fourth, or last.'];
+            }
+
+            $repeat['rule'] = ['month' => (int) $args['month'], 'weekday' => $weekday + 1, 'week' => $week];
+        }
+
+        if (($args['everywhere'] ?? null) === true) {
+            return [$repeat, [], null];
+        }
+
+        if (! is_array($args['sites'] ?? null) || $args['sites'] === []) {
+            return [$repeat, null, null];
+        }
+
+        $ids = [];
+
+        foreach (array_slice($args['sites'], 0, 100) as $name) {
+            $id = $this->resolveId(WorkLocation::query(), 'name', (string) $name);
+
+            if ($id === null) {
+                $known = $this->catalog(WorkLocation::query()->orderBy('name')->pluck('name'));
+
+                return [[], null, 'No work location is called “'.Str::limit((string) $name, 60).'”.'.($known !== '' ? " Sites: {$known}." : '')];
+            }
+
+            $ids[] = $id;
+        }
+
+        return [$repeat, array_values(array_unique($ids)), null];
     }
 
     /**
@@ -604,28 +698,48 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
             $changes['type'] = (string) $args['type'];
         }
 
-        if (is_bool($args['recurring'] ?? null)) {
-            $changes['is_recurring'] = $args['recurring'];
+        $recurring = is_bool($args['recurring'] ?? null) ? ($args['recurring'] ? 'yearly' : 'none') : null;
+        [$repeat, $sites, $error] = $this->holidayRule($args, $recurring);
+
+        if ($error !== null) {
+            return ToolResult::error('Updated the holiday', $error);
         }
 
-        if ($changes === []) {
-            return ToolResult::error('Updated the holiday', 'Say what to change: its name, date, type or whether it repeats every year.');
+        $changes = [...$changes, ...$repeat];
+        $movable = in_array($changes['recurrence'] ?? $holiday->recurrence, Holiday::MOVABLE, true);
+
+        if ($movable && isset($changes['date'])) {
+            if (! isset($repeat['recurrence'])) {
+                return ToolResult::error('Updated the holiday', "{$holiday->name} is worked out every year — ".lcfirst($holiday->repeatsLabel()).'. To pin it to a date, say it repeats yearly (or none) with that date.');
+            }
+
+            unset($changes['date']);
+        }
+
+        if ($changes === [] && $sites === null) {
+            return ToolResult::error('Updated the holiday', 'Say what to change: its name, date, type, how it repeats, or the sites that keep it.');
         }
 
         $merged = [
             'name' => $holiday->name,
             'date' => $holiday->date?->toDateString(),
             'type' => $holiday->type,
-            'is_recurring' => (bool) $holiday->is_recurring,
+            'recurrence' => $holiday->recurrence,
+            'rule' => $holiday->rule,
             ...$changes,
         ];
 
-        if (($problem = $this->invalid($merged, (new HolidayRequest)->rules())) !== null) {
+        if (($problem = $this->invalid($merged, (new HolidayRequest)->rules(), (new HolidayRequest)->messages())) !== null) {
             return ToolResult::error('Updated the holiday', $problem);
         }
 
-        $this->holidays->update($holiday, $changes, ' via assistant');
-        $holiday->refresh();
+        // Turning a dated holiday into a dated one again needs its date.
+        if (! in_array($merged['recurrence'], Holiday::MOVABLE, true) && $holiday->isMovable() && ! isset($changes['date'])) {
+            $changes['date'] = $holiday->date?->toDateString();
+        }
+
+        $this->holidays->update($holiday, $changes, ' via assistant', $sites);
+        $holiday->refresh()->load('locations:id,name');
 
         return ToolResult::ok(
             "Updated {$holiday->name}",
@@ -1211,9 +1325,10 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
     }
 
     /**
-     * Every date each holiday falls on within an inclusive range — a yearly one
-     * on each year the range spans (a 29 February only in leap years, as
-     * {@see Holiday::fallsOn()} has it) — in date order.
+     * Every date each holiday falls on within an inclusive range — a repeating one
+     * on each year the range spans (a 29 February only in leap years, Holy Week
+     * from that year's Easter, as {@see Holiday::occurrenceIn()} has it) — in date
+     * order.
      *
      * @param  Collection<int, Holiday>  $holidays
      * @return Collection<int, array{holiday: Holiday, date: CarbonImmutable}>
@@ -1223,18 +1338,12 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
         $found = collect();
 
         foreach ($holidays as $holiday) {
-            if ($holiday->date === null) {
-                continue;
-            }
-
-            $dates = $holiday->is_recurring
-                ? array_filter(array_map(
-                    fn (int $year): ?CarbonImmutable => checkdate($holiday->date->month, $holiday->date->day, $year)
-                        ? CarbonImmutable::create($year, $holiday->date->month, $holiday->date->day)
-                        : null,
-                    range($from->year, $to->year),
-                ))
-                : [CarbonImmutable::parse($holiday->date->toDateString())];
+            // Every rule — a fixed date, Holy Week from Easter, the n-th weekday
+            // of a month — placed by the model itself (ADR 0078).
+            $dates = array_filter(array_map(
+                fn (int $year): ?CarbonImmutable => $holiday->occurrenceIn($year),
+                range($from->year, $to->year),
+            ));
 
             foreach ($dates as $date) {
                 if ($date->betweenIncluded($from, $to)) {
@@ -1361,9 +1470,10 @@ class SchedulesModule extends Module implements ContributesTopicContext, Explain
             tone: $tone,
             badge: $badge,
             title: $holiday->name,
-            subtitle: trim(($date?->format('D, M j, Y') ?? 'No date').($holiday->is_recurring ? ' · every year' : '')),
+            subtitle: trim(($date?->format('D, M j, Y') ?? 'No date').($holiday->isMovable() ? ' · '.lcfirst($holiday->repeatsLabel()) : ($holiday->is_recurring ? ' · every year' : ''))),
             meta: [
                 self::HOLIDAY_TYPES[$holiday->type] ?? $holiday->type,
+                ...($holiday->relationLoaded('locations') && $holiday->locations->isNotEmpty() ? ['Only at '.$holiday->locations->pluck('name')->implode(', ')] : []),
                 $holiday->type === 'special_working' ? 'An ordinary working day' : 'A day off',
             ],
             id: $holiday->hashid,

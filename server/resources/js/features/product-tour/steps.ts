@@ -9,6 +9,7 @@ import {
     Clock3,
     Compass,
     LayoutGrid,
+    Search,
     Settings2,
     ShieldCheck,
     Sparkles,
@@ -68,8 +69,10 @@ const SECTIONS: Record<Exclude<AppNavSection, 'main'>, SectionCopy> = {
     offboarding: {
         title: 'Offboarding',
         icon: UserRoundMinus,
-        body: () =>
-            'When someone leaves: the reason, the last day, and a clearance each department signs off.',
+        body: ({ can }) =>
+            can('offboarding.view')
+                ? 'When someone leaves: their resignation, the last day, a clearance each department signs off, the exit interview and the papers.'
+                : 'If you decide to leave: file your resignation here, follow your clearance, and download your Certificate of Employment.',
     },
     analytics: {
         title: 'Analytics & AI',
@@ -117,7 +120,8 @@ const TOP_BAR_PLACEMENT = {
  */
 export function buildTourStops(context: TourContext): TourStop[] {
     const { organizationName, workspaceCount, groups, can, canAny } = context;
-    const stops: TourStop[] = [];
+    // A stop is from the first version unless it says otherwise (ADR 0080).
+    const stops: (Omit<TourStop, 'since'> & { since?: number })[] = [];
 
     stops.push({
         kind: 'stop',
@@ -173,6 +177,20 @@ export function buildTourStops(context: TourContext): TourStop[] {
 
     stops.push({
         kind: 'stop',
+        id: 'search',
+        target: 'search',
+        label: 'Search',
+        icon: Search,
+        title: 'Find anything',
+        body: 'Type a name, a record, a day or a question — "maria late", "holy week", "leave policy" — and open it. ⌘K or Ctrl+K opens search from anywhere. It only finds what your role can open.',
+        ...TOP_BAR_PLACEMENT,
+        radius: 10,
+        // Added with the tour's second version.
+        since: 2,
+    });
+
+    stops.push({
+        kind: 'stop',
         id: 'notifications',
         target: 'notifications',
         label: 'Notifications',
@@ -221,7 +239,7 @@ export function buildTourStops(context: TourContext): TourStop[] {
         radius: 10,
     });
 
-    return stops;
+    return stops.map((stop) => ({ ...stop, since: stop.since ?? 1 }));
 }
 
 /**

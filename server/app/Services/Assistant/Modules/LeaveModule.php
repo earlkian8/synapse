@@ -352,7 +352,7 @@ class LeaveModule extends Module implements ContributesContext, ExplainsConseque
             return ToolResult::error('Validated the leave request', "{$type->name} does not allow half-day leave.");
         }
 
-        $holidays = HolidayCalendar::datesInRange($start, $end);
+        $holidays = HolidayCalendar::datesInRange($start, $end, HolidayCalendar::siteOf($employee));
         $days = LeaveCalculator::chargeableDays($start, $end, $isHalfDay, $holidays);
 
         if ($days <= 0) {

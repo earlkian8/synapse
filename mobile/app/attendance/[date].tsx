@@ -13,7 +13,7 @@ import { AppText } from '@/components/ui/text';
 import { ToneWell } from '@/components/ui/tone-well';
 import { attendanceApi } from '@/features/attendance/api';
 import { PUNCH_META, PUNCH_TIMELINE_LABEL } from '@/features/attendance/punch-meta';
-import { useAuth } from '@/lib/auth';
+import { useClockZone } from '@/lib/clock-zone';
 import { formatClock, formatDate, formatMinutes, formatTime, formatWeekday } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { attendanceMeta } from '@/lib/status';
@@ -24,7 +24,7 @@ import type { AttendanceRecord, Paginated, Punch } from '@/types/api';
 export default function AttendanceDayScreen() {
   const { colors } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
-  const { organization } = useAuth();
+  const zone = useClockZone();
   const router = useRouter();
 
   const { data, loading, error, reload } = useQuery<Paginated<AttendanceRecord>>(
@@ -116,7 +116,7 @@ export default function AttendanceDayScreen() {
                     <TimelineItem
                       key={punch.id}
                       punch={punch}
-                      time={formatTime(punch.punched_at, organization?.timezone)}
+                      time={formatTime(punch.punched_at, record?.timezone ?? zone)}
                       last={index === punches.length - 1}
                     />
                   ))}

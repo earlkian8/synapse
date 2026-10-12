@@ -1,16 +1,23 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
 use App\Http\Controllers\Api\CalendarFeedController;
 use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\OffboardingController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RecognitionController;
+use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\TourController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Public\CalendarFeedController as CalendarSubscriptionController;
+use App\Http\Controllers\Public\CertificateDownloadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -34,6 +41,12 @@ Route::post('auth/register', [AuthController::class, 'register'])
     ->middleware('throttle:6,1')
     ->name('api.auth.register');
 
+// A forgotten password (ADR 0082): Fortify's reset link, mailed. Public, so it
+// answers the same for any address and is capped like the other public posts.
+Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])
+    ->middleware('throttle:6,1')
+    ->name('api.auth.forgot-password');
+
 // A person's calendar subscription (ADR 0070). Fetched by calendar apps with no
 // session or token header: the secret in the address is the key, so it is
 // throttled like the other public lookups.
@@ -41,6 +54,13 @@ Route::get('calendar/{token}.ics', CalendarSubscriptionController::class)
     ->where('token', '[A-Za-z0-9]+')
     ->middleware('throttle:60,1')
     ->name('api.calendar.feed');
+
+// A Certificate of Employment opened from the app (ADR 0077). The phone's browser
+// has no token: the short-lived signature in the address is the key.
+Route::get('documents/certificate/{case}/{user}', CertificateDownloadController::class)
+    ->whereNumber('user')
+    ->middleware(['signed', 'throttle:20,1'])
+    ->name('api.documents.certificate');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
@@ -62,15 +82,33 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('invitations/{invitation}', [InvitationController::class, 'decline'])
         ->whereNumber('invitation')->name('api.invitations.decline');
 
+    // The app's own tour (ADR 0080): its runs and its answer.
+    Route::post('tour/runs', [TourController::class, 'start'])->middleware('throttle:30,1')->name('api.tour.runs.start');
+    Route::patch('tour/runs/{run}', [TourController::class, 'reach'])->middleware('throttle:120,1')->name('api.tour.runs.reach');
+    Route::post('tour/finish', [TourController::class, 'finish'])->name('api.tour.finish');
+
+    // Search one's own records (ADR 0081), throttled like the web palette.
+    Route::get('search', SearchController::class)->middleware('throttle:search')->name('api.search');
+
     // Self-service Daily Time Record.
     Route::get('attendance/today', [AttendanceController::class, 'today'])->name('api.attendance.today');
     Route::post('attendance/punch', [AttendanceController::class, 'punch'])->middleware('can:attendance.clock')->name('api.attendance.punch');
     Route::get('attendance/records', [AttendanceController::class, 'records'])->name('api.attendance.records');
     Route::get('attendance/summary', [AttendanceController::class, 'summary'])->name('api.attendance.summary');
 
+    // The holidays one keeps over the coming year, a local one included (ADR 0078).
+    Route::get('holidays', [HolidayController::class, 'index'])->name('api.holidays.index');
+
     // The employee's own 201 profile and recognitions.
     Route::get('profile', [ProfileController::class, 'show'])->name('api.profile.show');
     Route::get('awards', [AwardController::class, 'index'])->name('api.awards.index');
+
+    // One's own sign-in account (ADR 0082) — the name, email and password, never
+    // the HR record — and one's own week of shifts (ADR 0083).
+    Route::get('account', [AccountController::class, 'show'])->name('api.account.show');
+    Route::patch('account', [AccountController::class, 'update'])->middleware('throttle:10,1')->name('api.account.update');
+    Route::put('account/password', [AccountController::class, 'password'])->middleware('throttle:6,1')->name('api.account.password');
+    Route::get('schedule', [ScheduleController::class, 'show'])->name('api.schedule.show');
 
     // My events (ADR 0070): own invitations, answered from the phone, and the
     // calendar subscription link.
@@ -95,6 +133,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('rewards', [RecognitionController::class, 'rewards'])->name('api.rewards.index');
         Route::post('rewards/{reward}/redeem', [RecognitionController::class, 'redeem'])->middleware('throttle:20,1')->name('api.rewards.redeem');
         Route::patch('redemptions/{redemption}/cancel', [RecognitionController::class, 'cancel'])->whereNumber('redemption')->name('api.redemptions.cancel');
+    });
+
+    // Leaving (ADRs 0076, 0077): one's own resignation, exit interview and
+    // Certificate of Employment.
+    Route::middleware('can:offboarding.resign')->group(function () {
+        Route::get('offboarding', [OffboardingController::class, 'show'])->name('api.offboarding.show');
+        Route::post('offboarding/resignation', [OffboardingController::class, 'resign'])->middleware('throttle:10,1')->name('api.offboarding.resign');
+        Route::patch('offboarding/resignation/{resignation}/withdraw', [OffboardingController::class, 'withdraw'])->name('api.offboarding.withdraw');
+        Route::get('offboarding/exit-interview', [OffboardingController::class, 'interview'])->name('api.offboarding.interview');
+        Route::post('offboarding/exit-interview', [OffboardingController::class, 'answer'])->name('api.offboarding.interview.answer');
+        Route::post('offboarding/certificate-link', [OffboardingController::class, 'certificateLink'])->middleware('throttle:20,1')->name('api.offboarding.certificate-link');
     });
 
     // Self-service Leave. Literal routes precede the {leaveRequest} wildcard.

@@ -47,6 +47,7 @@ const GLYPHS = {
   // Records and people
   calendar: { ios: 'calendar', android: 'calendar_month' },
   calendarPlus: { ios: 'calendar.badge.plus', android: 'edit_calendar' },
+  schedule: { ios: 'calendar.badge.clock', android: 'event_upcoming' },
   hourglass: { ios: 'hourglass', android: 'hourglass_empty' },
   trophy: { ios: 'trophy.fill', android: 'trophy' },
   rosette: { ios: 'rosette', android: 'military_tech' },
@@ -68,6 +69,14 @@ const GLYPHS = {
   sparkles: { ios: 'sparkles', android: 'auto_awesome' },
   doc: { ios: 'doc.text', android: 'description' },
   lock: { ios: 'lock.fill', android: 'lock' },
+  search: { ios: 'magnifyingglass', android: 'search' },
+  exit: { ios: 'door.left.hand.open', android: 'door_open' },
+  checklist: { ios: 'checklist', android: 'checklist' },
+  survey: { ios: 'list.bullet.clipboard.fill', android: 'assignment' },
+  certificate: { ios: 'doc.richtext.fill', android: 'workspace_premium' },
+  holiday: { ios: 'sun.horizon.fill', android: 'beach_access' },
+  tour: { ios: 'map.fill', android: 'map' },
+  flag: { ios: 'flag.fill', android: 'flag' },
 
   // Status and appearance
   info: { ios: 'info.circle.fill', android: 'info' },

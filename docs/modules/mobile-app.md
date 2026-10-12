@@ -12,8 +12,10 @@ tokens), and mirrors the web brand so the two read as one product. See
 `POST /api/auth/register` (throttled) takes a name, any email address they choose,
 and a password. It creates no employment and joins no company: the response is a
 real session whose `organization` is `null` and whose `needs_workspace` is `true`.
-The ERP never issues, knows, or can reset anybody's password — forgotten passwords
-go through Fortify's web forgot-password flow.
+The ERP never issues or knows anybody's password. A forgotten one is reset through
+Fortify's reset link, which the app's **Forgot password?** asks for
+(`POST /api/auth/forgot-password`, [ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
+it answers the same whatever the address, and the link opens the web's reset page.
 
 Connecting that account to an employer is a second, separate step, with two routes:
 
@@ -55,6 +57,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 - **Sign in / Create account** — `app/(auth)/login.tsx` and
   `app/(auth)/register.tsx`. Registration asks for nothing about work: the account
   is the person's own, and connecting it to a company is the next screen.
+  **Forgot password?** under the password field opens `app/(auth)/forgot-password.tsx`
+  (the typed address carried over): one field, then *Check your email* with the three
+  steps and *Send it again* once the broker's minute is up. When the server refuses the
+  phone's token (a new password, a reset, HR), the app signs out and sign-in says why
+  (ADR 0082).
 - **Join a company** (`app/join.tsx`) — where an account with no employer lands.
   Invitations addressed to them are listed unprompted and joined in one tap; below
   that, a single code field takes either an invitation code or the company join
@@ -65,7 +72,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards —
   plus **Events** and **Recognition** when the person may answer invitations or take
   part), an **Up next** card with the next invitation and one-tap answers, requests
-  awaiting approval, a snapping carousel of leave balances, and the latest award.
+  awaiting approval, a snapping carousel of leave balances, and the latest award. A
+  **search** button in the large title opens Search.
 - **Clock (DTR, the hero)** — a clock face: a ring that fills as the shift is worked,
   around the live time and the running time on the clock, then a state-driven primary
   button (Time In → Break → Time Out) driven by the server's `allowed` /
@@ -101,7 +109,48 @@ every `useQuery` screen refetches against the new company's tenant context.
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
   sign-out behind a system alert; and the employee's recognitions. The Profile list is
   also the hub for **My events**, **Recognition** and **Points & rewards** (shown by
-  permission) — the five tabs stay as they are.
+  permission), **My schedule** (with an employee record), **Holidays**, **Resignation**
+  (with `offboarding.resign`) and a **Help** section (*Take the tour*, *Search*) — the
+  five tabs stay as they are. The employee record is read-only and says HR keeps it.
+  An **Account** section edits the person's own sign-in account
+  ([ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
+  **Name and email** (`account/details`, a form sheet; a new address asks for the current
+  password and is confirmed by a mailed code) and **Change password** (`account/password`,
+  which signs the app out on the person's other phones, and offers the reset link for a
+  forgotten current one).
+- **My schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)) —
+  `app/schedule/index.tsx`, from Profile, the Clock tab's shift row and Search: one's own
+  week, Monday to Sunday, as the roster has it. A week switcher (and a sideways swipe),
+  the week's shifts and hours, and the seven days: hours (or the holiday, the leave,
+  *Rest day*) and a pill for *Holiday*, *On leave*, *Half day*, *Pending* or *Changed*. A
+  day that has started opens its attendance record.
+- **Resignation** ([ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md),
+  [ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md)) —
+  `app/resignation/index.tsx` shows the same thing as My resignation on the web
+  (`MyExit`): with nothing under way, *Resign*; a waiting resignation with *Withdraw*
+  (confirmed by a system alert); a declined one with HR's note; once the exit starts, a
+  hero with the last day and clearance progress, the clearance item by item (a flag
+  with its reason), the exit interview and *Get my certificate*, which opens a
+  10-minute signed link in the browser. `resignation/new` files one (the notice is
+  counted as the day is picked, with a note under 30 days); `resignation/interview` is
+  the exit-interview survey: the reason, the seven ratings in one card with tappable
+  1–5 scores, the yes / maybe / no questions and the open answers.
+- **Holidays** ([ADR 0078](../decisions/0078-holidays-that-move-and-holidays-kept-at-some-sites.md))
+  — `app/holidays/index.tsx`: the year ahead as the person keeps it, by month, each
+  with its weekday, type, whether it is a day off, how it repeats, and a local one's
+  site.
+- **Search** ([ADR 0081](../decisions/0081-search-finds-attendance-days-and-the-app-searches-ones-own.md))
+  — `app/search.tsx`: the app's screens matched on the phone, and the person's own
+  leave, days, invitations, awards and holidays from the server, grouped; a result
+  opens its screen.
+- **The tour** ([ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md))
+  — `features/tour/tab-tour.tsx`: a spotlight over the tab bar with a card above it
+  (Home, Attendance, Clock, Leave, Profile), offered once after sign-in and replayed
+  from Profile. Each run is recorded.
+- **Site clocks** ([ADR 0079](../decisions/0079-shape-fences-and-a-clock-per-site.md))
+  — `lib/clock-zone.ts`: times are shown on the clock the person's days are judged on
+  (their base site's, else the company's); a day from the server carries its own
+  `timezone`.
 - **Events** ([ADR 0070](../decisions/0070-events-answered-by-invitees-repeating-rooms-reminders-and-a-calendar-feed.md))
   — `app/events/index.tsx` lists the person's invitations (upcoming / past) and
   `app/events/[id].tsx` shows one with its room, repeat and reminder, answers it (for
@@ -117,12 +166,15 @@ every `useQuery` screen refetches against the new company's tenant context.
 | Method & path | Purpose |
 |---|---|
 | `POST /api/auth/register` (public, throttled) | Create an identity; returns a session with `organization: null`, `needs_workspace: true` |
-| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) |
+| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) — unless the person's base site keeps its own (`employee.timezone`, ADR 0079). It also says whether the person may resign (`can_resign`) and owes the app's tour (`tour`) |
 | `POST /api/auth/switch` | Re-issue the token bound to another company the identity belongs to |
 | `POST /api/workspaces/preview` · `POST /api/workspaces/join` | Look up / redeem a company join code (throttled) |
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics. A punch may carry `client_id` (idempotency), `punched_at` (the phone's time; marks it offline, judged against the policy's offline window) and `sent_at` (to measure clock skew) |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
+| `POST /api/auth/forgot-password` (public, throttled) | Mail Fortify's reset link; the same answer for any address (503 if mail fails) |
+| `GET` · `PATCH /api/account` · `PUT /api/account/password` | One's own sign-in account: name and email (a new address needs `current_password`), and the password (ends the other app sessions) |
+| `GET /api/schedule?week=` | One's own week of shifts (`MySchedule`): hours, holiday, leave, whether HR changed the day, and the week's totals |
 | `GET /api/awards` | Own recognitions |
 | `GET /api/events` · `GET /api/events/{hashid}` · `POST /api/events/{hashid}/respond` | Own invitations and answering them (`events.respond`) |
 | `GET /api/calendar-feed` · `POST /api/calendar-feed/reset` | The person's calendar-feed links |
@@ -130,6 +182,11 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/nominations` · `GET /api/nominations/types` · `POST /api/nominations` · `DELETE /api/nominations/{id}` | One's nominations |
 | `GET /api/points` · `GET /api/rewards` · `POST /api/rewards/{hashid}/redeem` · `PATCH /api/redemptions/{id}/cancel` | Points, rewards and redeeming |
 | `GET /api/leave/types` · `GET /api/leave/balances` · `GET /api/leave/requests` · `POST /api/leave/requests` · `PATCH /api/leave/requests/{id}/cancel` | Self-service leave |
+| `GET /api/holidays` | The holidays the person keeps over the next 365 days, local ones at their site included |
+| `GET /api/search?q=` | The person's own records (`MySearch`), throttled by `search` |
+| `GET /api/offboarding` · `POST /api/offboarding/resignation` · `PATCH /api/offboarding/resignation/{id}/withdraw` · `GET`/`POST /api/offboarding/exit-interview` · `POST /api/offboarding/certificate-link` | One's own exit (`offboarding.resign`) |
+| `GET /api/documents/certificate/{case}/{user}` (public, **signed**, throttled) | The Certificate of Employment PDF the link above points at, for 10 minutes |
+| `POST /api/tour/runs` · `PATCH /api/tour/runs/{id}` · `POST /api/tour/finish` | The app's tour: its runs and its answer |
 
 Leave filing reuses `LeaveCalculator` + `HolidayCalendar` (days computed
 server-side, never trusted from the client) and auto-approves types that don't
@@ -150,7 +207,9 @@ Against a deployed server ([Deployment](../deployment.md)), set
 
 ## Conventions
 
-- `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing).
+- `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing). A 401
+  to a request carrying the current token calls the auth layer's unauthorized handler,
+  which signs the phone out (ADR 0082).
 - `lib/auth.tsx` — one identity, one org-bound token in SecureStore, re-hydrated from
   `/me` on boot. `login` / `switchTo` / `logout` / `refresh`; `switchTo` swaps in a
   token bound to the chosen company. `lib/active-workspace.ts` republishes the active
@@ -200,7 +259,7 @@ Against a deployed server ([Deployment](../deployment.md)), set
     `destructive`), `input.tsx` (filled field, animated focus edge, `secureToggle`,
     `ref` for focus chaining), `sheet.tsx` (springs up, drag down to dismiss, rides
     above the keyboard), `toast.tsx` (a frosted banner dropped from the top; flick it away),
-    `segmented.tsx` (sliding thumb), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
+    `segmented.tsx` (sliding thumb), `step-button.tsx` (the chevron that steps a month or week), plus `Card`, `Pill`, `Avatar`, `Skeleton`,
     `EmptyState`/`ErrorState`, `ProgressBar`, `Section`, `ToneWell`.
   - `entry-screen.tsx`: `EntryScreen`, the ground of the entry screens (cold-start
     splash, sign-in, register, workspace picker). It is white and light-scheme whatever
@@ -208,12 +267,15 @@ Against a deployed server ([Deployment](../deployment.md)), set
     the focused field), with dark status-bar icons. `BrandLockup` is
     the mark over the navy wordmark, and `entryColors` gives the light palette to a
     screen reading colours outside the ground.
-  - `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep
-    navy and vanishes on a dark ground, so `Logo` takes the original on light surfaces
-    and a reversed one (white figure, teal network) on dark; the entry screens pass
-    `surface="light"`. The mark is landscape (about 4:3), so it is sized by width and
-    never squeezed into a square. The app, splash and adaptive icons in `assets/images/`
-    are generated from the same artwork, each at the padding its slot wants. The splash
-    icon is the original colourway on a white splash; the launcher icon keeps its navy
-    tile.
+  - `logo.tsx`: the SYNAPSE mark, an S of two swooshes and three dots in a blue
+    gradient, drawn with `react-native-svg` so it is sharp at every size. It has two
+    colourways because the deeper blues sink on a dark ground: `Logo` takes the
+    original on light surfaces and the same gradient lifted on dark; the entry screens
+    pass `surface="light"`. The mark is a little taller than wide (about 6:7), so it is
+    sized by height (`size`), as is `BrandLockup` (`markSize`). The geometry is the
+    ERP's `public/synapse-mark.svg`. The app, splash and adaptive icons in
+    `assets/images/` are drawn from the same vector, each at the padding its slot
+    wants: the launcher icon is the mark on a white tile, iOS adds a dark and a tinted
+    appearance (`icon-dark.png`, `icon-tinted.png`), Android's themed icon uses the
+    monochrome silhouette, and the splash is the mark on white.
 - `features/<module>/` — `api.ts` + components, mirroring the web feature folders.

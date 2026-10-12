@@ -19,6 +19,10 @@ class FinishProductTourRequest extends FormRequest
     {
         return [
             'outcome' => ['required', 'string', Rule::in(ProductTour::OUTCOMES)],
+            // The run that ended (ADR 0080), so its numbers close too.
+            'run' => ['nullable', 'integer'],
+            // Whether this answered the owed tour; a replay only ends its run.
+            'answers' => ['sometimes', 'boolean'],
         ];
     }
 }

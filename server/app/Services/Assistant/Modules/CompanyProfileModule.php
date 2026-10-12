@@ -56,6 +56,9 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
         'email' => 'email',
         'phone' => 'phone',
         'address' => 'address',
+        // Who signs the papers an exit produces (ADR 0077).
+        'document_signatory_name' => 'document signatory',
+        'document_signatory_title' => 'document signatory’s title',
     ];
 
     /**
@@ -127,7 +130,7 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
         $manage = $this->allows($user, 'setup.company.manage')
             ? <<<'TXT'
 
-            - update_company_profile changes the display name, registered legal name, email, phone or address; clear empties one of them.
+            - update_company_profile changes the display name, registered legal name, email, phone, address, or who signs the company's documents (document_signatory_name and _title — the Certificate of Employment and the clearance form); clear empties one of them.
             - set_company_timezone changes the time zone (an IANA zone such as Asia/Manila, or a city); it waits for the user's confirmation.
             - The logo, the statutory employer numbers and the join code are changed on the Company Profile screen (/setup/company), not here — say so if asked.
             TXT
@@ -149,7 +152,7 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
             ],
             [
                 'name' => 'update_company_profile',
-                'description' => "Change the company's display name, registered legal name, email, phone or address. Only the fields given change.",
+                'description' => "Change the company's display name, registered legal name, email, phone, address, or who signs its documents. Only the fields given change.",
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
@@ -158,10 +161,12 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
                         'email' => ['type' => 'STRING'],
                         'phone' => ['type' => 'STRING'],
                         'address' => ['type' => 'STRING'],
+                        'document_signatory_name' => ['type' => 'STRING', 'description' => 'Who signs the Certificate of Employment and the clearance form.'],
+                        'document_signatory_title' => ['type' => 'STRING', 'description' => 'Their title, e.g. HR Manager.'],
                         'clear' => [
                             'type' => 'ARRAY',
                             'description' => 'Fields to empty.',
-                            'items' => ['type' => 'STRING', 'enum' => ['legal_name', 'email', 'phone', 'address']],
+                            'items' => ['type' => 'STRING', 'enum' => ['legal_name', 'email', 'phone', 'address', 'document_signatory_name', 'document_signatory_title']],
                         ],
                     ],
                 ],
@@ -282,7 +287,7 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
         }
 
         if ($changes === []) {
-            return ToolResult::error('Updated the company profile', 'Say what to change: the display name, registered legal name, email, phone or address.');
+            return ToolResult::error('Updated the company profile', 'Say what to change: the display name, registered legal name, email, phone, address or document signatory.');
         }
 
         // The profile as it would be, against the screen's own rules — the time
@@ -376,6 +381,9 @@ class CompanyProfileModule extends Module implements ContributesTopicContext, Ex
             'Time zone: '.$zone.' — it is '.CarbonImmutable::now($zone)->format('D, M j g:i A').' there now',
             'Statutory employer numbers on file: '.($onFile === [] ? 'none' : implode(', ', $onFile)).($missing !== [] ? '; missing: '.implode(', ', $missing) : ''),
             $organization->logo ? 'Logo: on file' : 'Logo: none',
+            'Documents signed by: '.(filled($organization->document_signatory_name)
+                ? $organization->document_signatory_name.(filled($organization->document_signatory_title) ? ', '.$organization->document_signatory_title : '')
+                : 'nobody named — the certificate leaves a blank line to sign'),
             // Only to those who manage it, as on the screen (ADR 0026).
             $user->can('setup.company.manage')
                 ? 'Joining by company code: '.($organization->join_code_enabled ? 'on' : 'off')

@@ -404,7 +404,7 @@ test('a version 3 snapshot carries the policy it was judged by', function () {
         ->and($rules->policyName)->toBe('Shift work')
         ->and($rules->policySource)->toBe('schedule')
         ->and($rules->policy->roundingMode)->toBe('nearest')
-        ->and($rules->toArray()['version'])->toBe(3)
+        ->and($rules->toArray()['version'])->toBe(DayRules::VERSION)
         ->and($rules->toArray()['policy']['settings']['rounding']['unit'])->toBe(15);
 });
 

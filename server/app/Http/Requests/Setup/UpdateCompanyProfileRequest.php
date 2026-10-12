@@ -33,6 +33,9 @@ class UpdateCompanyProfileRequest extends FormRequest
             'sss_employer_no' => ['nullable', 'string', 'max:50'],
             'philhealth_employer_no' => ['nullable', 'string', 'max:50'],
             'pagibig_employer_no' => ['nullable', 'string', 'max:50'],
+            // Who signs the documents the system generates (ADR 0077).
+            'document_signatory_name' => ['nullable', 'string', 'max:150'],
+            'document_signatory_title' => ['nullable', 'string', 'max:150'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
             'remove_logo' => ['sometimes', 'boolean'],
         ];
