@@ -282,3 +282,4 @@ commit history rather than repeating them.
 - [2026-10-05 — The assistant finishes the job](./changelog/2026-10-05-03-assistant-finishes-the-job.md)
 - [2026-10-07 — Global search: ⌘K finds people, records, screens and help](./changelog/2026-10-07-01-global-search.md)
 - [2026-10-10 — Links that went nowhere are gone](./changelog/2026-10-10-01-dead-links-removed.md)
+- [2026-10-12 — The new SYNAPSE mark, as vector, in every slot](./changelog/2026-10-12-03-new-synapse-mark.md)

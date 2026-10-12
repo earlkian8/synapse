@@ -55,7 +55,7 @@ export default function LoginScreen() {
   return (
     <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
-        <BrandLockup markWidth={112} />
+        <BrandLockup markSize={85} />
       </Animated.View>
 
       <Animated.View entering={enter(1)} style={styles.heading}>

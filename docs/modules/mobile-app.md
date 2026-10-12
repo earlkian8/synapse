@@ -267,12 +267,15 @@ Against a deployed server ([Deployment](../deployment.md)), set
     the focused field), with dark status-bar icons. `BrandLockup` is
     the mark over the navy wordmark, and `entryColors` gives the light palette to a
     screen reading colours outside the ground.
-  - `logo.tsx`: the SYNAPSE mark in two colourways. About 60% of the artwork is deep
-    navy and vanishes on a dark ground, so `Logo` takes the original on light surfaces
-    and a reversed one (white figure, teal network) on dark; the entry screens pass
-    `surface="light"`. The mark is landscape (about 4:3), so it is sized by width and
-    never squeezed into a square. The app, splash and adaptive icons in `assets/images/`
-    are generated from the same artwork, each at the padding its slot wants. The splash
-    icon is the original colourway on a white splash; the launcher icon keeps its navy
-    tile.
+  - `logo.tsx`: the SYNAPSE mark, an S of two swooshes and three dots in a blue
+    gradient, drawn with `react-native-svg` so it is sharp at every size. It has two
+    colourways because the deeper blues sink on a dark ground: `Logo` takes the
+    original on light surfaces and the same gradient lifted on dark; the entry screens
+    pass `surface="light"`. The mark is a little taller than wide (about 6:7), so it is
+    sized by height (`size`), as is `BrandLockup` (`markSize`). The geometry is the
+    ERP's `public/synapse-mark.svg`. The app, splash and adaptive icons in
+    `assets/images/` are drawn from the same vector, each at the padding its slot
+    wants: the launcher icon is the mark on a white tile, iOS adds a dark and a tinted
+    appearance (`icon-dark.png`, `icon-tinted.png`), Android's themed icon uses the
+    monochrome silhouette, and the splash is the mark on white.
 - `features/<module>/` — `api.ts` + components, mirroring the web feature folders.

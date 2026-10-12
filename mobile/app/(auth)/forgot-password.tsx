@@ -76,7 +76,7 @@ export default function ForgotPasswordScreen() {
   return (
     <EntryScreen keyboardAnchor={submitRef}>
       <Animated.View entering={enter(0)} style={styles.brand}>
-        <BrandLockup markWidth={88} />
+        <BrandLockup markSize={67} />
       </Animated.View>
 
       {sent ? (

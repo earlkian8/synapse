@@ -11,7 +11,7 @@ export default function Index() {
     <EntryScreen scroll={false}>
       <View style={styles.center}>
         <Animated.View entering={FadeIn.duration(400)}>
-          <BrandLockup markWidth={148} />
+          <BrandLockup markSize={112} />
         </Animated.View>
       </View>
     </EntryScreen>
