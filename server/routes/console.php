@@ -34,3 +34,7 @@ Schedule::command('offboarding:exit-interview-reminders')->dailyAt('09:00')->wit
 // Data Export (ADR 0066): delete archives past their keep-until date, and close
 // exports whose build died before it finished.
 Schedule::command('data-export:prune')->hourly()->withoutOverlapping();
+
+// Admin portal sessions (ADR 0085) carry an expiry; drop the tokens a day after
+// it. Mobile tokens have none and are untouched.
+Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('03:15');

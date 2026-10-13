@@ -63,10 +63,12 @@ commit history rather than repeating them.
 - [Data Export](./modules/data-export.md) — a copy of the workspace's records as one archive (CSV or JSON, optionally with uploads), for the person who asked, for 7 days.
 - [Notifications](./modules/notifications.md) — in-app, email & web-push; broadcast & preferences.
 - [Mobile app](./modules/mobile-app.md) — the employee companion (Expo): clock in and out, attendance, leave, awards, several workspaces.
+- [Admin portal](./modules/admin-portal.md) — the platform console (`admin/`): every organisation and ERP account across tenants, read-only; its own admin accounts with mandatory two-factor; an append-only admin activity log.
 
 ### Guides
 - [Deployment](./deployment.md) — the single Docker image (web app, ML service, queue, scheduler) and Supabase for the database and uploaded files.
 - [Landing page](../landing/README.md) — the public static site: what SYNAPSE does, the way into the ERP, and the Android APK download; its build-time links and where the APK goes.
+- [Admin portal app](../admin/README.md) — running and deploying `admin/`: its ERP address, the first admin, and the headers its host should send.
 ### Database
 - [Entity Relationship Diagram](./database/erd.md) — the built data model, every table by domain.
 - [`organizations` & the tenant column](./database/organizations-table.md) — multi-tenancy schema.
@@ -92,6 +94,7 @@ commit history rather than repeating them.
 - [model graduation tables](./database/model-graduation-tables.md) — each organisation's own trained models.
 - [assistant tables](./database/assistant-tables.md) — conversations + messages (with the agent timeline and cards).
 - [data export tables](./database/data-export-tables.md) — the archives requested, their status, summary and keep-until date.
+- [admin portal tables](./database/admin-portal-tables.md) — platform admins and their append-only activity log.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -163,6 +166,7 @@ commit history rather than repeating them.
 - [0067 — The assistant is a panel opened from the top bar, and its replies show their work as a trace](./decisions/0067-the-assistant-is-a-panel-opened-from-the-top-bar.md)
 - [0068 — The assistant finishes the job: a real agent loop, tools routed per turn, plans confirmed as one, attachments that can be filed, and a Manual / Auto mode](./decisions/0068-the-assistant-finishes-the-job.md)
 - [0069 — Global search: a command palette, read for the person searching](./decisions/0069-global-search-a-command-palette-read-for-the-searcher.md)
+- [0085 — A platform admin portal, with its own admins, over its own API](./decisions/0085-a-platform-admin-portal.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -284,3 +288,4 @@ commit history rather than repeating them.
 - [2026-10-07 — Global search: ⌘K finds people, records, screens and help](./changelog/2026-10-07-01-global-search.md)
 - [2026-10-10 — Links that went nowhere are gone](./changelog/2026-10-10-01-dead-links-removed.md)
 - [2026-10-12 — The new SYNAPSE mark, as vector, in every slot](./changelog/2026-10-12-03-new-synapse-mark.md)
+- [2026-10-13 — The admin portal](./changelog/2026-10-13-03-admin-portal.md)

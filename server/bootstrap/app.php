@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\Admin\EnsureAdminPasswordIsCurrent;
+use App\Http\Middleware\Admin\EnsureAdminSession;
+use App\Http\Middleware\Admin\EnsureSuperAdmin;
+use App\Http\Middleware\Admin\NoStore;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -12,6 +16,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,6 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // The platform admin portal's API (ADR 0085). Its own group, not `api`:
+        // that one binds an ERP tenant, and an admin stands above every tenant.
+        then: function (): void {
+            Route::middleware('admin-api')
+                ->prefix('api/admin')
+                ->name('admin.')
+                ->group(base_path('routes/admin.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -44,6 +57,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             EnsureAccountIsActive::class,
             SetCurrentOrganization::class,
+        ]);
+
+        $middleware->group('admin-api', [
+            NoStore::class,
+            SubstituteBindings::class,
+        ]);
+
+        $middleware->alias([
+            'admin.session' => EnsureAdminSession::class,
+            'admin.password-current' => EnsureAdminPasswordIsCurrent::class,
+            'admin.super' => EnsureSuperAdmin::class,
         ]);
 
         // The tenant must be bound before route-model binding runs. Appended to

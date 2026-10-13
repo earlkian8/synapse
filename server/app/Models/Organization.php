@@ -7,6 +7,7 @@ use App\Support\JoinCode;
 use App\Support\OrganizationClock;
 use App\Support\Setup\CompanySetup;
 use Database\Factories\OrganizationFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -216,6 +217,30 @@ class Organization extends Model
             ->where('join_code', $normalized)
             ->where('join_code_enabled', true)
             ->first();
+    }
+
+    /**
+     * Scope to a free-text search over the names and contact email — the admin
+     * portal's organisation list (ADR 0085).
+     *
+     * @param  Builder<Organization>  $query
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return;
+        }
+
+        $needle = '%'.$term.'%';
+        $like = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+
+        $query->where(function (Builder $query) use ($needle, $like) {
+            foreach (['name', 'legal_name', 'slug', 'email'] as $column) {
+                $query->orWhere($column, $like, $needle);
+            }
+        });
     }
 
     /**

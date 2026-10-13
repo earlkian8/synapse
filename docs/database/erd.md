@@ -7,7 +7,8 @@
 > `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10, and §8's
 > training tables up to `2026_10_11_000000_create_training_self_service_tables` on
 > 2026-10-11; the holiday, work-location, offboarding and tour tables of §1, §2a and §5
-> up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12). It
+> up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12; §13's admin
+portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -1606,7 +1607,57 @@ erDiagram
 
 ---
 
-## 13. Framework tables
+## 13. Admin portal
+
+The platform's own administrators and what they did, outside every organisation. See
+[admin portal tables](./admin-portal-tables.md) and the
+[Admin portal](../modules/admin-portal.md) module doc.
+
+```mermaid
+erDiagram
+    ADMIN |o--o{ ADMIN : created
+    ADMIN |o--o{ ADMIN_ACTIVITY_LOG : "acted (kept after delete)"
+
+    ADMIN {
+        bigint id PK
+        string name
+        string email UK "lower-cased"
+        string password
+        string role "super_admin|admin"
+        boolean is_active
+        boolean must_change_password "an issued password is owed"
+        text two_factor_secret "encrypted"
+        datetime two_factor_confirmed_at
+        datetime last_login_at
+        string last_login_ip
+        datetime password_changed_at
+        bigint created_by FK "null at the console"
+    }
+
+    ADMIN_ACTIVITY_LOG {
+        bigint id PK
+        bigint admin_id FK "null on delete"
+        string actor_name "copied at the time"
+        string actor_email "or the address tried"
+        string event
+        text description
+        string subject_type
+        bigint subject_id
+        string subject_label
+        json properties
+        string ip_address
+        text user_agent
+        datetime created_at "no updated_at: append-only"
+    }
+```
+
+> No `organization_id` on either: an admin is not a `USER` and belongs to no
+> organisation ([ADR 0085](../decisions/0085-a-platform-admin-portal.md)). Portal
+> sessions are `personal_access_tokens` rows whose tokenable is an `ADMIN`.
+
+---
+
+## 14. Framework tables
 
 Laravel's own plumbing, not drawn: `cache`, `cache_locks`, `jobs`, `job_batches`,
 `failed_jobs`, `sessions`, `password_reset_tokens` and `migrations`. Sessions, the

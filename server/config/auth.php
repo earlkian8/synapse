@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\User;
 
 return [
@@ -42,6 +43,20 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // The mobile API's bearer tokens. Pinned to `users`: left unset, Sanctum
+        // accepts a token whatever model it belongs to, so an admin portal token
+        // would pass as a mobile session (ADR 0085).
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        // The admin portal (ADR 0085): bearer tokens that only an Admin can hold.
+        'admin' => [
+            'driver' => 'sanctum',
+            'provider' => 'admins',
+        ],
     ],
 
     /*
@@ -65,6 +80,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'admins' => [
+            'driver' => 'eloquent',
+            'model' => Admin::class,
         ],
 
         // 'users' => [

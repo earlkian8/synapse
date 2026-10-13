@@ -211,6 +211,22 @@ scheduler on one instance only (`RUN_SCHEDULER=false` on the rest).
 The [mobile app](./modules/mobile-app.md) talks to the same server. Point it at the
 deployment with `EXPO_PUBLIC_API_URL=https://<your-domain>/api` in `mobile/.env`.
 
+## The admin portal
+
+The [admin portal](./modules/admin-portal.md) is a static site in `admin/`, built and
+hosted on its own like the landing page, not in the image. Build it with
+`VITE_ERP_URL=https://<your-domain>`. Its API ships with the image: after the first
+deploy that includes ADR 0085's migration, create the first admin inside the running
+container. The password is asked for at a hidden prompt:
+
+```bash
+php artisan admin:create you@example.com --name="Your Name"
+```
+
+`ADMIN_SESSION_LIFETIME` (minutes, default 480) and `ADMIN_IDLE_TIMEOUT` (default 30)
+tune portal sessions. The scheduler prunes expired portal tokens daily. See
+[`admin/README.md`](../admin/README.md) for the headers its host should send.
+
 ## Demo data
 
 `fakerphp/faker` is a production dependency (it moved from `require-dev`), because the

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\AttendancePolicy;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
@@ -26,6 +27,7 @@ use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 /*
@@ -400,4 +402,50 @@ function perfSubmit(PerformanceEvaluation $evaluation, float $goal = 80, float $
     $workflow->submit($evaluation);
 
     return $evaluation->refresh();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Admin portal helpers (ADR 0085)
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * A live portal session for an admin, as the second sign-in step mints it.
+ */
+function portalToken(Admin $admin): string
+{
+    return $admin->createToken('admin-portal', ['admin'], now()->addMinutes((int) config('admin.session_lifetime')))->plainTextToken;
+}
+
+/**
+ * Headers for a portal request. Forgets the guards first: a test sends several
+ * requests through one application, and the bearer guard would otherwise keep
+ * the first request's admin.
+ *
+ * @return array<string, string>
+ */
+function portalHeaders(string $token): array
+{
+    app('auth')->forgetGuards();
+
+    return ['Authorization' => "Bearer {$token}", 'Accept' => 'application/json'];
+}
+
+/**
+ * Signed in as a fresh super admin (or the given admin); returns the headers.
+ *
+ * @return array<string, string>
+ */
+function asPortalAdmin(?Admin $admin = null): array
+{
+    return portalHeaders(portalToken($admin ?? Admin::factory()->superAdmin()->create()));
+}
+
+/**
+ * The code an authenticator app shows right now for a secret.
+ */
+function portalCode(string $secret): string
+{
+    return app(Google2FA::class)->getCurrentOtp($secret);
 }
