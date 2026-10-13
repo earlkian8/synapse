@@ -1,0 +1,233 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/archivo/wdth.css';
+
+/* SYNAPSE landing tokens. The blues are lifted from the mark's own gradient
+   (server/public/synapse-mark.svg); manila is kept for one object only, the
+   201 file's folder. */
+@theme {
+    --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+
+    --color-ice: #f2f5fa;
+    --color-frost: #e5ecf6;
+    --color-line: #d3ddeb;
+    --color-ink: #0f2044;
+    --color-ink-soft: #46557a;
+    --color-signal: #1c73e8;
+    --color-signal-deep: #1560db;
+    --color-sky: #37b3ff;
+    --color-sky-lift: #80cafe;
+    --color-manila: #e4c584;
+    --color-manila-deep: #c9a65e;
+    --color-ok: #149c6b;
+    --color-watch: #d98a12;
+    --color-risk: #d6453d;
+
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+        /* Panels bleed to the window's edge; never let that scroll sideways. */
+        overflow-x: clip;
+    }
+
+    body {
+        @apply bg-ice text-ink antialiased;
+        font-feature-settings: 'ss01' on;
+        text-rendering: optimizeLegibility;
+    }
+
+    ::selection {
+        @apply bg-sky/30 text-ink;
+    }
+
+    :focus-visible {
+        @apply outline-2 outline-offset-3 outline-signal;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+    }
+}
+
+/* Width is the type's voice: display lines run wide, body text at normal. */
+@utility font-wide {
+    font-stretch: 125%;
+}
+
+@utility font-semiwide {
+    font-stretch: 112%;
+}
+
+@utility font-narrow {
+    font-stretch: 82%;
+}
+
+@utility tabular {
+    font-variant-numeric: tabular-nums;
+}
+
+/* The faint street grid the hero and the geofence miniature sit on. */
+@utility bg-grid {
+    background-image:
+        linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+    background-size: 56px 56px;
+}
+
+/* ── The hero mark's firing cycle ──────────────────────────────────────────
+   One 5.4 s cycle shared by every piece, starting once the mark has built:
+   ring at the top dot (0%), the signal runs in (0–27%), ring at the middle dot
+   (27%), the signal runs out (29–57%), ring at the bottom dot (57%), rest. */
+.firing-dash {
+    stroke-dasharray: 0.16 2;
+    stroke-dashoffset: 0.16;
+    opacity: 0;
+}
+
+.firing-pulse-in .firing-dash {
+    animation: firing-in 5.4s cubic-bezier(0.45, 0, 0.4, 1) 2.1s infinite both;
+}
+
+.firing-pulse-out .firing-dash {
+    animation: firing-out 5.4s cubic-bezier(0.45, 0, 0.4, 1) 2.1s infinite both;
+}
+
+.firing-ring {
+    fill: none;
+    stroke: var(--color-sky);
+    stroke-width: 3;
+    opacity: 0;
+}
+
+.firing-ring-top {
+    animation: firing-ring-top 5.4s ease-out 2.1s infinite both;
+}
+
+.firing-ring-middle {
+    animation: firing-ring-middle 5.4s ease-out 2.1s infinite both;
+}
+
+.firing-ring-bottom {
+    animation: firing-ring-bottom 5.4s ease-out 2.1s infinite both;
+}
+
+@keyframes firing-in {
+    0% {
+        stroke-dashoffset: 0.16;
+        opacity: 0;
+    }
+    3% {
+        opacity: 1;
+    }
+    25% {
+        opacity: 1;
+    }
+    27%,
+    100% {
+        stroke-dashoffset: -1;
+        opacity: 0;
+    }
+}
+
+@keyframes firing-out {
+    0%,
+    29% {
+        stroke-dashoffset: 0.16;
+        opacity: 0;
+    }
+    32% {
+        opacity: 1;
+    }
+    55% {
+        opacity: 1;
+    }
+    57%,
+    100% {
+        stroke-dashoffset: -1;
+        opacity: 0;
+    }
+}
+
+@keyframes firing-ring-top {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    16%,
+    100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+@keyframes firing-ring-middle {
+    0%,
+    26% {
+        transform: scale(1);
+        opacity: 0;
+    }
+    27% {
+        opacity: 0.6;
+    }
+    43%,
+    100% {
+        transform: scale(1.9);
+        opacity: 0;
+    }
+}
+
+@keyframes firing-ring-bottom {
+    0%,
+    56% {
+        transform: scale(1);
+        opacity: 0;
+    }
+    57% {
+        opacity: 0.6;
+    }
+    73%,
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .firing-dash,
+    .firing-ring {
+        animation: none !important;
+        opacity: 0 !important;
+    }
+}
+
+/* The punch on the geofence miniature. */
+.geo-ping {
+    animation: geo-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes geo-ping {
+    0% {
+        transform: translate(-50%, 50%) scale(0.4);
+        opacity: 0.9;
+    }
+    80%,
+    100% {
+        transform: translate(-50%, 50%) scale(2.2);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .geo-ping {
+        animation: none;
+    }
+}
