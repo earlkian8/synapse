@@ -57,7 +57,7 @@ import {
     useAdmins,
 } from './api';
 import type { AdminInput } from './api';
-import { AdminFormSheet } from './components/admin-form-sheet';
+import { AdminFormDialog } from './components/admin-form-dialog';
 import { AdminRowActions } from './components/admin-row-actions';
 import type { AdminAction } from './components/admin-row-actions';
 import { TemporaryPasswordDialog } from './components/temporary-password-dialog';
@@ -471,7 +471,7 @@ export function AdminsPage() {
                 </>
             )}
 
-            <AdminFormSheet
+            <AdminFormDialog
                 open={formOpen}
                 admin={editing}
                 onOpenChange={setFormOpen}

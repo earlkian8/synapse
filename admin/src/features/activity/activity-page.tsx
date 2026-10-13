@@ -29,7 +29,7 @@ import { useListParams } from '@/hooks/use-list-params';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
 import { useActivity } from './api';
-import { ActivitySheet } from './components/activity-sheet';
+import { ActivityDialog } from './components/activity-dialog';
 import { EventPill } from './components/event-pill';
 
 /**
@@ -257,7 +257,7 @@ export function ActivityPage() {
                 </>
             )}
 
-            <ActivitySheet
+            <ActivityDialog
                 entry={open}
                 open={list.openId !== null && open !== null}
                 onClose={() => list.open(null)}

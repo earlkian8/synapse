@@ -44,7 +44,7 @@ import {
     OrganizationName,
     OrganizationStatusPill,
 } from './components/organization-name';
-import { OrganizationSheet } from './components/organization-sheet';
+import { OrganizationDialog } from './components/organization-dialog';
 
 const STATUSES = [
     { value: 'all', label: 'All organisations' },
@@ -263,7 +263,7 @@ export function OrganizationsPage() {
                 </>
             )}
 
-            <OrganizationSheet
+            <OrganizationDialog
                 id={list.openId}
                 onClose={() => list.open(null)}
             />

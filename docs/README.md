@@ -289,3 +289,4 @@ commit history rather than repeating them.
 - [2026-10-10 — Links that went nowhere are gone](./changelog/2026-10-10-01-dead-links-removed.md)
 - [2026-10-12 — The new SYNAPSE mark, as vector, in every slot](./changelog/2026-10-12-03-new-synapse-mark.md)
 - [2026-10-13 — The admin portal](./changelog/2026-10-13-03-admin-portal.md)
+- [2026-10-13 — Admin portal: centred dialogs](./changelog/2026-10-13-04-admin-portal-dialogs.md)

@@ -17,8 +17,8 @@ ERP login, even an HR Manager's, does not open it.
 | **Sign-in** | anyone | Password, then a TOTP code, every time. A first sign-in sets the authenticator up (QR code + key). |
 | **Choose a password** | an admin holding an issued password | Nothing else opens until they choose their own. |
 | **Overview** | all admins | Organisations (and how many are in setup), ERP accounts (and unverified), sign-ins in 30 days, employees, open app sessions; the newest organisations, the latest ERP sign-ins; for a super admin, the latest admin activity. |
-| **Organisations** | all admins | Every organisation: status (ready / in setup / archived), members, employees, last activity, joined. Search, status filter, sort, paging. A detail sheet: size (members, employees, departments, waiting to join), activity (joined, setup finished, last activity, actions in 30 days), contact, HR Managers, newest members. |
-| **Accounts** | all admins | Every ERP sign-in account: status (active / unverified / inactive / archived), workspaces, two-factor, last sign-in. Filters include "in no workspace". A detail sheet: workspaces with roles, email verification, two-factor, password age, open app sessions. |
+| **Organisations** | all admins | Every organisation: status (ready / in setup / archived), members, employees, last activity, joined. Search, status filter, sort, paging. A detail dialog: size (members, employees, departments, waiting to join), activity (joined, setup finished, last activity, actions in 30 days), contact, HR Managers, newest members. |
+| **Accounts** | all admins | Every ERP sign-in account: status (active / unverified / inactive / archived), workspaces, two-factor, last sign-in. Filters include "in no workspace". A detail dialog: workspaces with roles, email verification, two-factor, password age, open app sessions. |
 | **Admin accounts** | super admins | Add (one-time password shown once), edit name / email / role, reset password, reset authenticator, deactivate / activate, delete (deactivated only). |
 | **Activity log** | super admins | Every sign-in, failed password or code, sign-out, password change, ended session and admin-account change, with IP and browser. Filter by event and admin. Read-only. |
 | **Account and security** | every admin | One's own details, password change, authenticator status, the session's end and idle limit, "Sign out other sessions". |
@@ -129,7 +129,10 @@ sonner, qrcode.react, input-otp, Instrument Sans (self-hosted).
   ERP's inset sidebar + top bar).
 - `src/components/` — the shell (sidebar, header, breadcrumbs from route handles, account
   menu showing the name, no avatar), the ERP's list kit in `data-table/`, status pills,
-  detail rows, page states, the idle-session dialog.
+  page states, the idle-session dialog, and `record-dialog.tsx`: every record and form
+  opens in a centred dialog (compact header, a body that scrolls inside it, a pinned
+  footer), with facts packed into a bordered grid (label over value) and people in a
+  bordered row list.
 - `src/features/<feature>/` — `api.ts` (types and query hooks) plus pages and
   components: `auth`, `overview`, `organizations`, `accounts`, `admins`, `activity`,
   `account`.

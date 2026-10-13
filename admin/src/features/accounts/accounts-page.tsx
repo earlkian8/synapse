@@ -41,7 +41,7 @@ import {
     formatRelative,
 } from '@/lib/format';
 import { useAccounts } from './api';
-import { AccountSheet } from './components/account-sheet';
+import { AccountDialog } from './components/account-dialog';
 import { AccountStatusPill } from './components/account-status-pill';
 
 const STATUSES = [
@@ -268,7 +268,7 @@ export function AccountsPage() {
                 </>
             )}
 
-            <AccountSheet id={list.openId} onClose={() => list.open(null)} />
+            <AccountDialog id={list.openId} onClose={() => list.open(null)} />
         </PageBody>
     );
 }
