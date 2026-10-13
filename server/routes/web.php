@@ -5,13 +5,16 @@ use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\Public\InvitationController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+// No front page of its own (ADR 0084): the landing site is the public front
+// door. A guest goes to sign in; somebody signed in, to where sign-in lands.
+Route::get('/', HomeController::class)->name('home');
 
 // Where the invitation email's link lands. Public on purpose (ADR 0026): the
 // recipient may not have an account anywhere yet. Shows who is inviting them and

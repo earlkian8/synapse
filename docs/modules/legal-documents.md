@@ -6,7 +6,7 @@ of 2012** (RA 10173), describe what the system actually does with personal infor
 and name **whoever operates the deployment**, from configuration.
 
 > Status: **Active** · Routes: `GET /privacy` (`legal.privacy`), `GET /terms` (`legal.terms`)
-> Linked from: every footer (app, sign-in screens, welcome page, careers pages), the
+> Linked from: every footer (app, sign-in screens, careers pages, the landing site), the
 > sign-up form, the job application form, the Help Center and the assistant's guide
 > See [ADR 0063](../decisions/0063-privacy-policy-and-terms-of-service.md).
 
@@ -73,7 +73,7 @@ links (`#5-ai-features-and-predictions`) stay on the page.
 | --- | --- |
 | Sign-up form | "By creating an account, you agree to the Terms of Service and confirm you have read the Privacy Policy" (both open in a new tab, so the form is kept) |
 | Job application form | What the organisation will use the application for, linking the Privacy Policy, and a request not to include what the posting does not ask for |
-| Footers | The app footer (*Privacy*, *Terms*), the sign-in screens, the welcome page and the careers pages |
+| Footers | The app footer (*Privacy*, *Terms*), the sign-in screens, the careers pages and the landing site (`landing/`) |
 | Help Center | *Privacy and your data* (Your account): who is responsible, the rights, and where to ask |
 | Assistant | A `legal` entry in `SystemGuide` ("where is the privacy policy?") |
 
