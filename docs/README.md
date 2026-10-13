@@ -66,6 +66,7 @@ commit history rather than repeating them.
 
 ### Guides
 - [Deployment](./deployment.md) — the single Docker image (web app, ML service, queue, scheduler) and Supabase for the database and uploaded files.
+- [Landing page](../landing/README.md) — the public static site: what SYNAPSE does, the way into the ERP, and the Android APK download; its build-time links and where the APK goes.
 ### Database
 - [Entity Relationship Diagram](./database/erd.md) — the built data model, every table by domain.
 - [`organizations` & the tenant column](./database/organizations-table.md) — multi-tenancy schema.
