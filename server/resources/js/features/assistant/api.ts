@@ -51,6 +51,16 @@ function failureText(status: number, data: unknown): string {
         return 'That is a lot of messages in a short time. Wait a minute, then retry.';
     }
 
+    // The gateway in front of the app gave up waiting (it answers with its own
+    // page, not ours), or a reply arrived that is not one of ours at all.
+    if ([502, 503, 504, 524].includes(status) && data === null) {
+        return 'The assistant took too long to answer. Please try again.';
+    }
+
+    if (status >= 200 && status < 300 && data === null) {
+        return 'The reply did not come through in one piece. Please try again.';
+    }
+
     const body = (data ?? {}) as { reply?: unknown; error?: unknown };
 
     for (const said of [body.reply, body.error]) {

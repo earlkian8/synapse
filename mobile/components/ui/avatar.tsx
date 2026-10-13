@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/ui/text';
+import { fileSource } from '@/lib/api';
 import { useTheme } from '@/theme/theme';
 
 type AvatarProps = {
@@ -33,7 +34,7 @@ export function Avatar({ uri, initials, size = 44 }: AvatarProps) {
       }}
     >
       {uri ? (
-        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={250} />
+        <Image source={fileSource(uri)} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={250} />
       ) : (
         <AppText
           variant="headline"

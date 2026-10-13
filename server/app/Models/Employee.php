@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Files\Uploads;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -13,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Employee extends Model
@@ -376,8 +376,8 @@ class Employee extends Model
 
     /**
      * The employee's photo as a servable URL: an absolute URL is passed through
-     * as-is (e.g. seeded demo portraits), otherwise the stored path is resolved
-     * on the `public` disk. Null when no photo is set.
+     * as-is (e.g. seeded demo portraits), otherwise a link to the stored file
+     * through the app (ADR 0087). Null when no photo is set.
      *
      * @return Attribute<string|null, never>
      */
@@ -391,7 +391,7 @@ class Employee extends Model
 
                 return Str::startsWith($this->photo, ['http://', 'https://'])
                     ? $this->photo
-                    : Storage::disk('public')->url($this->photo);
+                    : Uploads::url($this->photo);
             },
         );
     }

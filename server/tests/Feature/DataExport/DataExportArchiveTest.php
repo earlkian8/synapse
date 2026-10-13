@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     Storage::fake('exports');
-    Storage::fake('public');
+    Storage::fake('uploads');
 });
 
 /**
@@ -190,7 +190,7 @@ test('CSV files open safely in a spreadsheet', function () {
 
 test('uploaded files come along when asked for', function () {
     actingAsSuperAdmin();
-    Storage::disk('public')->put('employee-photos/ana.jpg', 'photo-bytes');
+    Storage::disk('uploads')->put('employee-photos/ana.jpg', 'photo-bytes');
     Employee::factory()->create(['photo' => 'employee-photos/ana.jpg']);
     Employee::factory()->create(['photo' => 'employee-photos/gone.jpg']);
     Employee::factory()->create(['photo' => 'https://example.com/elsewhere.jpg']);
@@ -207,7 +207,7 @@ test('uploaded files come along when asked for', function () {
 
 test('profile photos come along with the user accounts', function () {
     $admin = actingAsSuperAdmin();
-    Storage::disk('public')->put('profile-photos/me.jpg', 'me-bytes');
+    Storage::disk('uploads')->put('profile-photos/me.jpg', 'me-bytes');
     $admin->forceFill(['profile_photo' => 'profile-photos/me.jpg'])->save();
 
     [$export, $zip] = buildArchive(['users'], files: true);
@@ -220,7 +220,7 @@ test('uploads that would outrun the time a build may take are left out, and coun
     app()->instance(ArchiveBuilder::class, new ArchiveBuilder(fileBudgetSeconds: 0));
 
     actingAsSuperAdmin();
-    Storage::disk('public')->put('employee-photos/ana.jpg', 'photo-bytes');
+    Storage::disk('uploads')->put('employee-photos/ana.jpg', 'photo-bytes');
     Employee::factory()->create(['photo' => 'employee-photos/ana.jpg']);
 
     [$export, $zip] = buildArchive(['employees'], files: true);

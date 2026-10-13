@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Security\PendingActions;
 use App\Support\Ai\GeminiClient;
+use App\Support\Ai\GeminiException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
@@ -207,7 +208,7 @@ function proposePlan(array $script): array
 
 test('confirming a plan runs its steps in order, once', function () {
     Storage::fake('assistant');
-    Storage::fake('public');
+    Storage::fake('uploads');
     loopRecruiter();
     loopAnalystPosting();
     $card = proposePlan([[loopAddAna()], [loopMoveAna()], [['text' => 'Queued.']]]);
@@ -300,4 +301,100 @@ test('a plan that lapsed mid-turn refuses the next step rather than splitting th
         ->and($cards->first()['plan'])->toHaveCount(1)
         ->and(collect($turn['steps'])->last()['status'])->toBe('error')
         ->and(collect($turn['steps'])->last()['detail'])->toContain('expired');
+});
+
+// ── Time (ADR 0086) ──────────────────────────────────────────────────────────
+
+/**
+ * A model that answers from a script, where an entry may be a GeminiException
+ * to throw instead, or a callable run first (to spend the turn's time).
+ */
+function loopTimedModel(array $script): GeminiClient
+{
+    $model = new class(null, 'stub') extends GeminiClient
+    {
+        public array $script = [];
+
+        public int $requests = 0;
+
+        public function configured(): bool
+        {
+            return true;
+        }
+
+        public function generate(array $contents, array $functionDeclarations = [], ?string $systemInstruction = null): array
+        {
+            $this->requests++;
+            $entry = array_shift($this->script) ?? [['text' => 'Okay.']];
+
+            if ($entry instanceof Throwable) {
+                throw $entry;
+            }
+
+            if (is_callable($entry[0] ?? null)) {
+                ($entry[0])($this);
+                $entry = $entry[1];
+            }
+
+            return ['candidates' => [['content' => ['role' => 'model', 'parts' => $entry], 'finishReason' => 'STOP']]];
+        }
+    };
+
+    $model->script = $script;
+    app()->instance(GeminiClient::class, $model);
+    app()->forgetInstance(Assistant::class);
+
+    return $model;
+}
+
+test('a turn whose first model request times out fails as retryable, with nothing changed', function () {
+    loopRecruiter();
+    loopAnalystPosting();
+    loopTimedModel([new GeminiException(504, 'Gemini did not answer in time.')]);
+
+    $response = $this->postJson(route('assistant'), ['message' => 'add Ana Cruz to the cybersecurity analyst posting'])->assertOk();
+
+    expect($response->json('message.failed'))->toBeTrue()
+        ->and($response->json('message.body'))->toContain('took too long')
+        ->and(Applicant::count())->toBe(0);
+});
+
+test('a later step that times out still reports what was done', function () {
+    loopRecruiter();
+    loopAnalystPosting();
+    loopTimedModel([[loopAddAna()], new GeminiException(504, 'Gemini did not answer in time.')]);
+
+    $turn = app(Assistant::class)->handle(auth()->user(), 'add Ana Cruz to the cybersecurity analyst posting');
+
+    expect(Applicant::where('first_name', 'Ana')->count())->toBe(1)
+        ->and($turn['reply'])->toContain('Ana Cruz');
+});
+
+test('no further step starts once the turn is nearly out of time', function () {
+    loopRecruiter();
+    loopAnalystPosting();
+    $model = loopTimedModel([
+        [fn (GeminiClient $client) => $client->until(microtime(true) + 3), [loopAddAna()]],
+        [loopMoveAna()],
+    ]);
+
+    $turn = app(Assistant::class)->handle(auth()->user(), 'put Ana Cruz in cybersecurity analyst as an offer');
+
+    expect($model->requests)->toBe(1)
+        ->and(Applicant::where('first_name', 'Ana')->count())->toBe(1)
+        ->and($turn['reply'])->toContain('Ana Cruz')
+        ->and($model->secondsLeft())->toBeNull();
+});
+
+test('a turn with a document is told to read it in full and carry every detail over', function () {
+    loopRecruiter();
+    loopAnalystPosting();
+    $model = fakeAssistantModel([[['text' => 'Read it.']]]);
+
+    app(Assistant::class)->handle(auth()->user(), 'add this to the analyst posting', [], [loopPdfPart()]);
+
+    $userTurn = collect($model->sent[0]['contents'])->last();
+
+    expect($model->sent[0]['system'])->toContain('carry EVERY detail it states')
+        ->and($userTurn['parts'][1]['text'])->toContain('read in full');
 });

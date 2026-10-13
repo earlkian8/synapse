@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\VerifyEmailCodeNotification;
 use App\Support\EmailVerificationCode;
+use App\Support\Files\Uploads;
 use App\Support\Tenancy;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -18,7 +19,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -250,7 +250,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     protected $appends = ['full_name', 'avatar'];
 
     /**
-     * Get the public URL of the user's profile photo, if any.
+     * Get a link to the user's profile photo, if any (ADR 0087).
      *
      * Exposed as `avatar` so shared auth props render the photo in the header.
      *
@@ -260,7 +260,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo
-                ? Storage::disk('public')->url($this->profile_photo)
+                ? Uploads::url($this->profile_photo)
                 : null,
         );
     }

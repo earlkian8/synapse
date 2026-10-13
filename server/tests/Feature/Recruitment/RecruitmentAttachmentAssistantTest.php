@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     Storage::fake('assistant');
-    Storage::fake('public');
+    Storage::fake('uploads');
 });
 
 function filingRecruiter(): void
@@ -74,7 +74,7 @@ test('the reported turn: one card for the whole request, and Confirm files the C
 
     expect($applicant->headline)->toBe('Security Engineer')
         ->and($applicant->resume)->toStartWith('applicant-resumes/')
-        ->and(Storage::disk('public')->get($applicant->resume))->toBe('%PDF-1.4 Earl Bancayrin CV')
+        ->and(Storage::disk('uploads')->get($applicant->resume))->toBe('%PDF-1.4 Earl Bancayrin CV')
         ->and($application->pipelineStage->name)->toBe('Offer')
         ->and(ActivityLog::where('description', 'like', '%via assistant%')->count())->toBeGreaterThanOrEqual(2);
 });
@@ -122,7 +122,7 @@ test('supporting documents are filed with their type, and a new résumé replace
 
     expect($applicant->documents()->pluck('type')->all())->toBe(['certificate'])
         ->and($applicant->phone)->toBe('0917')
-        ->and(Storage::disk('public')->files('applicant-resumes'))->toHaveCount(1);
+        ->and(Storage::disk('uploads')->files('applicant-resumes'))->toHaveCount(1);
 });
 
 test('add_application can place a candidate straight at a stage', function () {
@@ -164,7 +164,7 @@ test('a document is filed on an employee’s 201 file only after Confirm', funct
 
     expect($document->title)->toBe('Employment contract 2026')
         ->and($document->type)->toBe('contract')
-        ->and(Storage::disk('public')->get($document->file))->toBe('%PDF contract')
+        ->and(Storage::disk('uploads')->get($document->file))->toBe('%PDF contract')
         ->and(ActivityLog::where('description', 'like', 'Added document%via assistant')->exists())->toBeTrue();
 });
 

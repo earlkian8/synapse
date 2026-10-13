@@ -54,7 +54,7 @@ path to a public URL; `Organization::initials()` powers the avatar fallback.
   flag, and a required `timezone` from `OrganizationClock::identifiers()` (PHP's
   canonical list, so a zone has one spelling). The same request backs step one of the
   setup wizard.
-- **Logo handling** mirrors employee photos: stored on the `public` disk under
+- **Logo handling** mirrors employee photos: stored on the `uploads` disk under
   `organization-logos`; the previous file is deleted on replace or removal.
 - **`CompanyProfileResource`** exposes the fields + `logo_url` + `initials`; the page also
   receives `timezones` (`OrganizationClock::options()` — every zone with its current

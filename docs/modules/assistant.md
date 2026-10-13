@@ -59,7 +59,10 @@ permissions (see [Modules](#modules)).
    text. At most **8** round trips, **15** calls and **5** writes (run or planned) per
    turn. `load_tools` brings another module's tools in for the next round trip. A call
    already made this turn (same tool, same cleaned arguments) is not run again, and a
-   step that only repeats earlier calls ends the loop.
+   step that only repeats earlier calls ends the loop. The whole loop shares one
+   **time budget** (`GEMINI_TURN_SECONDS`, 75 s; [ADR 0086](../decisions/0086-the-assistant-answers-inside-the-gateway-timeout.md)):
+   each request waits at most what is left, no step starts with under 12 s left, and a
+   step that times out after work was done ends the loop instead of failing it.
 5. **Write the reply.** The model's own reply, normally. When a plan is held, the reply
    is composed locally from it ("Nothing has changed yet — these 2 changes wait for
    your OK, in order: …"), because the model's words may claim it is done. When the
@@ -290,7 +293,7 @@ not just read once:
 - stored on the private **`assistant` disk** at
   `<organization_id>/<conversation_id>/<random>.<ext>` — `storage/app/private/assistant-uploads`
   locally, the private exports bucket under `assistant-uploads/` when
-  `SUPABASE_EXPORTS_BUCKET` is set; never the public disk;
+  `SUPABASE_EXPORTS_BUCKET` is set; never the uploads disk;
 - numbered across the conversation (`[1] Ana_CV.pdf (PDF, 120 KB, sent with this
   message)`) in the instruction;
 - **read by the model** inline on the turn they arrive — Gemini reads PDFs and images
@@ -298,7 +301,14 @@ not just read once:
   that mentions "the CV", "that document", "the attachment" (not "file" or "document"
   alone, which are usually verbs) and sends none gets the most recent earlier file
   re-sent; regenerating re-sends the message's own files. A
-  request carries at most ~14 MB of files;
+  request carries at most ~14 MB of files. The model is told to read an attached
+  document in full whatever the wording, and to carry every detail it states into the
+  tool call (for a CV: contact details, location, headline, links, years of experience,
+  and a skills / education / roles summary in `notes`), so "add this to the engineer
+  posting" is enough;
+- **not about the asker**: on a turn with a document, only a name the user typed picks
+  a retrieval subject. "My" and pronouns pick nobody ("add it to my Software Engineer
+  posting" no longer reads the asker's own record);
 - **filed by reference**: a tool's attachment parameter takes a number or a file name,
   and the file is copied onto the record's own disk under the screen's own type and
   size rules (`ApplicantDocumentStore::resumeFrom()` / `documentFrom()`,
@@ -338,9 +348,12 @@ unknown confirmation token gets the same answer, so a token cannot be probed.
 
 **Failures.** When Gemini is busy (`GeminiException`), the turn is not saved as an
 answer: the user message is kept and the client gets a retryable notice. The notice
-distinguishes a briefly overloaded model (503), a per-minute burst (429 with a short
-retry delay: "give it about N s") and a used-up daily allowance (429 with a long or no
-delay). With no `GEMINI_API_KEY`, the endpoint answers 503 with a message saying so.
+distinguishes a turn that ran out of time before anything was done (504, from the
+time budget or a network timeout), a briefly overloaded model (503), a per-minute burst
+(429 with a short retry delay: "give it about N s") and a used-up daily allowance (429
+with a long or no delay). With no `GEMINI_API_KEY`, the endpoint answers 503 with a
+message saying so. In the browser, a gateway's own 502/503/504/524 page and a 2xx
+reply that is not JSON get a plain "try again" message instead of a bare status code.
 
 ## Frontend
 
@@ -383,12 +396,16 @@ Colours come from `--assistant-ink` (navy), `--assistant-signal` (teal) and
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | — | Required. Never sent to the browser. |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | `config/services.php`. |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | `config/services.php`. `gemini-3.5-flash-lite` costs about a fifth as much but reasons less well over CVs and multi-step requests. |
 | `GEMINI_TEMPERATURE` | — | Empty = the model's own default (0.2 on `gemini-2*`). Google advises leaving Gemini 3 models at their default; lower can make them loop. |
-| `GEMINI_THINKING_LEVEL` | — | `minimal`, `low`, `medium` or `high` (Gemini 3), sent as `thinkingConfig.thinkingLevel` only when set. `low` is cheaper and faster. |
+| `GEMINI_THINKING_LEVEL` | — | `minimal`, `low`, `medium` or `high` (Gemini 3), sent as `thinkingConfig.thinkingLevel` only when set. `low` is cheaper and faster, and is what `.env.example` sets. |
+| `GEMINI_TURN_SECONDS` | `75` | Seconds a turn may spend on model requests in total (floor 20). Keep it under the gateway's request timeout (App Platform: 100 s). |
 
-The client retries once when Gemini answers with no candidate or a
-`MALFORMED_FUNCTION_CALL`; a blocked answer (`SAFETY` and the like) gets a polite
+Each request waits at most 60 s (10 s to connect), or less when the turn's budget is
+nearly spent; a connection failure or timeout becomes a `GeminiException` with status
+504. The client retries once when Gemini answers with no candidate or a
+`MALFORMED_FUNCTION_CALL`, and up to twice on a 503, but only while the budget leaves
+room; a blocked answer (`SAFETY` and the like) gets a polite
 refusal rather than an error. The model's turn is echoed back unchanged, thought
 signatures included, as Gemini 3 function calling requires.
 

@@ -16,10 +16,10 @@ use App\Queries\EmployeesIndexQuery;
 use App\Queries\EmployeeStatistics;
 use App\Support\ActivityLogger;
 use App\Support\Employees\EmployeeNumbers;
+use App\Support\Files\Uploads;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -91,7 +91,7 @@ class EmployeeController extends Controller
         $employee = new Employee($data);
 
         if ($request->hasFile('photo')) {
-            $employee->photo = $request->file('photo')->store('employee-photos', 'public');
+            $employee->photo = $request->file('photo')->store('employee-photos', Uploads::DISK);
         }
 
         $employee->save();
@@ -125,7 +125,7 @@ class EmployeeController extends Controller
 
         if ($request->hasFile('photo')) {
             $this->deletePhoto($employee);
-            $employee->photo = $request->file('photo')->store('employee-photos', 'public');
+            $employee->photo = $request->file('photo')->store('employee-photos', Uploads::DISK);
         }
 
         $employee->save();
@@ -266,7 +266,7 @@ class EmployeeController extends Controller
     private function deletePhoto(Employee $employee): void
     {
         if ($employee->photo) {
-            Storage::disk('public')->delete($employee->photo);
+            Uploads::disk()->delete($employee->photo);
             $employee->photo = null;
         }
     }

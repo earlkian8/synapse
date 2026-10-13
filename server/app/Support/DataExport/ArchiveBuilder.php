@@ -5,9 +5,9 @@ namespace App\Support\DataExport;
 use App\Models\DataExport;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Files\Uploads;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
@@ -305,7 +305,7 @@ final class ArchiveBuilder
     /**
      * Copy the uploaded files the rows name into `files/`, under the path they
      * are stored at. A file that cannot be found or read is counted as missing,
-     * not fatal (the `public` disk does not throw); a link to somewhere else (a
+     * not fatal (the `uploads` disk does not throw); a link to somewhere else (a
      * photo kept as a URL) is not ours to copy; and once the deadline passes the
      * rest are counted as skipped.
      *
@@ -316,7 +316,7 @@ final class ArchiveBuilder
      */
     private function addFiles(ZipArchive $zip, array $paths, string $work, float $deadline): array
     {
-        $disk = Storage::disk('public');
+        $disk = Uploads::disk();
         $count = 0;
         $bytes = 0;
         $missing = 0;

@@ -7,8 +7,8 @@ use App\Models\Applicant;
 use App\Models\Employee;
 use App\Models\JobApplication;
 use App\Models\User;
+use App\Support\Files\Uploads;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -119,14 +119,14 @@ class ApplicantHirer
      */
     private static function copyResumeToFile(Applicant $applicant, Employee $employee, int $userId): void
     {
-        if (! $applicant->resume || ! Storage::disk('public')->exists($applicant->resume)) {
+        if (! $applicant->resume || ! Uploads::disk()->exists($applicant->resume)) {
             return;
         }
 
         $extension = pathinfo($applicant->resume, PATHINFO_EXTENSION) ?: 'pdf';
         $destination = 'employee-documents/'.Str::uuid()->toString().'.'.$extension;
 
-        Storage::disk('public')->copy($applicant->resume, $destination);
+        Uploads::disk()->copy($applicant->resume, $destination);
 
         $employee->documents()->create([
             'title' => 'Résumé (from application)',

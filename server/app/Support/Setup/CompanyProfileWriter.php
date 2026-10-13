@@ -8,9 +8,9 @@ use App\Http\Requests\Setup\UpdateCompanyProfileRequest;
 use App\Models\Organization;
 use App\Services\Assistant\Modules\CompanyProfileModule;
 use App\Support\ActivityLogger;
+use App\Support\Files\Uploads;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Applies an edit to the company profile — the identity, contact details,
@@ -61,7 +61,7 @@ class CompanyProfileWriter
         // Removal first (it is explicit), then an upload supersedes whatever is
         // left — so "remove and replace in one save" ends with the new file.
         if (($validated['remove_logo'] ?? false) && $organization->logo) {
-            Storage::disk('public')->delete($organization->logo);
+            Uploads::disk()->delete($organization->logo);
             $organization->logo = null;
         }
 
@@ -69,10 +69,10 @@ class CompanyProfileWriter
 
         if ($logo instanceof UploadedFile) {
             if ($organization->logo) {
-                Storage::disk('public')->delete($organization->logo);
+                Uploads::disk()->delete($organization->logo);
             }
 
-            $organization->logo = $logo->store('organization-logos', 'public');
+            $organization->logo = $logo->store('organization-logos', Uploads::DISK);
         }
 
         $organization->fill(Arr::except($validated, ['logo', 'remove_logo']));

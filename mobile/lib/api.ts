@@ -36,6 +36,26 @@ export function setTokenProvider(provider: TokenProvider) {
   getToken = provider;
 }
 
+/**
+ * The image source for a file link from the API (ADR 0087). Uploads are private:
+ * the server streams a photo only to somebody signed in to its workspace, so the
+ * image request carries the token like any other call. Only to this app's own
+ * server — a link anywhere else gets no token.
+ */
+export function fileSource(uri: string): { uri: string; headers?: Record<string, string> } {
+  const token = getToken();
+
+  return token && originOf(uri) === originOf(API_URL)
+    ? { uri, headers: { Authorization: `Bearer ${token}` } }
+    : { uri };
+}
+
+function originOf(url: string): string | null {
+  const match = /^(https?:\/\/[^/?#]+)/i.exec(url);
+
+  return match ? match[1].toLowerCase() : null;
+}
+
 let onUnauthorized: () => void = () => {};
 
 /**

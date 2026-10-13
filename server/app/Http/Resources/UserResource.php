@@ -3,10 +3,10 @@
 namespace App\Http\Resources;
 
 use App\Models\User;
+use App\Support\Files\Uploads;
 use App\Support\Roles\GrantRules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin User
@@ -31,7 +31,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'phone_number' => $this->phone_number,
             'profile_photo' => $this->profile_photo
-                ? Storage::disk('public')->url($this->profile_photo)
+                ? Uploads::url($this->profile_photo)
                 : null,
             'employee_id' => $this->employee_id,
             'roles' => $this->whenLoaded(

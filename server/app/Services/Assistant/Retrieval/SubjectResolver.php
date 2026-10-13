@@ -32,6 +32,11 @@ use Illuminate\Support\Str;
  *   somebody stay about them.
  * - **More than one match.** "maria" in a workspace with two Marias returns
  *   both, and the brief becomes a question instead of an answer.
+ *
+ * A turn that carries a document is about the document: "add this to my
+ * Software Engineer posting" is not about the asker, and "put him in Offer"
+ * with a CV attached means the person in the CV. So on such a turn only a
+ * name actually typed picks a subject; pronouns pick nobody.
  */
 class SubjectResolver
 {
@@ -78,16 +83,17 @@ class SubjectResolver
      * was ambiguous; none means the turn is not about a person we can find.
      *
      * @param  array<int, array{role?: string, text?: string}>  $history
+     * @param  bool  $document  Whether the turn carries an attached document.
      * @return list<RetrievedSubject>
      */
-    public function match(User $user, string $message, array $history = []): array
+    public function match(User $user, string $message, array $history = [], bool $document = false): array
     {
         $words = $this->words($message);
         $matches = $this->search($user, $this->nameTokens($words));
 
         // A name somebody actually typed outranks a pronoun: "show me Maria's
         // record" is about Maria, however first-person it sounds.
-        if ($matches !== []) {
+        if ($matches !== [] || $document) {
             return $matches;
         }
 

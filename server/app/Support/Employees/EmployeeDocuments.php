@@ -25,7 +25,7 @@ class EmployeeDocuments
     public const FILE_MAX_KB = 10240;
 
     /**
-     * Record a file already stored on the public disk as one of the employee's
+     * Record a file already stored on the uploads disk as one of the employee's
      * documents.
      */
     public function add(Employee $employee, string $title, string $type, string $path, ?int $uploadedBy, string $channel = ''): EmployeeDocument

@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\DB;
  *  - `calibration_sessions` — pivot rows of its calibration sessions;
  *  - `global` — a catalogue shared by every organisation (permission names).
  *
- * `files` names the columns that hold a path on the `public` disk, copied into
+ * `files` names the columns that hold a path on the `uploads` disk, copied into
  * the archive when the uploaded files are asked for. Every table that carries an
  * `organization_id` is either here or in {@see self::EXCLUDED}, with the reason;
  * a test holds that true as tables are added.

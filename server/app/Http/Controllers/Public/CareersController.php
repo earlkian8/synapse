@@ -9,12 +9,12 @@ use App\Models\JobPosting;
 use App\Models\Organization;
 use App\Support\ActivityLogger;
 use App\Support\ApplicantDocumentStore;
+use App\Support\Files\Uploads;
 use App\Support\Notifier;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -114,9 +114,9 @@ class CareersController extends Controller
 
             if ($request->hasFile('resume')) {
                 if ($applicant->resume) {
-                    Storage::disk('public')->delete($applicant->resume);
+                    Uploads::disk()->delete($applicant->resume);
                 }
-                $applicant->resume = $request->file('resume')->store('applicant-resumes', 'public');
+                $applicant->resume = $request->file('resume')->store('applicant-resumes', Uploads::DISK);
             }
 
             $applicant->save();

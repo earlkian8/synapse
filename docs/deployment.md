@@ -48,7 +48,9 @@ while the database is briefly unreachable at boot.
 - **Uploads:** nginx accepts 55 MB bodies; PHP allows 50 MB files and 55 MB posts.
 - **Long requests:** training an organisation's own model happens inside a web request
   (`ML_SERVICE_TRAIN_TIMEOUT`, 300 s), so PHP-FPM's `request_terminate_timeout` is 600 s
-  and nginx's FastCGI read timeout matches.
+  and nginx's FastCGI read timeout matches. App Platform's own edge still cuts any
+  request off at about 100 s, whatever the container allows. An assistant turn keeps
+  inside that with its own time budget (`GEMINI_TURN_SECONDS`, 75 s; ADR 0086).
 - **OPcache** never re-checks files (`validate_timestamps = 0`): the code cannot change
   inside a running container.
 - **Only `index.php` executes.** Any other `.php` path is a 404, and dotfiles are denied.
@@ -136,36 +138,38 @@ carries a local block and a commented Supabase block; keep exactly one uncomment
 
 ### Storage
 
-Every upload — profile and employee photos, company logos, résumés, applicant and
-employee documents, certification files, punch selfies — goes through the `public`
-disk. When `SUPABASE_STORAGE_BUCKET` is set, `config/filesystems.php` points that disk
-at **Supabase Storage** through its S3-compatible API
-(`league/flysystem-aws-s3-v3`). Otherwise it is `storage/app/public`, served through
-the `public/storage` link.
+Every upload goes through the private `uploads` disk: profile and employee photos,
+company logos, résumés, applicant and employee documents, certification files and
+punch selfies. When `SUPABASE_STORAGE_BUCKET` is set, `config/filesystems.php` points
+that disk at **Supabase Storage** through its S3-compatible API
+(`league/flysystem-aws-s3-v3`). Otherwise it is `storage/app/private/uploads`.
 
 ```dotenv
 SUPABASE_STORAGE_KEY=…        # Dashboard → Storage → S3 Connection
 SUPABASE_STORAGE_SECRET=…
 SUPABASE_STORAGE_REGION=…
-SUPABASE_STORAGE_BUCKET=…
+SUPABASE_STORAGE_BUCKET=…     # a PRIVATE bucket
 SUPABASE_STORAGE_ENDPOINT=https://<project-ref>.storage.supabase.co/storage/v1/s3
-SUPABASE_STORAGE_URL=https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>
 ```
 
-- The bucket must be marked **Public**: Supabase has no per-object ACLs, so the disk
-  sets `retain_visibility => false` and relies on the bucket. Every stored file is
-  therefore readable by anyone who has its URL.
+- The bucket must be **private** ([ADR 0087](./decisions/0087-uploads-are-private-to-their-workspace.md)).
+  Nothing links to it: the app streams each file from `/files/{path}` (web session) or
+  `/api/files/{path}` (app token). It does so only for somebody signed in to the
+  workspace the file belongs to who may see its record, and answers 404 otherwise.
+  Company logos are served from `/logos/{file}` to anybody, because the careers page
+  shows them signed out.
+- The S3 keys are server-side only and read the bucket whatever its setting.
 - The disk uses path-style endpoints, and does not throw or report on a failed write
   (the same as the local disk).
-- Nothing in the code names Supabase: models store a path and ask the disk for its URL,
-  so switching between local files and the bucket needs no code change. Files already
-  stored on one are not copied to the other.
+- Nothing in the code names Supabase. Models store a path and ask `Uploads::url()` for
+  a link, so switching between local files and the bucket needs no code change. Files
+  already stored on one are not copied to the other.
 
 ### Data export archives
 
 [Data Export](./modules/data-export.md) writes a ZIP of a whole workspace's records,
-personal data included, so it **must not** go in the public bucket above. Create a
-second bucket in Supabase, leave it **private** (not Public), and name it:
+personal data included, so it gets a bucket of its own. Create a second bucket in
+Supabase, leave it **private** (not Public), and name it:
 
 ```dotenv
 SUPABASE_EXPORTS_BUCKET=…     # a PRIVATE bucket; uses the SUPABASE_STORAGE_* keys

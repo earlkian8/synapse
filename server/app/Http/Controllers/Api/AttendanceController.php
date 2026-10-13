@@ -11,6 +11,7 @@ use App\Models\WorkLocation;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Files\Uploads;
 use App\Support\OrganizationClock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,7 +57,7 @@ class AttendanceController extends Controller
         $offline = $request->filled('punched_at');
 
         $photo = $request->hasFile('photo')
-            ? $request->file('photo')->store('attendance/punches', 'public')
+            ? $request->file('photo')->store('attendance/punches', Uploads::DISK)
             : null;
 
         try {

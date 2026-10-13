@@ -5,6 +5,7 @@ use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AssistantConversationController;
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FileController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\OrganizationSwitchController;
 use App\Http\Controllers\Public\InvitationController;
@@ -22,6 +23,17 @@ Route::get('/', HomeController::class)->name('home');
 Route::get('invite/{token}', [InvitationController::class, 'show'])
     ->middleware('throttle:20,1')
     ->name('invite.show');
+
+// Uploaded files (ADR 0087). The bucket is private and serves nothing: a file is
+// streamed only to somebody signed in to the workspace it belongs to who may see
+// its record. Company logos are the exception — the careers and invitation pages
+// show them signed out — and their route reaches that one folder only.
+Route::get('logos/{file}', [FileController::class, 'logo'])
+    ->where('file', '[A-Za-z0-9._-]+')
+    ->name('files.logo');
+Route::middleware('auth')->get('files/{path}', [FileController::class, 'show'])
+    ->where('path', '.+')
+    ->name('files.show');
 
 // Switch the active organisation (employees / admins of more than one company).
 // Only `auth` — switching must work regardless of the new org's verification state.

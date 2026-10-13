@@ -8,6 +8,7 @@ use App\Http\Requests\Recruitment\UpdateApplicantRequest;
 use App\Models\Applicant;
 use App\Support\ActivityLogger;
 use App\Support\ApplicantDocumentStore;
+use App\Support\Files\Uploads;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Inertia\Inertia;
@@ -22,7 +23,7 @@ class ApplicantController extends Controller
         $applicant = new Applicant(Arr::except($request->validated(), ['resume', 'documents']));
 
         if ($request->hasFile('resume')) {
-            $applicant->resume = $request->file('resume')->store('applicant-resumes', 'public');
+            $applicant->resume = $request->file('resume')->store('applicant-resumes', Uploads::DISK);
         }
 
         $applicant->save();
@@ -49,7 +50,7 @@ class ApplicantController extends Controller
 
         if ($request->hasFile('resume')) {
             ApplicantDocumentStore::forgetResume($applicant);
-            $applicant->resume = $request->file('resume')->store('applicant-resumes', 'public');
+            $applicant->resume = $request->file('resume')->store('applicant-resumes', Uploads::DISK);
         }
 
         $applicant->save();

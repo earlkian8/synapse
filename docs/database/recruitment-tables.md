@@ -80,7 +80,7 @@ The standalone candidate pool (not users or employees).
 | `linkedin_url` / `portfolio_url` | string, nullable | Professional links. |
 | `years_experience` | tinyint, nullable | 0–60. |
 | `source` | string | website / referral / linkedin / agency / walk_in / other. |
-| `resume` | string, nullable | The **primary CV**, stored on the `public` disk; copied into the 201 file at hire. |
+| `resume` | string, nullable | The **primary CV**, stored on the private `uploads` disk; copied into the 201 file at hire. |
 | `notes` | text, nullable | |
 
 ## `applicant_documents`
@@ -94,7 +94,7 @@ certificate, transcript, portfolio, government ID, …). Mirrors `employee_docum
 | `applicant_id` | FK → applicants | `cascadeOnDelete`. Indexed. |
 | `title` | string | Original file name. |
 | `type` | string | cover_letter / certificate / transcript / portfolio / government_id / other. |
-| `file` | string | Stored on the `public` disk. |
+| `file` | string | Stored on the private `uploads` disk (ADR 0087). |
 | `uploaded_by` | FK → users, nullable | The recruiter; **null** for public submissions. `nullOnDelete`. |
 | timestamps | | |
 

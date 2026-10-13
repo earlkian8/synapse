@@ -298,7 +298,7 @@ class RecruitmentModule extends Module implements ContributesContext
         }
 
         if ($this->allows($user, 'recruitment.create')) {
-            $lines[] = '- A CV or other file the user attached: read the candidate\'s details from it, and pass its attachment number as resume_attachment (supporting files: document_attachments with a type) on add_applicant / add_application / update_applicant so the file is stored on the candidate. "Put this CV in <posting> as an offer" = add_application with stage "Offer" and resume_attachment, in one call.';
+            $lines[] = '- A CV or other file the user attached: read every candidate detail it states (contact details, location, headline, links, years of experience, and a skills/education/roles summary in notes), and pass its attachment number as resume_attachment (supporting files: document_attachments with a type) on add_applicant / add_application / update_applicant so the file is stored on the candidate. "Put this CV in <posting> as an offer" = add_application with stage "Offer" and resume_attachment, in one call.';
         }
 
         $lines[] = '- Pass `posting` as a job title, `applicant` as a candidate name, and department/position as labels. Never invent a candidate: if no one matches, say so.';
@@ -2076,7 +2076,7 @@ class RecruitmentModule extends Module implements ContributesContext
             'portfolio_url' => ['type' => 'STRING'],
             'years_experience' => ['type' => 'INTEGER'],
             'source' => ['type' => 'STRING', 'enum' => StoreApplicantRequest::SOURCES],
-            'notes' => ['type' => 'STRING', 'description' => 'Recruiter notes.'],
+            'notes' => ['type' => 'STRING', 'description' => 'Recruiter notes. From a CV: a short summary of key skills, education, recent roles and achievements.'],
         ];
     }
 

@@ -166,7 +166,7 @@ test('it creates new users unverified and emails a confirmation code', function 
 });
 
 test('it stores an uploaded profile photo', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
 
     $this->post(route('system.users.store'), [
         'first_name' => 'Pic',
@@ -179,7 +179,7 @@ test('it stores an uploaded profile photo', function () {
     $user = User::where('email', 'pic.ture@example.com')->first();
 
     expect($user->profile_photo)->not->toBeNull();
-    Storage::disk('public')->assertExists($user->profile_photo);
+    Storage::disk('uploads')->assertExists($user->profile_photo);
 });
 
 // ── Update ──────────────────────────────────────────────────────────────────

@@ -30,32 +30,43 @@ return [
 
     'disks' => [
 
+        // Never served by URL: under this root sit the private uploads, data
+        // export archives and assistant files (ADR 0087).
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
 
-        // Every upload (photos, résumés, documents, logos) lives on this disk.
-        // It is Supabase Storage when SUPABASE_STORAGE_BUCKET is set in .env,
-        // and storage/app/public otherwise — comment the Supabase block out
-        // to fall back to local files.
-        'public' => env('SUPABASE_STORAGE_BUCKET') ? [
+        // Every upload (résumés, documents, certifications, clock-in photos,
+        // employee and profile photos, logos) — ADR 0087. Supabase Storage when
+        // SUPABASE_STORAGE_BUCKET is set, and storage/app/private/uploads
+        // otherwise. The bucket must be PRIVATE: nothing is linked to it. The
+        // app streams each file itself, only to somebody signed in to the
+        // workspace it belongs to (App\Support\Files\Uploads, FileController).
+        'uploads' => env('SUPABASE_STORAGE_BUCKET') ? [
             'driver' => 's3',
             'key' => env('SUPABASE_STORAGE_KEY'),
             'secret' => env('SUPABASE_STORAGE_SECRET'),
             'region' => env('SUPABASE_STORAGE_REGION', 'us-east-1'),
             'bucket' => env('SUPABASE_STORAGE_BUCKET'),
             'endpoint' => env('SUPABASE_STORAGE_ENDPOINT'),
-            'url' => env('SUPABASE_STORAGE_URL'),
             'use_path_style_endpoint' => true,
-            // Supabase has no object ACLs; the bucket itself must be public.
             'retain_visibility' => false,
             'throw' => false,
             'report' => false,
         ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/private/uploads'),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Laravel's default web-served disk. Nothing in the app stores to it:
+        // a file here would be readable by anybody with its URL.
+        'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',

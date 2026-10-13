@@ -79,7 +79,7 @@ test('the bare /careers landing redirects only when a single organisation exists
 // ── Applying ──────────────────────────────────────────────────────────────────
 
 test('a guest can apply with a résumé and supporting documents', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     $org = Organization::factory()->create(['slug' => 'acme']);
     $posting = openPosting($org);
 
@@ -138,7 +138,7 @@ test('a posting that does not require a résumé accepts an application without 
 });
 
 test('a posting\'s screening questions are answered and saved on the application', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     $org = Organization::factory()->create(['slug' => 'acme']);
     $posting = openPosting($org);
     $question = $posting->screeningQuestions()->create([
@@ -162,7 +162,7 @@ test('a posting\'s screening questions are answered and saved on the application
 });
 
 test('a filled honeypot is silently dropped without creating an application', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     $org = Organization::factory()->create(['slug' => 'acme']);
     $posting = openPosting($org);
 
@@ -178,7 +178,7 @@ test('a filled honeypot is silently dropped without creating an application', fu
 });
 
 test('applying twice with the same email does not duplicate the application', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     $org = Organization::factory()->create(['slug' => 'acme']);
     $posting = openPosting($org);
 

@@ -15,7 +15,7 @@ Soft-deletes.
 | `name` | string | Display name, set at registration. |
 | `slug` | string, unique | URL-safe, globally unique (future subdomains). |
 | `legal_name` | string, nullable | |
-| `logo` | string, nullable | Stored on the `public` disk; exposed as `logo_url`. |
+| `logo` | string, nullable | Stored on the private `uploads` disk; exposed as `logo_url`, a `/logos/{file}` link anybody may open (ADR 0087). |
 | `email` / `phone` / `address` | string/text, nullable | |
 | `timezone` | string(64), default `Asia/Manila` | IANA zone attendance is judged on — see [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md). Existing organisations were back-filled by the default. |
 | `default_work_schedule_id` | FK → work_schedules, nullable | The company's default hours: the last fallback when an employee has no roster override, assignment, location or department schedule ([ADR 0037](../decisions/0037-schedules-are-templates-assignments-are-dated-a-resolver-decides-the-day.md)). Null on delete. |

@@ -6,13 +6,13 @@ use App\Models\OffboardingCase;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Files\Uploads;
 use App\Support\OffboardingProvisioner;
 use App\Support\OrganizationClock;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -212,7 +212,7 @@ class OffboardingDocuments
         }
 
         try {
-            $disk = Storage::disk('public');
+            $disk = Uploads::disk();
 
             if (! $disk->exists($path) || $disk->size($path) > 2 * 1024 * 1024) {
                 return null;

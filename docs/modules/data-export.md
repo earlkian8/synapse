@@ -41,7 +41,7 @@ so this module exports and does not back up
   `false`, and nulls are empty.
 - **JSON**: an array of objects per table. Booleans are booleans, `json` columns are
   nested (Postgres only; SQLite reports them as text), and decimals stay strings.
-- **Files**: copied from the `public` disk under the path the record names, and stored
+- **Files**: copied from the `uploads` disk under the path the record names, and stored
   in the ZIP without compression. A URL (a seeded photo) is skipped. A file that can't
   be found or read is counted in `summary.files.missing`. A path containing `..` is
   never followed. After `ArchiveBuilder::FILE_BUDGET_SECONDS` (420 s) of a build, the

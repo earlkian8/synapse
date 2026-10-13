@@ -161,6 +161,33 @@ test('the asker can ask about themselves', function () {
         ->and($found->subject->isSelf)->toBeTrue();
 });
 
+test('on a turn with a document, "my" does not make the turn about the asker', function () {
+    $user = actingAsSuperAdmin();
+    person('Maria', 'Santos', ['user_id' => $user->id]);
+
+    $found = app(Retriever::class)->retrieve($user, 'add it to my software engineer recruitment', document: true);
+
+    expect($found?->subject)->toBeNull();
+});
+
+test('on a turn with a document, a pronoun does not carry an earlier person over', function () {
+    $user = actingAsSuperAdmin();
+    person('Lara', 'Quinto');
+
+    $found = app(Retriever::class)->retrieve($user, 'put him in the analyst posting', [['role' => 'user', 'text' => 'how is Lara Quinto doing?']], document: true);
+
+    expect($found?->subject)->toBeNull();
+});
+
+test('on a turn with a document, a typed name still resolves', function () {
+    $user = actingAsSuperAdmin();
+    $lara = person('Lara', 'Quinto');
+
+    $found = app(Retriever::class)->retrieve($user, 'file this certificate on Lara Quinto', document: true);
+
+    expect($found?->subject?->id)->toBe($lara->id);
+});
+
 // ── 2. What each module is willing to say ────────────────────────────────────
 
 test('an HR manager gets the whole picture', function () {

@@ -6,8 +6,8 @@ use App\Http\Requests\Employee\StoreEmployeeCertificationRequest;
 use App\Models\Employee;
 use App\Models\EmployeeCertification;
 use App\Support\ActivityLogger;
+use App\Support\Files\Uploads;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * An employee's certifications — licences, trainings, board exams — added and
@@ -35,7 +35,7 @@ class EmployeeCertifications
             'issuer' => $attributes['issuer'] ?? null,
             'issued_date' => $attributes['issued_date'] ?? null,
             'expiry_date' => $attributes['expiry_date'] ?? null,
-            'file' => $file?->store('employee-certifications', 'public'),
+            'file' => $file?->store('employee-certifications', Uploads::DISK),
         ]);
 
         $this->log('updated', "Added certification \"{$certification->name}\" to {$employee->full_name}{$channel}", $employee);
@@ -56,7 +56,7 @@ class EmployeeCertifications
     public function remove(Employee $employee, EmployeeCertification $certification, string $channel = ''): void
     {
         if ($certification->file) {
-            Storage::disk('public')->delete($certification->file);
+            Uploads::disk()->delete($certification->file);
         }
 
         $name = $certification->name;

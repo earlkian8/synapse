@@ -112,7 +112,7 @@ mobile app's punches are fully auditable.
 | `work_location_id` | FK → work_locations, nullable | The nearest site of the employee's fence (null on delete). |
 | `distance_meters` | uint, nullable | From that site's centre. |
 | `within_geofence` | boolean, nullable | `distance − accuracy ≤ radius`. Null when not checked: no site to check against, or HR's entry. False, too, for a web or mobile punch with no position while the policy checks. |
-| `photo` | string, nullable | Selfie path (public disk). |
+| `photo` | string, nullable | Selfie path (private `uploads` disk; ADR 0087). |
 | `note` | string, nullable | |
 | `recorded_by` | FK → users, nullable | Null when the employee self-punched. |
 | timestamps, `deleted_at` | | Soft-deleted when an HR edit replaces it, so the day keeps what it said before. |

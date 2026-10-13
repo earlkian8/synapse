@@ -3,9 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Models\ActivityLog;
+use App\Support\Files\Uploads;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -57,7 +57,7 @@ class ActivityLogResource extends JsonResource
             'email' => $causer->email,
             'initials' => Str::upper(Str::substr((string) $causer->first_name, 0, 1).Str::substr((string) $causer->last_name, 0, 1)),
             'avatar' => $causer->profile_photo
-                ? Storage::disk('public')->url($causer->profile_photo)
+                ? Uploads::url($causer->profile_photo)
                 : null,
         ];
     }

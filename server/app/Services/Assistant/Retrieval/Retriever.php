@@ -41,8 +41,9 @@ class Retriever
      * module owns, or null — in which case the model works from its tools alone.
      *
      * @param  array<int, array{role?: string, text?: string}>  $history
+     * @param  bool  $document  Whether the turn carries an attached document.
      */
-    public function retrieve(User $user, string $message, array $history = []): ?ContextBrief
+    public function retrieve(User $user, string $message, array $history = [], bool $document = false): ?ContextBrief
     {
         // Isolation lives in a global scope that switches itself off when no
         // organisation is bound, so "no tenant" is the one state in which these
@@ -51,7 +52,7 @@ class Retriever
             return null;
         }
 
-        $matches = $this->resolver->match($user, $message, $history);
+        $matches = $this->resolver->match($user, $message, $history, $document);
 
         // Not about anybody: it may still be about the workspace — "how are we
         // doing today?", "how is the review cycle going?".

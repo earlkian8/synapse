@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Files\Uploads;
 use App\Support\JoinCode;
 use App\Support\OrganizationClock;
 use App\Support\Setup\CompanySetup;
@@ -15,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A tenant: one organisation (company) per registration.
@@ -244,7 +244,7 @@ class Organization extends Model
     }
 
     /**
-     * The public URL of the organisation's logo, if any.
+     * A link to the organisation's logo, if any (served to anybody — ADR 0087).
      *
      * @return Attribute<string|null, never>
      */
@@ -252,7 +252,7 @@ class Organization extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->logo
-                ? Storage::disk('public')->url($this->logo)
+                ? Uploads::url($this->logo)
                 : null,
         );
     }

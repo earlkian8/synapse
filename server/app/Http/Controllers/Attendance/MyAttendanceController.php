@@ -11,6 +11,7 @@ use App\Models\WorkLocation;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Files\Uploads;
 use App\Support\OrganizationClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -84,7 +85,7 @@ class MyAttendanceController extends Controller
         $employee = $this->employee($request);
 
         $photo = $request->hasFile('photo')
-            ? $request->file('photo')->store('attendance/punches', 'public')
+            ? $request->file('photo')->store('attendance/punches', Uploads::DISK)
             : null;
 
         try {

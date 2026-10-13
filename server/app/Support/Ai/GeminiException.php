@@ -6,7 +6,7 @@ use RuntimeException;
 
 /**
  * Thrown when a Gemini API call fails, carrying the HTTP status so callers can
- * distinguish transient busy/quota responses (429/503) from real errors.
+ * distinguish transient busy, quota and timeout responses (429/503/504) from real errors.
  */
 class GeminiException extends RuntimeException
 {
@@ -15,10 +15,16 @@ class GeminiException extends RuntimeException
         parent::__construct($message);
     }
 
-    /** Whether this is a transient rate-limit / overload the user can retry. */
+    /** Whether this is a transient rate-limit / overload / timeout the user can retry. */
     public function isBusy(): bool
     {
-        return in_array($this->status, [429, 503], true);
+        return in_array($this->status, [429, 503, 504], true);
+    }
+
+    /** A 504: no answer in the time there was (the model, or the network to it). */
+    public function isTimeout(): bool
+    {
+        return $this->status === 504;
     }
 
     /** A 429: the API quota / rate limit was exceeded (free tier is small). */

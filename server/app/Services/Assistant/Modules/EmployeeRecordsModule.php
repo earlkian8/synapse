@@ -15,6 +15,7 @@ use App\Services\Assistant\ToolResult;
 use App\Support\ActivityLogger;
 use App\Support\Employees\EmployeeCertifications;
 use App\Support\Employees\EmployeeDocuments;
+use App\Support\Files\Uploads;
 use App\Support\OrganizationClock;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -298,7 +299,7 @@ class EmployeeRecordsModule extends Module implements ContributesTopicContext
         $title = Str::limit(trim((string) ($args['title'] ?? '')) ?: $file->name, 255, '');
         $type = in_array($args['type'] ?? null, EmployeeDocuments::TYPES, true) ? $args['type'] : 'other';
 
-        $document = $this->documents->add($employee, $title, $type, $file->copyTo('public', 'employee-documents'), $user->id, self::CHANNEL);
+        $document = $this->documents->add($employee, $title, $type, $file->copyTo(Uploads::DISK, 'employee-documents'), $user->id, self::CHANNEL);
 
         return ToolResult::ok("Filed “{$document->title}” on {$employee->full_name}'s 201 file", null, $this->card(
             kind: 'add',

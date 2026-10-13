@@ -30,7 +30,7 @@ function fakeGeminiInsight(array $insight): array
 }
 
 test('it generates, persists, and reads documents — excluding the government ID', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     actingAsSuperAdmin();
 
     Http::fake(['*generativelanguage*' => Http::response(fakeGeminiInsight([
@@ -45,9 +45,9 @@ test('it generates, persists, and reads documents — excluding the government I
 
     $application = JobApplication::factory()->stage('screening')->create();
 
-    Storage::disk('public')->put('applicant-resumes/cv.pdf', '%PDF-1.4 fake');
-    Storage::disk('public')->put('applicant-documents/cover.pdf', '%PDF-1.4 cover');
-    Storage::disk('public')->put('applicant-documents/id.png', 'PNGDATA');
+    Storage::disk('uploads')->put('applicant-resumes/cv.pdf', '%PDF-1.4 fake');
+    Storage::disk('uploads')->put('applicant-documents/cover.pdf', '%PDF-1.4 cover');
+    Storage::disk('uploads')->put('applicant-documents/id.png', 'PNGDATA');
 
     $application->applicant->update(['resume' => 'applicant-resumes/cv.pdf']);
     $application->applicant->documents()->create([

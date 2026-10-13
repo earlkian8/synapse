@@ -167,6 +167,8 @@ commit history rather than repeating them.
 - [0068 — The assistant finishes the job: a real agent loop, tools routed per turn, plans confirmed as one, attachments that can be filed, and a Manual / Auto mode](./decisions/0068-the-assistant-finishes-the-job.md)
 - [0069 — Global search: a command palette, read for the person searching](./decisions/0069-global-search-a-command-palette-read-for-the-searcher.md)
 - [0085 — A platform admin portal, with its own admins, over its own API](./decisions/0085-a-platform-admin-portal.md)
+- [0086 — The assistant answers inside the gateway's timeout, and reads documents fully](./decisions/0086-the-assistant-answers-inside-the-gateway-timeout.md)
+- [0087 — Uploads are private to their workspace](./decisions/0087-uploads-are-private-to-their-workspace.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

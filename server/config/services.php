@@ -41,12 +41,16 @@ return [
     */
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),
         // Empty = the model's own default (0.2 on gemini-2*). Gemini 3 models
         // are tuned for their default, and a lower value can make them loop.
         'temperature' => is_numeric(env('GEMINI_TEMPERATURE')) ? (float) env('GEMINI_TEMPERATURE') : null,
         // minimal | low | medium | high (Gemini 3). Empty = not sent.
         'thinking_level' => env('GEMINI_THINKING_LEVEL') ?: null,
+        // Seconds one assistant turn may spend on model requests in total. Keep
+        // it under the gateway's request timeout (DigitalOcean App Platform cuts
+        // a request off at 100 s), so a slow turn ends with a message, not a 504.
+        'turn_seconds' => (int) env('GEMINI_TURN_SECONDS', 75),
     ],
 
     /*

@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Files\Uploads;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A supporting file attached to an applicant (cover letter, certificate,
@@ -42,10 +42,10 @@ class ApplicantDocument extends Model
     }
 
     /**
-     * The public URL of the stored file.
+     * A link to the stored file, through the app (ADR 0087).
      */
     public function fileUrl(): ?string
     {
-        return $this->file ? Storage::disk('public')->url($this->file) : null;
+        return $this->file ? Uploads::url($this->file) : null;
     }
 }

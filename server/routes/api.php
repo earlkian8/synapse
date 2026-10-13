@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\TourController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Controllers\FileController;
 use App\Http\Controllers\Public\CalendarFeedController as CalendarSubscriptionController;
 use App\Http\Controllers\Public\CertificateDownloadController;
 use Illuminate\Support\Facades\Route;
@@ -64,6 +65,9 @@ Route::get('documents/certificate/{case}/{user}', CertificateDownloadController:
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
+    // An uploaded file, for the app (ADR 0087): the same rules as the web's
+    // `files.show`, read from the token's workspace.
+    Route::get('files/{path}', [FileController::class, 'show'])->where('path', '.+')->name('api.files.show');
     Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
     // Switch the active organisation (employees of more than one company).
     Route::post('auth/switch', [AuthController::class, 'switch'])->name('api.auth.switch');

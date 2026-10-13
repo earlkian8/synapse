@@ -3,13 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Files\Uploads;
 use Database\Factories\ApplicantFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 class Applicant extends Model
 {
@@ -87,11 +87,11 @@ class Applicant extends Model
     }
 
     /**
-     * The public URL of the applicant's résumé, if any.
+     * A link to the applicant's résumé, if any, through the app (ADR 0087).
      */
     public function resumeUrl(): ?string
     {
-        return $this->resume ? Storage::disk('public')->url($this->resume) : null;
+        return $this->resume ? Uploads::url($this->resume) : null;
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 
 namespace App\Support\Ai;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -15,6 +16,15 @@ use RuntimeException;
  */
 class GeminiClient
 {
+    /** The longest one request may wait for an answer. */
+    private const REQUEST_SECONDS = 60;
+
+    /** Below this, a request is not started at all: it could not finish. */
+    private const MIN_REQUEST_SECONDS = 5;
+
+    /** When the work this client is doing must be finished by (a Unix time), or null. */
+    private ?float $deadline = null;
+
     public function __construct(
         private readonly ?string $apiKey,
         private readonly string $model,
@@ -29,6 +39,23 @@ class GeminiClient
     public function configured(): bool
     {
         return filled($this->apiKey);
+    }
+
+    /**
+     * Bound every request from now on by a deadline (a Unix time, as from
+     * microtime(true)), or lift it with null. A web request is cut off by the
+     * gateway in front of the app whatever PHP is doing, so a caller that makes
+     * several requests in one web request sets the time they must all fit in.
+     */
+    public function until(?float $deadline): void
+    {
+        $this->deadline = $deadline;
+    }
+
+    /** Seconds until the deadline, or null when there is none. */
+    public function secondsLeft(): ?float
+    {
+        return $this->deadline === null ? null : $this->deadline - microtime(true);
     }
 
     /**
@@ -66,7 +93,7 @@ class GeminiClient
         // could not write out. Both are flukes of one sample rather than the
         // request, so the same request is tried once more before the caller
         // has to make sense of an empty turn.
-        if ($this->unusable($decoded)) {
+        if ($this->unusable($decoded) && ($this->secondsLeft() ?? INF) >= self::MIN_REQUEST_SECONDS * 2) {
             $decoded = $this->post($payload);
         }
 
@@ -124,17 +151,35 @@ class GeminiClient
         $attempt = 0;
 
         do {
-            $response = Http::timeout(60)
-                ->withHeaders(['x-goog-api-key' => $this->apiKey])
-                ->asJson()
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent", $payload);
+            $left = $this->secondsLeft() ?? self::REQUEST_SECONDS;
+
+            if ($left < self::MIN_REQUEST_SECONDS) {
+                throw new GeminiException(504, 'Gemini request not sent: no time left before the deadline.');
+            }
+
+            // A request that outlives the deadline is answered to nobody: the
+            // gateway has already given the browser a 504. Give up first, so
+            // the caller can still say something useful in time.
+            try {
+                $response = Http::connectTimeout(10)
+                    ->timeout(min(self::REQUEST_SECONDS, $left))
+                    ->withHeaders(['x-goog-api-key' => $this->apiKey])
+                    ->asJson()
+                    ->post("{$this->baseUrl}/models/{$this->model}:generateContent", $payload);
+            } catch (ConnectionException $e) {
+                throw new GeminiException(504, 'Gemini did not answer in time: '.$e->getMessage());
+            }
 
             if ($response->status() !== 503) {
                 break;
             }
 
-            if (++$attempt < 3) {
-                usleep(800_000 * $attempt);
+            $pause = 0.8 * ($attempt + 1);
+
+            if (++$attempt < 3 && ($this->secondsLeft() ?? INF) - $pause >= self::MIN_REQUEST_SECONDS * 2) {
+                usleep((int) ($pause * 1_000_000));
+            } else {
+                break;
             }
         } while ($attempt < 3);
 

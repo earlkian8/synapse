@@ -242,8 +242,9 @@ this module: `first_name`, `middle_name`, `last_name`, `suffix`, `email`,
 **Form coverage:** the create/edit form edits name parts, email, phone, active
 state, and the profile photo. `employee_id` is **displayed** (table + detail drawer)
 but is not set through this form — it is provisioned by the HR/employee module.
-Profile photos are stored on the `public` disk under `profile-photos/` (requires
-`php artisan storage:link`); `UserResource` returns a full URL. The form has **no**
+Profile photos are stored on the private `uploads` disk under `profile-photos/`;
+`UserResource` returns a link through the app that opens only for the person and
+people who share a workspace with them (ADR 0087). The form has **no**
 "mark verified" control — verification is proven by the user via the emailed link
 (see below).
 

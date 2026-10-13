@@ -197,7 +197,7 @@ test('it bulk sets status', function () {
 // ── Documents & certifications ───────────────────────────────────────────────
 
 test('it uploads and removes an employee document', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     actingAsSuperAdmin();
     $employee = Employee::factory()->create();
 
@@ -209,7 +209,7 @@ test('it uploads and removes an employee document', function () {
 
     $document = $employee->documents()->first();
     expect($document)->not->toBeNull();
-    Storage::disk('public')->assertExists($document->file);
+    Storage::disk('uploads')->assertExists($document->file);
 
     $this->delete(route('employees.documents.destroy', [$employee, $document]))
         ->assertSessionHasNoErrors();

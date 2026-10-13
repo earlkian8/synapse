@@ -5,12 +5,12 @@ namespace App\Support;
 use App\Http\Requests\Recruitment\StoreApplicantRequest;
 use App\Models\Applicant;
 use App\Services\Assistant\Attachments\StoredAttachment;
+use App\Support\Files\Uploads;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Persists an applicant's supporting uploads (cover letter, certificates,
- * transcript, portfolio, government ID, …) to the public disk and records an
+ * transcript, portfolio, government ID, …) to the private uploads disk and records an
  * `applicant_documents` row for each.
  *
  * One place so every intake path — the recruiter's add-candidate form, the
@@ -42,7 +42,7 @@ class ApplicantDocumentStore
             $applicant->documents()->create([
                 'title' => $file->getClientOriginalName(),
                 'type' => $document['type'] ?? 'other',
-                'file' => $file->store('applicant-documents', 'public'),
+                'file' => $file->store('applicant-documents', Uploads::DISK),
                 'uploaded_by' => $uploadedBy,
             ]);
 
@@ -78,7 +78,7 @@ class ApplicantDocumentStore
     public static function resumeFrom(Applicant $applicant, StoredAttachment $file): void
     {
         self::forgetResume($applicant);
-        $applicant->resume = $file->copyTo('public', 'applicant-resumes');
+        $applicant->resume = $file->copyTo(Uploads::DISK, 'applicant-resumes');
         $applicant->save();
     }
 
@@ -90,7 +90,7 @@ class ApplicantDocumentStore
         $applicant->documents()->create([
             'title' => $file->name,
             'type' => in_array($type, StoreApplicantRequest::DOCUMENT_TYPES, true) ? $type : 'other',
-            'file' => $file->copyTo('public', 'applicant-documents'),
+            'file' => $file->copyTo(Uploads::DISK, 'applicant-documents'),
             'uploaded_by' => $uploadedBy,
         ]);
     }
@@ -102,7 +102,7 @@ class ApplicantDocumentStore
     public static function forgetResume(Applicant $applicant): void
     {
         if ($applicant->resume) {
-            Storage::disk('public')->delete($applicant->resume);
+            Uploads::disk()->delete($applicant->resume);
             $applicant->resume = null;
         }
     }
@@ -117,7 +117,7 @@ class ApplicantDocumentStore
         self::forgetResume($applicant);
 
         foreach ($applicant->documents as $document) {
-            Storage::disk('public')->delete($document->file);
+            Uploads::disk()->delete($document->file);
         }
     }
 }

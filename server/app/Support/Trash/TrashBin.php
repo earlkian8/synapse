@@ -4,10 +4,10 @@ namespace App\Support\Trash;
 
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Files\Uploads;
 use App\Support\Users\UserAccountException;
 use App\Support\Users\UserAccounts;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Restoring and permanently deleting archived records (ADR 0057) — one record,
@@ -200,7 +200,7 @@ class TrashBin
         };
 
         if ($path) {
-            Storage::disk('public')->delete($path);
+            Uploads::disk()->delete($path);
         }
 
         $model->forceDelete();

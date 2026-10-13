@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Support\Employees\EmployeeDocuments;
+use App\Support\Files\Uploads;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -29,7 +29,7 @@ class EmployeeDocumentController extends Controller
             $employee,
             $validated['title'],
             $validated['type'],
-            $request->file('file')->store('employee-documents', 'public'),
+            $request->file('file')->store('employee-documents', Uploads::DISK),
             $request->user()->id,
         );
 
@@ -45,7 +45,7 @@ class EmployeeDocumentController extends Controller
     {
         abort_unless($document->employee_id === $employee->id, 404);
 
-        Storage::disk('public')->delete($document->file);
+        Uploads::disk()->delete($document->file);
         $document->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Document removed.']);

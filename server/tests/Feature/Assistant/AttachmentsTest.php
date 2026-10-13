@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     Storage::fake('assistant');
-    Storage::fake('public');
+    Storage::fake('uploads');
 });
 
 function sendWithFiles(User $user, string $message, array $files, ?int $conversationId = null): array
@@ -42,7 +42,7 @@ test('an upload is kept on the private assistant disk, not the public one', func
     expect($stored)->toMatchArray(['name' => 'Ana_CV.pdf', 'mime' => 'application/pdf'])
         ->and($stored['path'])->toStartWith(testOrganization()->id.'/'.$turn['conversation_id'].'/')
         ->and(Storage::disk('assistant')->exists($stored['path']))->toBeTrue()
-        ->and(Storage::disk('public')->allFiles())->toBe([]);
+        ->and(Storage::disk('uploads')->allFiles())->toBe([]);
 });
 
 test('a stored upload still presents as its name', function () {

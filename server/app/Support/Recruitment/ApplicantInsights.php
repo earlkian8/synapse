@@ -7,8 +7,8 @@ use App\Models\JobApplication;
 use App\Services\Assistant\Security\UntrustedText;
 use App\Support\Ai\GeminiClient;
 use App\Support\Ai\GeminiException;
+use App\Support\Files\Uploads;
 use App\Support\Reports\ReportInsights;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
@@ -289,7 +289,7 @@ class ApplicantInsights
             return null;
         }
 
-        $disk = Storage::disk('public');
+        $disk = Uploads::disk();
 
         if (! $disk->exists($path) || $disk->size($path) > $budget) {
             return null;

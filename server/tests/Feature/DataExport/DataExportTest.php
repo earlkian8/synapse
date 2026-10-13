@@ -15,7 +15,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     Storage::fake('exports');
-    Storage::fake('public');
+    Storage::fake('uploads');
 });
 
 /** Sign in holding the given permissions, as a member of the test workspace. */

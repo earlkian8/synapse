@@ -3,9 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Models\EmployeeCertification;
+use App\Support\Files\Uploads;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin EmployeeCertification
@@ -24,7 +24,7 @@ class EmployeeCertificationResource extends JsonResource
             'issued_date' => $this->issued_date?->toDateString(),
             'expiry_date' => $this->expiry_date?->toDateString(),
             'is_expired' => $this->expiry_date !== null && $this->expiry_date->isPast(),
-            'url' => $this->file ? Storage::disk('public')->url($this->file) : null,
+            'url' => $this->file ? Uploads::url($this->file) : null,
             // Earned by completing training (ADR 0075): withdrawn there, not here.
             'from_training' => $this->training_enrollment_id !== null,
             'certificate_no' => $this->certificate_no,

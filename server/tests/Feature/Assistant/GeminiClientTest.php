@@ -1,6 +1,8 @@
 <?php
 
 use App\Support\Ai\GeminiClient;
+use App\Support\Ai\GeminiException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -84,4 +86,56 @@ test('the usage the API reports comes back with the response', function () {
     $response = (new GeminiClient('key', 'gemini-3.5-flash-lite'))->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]);
 
     expect($response['usageMetadata']['promptTokenCount'])->toBe(120);
+});
+
+// ── Time (ADR 0086) ──────────────────────────────────────────────────────────
+
+test('a request that times out is a retryable 504, not a crash', function () {
+    Http::fake(['*' => fn () => throw new ConnectionException('cURL error 28: Operation timed out')]);
+
+    try {
+        (new GeminiClient('key', 'gemini-3.5-flash'))->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]);
+        $this->fail('Expected a GeminiException.');
+    } catch (GeminiException $e) {
+        expect($e->isTimeout())->toBeTrue()->and($e->isBusy())->toBeTrue();
+    }
+});
+
+test('no request is sent once the deadline has all but passed', function () {
+    Http::fake(['*' => Http::response(geminiReply())]);
+    $client = new GeminiClient('key', 'gemini-3.5-flash');
+    $client->until(microtime(true) + 2);
+
+    expect(fn () => $client->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]))
+        ->toThrow(GeminiException::class);
+
+    Http::assertNothingSent();
+});
+
+test('a request never waits past the deadline', function () {
+    $timeouts = [];
+    Http::fake(['*' => function (Request $request, array $options) use (&$timeouts) {
+        $timeouts[] = $options['timeout'] ?? null;
+
+        return Http::response(geminiReply());
+    }]);
+    $client = new GeminiClient('key', 'gemini-3.5-flash');
+
+    $client->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]);
+    $client->until(microtime(true) + 30);
+    $client->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]);
+
+    expect($timeouts[0])->toEqual(60)
+        ->and($timeouts[1])->toBeLessThanOrEqual(30)->toBeGreaterThan(25);
+});
+
+test('an overloaded model is not retried when the retry could not finish in time', function () {
+    Http::fake(['*' => Http::response(['error' => ['message' => 'busy']], 503)]);
+    $client = new GeminiClient('key', 'gemini-3.5-flash');
+    $client->until(microtime(true) + 9);
+
+    expect(fn () => $client->generate([['role' => 'user', 'parts' => [['text' => 'hi']]]]))
+        ->toThrow(GeminiException::class);
+
+    Http::assertSentCount(1);
 });

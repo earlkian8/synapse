@@ -13,6 +13,7 @@ import { AppText } from '@/components/ui/text';
 import { ToneWell } from '@/components/ui/tone-well';
 import { attendanceApi } from '@/features/attendance/api';
 import { PUNCH_META, PUNCH_TIMELINE_LABEL } from '@/features/attendance/punch-meta';
+import { fileSource } from '@/lib/api';
 import { useClockZone } from '@/lib/clock-zone';
 import { formatClock, formatDate, formatMinutes, formatTime, formatWeekday } from '@/lib/format';
 import { enter } from '@/lib/motion';
@@ -129,7 +130,7 @@ export default function AttendanceDayScreen() {
             <Animated.View entering={enter(2)}>
               <ListSection header="Verification photo">
                 <Image
-                  source={{ uri: selfie }}
+                  source={fileSource(selfie)}
                   style={styles.photo}
                   contentFit="cover"
                   transition={250}

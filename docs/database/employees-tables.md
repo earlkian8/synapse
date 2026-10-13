@@ -70,7 +70,7 @@ The hub. Soft-deletes.
 | `employee_id` | FK → employees | `cascadeOnDelete`. |
 | `title` | string | |
 | `type` | string | contract / cv / govt_id / other. |
-| `file` | string | Stored on the `public` disk. |
+| `file` | string | Stored on the private `uploads` disk (ADR 0087). |
 | `uploaded_by` | FK → users, nullable | |
 
 ## `employee_certifications`

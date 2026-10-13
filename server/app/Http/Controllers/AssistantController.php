@@ -286,6 +286,7 @@ class AssistantController extends Controller
 
     /**
      * An honest in-chat message for a busy/limited AI, distinguishing the cases:
+     *  - 504: the turn ran out of time before the model answered.
      *  - 503: the model is briefly overloaded (retry in seconds).
      *  - 429 with a short retry delay: a per-minute pacing burst (the free tier
      *    allows only a few requests/minute); it clears on its own.
@@ -293,6 +294,10 @@ class AssistantController extends Controller
      */
     private function busyMessage(GeminiException $e): string
     {
+        if ($e->isTimeout()) {
+            return 'The AI took too long to answer, so I stopped before changing anything. Please try again.';
+        }
+
         if ($e->isOverloaded()) {
             return 'The AI is briefly overloaded right now. Please try again in a few seconds.';
         }

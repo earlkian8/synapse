@@ -3,13 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\Files\Uploads;
 use Database\Factories\AttendancePunchFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -136,7 +136,7 @@ class AttendancePunch extends Model
 
     /**
      * The selfie as a servable URL: an absolute URL is passed through as-is,
-     * otherwise the stored path is resolved on the `public` disk. Null when unset.
+     * otherwise a link to the stored file through the app (ADR 0087). Null when unset.
      *
      * @return Attribute<string|null, never>
      */
@@ -150,7 +150,7 @@ class AttendancePunch extends Model
 
                 return Str::startsWith($this->photo, ['http://', 'https://'])
                     ? $this->photo
-                    : Storage::disk('public')->url($this->photo);
+                    : Uploads::url($this->photo);
             },
         );
     }

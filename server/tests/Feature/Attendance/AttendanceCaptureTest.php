@@ -217,7 +217,7 @@ test('entry by HR is refused when the policy takes it away, and leaves no day be
 });
 
 test('a phone punch without a selfie is refused when the policy needs one', function () {
-    Storage::fake('public');
+    Storage::fake('uploads');
     $user = actingAsUserWith(['attendance.clock']);
     captureWorker(['selfie_required' => true], $user);
     Sanctum::actingAs($user);

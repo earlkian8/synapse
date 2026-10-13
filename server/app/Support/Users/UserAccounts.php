@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAccountIsActive;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\Files\Uploads;
 use App\Support\Notifier;
 use App\Support\OrganizationProvisioner;
 use App\Support\Roles\GrantRules;
@@ -15,7 +16,6 @@ use App\Support\Tenancy;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -166,7 +166,7 @@ class UserAccounts
             }
 
             if ($photo !== null) {
-                $user->profile_photo = $photo->store('profile-photos', 'public');
+                $user->profile_photo = $photo->store('profile-photos', Uploads::DISK);
             }
 
             $user->save();
@@ -254,7 +254,7 @@ class UserAccounts
         }
 
         if ($photo !== null) {
-            $user->profile_photo = $photo->store('profile-photos', 'public');
+            $user->profile_photo = $photo->store('profile-photos', Uploads::DISK);
         }
 
         $changed = array_values(array_diff(array_keys($user->getDirty()), ['updated_at']));
@@ -621,7 +621,7 @@ class UserAccounts
     private function deletePhoto(User $user): void
     {
         if ($user->profile_photo) {
-            Storage::disk('public')->delete($user->profile_photo);
+            Uploads::disk()->delete($user->profile_photo);
             $user->profile_photo = null;
         }
     }
