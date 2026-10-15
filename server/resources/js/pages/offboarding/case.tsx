@@ -30,6 +30,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ApplyProgramDialog } from '@/features/offboarding/components/apply-program-dialog';
+import { CaseAccessNotice } from '@/features/offboarding/components/case-access-notice';
 import { CaseInterviewPanel } from '@/features/offboarding/components/case-interview-panel';
 import { CaseSettingsDialog } from '@/features/offboarding/components/case-settings-dialog';
 import { CaseStatusBadge } from '@/features/offboarding/components/case-status-badge';
@@ -75,6 +76,7 @@ export default function OffboardingCasePage() {
         interview,
         documents,
         resignation,
+        access,
         scale,
         tab,
     } = usePage<CasePageProps>().props;
@@ -489,6 +491,13 @@ export default function OffboardingCasePage() {
                         </p>
                     )}
                 </div>
+
+                {c.status === 'completed' && access && (
+                    <CaseAccessNotice
+                        access={access}
+                        name={employee?.full_name ?? 'The leaver'}
+                    />
+                )}
 
                 <div
                     role="tablist"

@@ -13,6 +13,7 @@ use App\Support\Roles\GrantRules;
 use App\Support\Roles\RoleException;
 use App\Support\Roles\RoleWorkflow;
 use App\Support\Tenancy;
+use App\Support\Workspaces\Workspaces;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,23 @@ class UserAccounts
 
         if (GrantRules::outranks($user, $actor)) {
             return "{$user->full_name} has access you don't, so only someone with at least their access can delete them.";
+        }
+
+        return null;
+    }
+
+    /**
+     * Why this person may not archive the account — or remove it from this
+     * workspace, when it is shared — or null when they may.
+     */
+    public static function whyNotArchive(User $user, User $actor): ?string
+    {
+        if ($user->is($actor)) {
+            return 'You cannot archive your own account.';
+        }
+
+        if (GrantRules::outranks($user, $actor)) {
+            return "{$user->full_name} has access you don't, so only someone with at least their access can archive them.";
         }
 
         return null;
@@ -509,16 +527,14 @@ class UserAccounts
      */
     private function archiveQuietly(User $user, User $actor): string
     {
-        if ($user->is($actor)) {
-            throw new UserAccountException('You cannot archive your own account.');
-        }
+        $why = self::whyNotArchive($user, $actor);
 
-        if (GrantRules::outranks($user, $actor)) {
-            throw new UserAccountException("{$user->full_name} has access you don't, so only someone with at least their access can archive them.");
+        if ($why !== null) {
+            throw new UserAccountException($why);
         }
 
         if (self::isShared($user)) {
-            $this->removeFromWorkspace($user);
+            $this->removeFromWorkspace($user, $actor);
 
             return 'removed';
         }
@@ -558,32 +574,25 @@ class UserAccounts
     }
 
     /**
-     * Take somebody out of this workspace and nothing more: this workspace's
-     * roles (named — a bare detach would clear their roles everywhere), the
-     * membership, and the phone sessions bound to this workspace. When this
-     * was the workspace their sign-in landed in, their next one becomes it.
+     * Take somebody out of this workspace ({@see Workspaces::remove()}) and tell
+     * them: they may be signed in to another of their workspaces, and would
+     * otherwise find out only when this one is gone from their list.
      */
-    private function removeFromWorkspace(User $user): void
+    private function removeFromWorkspace(User $user, User $actor): void
     {
-        $organizationId = app(Tenancy::class)->id();
+        $organization = app(Tenancy::class)->organization();
 
-        DB::transaction(function () use ($user, $organizationId): void {
-            $wasDefault = (bool) $user->memberships()->where('organizations.id', $organizationId)->value('organization_user.is_default');
+        Workspaces::remove($user, $organization);
 
-            $user->roles()->detach(Role::query()->pluck('id')->all());
-            $user->memberships()->detach($organizationId);
-            $user->tokens()->where('organization_id', $organizationId)->delete();
-
-            if ($wasDefault) {
-                $next = $user->memberships()->orderBy('organization_user.id')->first();
-
-                if ($next !== null) {
-                    $user->memberships()->updateExistingPivot($next->id, ['is_default' => true]);
-                }
-            }
-        });
-
-        $user->forgetCachedPermissions();
+        Notifier::toUser(
+            $user,
+            "You no longer have access to {$organization->name}",
+            "{$actor->full_name} removed you from {$organization->name}. Your account and your other workspaces are unchanged.",
+            url: '/workspaces',
+            level: 'warning',
+            category: 'account',
+            actor: $actor,
+        );
     }
 
     /**

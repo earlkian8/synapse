@@ -17,8 +17,11 @@ type PageProps = {
 
 export default function Profile({
     mustVerifyEmail,
+    heldTogether,
 }: {
     mustVerifyEmail: boolean;
+    /** Companies only this person could run, which deleting would strand (ADR 0089). */
+    heldTogether: string[];
 }) {
     const { auth } = usePage<PageProps>().props;
 
@@ -153,7 +156,7 @@ export default function Profile({
                 </Form>
             </div>
 
-            <DeleteUser />
+            <DeleteUser heldTogether={heldTogether} />
         </>
     );
 }

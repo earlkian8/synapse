@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\ProductTourController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Controllers\Settings\WorkspaceMembershipController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+
+    // The companies one belongs to, and leaving one (ADR 0089).
+    Route::get('settings/workspaces', [WorkspaceMembershipController::class, 'edit'])->name('workspaces.manage');
+    Route::delete('settings/workspaces/{organization}', [WorkspaceMembershipController::class, 'destroy'])
+        ->whereNumber('organization')
+        ->name('workspaces.leave');
 
     // The first-run tour closing — finished or skipped (ADR 0060). A background
     // call from the tour, so the page it closes over is left alone.

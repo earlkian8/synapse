@@ -1,7 +1,7 @@
 import type { Tabs } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
@@ -11,15 +11,21 @@ import { Touchable } from '@/components/ui/touchable';
 import { useQueuedPunches } from '@/features/attendance/punch-queue';
 import { springs } from '@/lib/motion';
 import { useTheme } from '@/theme/theme';
+import { palette } from '@/theme/tokens';
 
 /** expo-router ships its own copy of React Navigation, so take its props from `Tabs`. */
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-const TABS: Record<string, { icon: IconName; label: string }> = {
+/**
+ * Five tabs (ADR 0088): the day (Home), its record (Attendance), the punch
+ * (Clock, in the middle where the thumb rests), everything else (Services) and
+ * oneself (Profile). A new module goes into Services, never into the bar.
+ */
+const TABS: Record<string, { icon: IconName; label: string; center?: boolean }> = {
   index: { icon: 'home', label: 'Home' },
   attendance: { icon: 'attendance', label: 'Attendance' },
-  clock: { icon: 'clock', label: 'Clock' },
-  requests: { icon: 'leave', label: 'Leave' },
+  clock: { icon: 'clock', label: 'Clock', center: true },
+  services: { icon: 'services', label: 'Services' },
   profile: { icon: 'profile', label: 'Profile' },
 };
 
@@ -34,7 +40,7 @@ function barBottom(bottomInset: number): number {
 /**
  * Where each tab sits on screen, from the same numbers the bar is laid out
  * with — so the app's tour (ADR 0080) can light one up without measuring it.
- * Tabs are in the bar's order: Home, Attendance, Clock, Leave, Profile.
+ * Tabs are in the bar's order: Home, Attendance, Clock, Services, Profile.
  */
 export function tabRects(
   window: { width: number; height: number },
@@ -64,8 +70,12 @@ export function useTabBarInset(): number {
 /**
  * The tab bar: a floating capsule the content scrolls under, glass on iOS 26 and a
  * blur before it. A soft pill slides to the selected tab on a spring, and the
- * selected icon fills, as SF Symbols do in Apple's own bars. The Clock tab carries a
- * badge while punches made offline are waiting to be sent (ADR 0040).
+ * selected icon fills, as SF Symbols do in Apple's own bars.
+ *
+ * Clock, the one thing done every day, is a teal disc in the middle slot: GCash's
+ * QR button, kept inside the capsule rather than raised out of it (ADR 0088). It
+ * wears a ring when selected, and the pill steps aside. It carries a badge while
+ * punches made offline are waiting to be sent (ADR 0040).
  */
 export function TabBar({ state, navigation }: TabBarProps) {
   const { colors, scheme, spacing } = useTheme();
@@ -77,18 +87,23 @@ export function TabBar({ state, navigation }: TabBarProps) {
   const itemWidth = width > 0 ? (width - BAR_PADDING * 2) / routes.length : 0;
 
   const selected = Math.max(0, routes.findIndex((route) => route.key === state.routes[state.index]?.key));
+  const onCenter = !!TABS[routes[selected]?.name ?? '']?.center;
   const x = useSharedValue(0);
+  const shown = useSharedValue(1);
   const placed = useRef(false);
 
   // The pill lands under the first tab without a slide; after that it springs.
+  // On the Clock disc it fades where it is, and slides on from there.
   useEffect(() => {
     if (itemWidth === 0) return;
+    shown.set(withTiming(onCenter ? 0 : 1, { duration: 160 }));
+    if (onCenter) return;
     const target = selected * itemWidth;
     x.set(placed.current ? withSpring(target, springs.snappy) : target);
     placed.current = true;
-  }, [selected, itemWidth, x]);
+  }, [selected, onCenter, itemWidth, x, shown]);
 
-  const indicatorStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
+  const indicatorStyle = useAnimatedStyle(() => ({ opacity: shown.get(), transform: [{ translateX: x.get() }] }));
 
   const edge = scheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
 
@@ -154,26 +169,31 @@ export function TabBar({ state, navigation }: TabBarProps) {
                   accessibilityState={{ selected: focused }}
                   style={styles.item}
                 >
-                  <View>
-                    <Icon name={meta.icon} size={23} color={ink} active={focused} weight="medium" />
-                    {showBadge && (
-                      <View style={[styles.badge, { backgroundColor: colors.danger }]}>
-                        <AppText variant="caption2" weight="bold" color={colors.onDanger} style={styles.badgeText}>
-                          {waiting}
-                        </AppText>
+                  {meta.center ? (
+                    <View style={[styles.ring, { borderColor: focused ? colors.tint : 'transparent' }]}>
+                      <View style={[styles.disc, { backgroundColor: palette.teal }]}>
+                        <Icon name={meta.icon} size={24} color={palette.navy} active={focused} weight="semibold" />
                       </View>
-                    )}
-                  </View>
-                  <AppText
-                    variant="caption2"
-                    weight={focused ? 'semibold' : 'medium'}
-                    color={ink}
-                    numberOfLines={1}
-                    maxFontSizeMultiplier={1.15}
-                    style={styles.label}
-                  >
-                    {meta.label}
-                  </AppText>
+                      {showBadge && <Badge count={waiting} style={styles.discBadge} />}
+                    </View>
+                  ) : (
+                    <>
+                      <View>
+                        <Icon name={meta.icon} size={23} color={ink} active={focused} weight="medium" />
+                        {showBadge && <Badge count={waiting} style={styles.badge} />}
+                      </View>
+                      <AppText
+                        variant="caption2"
+                        weight={focused ? 'semibold' : 'medium'}
+                        color={ink}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.15}
+                        style={styles.label}
+                      >
+                        {meta.label}
+                      </AppText>
+                    </>
+                  )}
                 </Touchable>
               );
             })}
@@ -183,6 +203,20 @@ export function TabBar({ state, navigation }: TabBarProps) {
     </View>
   );
 }
+
+/** The count of punches waiting to send. */
+function Badge({ count, style }: { count: number; style: StyleProp<ViewStyle> }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.badgeShape, { backgroundColor: colors.danger }, style]}>
+      <AppText variant="caption2" weight="bold" color={colors.onDanger} style={styles.badgeText}>
+        {count}
+      </AppText>
+    </View>
+  );
+}
+
+const DISC = 42;
 
 const styles = StyleSheet.create({
   host: { position: 'absolute' },
@@ -198,10 +232,12 @@ const styles = StyleSheet.create({
   },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
   label: { fontSize: 10.5, lineHeight: 13, letterSpacing: 0.1 },
-  badge: {
+  ring: { width: DISC + 8, height: DISC + 8, borderRadius: (DISC + 8) / 2, borderWidth: 2, padding: 2 },
+  disc: { flex: 1, borderRadius: DISC / 2, alignItems: 'center', justifyContent: 'center' },
+  discBadge: { top: -2, right: -4 },
+  badge: { top: -4, right: -10 },
+  badgeShape: {
     position: 'absolute',
-    top: -4,
-    right: -10,
     minWidth: 17,
     height: 17,
     borderRadius: 9,

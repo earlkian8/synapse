@@ -3,17 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\SetCurrentOrganization;
-use App\Models\Organization;
-use App\Models\Role;
-use App\Support\Tenancy;
-use Illuminate\Database\Eloquent\Collection;
+use App\Http\Requests\Workspaces\StoreWorkspaceRequest;
+use App\Queries\MyWorkspaces;
+use App\Support\Workspaces\Workspaces;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The post-login workspace picker.
+ * The post-login workspace picker, and starting a new workspace.
  *
  * A user is one identity that may belong to several companies (ADR 0023). Rather
  * than drop straight into one, login lands here so the user chooses which company
@@ -23,83 +22,37 @@ use Inertia\Response;
  * request via {@see SetCurrentOrganization}.
  *
  * A user with a single membership has nothing to choose, so they skip the picker
- * and go straight to their dashboard.
+ * and go straight to their dashboard. A user with none — they left their last
+ * company, or registered in the app and have not joined one — sees how to start
+ * one or join one (ADR 0089).
  */
 class WorkspaceController extends Controller
 {
-    public function __construct(private readonly Tenancy $tenancy) {}
-
-    public function index(Request $request): Response|RedirectResponse
+    public function index(Request $request, MyWorkspaces $workspaces): Response|RedirectResponse
     {
-        $user = $request->user();
-
-        $memberships = $user->memberships()
-            ->orderByDesc('organization_user.is_default')
-            ->orderBy('organizations.name')
-            ->get();
-
         // One company means nothing to choose — drop straight in. The active org is
         // already bound (and persisted to the session) by SetCurrentOrganization.
-        if ($memberships->count() <= 1) {
+        if ($request->user()->memberships()->count() === 1) {
             return redirect()->route('dashboard');
         }
 
-        // Captured before the per-org runFor loop rebinds the tenant below.
-        $activeId = $this->tenancy->id();
-
-        $workspaces = $memberships
-            ->map(fn (Organization $organization): array => $this->workspacePayload($organization, $user, $activeId))
-            ->all();
-
         return Inertia::render('workspaces', [
-            'workspaces' => $workspaces,
+            'workspaces' => $workspaces->for($request->user()),
         ]);
     }
 
     /**
-     * Build the card payload for one workspace. Roles and employee counts are
-     * tenant-scoped, so each is computed with the organisation bound as the current
-     * tenant (mirrors how the mobile API resolves a per-org payload).
-     *
-     * @return array<string, mixed>
+     * Start a new workspace and step into it. It has never been set up, so it
+     * opens on the setup wizard — straight there, so the toast survives.
      */
-    private function workspacePayload(Organization $organization, mixed $user, ?int $activeId): array
+    public function store(StoreWorkspaceRequest $request): RedirectResponse
     {
-        return $this->tenancy->runFor($organization, function () use ($organization, $user, $activeId): array {
-            // Drop any roles memoised under a previous tenant before reading them.
-            $user->forgetCachedPermissions();
+        $organization = Workspaces::create($request->user(), $request->validated('name'));
 
-            return [
-                'id' => $organization->id,
-                'name' => $organization->name,
-                'logo_url' => $organization->logo_url,
-                'initials' => $organization->initials(),
-                'role' => $this->primaryRoleLabel($user->roles()->get()),
-                'people_count' => $organization->employees()->count(),
-                'is_default' => (bool) $organization->pivot->is_default,
-                'is_active' => $organization->id === $activeId,
-            ];
-        });
-    }
+        $request->session()->put('active_organization_id', $organization->id);
 
-    /**
-     * A short, human label for the user's standing in a workspace: the most
-     * privileged role, with a "+N" hint when they hold several.
-     *
-     * @param  Collection<int, Role>  $roles
-     */
-    private function primaryRoleLabel(Collection $roles): ?string
-    {
-        if ($roles->isEmpty()) {
-            return null;
-        }
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Workspace created.']);
 
-        // The owner role (HR Manager) reads first; otherwise the first role assigned.
-        $primary = $roles->firstWhere('name', Role::SUPER_ADMIN)
-            ?? $roles->first();
-
-        $extra = $roles->count() - 1;
-
-        return $extra > 0 ? "{$primary->label} +{$extra}" : $primary->label;
+        return redirect()->route('setup.wizard.show');
     }
 }

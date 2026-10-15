@@ -11,6 +11,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OffboardingCase;
 use App\Models\OffboardingProgram;
+use App\Models\User;
 use App\Queries\OffboardingCasesIndexQuery;
 use App\Queries\OffboardingStatistics;
 use App\Support\Offboarding\ExitInterviewQuestionnaire;
@@ -19,6 +20,7 @@ use App\Support\Offboarding\OffboardingDocuments;
 use App\Support\Offboarding\OffboardingException;
 use App\Support\Offboarding\OffboardingWorkflow;
 use App\Support\OrganizationClock;
+use App\Support\Users\UserAccounts;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,7 +71,7 @@ class OffboardingCaseController extends Controller
     public function show(Request $request, OffboardingCase $case): Response
     {
         $case->load([
-            'employee:id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id,employment_type,employment_status,date_hired',
+            'employee:id,user_id,first_name,middle_name,last_name,suffix,employee_no,photo,department_id,position_id,employment_type,employment_status,date_hired',
             'employee.department:id,name',
             'employee.position:id,title',
             'program:id,name',
@@ -100,6 +102,8 @@ class OffboardingCaseController extends Controller
                 'filed_on' => OrganizationClock::localDate(CarbonImmutable::instance($case->resignation->created_at)),
                 'proposed_last_day' => $case->resignation->proposed_last_day?->toDateString(),
             ],
+            // Whether the leaver can still sign in here (ADR 0089).
+            'access' => $this->access($request, $case),
             'scale' => ExitInterviewQuestionnaire::SCALE,
             'tab' => $request->string('tab')->toString() === 'interview' ? 'interview' : 'clearance',
             'nav' => $this->navCounts($request),
@@ -186,6 +190,37 @@ class OffboardingCaseController extends Controller
     private function permissions(Request $request): array
     {
         return ['manage' => $request->user()->can('offboarding.manage')];
+    }
+
+    /**
+     * Whether the leaver's account still opens this workspace, and whether the
+     * viewer may end that (ADR 0089). Their access outlives the exit on purpose —
+     * they answer the exit interview and download their certificate with it — so
+     * ending it is HR's call, made here or on the Users screen. Null when they have
+     * no account here.
+     *
+     * @return array{user_id: int, shared: bool, can_remove: bool, reason: string|null}|null
+     */
+    private function access(Request $request, OffboardingCase $case): ?array
+    {
+        $userId = $case->employee?->user_id;
+        $user = $userId === null ? null : User::query()->inCurrentOrganization()->find($userId);
+
+        if ($user === null) {
+            return null;
+        }
+
+        $actor = $request->user();
+        $reason = $actor->can('users.delete')
+            ? UserAccounts::whyNotArchive($user, $actor)
+            : 'Somebody who manages user accounts can remove it, on the User Management screen.';
+
+        return [
+            'user_id' => $user->id,
+            'shared' => UserAccounts::isShared($user),
+            'can_remove' => $reason === null,
+            'reason' => $reason,
+        ];
     }
 
     /**

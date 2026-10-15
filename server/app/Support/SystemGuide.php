@@ -434,11 +434,11 @@ final class SystemGuide
             'keywords' => ['my profile', 'password', 'two-factor', '2fa', 'passkey', 'dark mode', 'appearance', 'security'],
         ],
         'workspaces' => [
-            'title' => 'Workspaces', 'menu' => 'Account menu → Switch workspace', 'path' => '/workspaces', 'any' => [],
-            'about' => 'The companies you belong to, and switching between them.',
-            'tasks' => ['Switch to another company you work for'],
-            'assistant' => 'List your workspaces and which one you are in; switching is done from the account menu.',
-            'keywords' => ['workspace', 'company', 'switch', 'organisation', 'organization'],
+            'title' => 'Workspaces', 'menu' => 'The company name at the top of the sidebar', 'path' => '/workspaces', 'any' => [],
+            'about' => 'The companies you belong to: switching between them, creating another, and leaving one (Settings → Workspaces, /settings/workspaces).',
+            'tasks' => ['Switch to another company you work for', 'Create a workspace for another company (the switcher → Create workspace)', 'Leave a company you no longer work for (Settings → Workspaces → Leave)'],
+            'assistant' => 'List your workspaces and which one you are in; switching, creating and leaving are done on screen.',
+            'keywords' => ['workspace', 'company', 'switch', 'organisation', 'organization', 'create workspace', 'new company', 'leave workspace', 'leave company'],
         ],
         'assistant' => [
             'title' => 'The assistant', 'menu' => 'The Assistant button in the top bar, or ⌘J / Ctrl+J', 'path' => '', 'any' => [],

@@ -60,14 +60,43 @@ know from Supabase or Vercel.
   dashboard; everyone else gets the picker (`resources/js/pages/workspaces.tsx`, a
   full-screen page with no app shell). Each card shows the company, the user's role
   there, and the headcount — computed per organisation via `Tenancy::runFor()`, since
-  roles and employees are tenant-scoped. Picking a workspace posts to
-  `organization.switch` (same endpoint as the sidebar switcher) and redirects to the
-  dashboard. The sidebar switcher links back here as "Browse all workspaces".
+  roles and employees are tenant-scoped (`App\Queries\MyWorkspaces`). Picking a
+  workspace posts to `organization.switch` (same endpoint as the sidebar switcher) and
+  redirects to the dashboard. The sidebar switcher links back here as "Browse all
+  workspaces". The list ends with **Create a workspace**; somebody with no membership
+  sees only that and how to join an employer's (ADR 0089).
 - **Mobile:** a fresh multi-company login routes to `app/select-workspace.tsx` before
   the tab shell (the `hasEnteredWorkspace` gate in `lib/auth.tsx`, enforced by the root
   navigator). Single-company logins and restored sessions skip it. Picking a workspace
   calls `enterWorkspace()`, which switches the token only when a different company is
   chosen.
+
+## Starting, leaving and losing a workspace
+
+[ADR 0089](../decisions/0089-people-start-and-leave-their-own-workspaces.md).
+`App\Support\Workspaces\Workspaces` is the one class for every way in and out of a
+company that is the person's own doing, or that takes them out of one.
+
+- **Create workspace** — the sidebar switcher (under the list), the picker's last row,
+  and Settings → Workspaces. `POST /workspaces` (`workspaces.store`, throttled 10 an
+  hour) calls `OrganizationProvisioner::found()`, switches the session to the new
+  workspace and opens the setup wizard. Anyone signed in and verified may create one.
+  The same name twice among one's own workspaces is refused.
+- **Leave** — Settings → Workspaces (`workspaces.manage`), `DELETE
+  /settings/workspaces/{organization}` (`workspaces.leave`). Removes that workspace's
+  roles, the membership and its phone tokens. The account, the other workspaces and the
+  employee record stay.
+- **The rule** — `whyNotLeave()`: the only *active* HR Manager may not leave while
+  another active member exists. Deleting one's account is refused on the same grounds
+  (`heldTogetherBy()`). A workspace with nobody else in it may be left after typing its
+  name. Nobody can open it again after that.
+- **Removed by HR** — archiving a shared account on the Users screen calls
+  `Workspaces::remove()` and notifies the person.
+- **No workspace** — `RequireWorkspace` (web, after `SetCurrentOrganization`) sends
+  anybody with no tenant bound to `/workspaces`, which then shows an empty state.
+  Their own settings, sign-out and the workspace screens stay open; JSON callers get 403.
+  When the session's chosen workspace is no longer theirs, `SetCurrentOrganization` flags
+  it and the person lands on the picker with "You no longer have access to *Name*".
 
 ## Registration provisions a tenant
 
@@ -83,7 +112,8 @@ know from Supabase or Vercel.
 
 The register form collects an **Organization name** alongside the user's details.
 `OrganizationProvisioner::create()` also mints the organisation's **join code**
-(ADR 0026). Web registration is the *only* way a tenant is created: the mobile app
+(ADR 0026). Steps 1, 3 and 5 are `OrganizationProvisioner::found()`, which **Create
+workspace** shares (ADR 0089). Tenants are created on the web only: the mobile app
 deliberately cannot, being the employee companion.
 
 ## Identity vs membership

@@ -1,6 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
 import { Mail } from 'lucide-react';
-import CompanyLogo from '@/components/company-logo';
 import { NavMain } from '@/components/nav-main';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -9,42 +8,27 @@ import {
     SidebarFooter,
     SidebarHeader,
     SidebarMenu,
-    SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { tourTarget } from '@/features/product-tour/targets';
 import { useAppNavigation } from '@/hooks/use-app-navigation';
-import { usePermissions } from '@/hooks/use-permissions';
-import { dashboard } from '@/routes';
 
 export function AppSidebar() {
     const { auth } = usePage().props;
-    const { can } = usePermissions();
 
     // Every section the user can see, in sidebar order — see APP_NAVIGATION.
     const groups = useAppNavigation();
-
-    // The brand links to the company profile when the user may view it, else home.
-    const brandHref = can('setup.company.view')
-        ? '/setup/company'
-        : dashboard();
 
     return (
         <Sidebar collapsible="icon" variant="inset">
             {/* ── Company brand / workspace switcher ── */}
             <SidebarHeader className="border-b border-sidebar-border pb-3">
                 <SidebarMenu>
+                    {/* Always the switcher, even for one company: it is where
+                        another workspace is created (ADR 0089). */}
                     <SidebarMenuItem {...tourTarget('workspace')}>
-                        {auth.organizations.length > 1 ? (
-                            <WorkspaceSwitcher />
-                        ) : (
-                            <SidebarMenuButton size="lg" asChild>
-                                <Link href={brandHref} prefetch>
-                                    <CompanyLogo />
-                                </Link>
-                            </SidebarMenuButton>
-                        )}
+                        <WorkspaceSwitcher />
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>

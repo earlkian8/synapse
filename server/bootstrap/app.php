@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequireCompanySetup;
+use App\Http\Middleware\RequireWorkspace;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetCurrentOrganization;
 use Illuminate\Foundation\Application;
@@ -45,7 +46,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // A deactivated account's session ends here, before any tenant is bound.
             EnsureAccountIsActive::class,
             SetCurrentOrganization::class,
-            // Reads the tenant the line above bound, so it must follow it: a
+            // Somebody with no workspace bound — none at all, or one just taken
+            // away — is sent to the picker before any company page opens.
+            RequireWorkspace::class,
+            // Reads the tenant SetCurrentOrganization bound, so it must follow it: a
             // company that has never been set up sends its owner to the wizard.
             RequireCompanySetup::class,
             HandleInertiaRequests::class,

@@ -16,6 +16,7 @@ const GLYPHS = {
   clock: { ios: 'clock', active: 'clock.fill', android: 'schedule' },
   leave: { ios: 'doc.text', active: 'doc.text.fill', android: 'description' },
   profile: { ios: 'person.crop.circle', active: 'person.crop.circle.fill', android: 'account_circle' },
+  services: { ios: 'square.grid.2x2', active: 'square.grid.2x2.fill', android: 'apps' },
 
   // Navigation and controls
   back: { ios: 'chevron.left', android: 'arrow_back' },
@@ -24,6 +25,7 @@ const GLYPHS = {
   chevronDown: { ios: 'chevron.down', android: 'expand_more' },
   close: { ios: 'xmark', android: 'close' },
   plus: { ios: 'plus', android: 'add' },
+  minus: { ios: 'minus', android: 'remove' },
   check: { ios: 'checkmark', android: 'check' },
   checkCircle: { ios: 'checkmark.circle.fill', android: 'check_circle' },
   swap: { ios: 'arrow.left.arrow.right', android: 'swap_horiz' },

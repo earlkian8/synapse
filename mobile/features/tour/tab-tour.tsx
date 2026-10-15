@@ -34,7 +34,7 @@ const STOPS: Stop[] = [
     tab: 'index',
     icon: 'home',
     title: 'Home',
-    body: 'Today at a glance: where your day stands, what is next, and shortcuts. The magnifying glass at the top searches your own records.',
+    body: 'Today at a glance: where your day stands, what is next, and your shortcuts. Hold a shortcut to choose which ones show. The magnifying glass searches your own records.',
   },
   {
     id: 'attendance',
@@ -51,18 +51,18 @@ const STOPS: Stop[] = [
     body: 'Clock in and out, and take your breaks. No signal? The punch is kept on your phone and sent when you are back online.',
   },
   {
-    id: 'requests',
-    tab: 'requests',
-    icon: 'leave',
-    title: 'Leave',
-    body: 'Your balances and requests, and filing a new one. Holidays are never charged as leave.',
+    id: 'services',
+    tab: 'services',
+    icon: 'services',
+    title: 'Services',
+    body: 'Everything else, sorted by what it is for: leave, your schedule, events, holidays, recognition and more. Pin your favourites to Home.',
   },
   {
     id: 'profile',
     tab: 'profile',
     icon: 'profile',
     title: 'Profile',
-    body: 'Your details, awards, events and holidays — and your resignation, should you need it. Replay this tour from here any time.',
+    body: 'Your employee record, your company, your sign-in and how the app looks. Replay this tour from here any time.',
   },
   {
     id: 'finish',

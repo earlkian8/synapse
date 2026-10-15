@@ -26,7 +26,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
         <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
         <Tabs.Screen name="clock" options={{ title: 'Clock' }} />
-        <Tabs.Screen name="requests" options={{ title: 'Leave' }} />
+        {/* Every other module lives in Services (ADR 0088). */}
+        <Tabs.Screen name="services" options={{ title: 'Services' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       </Tabs>
     </>

@@ -10,6 +10,8 @@ import { ListRow, ListSection } from '@/components/ui/list';
 import { BarTextButton, Page } from '@/components/ui/page';
 import { AppText } from '@/components/ui/text';
 import { MAX_QUERY, MIN_QUERY, searchApi } from '@/features/search/api';
+import { groupOf, servicesFor } from '@/features/services/catalog';
+import { ServiceIcon } from '@/features/services/components/service-glyph';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { fadeIn } from '@/lib/motion';
@@ -18,8 +20,6 @@ import type { SearchGroup, SearchTarget } from '@/types/api';
 
 /** Wait this long after a keystroke before asking the server. */
 const DEBOUNCE_MS = 250;
-
-type Screen = { title: string; keywords: string; icon: IconName; href: Href; show?: boolean };
 
 /** Where a result opens. */
 function hrefFor(target: SearchTarget): Href {
@@ -63,31 +63,15 @@ export default function SearchScreen() {
 
   const term = query.trim();
 
-  const screens: Screen[] = [
-    { title: 'Clock in or out', keywords: 'clock punch time in out dtr', icon: 'clock', href: '/(tabs)/clock' },
-    { title: 'My attendance', keywords: 'attendance days calendar late absent dtr', icon: 'attendance', href: '/(tabs)/attendance' },
-    { title: 'My leave', keywords: 'leave requests balances vacation sick', icon: 'leave', href: '/(tabs)/requests' },
-    { title: 'File leave', keywords: 'file leave request vacation sick new', icon: 'calendarPlus', href: '/leave/new' },
-    { title: 'My schedule', keywords: 'schedule shift shifts roster week rest day hours work plan', icon: 'schedule', href: '/schedule', show: !!user?.employee },
-    { title: 'Holidays', keywords: 'holidays holy week next day off calendar', icon: 'holiday', href: '/holidays' },
-    { title: 'My events', keywords: 'events invitations meetings rsvp', icon: 'calendar', href: '/events', show: user?.can_respond_events },
-    { title: 'Recognition', keywords: 'recognition kudos thanks nominate', icon: 'heart', href: '/recognition', show: user?.can_recognize },
-    { title: 'Points & rewards', keywords: 'points rewards redeem', icon: 'reward', href: '/rewards', show: user?.can_recognize },
-    { title: 'My awards', keywords: 'awards trophy recognition', icon: 'trophy', href: '/awards' },
-    { title: 'Resignation', keywords: 'resign resignation quit leave the company exit clearance certificate of employment coe interview', icon: 'exit', href: '/resignation', show: user?.can_resign },
-    { title: 'Profile', keywords: 'profile details government ids sss tin philhealth pag-ibig', icon: 'profile', href: '/(tabs)/profile' },
-    { title: 'Name and email', keywords: 'account name email address change edit sign in', icon: 'person', href: '/account/details' },
-    { title: 'Change password', keywords: 'account password change security sign in', icon: 'lock', href: '/account/password' },
-  ];
+  // The app's screens are the services catalogue (ADR 0088): the same list, and the same drawings, as Services.
+  const screens = servicesFor(user);
 
   const words = term.toLowerCase().split(/\s+/).filter(Boolean);
   const foundScreens =
     words.length === 0
       ? []
-      : screens.filter(
-          (screen) =>
-            screen.show !== false &&
-            words.every((word) => `${screen.title} ${screen.keywords}`.toLowerCase().includes(word)),
+      : screens.filter((screen) =>
+          words.every((word) => `${screen.title} ${screen.label} ${screen.keywords}`.toLowerCase().includes(word)),
         );
 
   useEffect(() => {
@@ -153,12 +137,11 @@ export default function SearchScreen() {
 
       {foundScreens.length > 0 && (
         <Animated.View entering={fadeIn}>
-          <ListSection header="Screens" withIcons>
+          <ListSection header="Screens" leadingWidth={30}>
             {foundScreens.map((screen) => (
               <ListRow
-                key={screen.title}
-                icon={screen.icon}
-                iconColor={status.leave}
+                key={screen.key}
+                leading={<ServiceIcon glyph={screen.glyph} hue={groupOf(screen.group).hue} action={screen.action} size={30} />}
                 title={screen.title}
                 onPress={() => {
                   router.back();

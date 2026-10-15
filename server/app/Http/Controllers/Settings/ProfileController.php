@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Support\Users\OwnAccount;
+use App\Support\Workspaces\Workspaces;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,6 +25,8 @@ class ProfileController extends Controller
         return Inertia::render('settings/profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
+            // Companies that would be left without an HR Manager (ADR 0089).
+            'heldTogether' => Workspaces::heldTogetherBy($request->user())->pluck('name')->all(),
         ]);
     }
 
@@ -40,7 +44,8 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's profile.
+     * Delete the user's profile — refused while they are the only HR Manager of
+     * a company other people still work in.
      *
      * Deliberately silent: the session is invalidated on the way out, so a flash
      * toast would be written to a session nobody reads again. The landing page
@@ -49,6 +54,15 @@ class ProfileController extends Controller
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {
         $user = $request->user();
+
+        // Nobody walks away from a company nobody else could then run (ADR 0089).
+        $held = Workspaces::heldTogetherBy($user);
+
+        if ($held->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'account' => 'You are the only HR Manager of '.$held->pluck('name')->join(', ', ' and ').'. Make somebody else an HR Manager there first, so the people in it are not left without one.',
+            ]);
+        }
 
         Auth::logout();
 

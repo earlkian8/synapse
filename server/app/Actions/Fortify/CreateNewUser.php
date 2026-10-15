@@ -4,10 +4,8 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
-use App\Models\Permission;
 use App\Models\User;
 use App\Support\OrganizationProvisioner;
-use App\Support\PermissionSyncer;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -34,16 +32,6 @@ class CreateNewUser implements CreatesNewUsers
         ])->validate();
 
         return DB::transaction(function () use ($input): User {
-            // Make sure the global permission catalogue exists before wiring roles
-            // (covers a fresh install where nobody has seeded yet).
-            if (Permission::count() === 0) {
-                PermissionSyncer::sync();
-            }
-
-            [$organization, $ownerRole] = OrganizationProvisioner::create($input['organization_name']);
-
-            app(Tenancy::class)->set($organization);
-
             // The registrant is a global identity (ADR 0023) who becomes the first
             // member — and owner (HR Manager) — of the organisation they just created.
             $user = User::create([
@@ -55,9 +43,9 @@ class CreateNewUser implements CreatesNewUsers
                 'is_active' => true,
             ]);
 
-            OrganizationProvisioner::addMember($organization, $user, default: true);
+            $organization = OrganizationProvisioner::found($input['organization_name'], $user);
 
-            $user->roles()->attach($ownerRole->id);
+            app(Tenancy::class)->set($organization);
 
             return $user;
         });

@@ -67,13 +67,26 @@ every `useQuery` screen refetches against the new company's tenant context.
   that, a single code field takes either an invitation code or the company join
   code (it tries the more specific one first). Pending requests are shown so nobody
   asks twice. Company creation is deliberately absent — that lives on the web app.
+- **The tab bar** ([ADR 0088](../decisions/0088-the-app-opens-its-modules-from-services.md))
+  — **Home · Attendance · Clock · Services · Profile**. Clock is a teal disc in the
+  middle slot, inside the capsule (it wears a ring when selected, and carries the
+  offline-punch badge). Every other module lives in Services, never in the bar.
 - **Home** — the date and a greeting as the large title, the workspace chip, and
-  today on a navy card: where the day stands, hours worked against the shift, and the
-  next punch (tapping it opens Clock). Then shortcuts (file leave, records, awards —
-  plus **Events** and **Recognition** when the person may answer invitations or take
-  part), an **Up next** card with the next invitation and one-tap answers, requests
-  awaiting approval, a snapping carousel of leave balances, and the latest award. A
-  **search** button in the large title opens Search.
+  today on a navy card: where the day stands, the shift as a ruler (a tick an hour, the
+  hours worked filled in teal), and the next punch (tapping it opens Clock). Then the
+  person's **shortcuts**: one card, two rows of four, up to seven pinned services and
+  **All services** (My events carries the count of invitations to answer; holding a
+  tile opens Services in edit mode). Then an **Up next** card with the next invitation
+  and one-tap answers, requests awaiting approval, a snapping carousel of leave
+  balances, and the latest award. A **search** button in the large title opens Search.
+- **Services** ([ADR 0088](../decisions/0088-the-app-opens-its-modules-from-services.md))
+  — `app/(tabs)/services.tsx`: a field that opens Search, the *On your Home* card with
+  **Edit**, then every service the person may open in five families (*Your time*,
+  *Calendar*, *Time off*, *Recognition*, *Your employment*), each a card holding a
+  four-column grid of drawn tiles. In edit mode a tile shows a plus or a minus and a tap
+  pins or unpins it (seven at most; **Restore** returns to the defaults). The list is
+  `features/services/catalog.ts`, which Home and Search read too. Pins are kept on the
+  phone per account and company (`features/services/shortcuts.ts`).
 - **Clock (DTR, the hero)** — a clock face: a ring that fills as the shift is worked,
   around the live time and the running time on the clock, then a state-driven primary
   button (Time In → Break → Time Out) driven by the server's `allowed` /
@@ -101,17 +114,17 @@ every `useQuery` screen refetches against the new company's tenant context.
   summary card (a bar of on-time/late/absent/on-leave days, hours rendered, late and
   overtime) from `GET /attendance/summary`, a calendar whose recorded days sit on a wash
   of their status colour, a list view, and a per-day sheet with the punch timeline.
-- **Leave** — balances per type with bars, a file-leave form sheet (type → dates →
+- **Leave** — `app/leave/index.tsx`, opened from Home or Services (a tab until ADR
+  0088): balances per type with bars, a file-leave form sheet (type → dates →
   half-day → reason; iOS's compact date picker inline, Android's calendar dialog) with
   server-computed days and inline 422 errors, history filtered by a segmented control,
   and a detail screen whose cancel is confirmed by a system alert.
 - **Profile + Awards** — the 201 profile as inset grouped lists (government IDs
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
-  sign-out behind a system alert; and the employee's recognitions. The Profile list is
-  also the hub for **My events**, **Recognition** and **Points & rewards** (shown by
-  permission), **My schedule** (with an employee record), **Holidays**, **Resignation**
-  (with `offboarding.resign`) and a **Help** section (*Take the tour*, *Search*) — the
-  five tabs stay as they are. The employee record is read-only and says HR keeps it.
+  sign-out behind a system alert; and the employee's recognitions (**My awards**, from
+  Services). Profile is about oneself: the modules it used to list moved to Services
+  (ADR 0088), and it keeps a **Help** section (*Take the tour*, *Search*). The employee
+  record is read-only and says HR keeps it.
   An **Account** section edits the person's own sign-in account
   ([ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
   **Name and email** (`account/details`, a form sheet; a new address asks for the current
@@ -119,7 +132,7 @@ every `useQuery` screen refetches against the new company's tenant context.
   which signs the app out on the person's other phones, and offers the reset link for a
   forgotten current one).
 - **My schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)) —
-  `app/schedule/index.tsx`, from Profile, the Clock tab's shift row and Search: one's own
+  `app/schedule/index.tsx`, from Services (or a Home shortcut), the Clock tab's shift row and Search: one's own
   week, Monday to Sunday, as the roster has it. A week switcher (and a sideways swipe),
   the week's shifts and hours, and the seven days: hours (or the holiday, the leave,
   *Rest day*) and a pill for *Holiday*, *On leave*, *Half day*, *Pending* or *Changed*. A
@@ -140,12 +153,12 @@ every `useQuery` screen refetches against the new company's tenant context.
   with its weekday, type, whether it is a day off, how it repeats, and a local one's
   site.
 - **Search** ([ADR 0081](../decisions/0081-search-finds-attendance-days-and-the-app-searches-ones-own.md))
-  — `app/search.tsx`: the app's screens matched on the phone, and the person's own
+  — `app/search.tsx`: the app's screens (the services catalogue, with their drawn tiles) matched on the phone, and the person's own
   leave, days, invitations, awards and holidays from the server, grouped; a result
   opens its screen.
 - **The tour** ([ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md))
   — `features/tour/tab-tour.tsx`: a spotlight over the tab bar with a card above it
-  (Home, Attendance, Clock, Leave, Profile), offered once after sign-in and replayed
+  (Home, Attendance, Clock, Services, Profile), offered once after sign-in and replayed
   from Profile. Each run is recorded.
 - **Site clocks** ([ADR 0079](../decisions/0079-shape-fences-and-a-clock-per-site.md))
   — `lib/clock-zone.ts`: times are shown on the clock the person's days are judged on
@@ -247,8 +260,8 @@ Against a deployed server ([Deployment](../deployment.md)), set
     (window resized, status bar left out of `measureInWindow`) and in edge-to-edge
     builds. Dragging the page dismisses the keyboard. `Input` reveals itself on focus.
   - `tab-bar.tsx`: the floating capsule tab bar (Liquid Glass on iOS 26, blur before it,
-    a fill on Android) with a sliding selection pill and the queued-punch badge;
-    `useTabBarInset()`.
+    a fill on Android) with a sliding selection pill, the Clock disc in the middle and
+    the queued-punch badge; `useTabBarInset()`.
   - `list.tsx`: `ListSection` / `ListRow`, inset grouped lists (headers, footers, icon
     wells, values, chevrons, checkmarks, highlight on press, `raised` inside sheets).
   - `text.tsx` (`AppText`: HIG variants, `tone`, `weight`, `numeric`; maps any
@@ -279,3 +292,9 @@ Against a deployed server ([Deployment](../deployment.md)), set
     appearance (`icon-dark.png`, `icon-tinted.png`), Android's themed icon uses the
     monochrome silhouette, and the splash is the mark on white.
 - `features/<module>/` — `api.ts` + components, mirroring the web feature folders.
+- `features/services/` — the services catalogue (`catalog.ts`: every module once, with
+  its family, drawing, route, Search keywords and who may open it), the Home shortcuts
+  store (`shortcuts.ts`), the drawn tiles (`components/service-glyph.tsx`: `ServiceIcon`,
+  three inks cut from a family's hue so they hold in both schemes) and the grid
+  (`components/service-grid.tsx`). **A new module is added to the catalogue**, never to
+  the tab bar ([ADR 0088](../decisions/0088-the-app-opens-its-modules-from-services.md)).

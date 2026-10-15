@@ -72,6 +72,12 @@ class SetCurrentOrganization
                 return $organization;
             }
 
+            // The workspace they were working in is no longer theirs — they left it
+            // in another tab, or were removed from it. RequireWorkspace says so.
+            if ($chosen !== null) {
+                $request->attributes->set(RequireWorkspace::LAPSED, (int) $chosen);
+            }
+
             $default = $user->defaultOrganization();
 
             if ($default !== null) {

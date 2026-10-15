@@ -1,9 +1,18 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Building2, Check, ChevronRight, LogOut, Search } from 'lucide-react';
+import {
+    Building2,
+    Check,
+    ChevronRight,
+    LogOut,
+    Plus,
+    Search,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import SynapseField from '@/components/synapse-field';
 import { Spinner } from '@/components/ui/spinner';
+import { CreateWorkspaceDialog } from '@/features/workspaces/components/create-workspace-dialog';
+import type { MyWorkspace } from '@/features/workspaces/types';
 import { logout } from '@/routes';
 
 /**
@@ -15,18 +24,13 @@ import { logout } from '@/routes';
  * with a faint neural node backdrop — the workspaces themselves are the nodes you
  * connect into. Companies read as rounded squares here, the system-wide mark for an
  * organisation (people are always circles).
+ *
+ * The list ends with "Create a workspace" (ADR 0089). Somebody who belongs to no
+ * company — they left their last one, or registered in the app — lands here too,
+ * and is shown the two ways in: start one, or be invited to their employer's.
  */
 
-type Workspace = {
-    id: number;
-    name: string;
-    logo_url: string | null;
-    initials: string;
-    role: string | null;
-    people_count: number;
-    is_default: boolean;
-    is_active: boolean;
-};
+type Workspace = MyWorkspace;
 
 export default function Workspaces({
     workspaces,
@@ -36,6 +40,8 @@ export default function Workspaces({
     const { auth } = usePage().props;
     const [query, setQuery] = useState('');
     const [entering, setEntering] = useState<number | null>(null);
+    const [creating, setCreating] = useState(false);
+    const empty = workspaces.length === 0;
 
     const showSearch = workspaces.length > 6;
 
@@ -96,16 +102,21 @@ export default function Workspaces({
                 {/* Picker */}
                 <main className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-6 py-10 sm:px-0">
                     <div className="mb-8">
-                        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-3 py-1 text-[11px] font-medium tracking-wider text-[#0ABFBF] uppercase">
-                            <span className="size-1.5 rounded-full bg-[#0ABFBF]" />
-                            {workspaces.length} workspaces
-                        </div>
+                        {!empty && (
+                            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#0ABFBF]/30 bg-[#0ABFBF]/10 px-3 py-1 text-[11px] font-medium tracking-wider text-[#0ABFBF] uppercase">
+                                <span className="size-1.5 rounded-full bg-[#0ABFBF]" />
+                                {workspaces.length} workspaces
+                            </div>
+                        )}
                         <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                            Choose a workspace
+                            {empty
+                                ? 'You are not in a workspace'
+                                : 'Choose a workspace'}
                         </h1>
                         <p className="mt-2 text-sm text-white/55">
-                            Pick the company you'd like to work in. You can
-                            switch anytime from the sidebar.
+                            {empty
+                                ? 'A workspace is one company: its people, records and settings. Start one for your company, or join your employer’s.'
+                                : "Pick the company you'd like to work in. You can switch anytime from the sidebar."}
                         </p>
                     </div>
 
@@ -146,12 +157,57 @@ export default function Workspaces({
                             </li>
                         ))}
 
-                        {filtered.length === 0 && (
+                        {!empty && filtered.length === 0 && (
                             <li className="rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center text-sm text-white/45">
                                 No companies match “{query}”.
                             </li>
                         )}
+
+                        <li
+                            className="workspace-rise"
+                            style={{
+                                animationDelay: `${Math.min(filtered.length, 8) * 55}ms`,
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setCreating(true)}
+                                disabled={entering !== null}
+                                className={`flex w-full items-center gap-4 rounded-2xl border border-dashed px-4 py-3.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-[#0ABFBF]/40 focus-visible:outline-none disabled:opacity-55 ${
+                                    empty
+                                        ? 'border-[#0ABFBF]/50 bg-[#0ABFBF]/10 hover:bg-[#0ABFBF]/15'
+                                        : 'border-white/15 hover:border-[#0ABFBF]/50 hover:bg-white/[0.04]'
+                                }`}
+                            >
+                                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/25 text-white/70">
+                                    <Plus className="size-5" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[15px] font-semibold text-white">
+                                        Create a workspace
+                                    </span>
+                                    <span className="mt-0.5 block truncate text-xs text-white/50">
+                                        {empty
+                                            ? 'For your company. You will be its HR Manager.'
+                                            : 'Another company, under the same sign-in'}
+                                    </span>
+                                </span>
+                            </button>
+                        </li>
                     </ul>
+
+                    {empty && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-white/60">
+                            <p className="font-medium text-white/85">
+                                Joining your employer’s workspace
+                            </p>
+                            <p className="mt-1">
+                                Ask HR to invite you, then open the invitation
+                                in the SYNAPSE app — or enter the join code they
+                                give you there.
+                            </p>
+                        </div>
+                    )}
 
                     <p className="mt-8 text-center text-xs text-white/35">
                         Signed in as{' '}
@@ -159,6 +215,8 @@ export default function Workspaces({
                     </p>
                 </main>
             </div>
+
+            <CreateWorkspaceDialog open={creating} onOpenChange={setCreating} />
 
             <PickerStyles />
         </>

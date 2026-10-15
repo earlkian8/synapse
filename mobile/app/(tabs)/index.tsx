@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ErrorState } from '@/components/ui/empty-state';
-import { Icon, type IconName } from '@/components/ui/icon';
+import { Icon } from '@/components/ui/icon';
 import { ListRow, ListSection } from '@/components/ui/list';
 import { BarButton, Page } from '@/components/ui/page';
 import { Pill } from '@/components/ui/pill';
@@ -29,6 +29,8 @@ import { eventsApi } from '@/features/events/api';
 import { RESPONSE_COLOR, RESPONSE_LABEL } from '@/features/events/meta';
 import { recognitionApi } from '@/features/recognition/api';
 import { leaveApi } from '@/features/leave/api';
+import { AllServicesTile, ServiceGrid } from '@/features/services/components/service-grid';
+import { useShortcuts } from '@/features/services/shortcuts';
 import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -88,45 +90,9 @@ export default function HomeScreen() {
   const firstName = user?.employee?.full_name?.split(' ')[0] ?? user?.name?.split(' ')[0] ?? 'there';
   const latestAward = data?.awards[0];
 
-  const shortcuts: { icon: IconName; label: string; detail: string; color: string; onPress: () => void }[] = [
-    {
-      icon: 'calendarPlus',
-      label: 'File leave',
-      detail: 'Time off',
-      color: palette.teal,
-      onPress: () => router.push('/leave/new'),
-    },
-    canEvents
-      ? {
-          icon: 'calendar',
-          label: 'Events',
-          detail: data?.events && data.events.pending > 0 ? `${data.events.pending} to answer` : 'Invitations',
-          color: statusTones.leave,
-          onPress: () => router.push('/events'),
-        }
-      : {
-          icon: 'calendar',
-          label: 'Records',
-          detail: 'Your time log',
-          color: statusTones.leave,
-          onPress: () => router.push('/(tabs)/attendance'),
-        },
-    canRecognize
-      ? {
-          icon: 'heart',
-          label: 'Recognition',
-          detail: data?.points != null ? `${data.points.toLocaleString()} points` : 'Kudos & rewards',
-          color: statusTones.late,
-          onPress: () => router.push('/recognition'),
-        }
-      : {
-          icon: 'trophy',
-          label: 'Awards',
-          detail: data ? `${data.awards.length} received` : 'Recognition',
-          color: statusTones.late,
-          onPress: () => router.push('/awards'),
-        },
-  ];
+  // The person's pinned services (ADR 0088), with the invitations still to answer on Events.
+  const { shortcuts } = useShortcuts();
+  const editShortcuts = () => router.push({ pathname: '/(tabs)/services', params: { edit: '1' } });
 
   return (
     <Page
@@ -167,26 +133,16 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
-          {/* Shortcuts */}
-          <Animated.View entering={enter(1)} style={styles.shortcuts}>
-            {shortcuts.map((shortcut) => (
-              <Card
-                key={shortcut.label}
-                onPress={shortcut.onPress}
-                accessibilityLabel={`${shortcut.label}, ${shortcut.detail}`}
-                style={styles.shortcut}
-              >
-                <ToneWell icon={shortcut.icon} color={shortcut.color} />
-                <View style={styles.shortcutText}>
-                  <AppText variant="subheadline" weight="semibold" numberOfLines={1}>
-                    {shortcut.label}
-                  </AppText>
-                  <AppText variant="caption" tone="secondary" numberOfLines={1}>
-                    {shortcut.detail}
-                  </AppText>
-                </View>
-              </Card>
-            ))}
+          {/* Shortcuts: what the person pinned, then everything (ADR 0088). Hold one to edit. */}
+          <Animated.View entering={enter(1)}>
+            <Card style={styles.shortcuts}>
+              <ServiceGrid
+                services={shortcuts}
+                badges={{ events: data?.events?.pending }}
+                onLongPress={editShortcuts}
+                trailing={<AllServicesTile onPress={() => router.push('/(tabs)/services')} />}
+              />
+            </Card>
           </Animated.View>
 
           {/* Up next: the next invitation, answered in one tap */}
@@ -216,7 +172,7 @@ export default function HomeScreen() {
             <Animated.View entering={enter(2)}>
               <Section
                 title="Awaiting approval"
-                action={data.pending.length > 3 ? { label: 'See All', onPress: () => router.push('/(tabs)/requests') } : undefined}
+                action={data.pending.length > 3 ? { label: 'See All', onPress: () => router.push('/leave') } : undefined}
               >
                 <ListSection leadingWidth={4}>
                   {data.pending.slice(0, 3).map((request) => (
@@ -237,7 +193,7 @@ export default function HomeScreen() {
 
           {/* Leave balances */}
           <Animated.View entering={enter(3)}>
-            <Section title="Leave balance" action={{ label: 'See All', onPress: () => router.push('/(tabs)/requests') }}>
+            <Section title="Leave balance" action={{ label: 'See All', onPress: () => router.push('/leave') }}>
               {loading ? (
                 <View style={styles.balanceSkeletons}>
                   <Skeleton width={BALANCE_WIDTH} height={124} radius={20} />
@@ -362,11 +318,7 @@ function TodayCard({ today, onOpen }: { today: TodayResponse; onOpen: () => void
 
         {(record.first_in_at || target) && (
           <View style={styles.heroProgress}>
-            <ProgressBar
-              value={target ? worked / target : completed ? 1 : 0}
-              color={palette.teal}
-              track="rgba(255,255,255,0.14)"
-            />
+            <ShiftRuler value={target ? worked / target : completed ? 1 : 0} hours={target ? target / 60 : 8} />
             <View style={styles.heroNumbers}>
               <AppText variant="footnote" weight="semibold" color={colors.onHero} numeric>
                 {formatMinutes(worked)} worked
@@ -481,6 +433,53 @@ function BalanceCard({ balance }: { balance: LeaveBalance }) {
   );
 }
 
+/**
+ * The shift as a ruler on the navy card: a tick for every hour of it, the hours
+ * worked filled in teal, and a marker where the day has got to.
+ */
+function ShiftRuler({ value, hours }: { value: number; hours: number }) {
+  const [width, setWidth] = useState(0);
+  const filled = Math.max(0, Math.min(1, value));
+  const ticks = Math.max(1, Math.min(16, Math.round(hours)));
+  const at = Math.max(RULER_KNOB, Math.min(width - RULER_KNOB, width * filled));
+
+  return (
+    <View
+      style={styles.ruler}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(filled * 100) }}
+    >
+      {width > 0 && (
+        <Svg width={width} height={RULER_HEIGHT}>
+          {Array.from({ length: ticks + 1 }, (_, i) => {
+            const x = 1 + ((width - 2) * i) / ticks;
+            const reached = x <= width * filled;
+            return (
+              <Line
+                key={i}
+                x1={x}
+                x2={x}
+                y1={15}
+                y2={i === 0 || i === ticks ? 21 : 19}
+                stroke={reached ? palette.teal : 'rgba(255, 255, 255, 0.28)'}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+              />
+            );
+          })}
+          <Rect x={0} y={5} width={width} height={6} rx={3} fill="rgba(255, 255, 255, 0.14)" />
+          {filled > 0 && <Rect x={0} y={5} width={Math.max(6, width * filled)} height={6} rx={3} fill={palette.teal} />}
+          {filled > 0 && filled < 1 && <Circle cx={at} cy={8} r={RULER_KNOB} fill={palette.white} stroke={palette.teal} strokeWidth={3} />}
+        </Svg>
+      )}
+    </View>
+  );
+}
+
+const RULER_HEIGHT = 22;
+const RULER_KNOB = 6;
+
 /** The leave type's colour as a slim bar at a row's leading edge. */
 function TypeBar({ color }: { color: string }) {
   const { colors, readable } = useTheme();
@@ -495,12 +494,11 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 22 },
   heroEyebrow: { letterSpacing: 1.2 },
   heroTitle: { marginTop: 10, marginBottom: 4 },
-  heroProgress: { marginTop: 20, gap: 8 },
+  heroProgress: { marginTop: 20, gap: 6 },
+  ruler: { height: RULER_HEIGHT },
   heroNumbers: { flexDirection: 'row', justifyContent: 'space-between' },
   heroAction: { marginTop: 20 },
-  shortcuts: { flexDirection: 'row', gap: 10 },
-  shortcut: { flex: 1, padding: 14, gap: 12 },
-  shortcutText: { gap: 1 },
+  shortcuts: { paddingTop: 18, paddingBottom: 16, paddingHorizontal: 6 },
   bleed: { marginHorizontal: -16 },
   balanceRow: { paddingHorizontal: 16, gap: 12 },
   balanceSkeletons: { flexDirection: 'row', gap: 12 },

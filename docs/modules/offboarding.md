@@ -69,6 +69,12 @@ toolbar · table · pagination), from the shared table kit
     of Employment (once completed, with its number).
   - When the exit came from a resignation, the header says so, with the day it was
     filed.
+  - Once the exit is **completed**, a note shows when the leaver can still sign in to
+    this workspace. They keep that access on purpose, for the exit interview and the
+    certificate. **Remove access** (for whoever holds `users.delete` and may archive
+    them) is the Users screen's own archive: it removes them from this workspace when
+    their account belongs to another one too, and otherwise archives the account
+    ([ADR 0089](../decisions/0089-people-start-and-leave-their-own-workspaces.md)).
 - **`/offboarding/resignations`** (`offboarding.view`): resignations employees filed.
   - Tiles: waiting, short notice, and accepted and withdrawn in the last 30 days.
   - Search, department and status filters, and a table: employee, filed, proposed last

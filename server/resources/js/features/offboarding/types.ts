@@ -160,6 +160,18 @@ export type CasePageProps = {
     scale: Record<string, string>;
     tab: 'clearance' | 'interview';
     nav: OffboardingNavCounts;
+    /** The leaver's sign-in here, while it still opens this workspace. */
+    access: CaseAccess | null;
+};
+
+/** Whether the leaver can still sign in here, and whether the viewer may end it (ADR 0089). */
+export type CaseAccess = {
+    user_id: number;
+    /** Their account belongs to another workspace too, so removing it keeps the account. */
+    shared: boolean;
+    can_remove: boolean;
+    /** Why the viewer may not remove it, worded to be shown as it is. */
+    reason: string | null;
 };
 
 // ── Resignations, exit interviews and documents (ADRs 0076, 0077) ───────────

@@ -32,7 +32,8 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-export default function RequestsScreen() {
+/** My leave: balances and requests, opened from Home or Services (ADR 0088). */
+export default function LeaveScreen() {
   const { colors, readable, spacing, status } = useTheme();
   const router = useRouter();
   // Two balances a row, at an exact half of the page less the gap between them.
@@ -50,10 +51,10 @@ export default function RequestsScreen() {
   return (
     <Page
       title="Leave"
+      back
       right={<BarButton icon="plus" label="File a leave request" onPress={fileLeave} prominent />}
       refreshing={refreshing}
       onRefresh={refresh}
-      tabInset
     >
       {error && !data ? (
         <ErrorState message={error} onRetry={reload} />

@@ -53,6 +53,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // The post-login landing: pick which company to work in (skipped for users
     // with a single membership). See WorkspaceController.
     Route::get('workspaces', [WorkspaceController::class, 'index'])->name('workspaces');
+    // Starting another company of one's own (ADR 0089) — an HR officer who works
+    // for two employers keeps one sign-in. Throttled: each one is a whole tenant.
+    Route::post('workspaces', [WorkspaceController::class, 'store'])->middleware('throttle:10,60')->name('workspaces.store');
 
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

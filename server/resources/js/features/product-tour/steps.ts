@@ -136,7 +136,7 @@ export function buildTourStops(context: TourContext): TourStop[] {
               }
             : {
                   title: 'Your workspace',
-                  body: `Everything here belongs to ${organizationName}: its people, their records and its settings. You only ever see what your role allows.`,
+                  body: `Everything here belongs to ${organizationName}: its people, their records and its settings. You only ever see what your role allows. Work for another company too? Create its workspace from here.`,
               }),
         ...SIDEBAR_PLACEMENT,
         radius: 10,

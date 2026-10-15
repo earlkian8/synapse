@@ -119,6 +119,8 @@ function RootNavigator() {
         <Stack.Screen name="join" options={{ animation: 'fade' }} />
         <Stack.Screen name="select-workspace" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        {/* Leave is a service rather than a tab (ADR 0088). */}
+        <Stack.Screen name="leave/index" />
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/[id]" />
         <Stack.Screen

@@ -85,36 +85,10 @@ export default function ProfileScreen() {
             </View>
           </Animated.View>
 
-          <Animated.View entering={enter(1)}>
-            <ListSection withIcons>
-              {user?.employee && (
-                <ListRow icon="schedule" iconColor={colors.primary} title="My schedule" onPress={() => router.push('/schedule')} />
-              )}
-              {user?.can_respond_events && (
-                <ListRow icon="calendar" iconColor={status.leave} title="My events" onPress={() => router.push('/events')} />
-              )}
-              {user?.can_recognize && (
-                <ListRow icon="heart" iconColor={status.absent} title="Recognition" onPress={() => router.push('/recognition')} />
-              )}
-              {user?.can_recognize && (
-                <ListRow icon="reward" iconColor={status.present} title="Points & rewards" onPress={() => router.push('/rewards')} />
-              )}
-              <ListRow
-                icon="trophy"
-                iconColor={status.late}
-                title="My awards"
-                onPress={() => router.push('/awards')}
-              />
-              <ListRow
-                icon="holiday"
-                iconColor={status.holiday}
-                title="Holidays"
-                onPress={() => router.push('/holidays')}
-              />
-              {user?.can_resign && (
-                <ListRow icon="exit" iconColor={status.rest} title="Resignation" onPress={() => router.push('/resignation')} />
-              )}
-              {organization && (
+          {/* The company this is. Schedule, events, recognition and the rest live in Services (ADR 0088). */}
+          {organization && (
+            <Animated.View entering={enter(1)}>
+              <ListSection>
                 <ListRow
                   leading={<CompanyLogo uri={organization.logo} initials={organization.initials} size={30} />}
                   title={organization.name}
@@ -122,9 +96,9 @@ export default function ProfileScreen() {
                   onPress={() => setSwitcherOpen(true)}
                   accessibilityLabel={`Workspace: ${organization.name}`}
                 />
-              )}
-            </ListSection>
-          </Animated.View>
+              </ListSection>
+            </Animated.View>
+          )}
 
           <Animated.View entering={enter(2)} style={styles.sections}>
             {/* The 201 file is HR's (ADR 0082): the app shows it, and says who changes it. */}

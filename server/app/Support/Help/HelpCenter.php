@@ -186,9 +186,9 @@ final class HelpCenter
         ],
         'working-in-more-than-one-company' => [
             'category' => 'your-account', 'title' => 'Working in more than one company',
-            'summary' => 'One account, several workspaces: choosing where to work after you sign in, and switching between companies.',
+            'summary' => 'One account, several workspaces: choosing where to work, switching between companies, creating another one and leaving one.',
             'any' => [],
-            'keywords' => ['workspace', 'switch company', 'organisation', 'organization', 'multiple companies', 'workspace picker'],
+            'keywords' => ['workspace', 'switch company', 'organisation', 'organization', 'multiple companies', 'workspace picker', 'create workspace', 'new company', 'add company', 'leave workspace', 'leave company', 'two jobs'],
             'screens' => ['/workspaces'],
             'related' => ['signing-in', 'joining-your-company-on-mobile'],
         ],

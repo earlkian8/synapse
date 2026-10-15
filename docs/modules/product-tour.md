@@ -124,8 +124,9 @@ version, over the last 1, 3, 6 or 12 months:
 ## The app's tour
 
 The mobile app has its own tour (`MOBILE_VERSION` = 1): a spotlight over the tab bar
-with a card above it, stopping at Home, Attendance, Clock, Leave and Profile between a
-welcome and a send-off. The session's `user.tour.owed` offers it once after sign-in;
+with a card above it, stopping at Home, Attendance, Clock, Services and Profile between
+a welcome and a send-off (the Leave stop, `requests`, became `services` with
+[ADR 0088](../decisions/0088-the-app-opens-its-modules-from-services.md)). The session's `user.tour.owed` offers it once after sign-in;
 **Profile → Take the tour** replays it. It is answered on `POST /api/tour/finish` and
 recorded apart from the web's (`mobile_tour_version`, `mobile_tour_finished_at`): the
 two walk different screens.

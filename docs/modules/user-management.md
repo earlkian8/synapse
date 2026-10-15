@@ -149,7 +149,13 @@ the Trash Bin (`TrashBin`) and the assistant alike. Refusals are
   here**: name, email, phone, photo, password and active state are refused, and
   permanent delete is refused. **Archiving removes them from this workspace** — this
   workspace's roles (by id) and the membership go, as do phone tokens bound to it —
-  and the account stays. It is logged as `removed`.
+  and the account stays. It is logged as `removed`. It runs through
+  `Workspaces::remove()`, and the person is notified ("You no longer have access to
+  …"), since they may be working in another workspace at the time
+  ([ADR 0089](../decisions/0089-people-start-and-leave-their-own-workspaces.md)).
+  People can also leave a workspace themselves, from Settings → Workspaces. The
+  workspace's only active HR Manager can't leave, or delete their account, while
+  other people still work there.
 - **Nobody changes the account of someone with more access** (`GrantRules::outranks`):
   details, sign-in, status, archive, delete.
 - **Deactivation takes effect.** The web login refuses an inactive account

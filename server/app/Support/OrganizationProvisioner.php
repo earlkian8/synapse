@@ -125,6 +125,30 @@ class OrganizationProvisioner
     }
 
     /**
+     * Found a new organisation with this person as its owner: the organisation,
+     * their membership of it and its HR Manager role. Registration and "Create
+     * workspace" both come through here, so an owner is made one way. The new
+     * membership becomes the one a sign-in lands in only when it is their first.
+     */
+    public static function found(string $name, User $owner): Organization
+    {
+        // The roles below are wired to the global permission catalogue, so make
+        // sure it exists (a fresh install where nobody has seeded yet).
+        if (Permission::count() === 0) {
+            PermissionSyncer::sync();
+        }
+
+        [$organization, $ownerRole] = self::create($name);
+
+        self::addMember($organization, $owner, default: ! $owner->memberships()->exists());
+
+        $owner->roles()->attach($ownerRole->id);
+        $owner->forgetCachedPermissions();
+
+        return $organization;
+    }
+
+    /**
      * Derive an organisation slug that is unique across all tenants.
      */
     public static function uniqueSlug(string $name): string

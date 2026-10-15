@@ -169,6 +169,8 @@ commit history rather than repeating them.
 - [0085 — A platform admin portal, with its own admins, over its own API](./decisions/0085-a-platform-admin-portal.md)
 - [0086 — The assistant answers inside the gateway's timeout, and reads documents fully](./decisions/0086-the-assistant-answers-inside-the-gateway-timeout.md)
 - [0087 — Uploads are private to their workspace](./decisions/0087-uploads-are-private-to-their-workspace.md)
+- [0088 — The app opens its modules from Services, and Home holds the person's shortcuts](./decisions/0088-the-app-opens-its-modules-from-services.md)
+- [0089 — People start and leave their own workspaces](./decisions/0089-people-start-and-leave-their-own-workspaces.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
