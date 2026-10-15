@@ -92,7 +92,9 @@ function PunchRow({
 
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                     <span className="rounded bg-muted px-1.5 py-0.5">
-                        {sourceLabel(punch.source)}
+                        {punch.kiosk
+                            ? `${punch.kiosk} kiosk`
+                            : sourceLabel(punch.source)}
                     </span>
                     {hasGeo && (
                         <a
@@ -143,7 +145,29 @@ function Capture({
             ? Math.round(Math.abs(punch.clock_skew_seconds) / 60)
             : 0;
 
+    // A kiosk reports no position: it is placed at the site it stands at.
+    const atKiosk = punch.source === 'kiosk';
+
     const place = (() => {
+        if (punch.within_geofence === true && atKiosk) {
+            return {
+                icon: MapPinCheck,
+                tone: 'text-emerald-600 dark:text-emerald-400',
+                text: `On site at ${punch.location?.name ?? 'a work location'}`,
+            };
+        }
+
+        if (punch.within_geofence === false && atKiosk) {
+            return {
+                icon: MapPinX,
+                tone: 'text-rose-600 dark:text-rose-400',
+                text:
+                    punch.distance_meters != null && punch.location
+                        ? `Off site: the kiosk is ${formatMeters(punch.distance_meters)} from ${punch.location.name}`
+                        : 'Off site: the kiosk isn’t set to a site',
+            };
+        }
+
         if (punch.within_geofence === true) {
             return {
                 icon: MapPinCheck,
@@ -219,6 +243,7 @@ function formatMeters(meters: number): string {
 const NO_PHOTO: Record<string, string> = {
     web: 'Web punch',
     mobile: 'Not taken',
+    kiosk: 'No camera',
     manual: 'By hand',
     system: 'Automatic',
 };

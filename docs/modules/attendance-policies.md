@@ -100,8 +100,8 @@ are whole minutes; "off" is `null`.
 | **Night differential** | `enabled` | false | Minutes worked inside the window are bucketed. |
 | | `start` / `end` | 22:00 / 06:00 | On the organisation's clock; an end at or before the start crosses midnight. |
 | **Reminders** | `clock_in_after_minutes` | off | Remind somebody who has not clocked in this many minutes into their shift (5–240), once per shift (ADR 0041). |
-| **Capture** | `allowed_sources` | all three | `web`, `mobile`, `manual` — at least one. A punch from another source is refused (ADR 0040). A policy saved listing only the retired `kiosk` / `biometric` reads as allowing all three (ADR 0054). |
-| | `selfie_required` | false | A mobile punch without a photo is refused. |
+| **Capture** | `allowed_sources` | all four | `web`, `mobile`, `kiosk`, `manual` — at least one. A punch from another source is refused (ADR 0040). A policy saved listing only the retired `biometric` reads as allowing every way (ADR 0054). The kiosk came back with ADR 0092; its migration added `kiosk` to every policy that allowed all three ways there were. |
+| | `selfie_required` | false | A mobile or kiosk punch without a photo is refused ("A photo with every app and kiosk punch"; ADR 0092). |
 | | `geofence` | `off` | `off` records where a web or mobile punch was; `flag` accepts one outside every fence and flags `outside_geofence`; `block` refuses it, naming the nearest site and the distance. See [Work Locations](./work-locations.md). |
 | | `web_ip_allowlist` | [] | IP addresses or CIDR ranges (up to 50). Empty allows any network. A web punch from elsewhere is refused; behind a proxy, set `TRUSTED_PROXIES`. |
 | | `offline_window_hours` | 72 | How old a punch a phone queued offline may be when it arrives (1–720). Older is refused; HR enters it instead. |

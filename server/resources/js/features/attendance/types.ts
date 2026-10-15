@@ -36,6 +36,8 @@ export type AttendanceFlag =
 export type PunchSource =
     | 'web'
     | 'mobile'
+    /** A shared device at a site, for people with no phone (ADR 0092). */
+    | 'kiosk'
     | 'manual'
     /** Written by the end-of-day job closing a forgotten clock-out (ADR 0041). */
     | 'system';
@@ -70,6 +72,8 @@ export type Punch = {
     distance_meters?: number | null;
     /** On site, off site, or not checked (null). */
     within_geofence?: boolean | null;
+    /** The kiosk it was made at (ADR 0092). */
+    kiosk?: string | null;
     /** A phone queued it while offline and sent it later. */
     offline?: boolean;
     received_at?: string | null;

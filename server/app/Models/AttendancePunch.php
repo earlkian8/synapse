@@ -34,12 +34,13 @@ class AttendancePunch extends Model
 
     /**
      * Where a punch can be captured — the sources an attendance policy chooses
-     * among (ADR 0038). Kiosks and biometric scanners are gone (ADR 0054); a
-     * punch they recorded before keeps its `source`, which is history.
+     * among (ADR 0038). The kiosk is back for people with no phone (ADR 0092),
+     * paired and PIN-protected; biometric scanners stay gone (ADR 0054), and a
+     * punch one recorded keeps its `source`, which is history.
      *
      * @var list<string>
      */
-    public const CAPTURE_SOURCES = ['web', 'mobile', 'manual'];
+    public const CAPTURE_SOURCES = ['web', 'mobile', 'kiosk', 'manual'];
 
     /**
      * Where a punch originated: a capture source, or the end-of-day job closing
@@ -51,7 +52,8 @@ class AttendancePunch extends Model
 
     /**
      * Sources whose punch is checked against a work location's fence: the ones
-     * that report where the person was. HR's entry reports nowhere.
+     * that report where the person was. A kiosk is placed at its site instead;
+     * HR's entry reports nowhere.
      *
      * @var list<string>
      */
@@ -64,6 +66,7 @@ class AttendancePunch extends Model
         'type',
         'punched_at',
         'source',
+        'attendance_kiosk_id',
         'latitude',
         'longitude',
         'accuracy',
@@ -130,6 +133,17 @@ class AttendancePunch extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(WorkLocation::class, 'work_location_id')->withTrashed();
+    }
+
+    /**
+     * The kiosk the punch was made at (ADR 0092) — a removed one included, so
+     * the punch keeps saying where it came from.
+     *
+     * @return BelongsTo<AttendanceKiosk, $this>
+     */
+    public function kiosk(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceKiosk::class, 'attendance_kiosk_id')->withTrashed();
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

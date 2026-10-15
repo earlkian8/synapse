@@ -90,6 +90,7 @@ require __DIR__.'/recruitment.php';
 require __DIR__.'/onboarding.php';
 require __DIR__.'/leave.php';
 require __DIR__.'/attendance.php';
+require __DIR__.'/kiosk.php';
 require __DIR__.'/performance.php';
 require __DIR__.'/analytics.php';
 require __DIR__.'/training.php';

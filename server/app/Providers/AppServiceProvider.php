@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\AuthenticateKiosk;
 use App\Models\User;
 use App\Services\Assistant\Assistant;
 use App\Services\Assistant\Attachments\ConversationAttachments;
@@ -17,6 +18,7 @@ use App\Services\Assistant\Modules\DepartmentsModule;
 use App\Services\Assistant\Modules\EmployeeModule;
 use App\Services\Assistant\Modules\EmployeeRecordsModule;
 use App\Services\Assistant\Modules\EventsModule;
+use App\Services\Assistant\Modules\KiosksModule;
 use App\Services\Assistant\Modules\LeaveModule;
 use App\Services\Assistant\Modules\LeaveTypesModule;
 use App\Services\Assistant\Modules\LocationsModule;
@@ -97,6 +99,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(EmployeeModule::class),
             $app->make(LeaveModule::class),
             $app->make(AttendanceModule::class),
+            $app->make(KiosksModule::class),
             $app->make(OnboardingModule::class),
             $app->make(RecruitmentModule::class),
             $app->make(PerformanceModule::class),
@@ -184,6 +187,17 @@ class AppServiceProvider extends ServiceProvider
         // queries. The palette debounces, so a person typing stays far below this.
         RateLimiter::for('search', fn (Request $request) => Limit::perMinute(90)
             ->by('search:'.$request->user()?->id));
+
+        // A kiosk (ADR 0092), per device: a queue at the door at shift change is
+        // a few people a minute, each a sign-in and a punch, plus the heartbeat.
+        // Wrong PINs have their own, tighter count in KioskPins.
+        RateLimiter::for('kiosk', fn (Request $request) => Limit::perMinute(120)
+            ->by('kiosk:'.hash('sha256', (string) ($request->cookie(AuthenticateKiosk::COOKIE) ?? $request->ip()))));
+
+        // Pairing codes are eight characters for fifteen minutes: safe only while
+        // guessing them is slow.
+        RateLimiter::for('kiosk-pairing', fn (Request $request) => Limit::perMinute(10)
+            ->by('kiosk-pairing:'.$request->ip()));
     }
 
     /**

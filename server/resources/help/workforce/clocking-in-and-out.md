@@ -34,6 +34,16 @@ Your company's attendance policy decides what counts. A punch can be refused whe
 
 A refused punch records nothing. Ask your HR team to record the time for you.
 
+## No phone? Use a kiosk
+
+If your company has a **kiosk** at your site, a shared tablet by the door, you can clock in there instead. Ask your HR team for a PIN.
+
+1. Type your **employee number**. The digits are enough: _42_ for _EMP-00042_.
+2. Type your **PIN**. The first time, the kiosk asks you to choose one of your own; the one HR gave you stops working then.
+3. Press the punch you came for. The kiosk shows it stamped on your day, then gets ready for the next person.
+
+Keep your PIN to yourself. Five wrong tries lock it for 15 minutes; if you forget it, HR can give you a new one.
+
 ## Forgot to clock in or out?
 
 You can't change your own punches. Tell your HR team or manager, who can [correct the day](/help/workforce/correcting-and-signing-off-attendance). If you forget to clock out, your company's policy may close the day for you at the end of your shift and flag it for a manager to check.

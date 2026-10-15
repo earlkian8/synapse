@@ -84,10 +84,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: SetCurrentOrganization::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // The mobile API, and global search (ADR 0069), which the palette reads
-        // with fetch(): a lapsed session or a bad query must answer JSON (401,
-        // 422), not a redirect to an HTML page it cannot read.
+        // The mobile API, global search (ADR 0069), which the palette reads
+        // with fetch(), and the kiosk (ADR 0092) with the two screens that hand
+        // out its secrets: a lapsed session or a bad request must answer JSON
+        // (401, 422), not a redirect to an HTML page it cannot read.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*', 'search'),
+            fn (Request $request) => $request->is('api/*', 'search', 'kiosk/*', 'attendance/kiosks/pins', 'attendance/kiosks/*/pairing-code'),
         );
     })->create();

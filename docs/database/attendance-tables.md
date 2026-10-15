@@ -21,7 +21,10 @@ what capture records on each punch are below ([ADR 0040](../decisions/0040-punch
 end-of-day job ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md)). Its
 `attendance_devices` table, the punch's `attendance_device_id` and the employee's
 `device_enrollment_id` were dropped again by `…_remove_attendance_devices`
-([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)).
+([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)). The kiosk came back
+on its own terms with `…_create_attendance_kiosks`
+([ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md)):
+`attendance_kiosks`, `employee_kiosk_pins` and the punch's `attendance_kiosk_id`, below.
 
 ## `attendance_records`
 
@@ -105,19 +108,62 @@ mobile app's punches are fully auditable.
 | `device_punched_at` | timestamp, nullable | The phone's own time for a punch it queued offline (ADR 0040); null for a live punch. |
 | `received_at` | timestamp, nullable | When the server received it. |
 | `clock_skew_seconds` | int, nullable | The sender's clock minus the server's when it sent the punch (from `sent_at`). Beyond the policy's `max_clock_skew_minutes`, the day is flagged `clock_skew`. |
-| `source` | string | `web \| mobile \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). A punch recorded before ADR 0054 may keep `kiosk` or `biometric`. |
+| `source` | string | `web \| mobile \| kiosk \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). A punch recorded before ADR 0054 may keep `biometric`. |
+| `attendance_kiosk_id` | FK → attendance_kiosks, nullable | The kiosk a `kiosk` punch was made at (ADR 0092). Null on delete; kiosks are soft-deleted, so in practice it stays. |
 | `external_id` | string(100), nullable | A phone's client id for a queued punch, so a resend is recognised (per employee). |
 | `latitude` / `longitude` | decimal(10,7), nullable | GPS fix. |
 | `accuracy` | decimal(8,2), nullable | Metres. |
 | `work_location_id` | FK → work_locations, nullable | The nearest site of the employee's fence (null on delete). |
 | `distance_meters` | uint, nullable | From that site's centre. |
-| `within_geofence` | boolean, nullable | `distance − accuracy ≤ radius`. Null when not checked: no site to check against, or HR's entry. False, too, for a web or mobile punch with no position while the policy checks. |
-| `photo` | string, nullable | Selfie path (private `uploads` disk; ADR 0087). |
+| `within_geofence` | boolean, nullable | `distance − accuracy ≤ radius`. Null when not checked: no site to check against, or HR's entry. False, too, for a web or mobile punch with no position while the policy checks. A kiosk punch is placed at the kiosk's site: true at one of the person's sites (distance 0), false elsewhere or when the kiosk has no site (ADR 0092). |
+| `photo` | string, nullable | Selfie or kiosk-camera path (private `uploads` disk; ADR 0087). |
 | `note` | string, nullable | |
 | `recorded_by` | FK → users, nullable | Null when the employee self-punched. |
 | timestamps, `deleted_at` | | Soft-deleted when an HR edit replaces it, so the day keeps what it said before. |
 
 **Indexes:** `(employee_id, punched_at)`; `(employee_id, external_id)`.
+
+## `attendance_kiosks`
+
+A shared device at a site where people without a phone clock in (ADR 0092). Created by
+`…_create_attendance_kiosks`. Tenant-scoped; soft-deleted, so punches keep naming a
+removed kiosk.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | Addressed by hashid. |
+| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
+| `name` | string(80) | |
+| `work_location_id` | FK → work_locations, nullable | Where it stands; places its punches. Null on delete. |
+| `device_token_hash` | string(64), nullable, unique | SHA-256 of the secret in the paired device's cookie. Null when no device is paired. |
+| `device_label` | string(120), nullable | "Chrome on Android", from the user agent at pairing. |
+| `paired_at` / `last_seen_at` | timestamp, nullable | When the device paired, and was last heard from (at most once a minute). |
+| `pairing_code_hash` | string(64), nullable, unique | SHA-256 of a one-time pairing code waiting to be typed. |
+| `pairing_expires_at` | timestamp, nullable | 15 minutes after the code was issued. |
+| `created_by` | FK → users, nullable | Null on delete. |
+| timestamps, `deleted_at` | | |
+
+**Indexes:** `(organization_id, deleted_at)`; the two hashes are unique.
+
+## `employee_kiosk_pins`
+
+The PIN a person clocks in with at a kiosk (ADR 0092). One per employee.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
+| `employee_id` | FK → employees, unique | Cascade on delete. |
+| `pin_hash` | string | Password hash (bcrypt). |
+| `must_change` | boolean, default true | Still the PIN HR issued; it works only to choose one's own. |
+| `failed_attempts` | smallint (tiny on SQLite), default 0 | Wrong tries in a row; the fifth locks it. |
+| `locked_until` | timestamp, nullable | 15 minutes after the lock. |
+| `issued_by` | FK → users, nullable | Null on delete. |
+| `issued_at` | timestamp | |
+| `changed_at` / `last_used_at` | timestamp, nullable | When its holder chose their own; when it last signed somebody in. |
+| timestamps | | |
+
+**Indexes:** `organization_id`; `employee_id` unique.
 
 ## `work_locations`
 

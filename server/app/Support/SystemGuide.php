@@ -83,6 +83,13 @@ final class SystemGuide
             'assistant' => 'Read shifts and set a one-off roster entry; bulk assignment stays on this screen.',
             'keywords' => ['roster', 'shift', 'assignment', 'override'],
         ],
+        'kiosks' => [
+            'title' => 'Kiosks', 'menu' => 'Attendance → Kiosks', 'path' => '/attendance/kiosks', 'any' => ['attendance.kiosks.manage'],
+            'about' => 'Shared tablets at a site where people without a phone clock in with their employee number and a PIN. Each kiosk is paired with a one-time code and stands at a site; each person is given a PIN they replace with their own the first time.',
+            'tasks' => ['Add a kiosk and pair a tablet with a code', 'Give PINs to people without a phone, and print their slips', 'Give a new PIN to someone who forgot theirs or is locked out', 'Sign a lost tablet out'],
+            'assistant' => 'List kiosks and who holds a PIN, sign a kiosk\'s device out, and withdraw a PIN. Pairing codes and PINs are only ever shown on this screen.',
+            'keywords' => ['kiosk', 'bundy', 'time clock', 'tablet', 'pin', 'no phone', 'shared device', 'pairing code'],
+        ],
         'my-attendance' => [
             'title' => 'My attendance', 'menu' => 'Attendance (also the mobile app)', 'path' => '/attendance/me', 'any' => ['attendance.clock'],
             'about' => 'Your own time record, and clocking in and out.',

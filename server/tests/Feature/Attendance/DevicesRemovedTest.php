@@ -9,16 +9,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
-| Kiosks and biometric scanners are gone (ADR 0054): no screen, no device API,
-| no kiosk page, no permission, no table. What they left behind — punches that
-| name them, policies that listed them — still reads.
+| Biometric scanners and the key-driven devices are gone (ADR 0054): no screen,
+| no device API, no permission, no table. What they left behind — punches that
+| name them, policies that listed them — still reads. The kiosk came back on
+| its own terms, paired and PIN-protected (ADR 0092; see KiosksTest).
 */
 
-test('the device screen, the device API and the kiosk page are gone', function () {
+test('the device screen and the device API are gone', function () {
     actingAsSuperAdmin();
 
     $this->get('/setup/devices')->assertNotFound();
-    $this->get('/kiosk')->assertNotFound();
     $this->postJson('/api/devices/punches', ['punches' => []])->assertNotFound();
     $this->postJson('/api/devices/kiosk/lookup', ['reference' => 'EMP-00001'])->assertNotFound();
 });
@@ -34,12 +34,12 @@ test('the permission, the table and the columns are gone', function () {
         ->and(Schema::hasColumn('attendance_punches', 'external_id'))->toBeTrue();
 });
 
-test('a policy that allowed only kiosks or scanners reads as allowing every way there is', function () {
-    expect(AttendancePolicySettings::fromArray(['capture' => ['allowed_sources' => ['kiosk', 'biometric']]])->allowedSources)
+test('a policy that allowed only scanners reads as allowing every way there is', function () {
+    expect(AttendancePolicySettings::fromArray(['capture' => ['allowed_sources' => ['biometric']]])->allowedSources)
         ->toBe(AttendancePunch::CAPTURE_SOURCES)
-        ->and(AttendancePolicySettings::fromArray(['capture' => ['allowed_sources' => ['kiosk', 'mobile']]])->allowedSources)
+        ->and(AttendancePolicySettings::fromArray(['capture' => ['allowed_sources' => ['biometric', 'mobile']]])->allowedSources)
         ->toBe(['mobile'])
-        ->and(AttendancePunch::CAPTURE_SOURCES)->toBe(['web', 'mobile', 'manual']);
+        ->and(AttendancePunch::CAPTURE_SOURCES)->not->toContain('biometric');
 });
 
 test('a punch a kiosk recorded before keeps its source, and its day still judges cleanly', function () {

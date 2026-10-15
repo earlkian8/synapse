@@ -28,7 +28,7 @@ Settings sit in groups, and each group's heading sums up what it amounts to, so 
 - **Missing clock-out** — flag it for a manager, or close the day automatically at the shift's end (or some time after). An automatic close needs a sign-off.
 - **Night differential** — the window whose minutes count as night work.
 - **Reminders** — remind people who haven't clocked in some minutes into their shift.
-- **Capture** — where punches may come from (web, mobile, entered by HR); whether a mobile punch needs a **selfie**; what happens to a punch outside every [work location](/help/company-setup/work-locations)'s fence — **off** (just record where it was), **flag** it, or **block** it; which networks web punches must come from; how late a phone may send a punch it queued offline; and how far off a phone's clock may be before it's flagged.
+- **Capture** — where punches may come from (web, mobile, a [kiosk](/help/workforce/attendance-kiosks), entered by HR); whether a mobile or kiosk punch needs a **photo**; what happens to a punch outside every [work location](/help/company-setup/work-locations)'s fence — **off** (just record where it was), **flag** it, or **block** it; which networks web punches must come from; how late a phone may send a punch it queued offline; and how far off a phone's clock may be before it's flagged.
 
 ## The worked example
 

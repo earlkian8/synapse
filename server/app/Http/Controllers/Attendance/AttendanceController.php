@@ -49,11 +49,16 @@ class AttendanceController extends Controller
         AttendanceMonthlyReport $monthly,
     ): Response|RedirectResponse {
         // One sidebar entry for the module (ADR 0090): somebody who may see the
-        // roster but not the time records lands on the roster.
+        // roster but not the time records lands on the roster, and somebody who
+        // only looks after the kiosks (ADR 0092) on those.
         if ($request->user()->cannot('attendance.view')) {
-            abort_unless($request->user()->can('attendance.roster.view'), 403);
+            if ($request->user()->can('attendance.roster.view')) {
+                return redirect()->route('attendance.roster.index');
+            }
 
-            return redirect()->route('attendance.roster.index');
+            abort_unless($request->user()->can('attendance.kiosks.manage'), 403);
+
+            return redirect()->route('attendance.kiosks.index');
         }
 
         $date = $query->date($request);
@@ -104,8 +109,9 @@ class AttendanceController extends Controller
             'employee.department:id,name',
             'employee.position:id,title',
             'punches.recorder:id,first_name,middle_name,last_name,suffix',
-            // Where each punch was (ADR 0040).
+            // Where each punch was (ADR 0040), and the kiosk it was made at (ADR 0092).
             'punches.location:id,name,radius_meters,fence_type',
+            'punches.kiosk:id,name,deleted_at',
             'replacedPunches',
             'approver:id,first_name,middle_name,last_name,suffix',
         ]);

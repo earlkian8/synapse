@@ -226,19 +226,21 @@ type PunchMeta = {
 /**
  * Where a punch came from, in the words somebody checking a record would use.
  * It is also the answer to "why is there no photo here" — only the mobile app
- * captures one, so a web punch never having a selfie is normal rather than
- * missing.
+ * and a kiosk with a camera capture one, so a web punch never having a selfie
+ * is normal rather than missing.
  */
 export const SOURCE_LABELS: Record<PunchSource, string> = {
     web: 'Web',
     mobile: 'Mobile app',
+    kiosk: 'Kiosk',
     manual: 'Entered by hand',
     system: 'Closed automatically',
 };
 
 /**
  * A punch's source in words. A punch recorded under a source since retired
- * (ADR 0054) keeps the name it was recorded under, capitalised.
+ * (a biometric scanner, ADR 0054) keeps the name it was recorded under,
+ * capitalised.
  */
 export function sourceLabel(source: string): string {
     return (

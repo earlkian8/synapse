@@ -278,6 +278,17 @@ class Employee extends Model
     }
 
     /**
+     * The PIN this employee clocks in with at a kiosk, if HR has issued one
+     * (ADR 0092).
+     *
+     * @return HasOne<EmployeeKioskPin, $this>
+     */
+    public function kioskPin(): HasOne
+    {
+        return $this->hasOne(EmployeeKioskPin::class);
+    }
+
+    /**
      * This employee's performance evaluations (one per review period).
      *
      * @return HasMany<PerformanceEvaluation, $this>

@@ -65,18 +65,19 @@ export const GEOFENCE_OPTIONS: {
     {
         value: 'flag',
         label: 'Accept, but flag outside the site',
-        hint: 'Checked against the sites in Company Setup → Locations. A day with a punch away from every site waits for sign-off.',
+        hint: 'Checked against the sites in Company Setup → Locations; a kiosk counts as where it stands. A day with a punch away from every site waits for sign-off.',
     },
     {
         value: 'block',
         label: 'Refuse outside the site',
-        hint: 'Web and app punches away from every site are refused, and so are ones that share no location.',
+        hint: 'Web, app and kiosk punches away from every site are refused, and so are ones that share no location.',
     },
 ];
 
 export const SOURCE_LABELS: Record<PunchSource, string> = {
     web: 'Web',
     mobile: 'Mobile app',
+    kiosk: 'Kiosk',
     manual: 'Entered by HR',
 };
 

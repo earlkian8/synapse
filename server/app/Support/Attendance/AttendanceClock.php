@@ -2,6 +2,7 @@
 
 namespace App\Support\Attendance;
 
+use App\Models\AttendanceKiosk;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
@@ -22,7 +23,7 @@ use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * The canonical punch engine. Every clock action — web self-service, the mobile
- * API and the assistant — goes through {@see punch()} so the transition rules,
+ * API, a kiosk and the assistant — goes through {@see punch()} so the transition rules,
  * schedule snapshot and recomputation live in exactly one place.
  *
  * Three rules hold on every path (ADR 0036):
@@ -48,9 +49,9 @@ use Symfony\Component\HttpFoundation\IpUtils;
  * towards a shift, and how long an open shift keeps claiming punches.
  *
  * **It enforces the day's policy on every punch** (ADR 0040). A person on the
- * web or the phone, or HR entering for them, is held to it — where they may
- * punch from, from which address, with a selfie, inside the fence — and to the
- * day's order ("you're already clocked in") ({@see capture()}).
+ * web, the phone or a kiosk (ADR 0092), or HR entering for them, is held to it —
+ * where they may punch from, from which address, with a photo, inside the
+ * fence — and to the day's order ("you're already clocked in") ({@see capture()}).
  */
 class AttendanceClock
 {
@@ -64,6 +65,7 @@ class AttendanceClock
     private const SOURCE_WORDS = [
         'web' => 'the web',
         'mobile' => 'the mobile app',
+        'kiosk' => 'a kiosk',
         'manual' => 'entry by HR',
     ];
 
@@ -94,7 +96,7 @@ class AttendanceClock
      *  2. The work date and the day are found as for any punch.
      *  3. **The day's policy is enforced**: where they may punch from, how old a
      *     queued punch may be, the day's order, the web address allowlist, the
-     *     selfie, and — in `block` mode — the fence. A refused punch writes
+     *     photo, and — in `block` mode — the fence. A refused punch writes
      *     nothing.
      *  4. **The punch is placed**: the nearest work location, the distance and
      *     whether it was on site, kept on the punch whatever the policy says.
@@ -104,7 +106,9 @@ class AttendanceClock
      * `longitude`, `accuracy`, `photo`, `note`, `recorded_by`, `punched_at`
      * (default now), `ip` (a web punch's client address), `external_id`,
      * `offline` (the time was stamped by a phone that was offline) and `sent_at`
-     * (the phone's clock when it sent the punch, to measure its skew).
+     * (the phone's clock when it sent the punch, to measure its skew), and
+     * `kiosk` (the {@see AttendanceKiosk} a `kiosk` punch was made at, which
+     * places it at the kiosk's site).
      *
      * @param  array<string, mixed>  $context
      *
@@ -164,6 +168,7 @@ class AttendanceClock
                 'type' => $type,
                 'punched_at' => $at,
                 'source' => $source,
+                'attendance_kiosk_id' => $source === 'kiosk' ? $this->kioskOf($context)?->id : null,
                 'latitude' => $context['latitude'] ?? null,
                 'longitude' => $context['longitude'] ?? null,
                 'accuracy' => $context['accuracy'] ?? null,
@@ -883,7 +888,7 @@ class AttendanceClock
 
     /**
      * The policy's rules about how a person punches (ADR 0040): a web punch from
-     * an allowed address, a phone punch with a selfie.
+     * an allowed address, a phone or kiosk punch with a photo of the person.
      *
      * @param  array<string, mixed>  $context
      *
@@ -902,12 +907,18 @@ class AttendanceClock
         if ($source === 'mobile' && $policy->selfieRequired && blank($context['photo'] ?? null)) {
             throw new AttendancePunchException('Your attendance policy needs a selfie with every punch from the app. Take one and try again.');
         }
+
+        // A kiosk's camera is the photo (ADR 0092): nobody can be told to take one.
+        if ($source === 'kiosk' && $policy->selfieRequired && blank($context['photo'] ?? null)) {
+            throw new AttendancePunchException('Your attendance policy needs a photo with every punch. Face the camera and try again, or ask HR if this kiosk has none.');
+        }
     }
 
     /**
      * Where a punch was: the nearest work location, the distance to it, and
      * whether it counted as on site ({@see GeofenceCheck}). Only a web or phone
-     * punch reports a position; HR's entry is placed nowhere.
+     * punch reports a position; a kiosk's is where it stands
+     * ({@see placeAtKiosk()}); HR's entry is placed nowhere.
      *
      * The facts are kept whatever the policy's mode, so a reviewer can always
      * see where somebody punched. The mode decides what they mean:
@@ -929,7 +940,7 @@ class AttendanceClock
     {
         $unplaced = ['work_location_id' => null, 'distance_meters' => null, 'within_geofence' => null];
 
-        if (! in_array($source, AttendancePunch::LOCATED_SOURCES, true)) {
+        if ($source !== 'kiosk' && ! in_array($source, AttendancePunch::LOCATED_SOURCES, true)) {
             return $unplaced;
         }
 
@@ -937,6 +948,10 @@ class AttendanceClock
 
         if ($locations->isEmpty()) {
             return $unplaced;
+        }
+
+        if ($source === 'kiosk') {
+            return $this->placeAtKiosk($this->kioskOf($context), $locations, $policy);
         }
 
         $latitude = $context['latitude'] ?? null;
@@ -958,6 +973,66 @@ class AttendanceClock
         throw new AttendancePunchException($verdict === null
             ? 'Your attendance policy needs to know you are on site. Turn on location and try again.'
             : 'You are '.self::distance($verdict->distanceMeters).' from '.$verdict->location->name.'. Punches have to be made on site.');
+    }
+
+    /**
+     * Where a kiosk punch was (ADR 0092): at the kiosk's site. The kiosk reports
+     * no position of its own — it stands still — so the person is placed at its
+     * site, and the site is judged against their fence like any position:
+     *
+     *  - a kiosk at one of their sites: on that site, 0 m;
+     *  - a kiosk at a site that is not theirs: the way from it to their nearest
+     *    site, off site;
+     *  - a kiosk that names no site: not shown to be on site, as a phone with no
+     *    fix is.
+     *
+     * The mode then means what it does for a phone: `flag` accepts and flags,
+     * `block` refuses.
+     *
+     * @param  EloquentCollection<int, WorkLocation>  $locations  The person's fence.
+     * @return array{work_location_id: ?int, distance_meters: ?int, within_geofence: ?bool}
+     *
+     * @throws AttendancePunchException
+     */
+    private function placeAtKiosk(?AttendanceKiosk $kiosk, EloquentCollection $locations, AttendancePolicySettings $policy): array
+    {
+        $site = $kiosk?->location;
+
+        if ($site === null) {
+            if ($policy->geofence === 'block') {
+                throw new AttendancePunchException('Your attendance policy needs punches made on site, and this kiosk isn’t set to a site yet. Ask HR to set where it stands.');
+            }
+
+            return ['work_location_id' => null, 'distance_meters' => null, 'within_geofence' => $policy->geofence === 'off' ? null : false];
+        }
+
+        if ($locations->contains(fn (WorkLocation $location): bool => $location->is($site))) {
+            return ['work_location_id' => $site->id, 'distance_meters' => 0, 'within_geofence' => true];
+        }
+
+        $verdict = GeofenceCheck::check((float) $site->latitude, (float) $site->longitude, null, $locations);
+
+        if ($verdict === null || $verdict->inside) {
+            return ['work_location_id' => $verdict?->location->id ?? $site->id, 'distance_meters' => $verdict?->distanceMeters ?? 0, 'within_geofence' => true];
+        }
+
+        if ($policy->geofence === 'block') {
+            throw new AttendancePunchException('This kiosk is at '.$site->name.', '.self::distance($verdict->distanceMeters).' from '.$verdict->location->name.', where you’re based. Punch at a kiosk on your own site.');
+        }
+
+        return ['work_location_id' => $verdict->location->id, 'distance_meters' => $verdict->distanceMeters, 'within_geofence' => false];
+    }
+
+    /**
+     * The kiosk a punch's context names, if it names one.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function kioskOf(array $context): ?AttendanceKiosk
+    {
+        $kiosk = $context['kiosk'] ?? null;
+
+        return $kiosk instanceof AttendanceKiosk ? $kiosk : null;
     }
 
     /**

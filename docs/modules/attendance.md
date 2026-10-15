@@ -15,8 +15,11 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 [Attendance Policies](./attendance-policies.md)) and
 [ADR 0040](../decisions/0040-punch-capture-geofences-device-ingestion-and-records-for-devices.md)
 (geofences, capture rules, offline punches — the sites themselves are in
-[Work Locations](./work-locations.md); its kiosks and scanners are gone, per
-[ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md))
+[Work Locations](./work-locations.md); its scanners are gone, per
+[ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md), and the kiosk came
+back paired and PIN-protected, per
+[ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md),
+detailed in [Attendance kiosks](./attendance-kiosks.md))
 and [ADR 0041](../decisions/0041-attendance-days-close-themselves.md) (the end-of-day
 job, recompute when inputs change, reminders) and
 [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)
@@ -26,9 +29,10 @@ job, recompute when inputs change, reminders) and
 Everything is tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
-> Sidebar: Workforce → Attendance, for `attendance.view` or `attendance.roster.view`
-> (a roster-only viewer lands on the roster). Sections (`AttendanceNav`, in the page
-> header): **My attendance** ‖ **Time records** · **Shift roster**, each shown only to
+> Sidebar: Workforce → Attendance, for `attendance.view`, `attendance.roster.view` or
+> `attendance.kiosks.manage` (a roster-only viewer lands on the roster, a kiosk-only
+> manager on the kiosks). Sections (`AttendanceNav`, in the page header): **My
+> attendance** ‖ **Time records** · **Shift roster** · **Kiosks**, each shown only to
 > whoever may open it.
 
 ## Surfaces
@@ -147,8 +151,8 @@ three more hold the plan (see [scheduling tables](../database/scheduling-tables.
   forgotten clock-out. Unique on `(employee_id, work_date)`.
 - **`attendance_punches`** — the raw punch events the summary is built from: `type`
   (`clock_in | clock_out | break_start | break_end`), `punched_at`, `source`
-  (`web | mobile | manual | system`; a punch recorded before ADR 0054 may say `kiosk` or
-  `biometric`, and keeps it), GPS
+  (`web | mobile | kiosk | manual | system`; a punch recorded before ADR 0054 may say
+  `biometric`, and keeps it), the `attendance_kiosk_id` it was made at (ADR 0092), GPS
   (`latitude / longitude / accuracy`), an optional `photo` selfie, a `note`, and
   `recorded_by` (null when self-punched). What capture established (ADR 0040): the
   nearest `work_location_id`, `distance_meters`, `within_geofence`; the phone's own
@@ -226,13 +230,14 @@ belongs to:
 **`AttendanceClock::capture(employee, type, context)`** — which `punch()` wraps — runs
 in a transaction with a row lock on the employee: return the punch already received
 under the same phone client id, resolve the work date, find the day (or build it
-**unsaved**, with its rules frozen), and then, for every punch (web, mobile, manual):
+**unsaved**, with its rules frozen), and then, for every punch (web, mobile, kiosk, manual):
 the policy allows the
 source, an offline punch is inside its window, the transition is valid **at the instant
 given** (no double clock-in, no clock-out before clock-in, breaks only while clocked
 in — counting punches recorded after it), and the capture rules hold (the web IP
-allowlist, the mobile selfie). Then it **places** the punch — the nearest site, the
-distance and the fence verdict, refusing a person under a `block` geofence — and only
+allowlist, the mobile or kiosk photo). Then it **places** the punch — the nearest site, the
+distance and the fence verdict, refusing a person under a `block` geofence; a kiosk punch
+is placed at the kiosk's site (`placeAtKiosk()`, ADR 0092) — and only
 then saves the day, writes
 the punch and recomputes. **A refused punch writes nothing.** There is one mode: the
 scanners' `record_only` went with them (ADR 0054). `nextExpected()` / `allowed()` drive the
@@ -388,7 +393,8 @@ re-applying rules, sign-off) and `attendance.clock` (record your own punches). B
 roles: **HR Manager** gets all of them; **Department Head** and **Staff** get
 `attendance.clock` (the Department Head also `attendance.view`). The roster is
 `attendance.roster.view` / `attendance.roster.manage` (overrides and assigning schedules —
-including naming an attendance policy on the assignment). The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
+including naming an attendance policy on the assignment). Kiosks and their PINs are
+`attendance.kiosks.manage` (HR Manager; [Attendance kiosks](./attendance-kiosks.md)). The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
 `setup.locations.view` / `.manage`. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
 

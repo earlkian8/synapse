@@ -95,6 +95,14 @@ final class DataExportCatalogue
                 ['table' => 'shift_roster_entries'],
             ],
         ],
+        'kiosks' => [
+            'label' => 'Kiosks', 'section' => 'Workforce', 'permission' => 'attendance.kiosks.manage',
+            'description' => 'The kiosks people clock in at and the site each stands at, and who holds a kiosk PIN. Device secrets, pairing codes and PINs are never included.',
+            'tables' => [
+                ['table' => 'attendance_kiosks', 'exclude' => ['device_token_hash', 'pairing_code_hash']],
+                ['table' => 'employee_kiosk_pins', 'exclude' => ['pin_hash']],
+            ],
+        ],
         'leave' => [
             'label' => 'Leave', 'section' => 'Workforce', 'permission' => 'leave.view',
             'description' => 'Leave types, yearly entitlements and every request with its review.',

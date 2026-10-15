@@ -8,7 +8,8 @@
 > training tables up to `2026_10_11_000000_create_training_self_service_tables` on
 > 2026-10-11; the holiday, work-location, offboarding and tour tables of §1, §2a and §5
 > up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12; §13's admin
-portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13). It
+portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13; §6's
+> kiosk tables from `2026_10_15_020000_create_attendance_kiosks` on 2026-10-15). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -898,8 +899,10 @@ rules it was judged by and closes itself at the end of the day. See
 [scheduling tables](./scheduling-tables.md),
 [attendance tables](./attendance-tables.md),
 [ADR 0036](../decisions/0036-attendance-judged-in-local-time-on-shift-anchored-dates.md)
-to [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)
-and [ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md).
+to [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md),
+[ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md) and
+[ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md)
+(kiosks, for people without a phone).
 
 ```mermaid
 erDiagram
@@ -913,6 +916,9 @@ erDiagram
     ATTENDANCE_RECORD ||--o{ ATTENDANCE_PUNCH : "evidenced by"
     EMPLOYEE ||--o{ ATTENDANCE_PUNCH : punches
     WORK_LOCATION |o--o{ ATTENDANCE_PUNCH : "checked against"
+    WORK_LOCATION |o--o{ ATTENDANCE_KIOSK : "stands at"
+    ATTENDANCE_KIOSK |o--o{ ATTENDANCE_PUNCH : "made at"
+    EMPLOYEE ||--o| EMPLOYEE_KIOSK_PIN : "clocks in with"
 
     EMPLOYEE_SCHEDULE_ASSIGNMENT {
         bigint id PK
@@ -974,7 +980,8 @@ erDiagram
         bigint employee_id FK
         string type "clock_in|break_start|break_end|clock_out"
         datetime punched_at
-        string source "web|mobile|manual|system"
+        string source "web|mobile|kiosk|manual|system"
+        bigint attendance_kiosk_id FK
         decimal latitude
         decimal longitude
         decimal accuracy
@@ -989,6 +996,31 @@ erDiagram
         int clock_skew_seconds
         bigint recorded_by FK "users"
         datetime deleted_at
+    }
+    ATTENDANCE_KIOSK {
+        bigint id PK
+        string name
+        bigint work_location_id FK
+        string device_token_hash "sha256; unique"
+        string device_label
+        datetime paired_at
+        datetime last_seen_at
+        string pairing_code_hash "sha256; unique"
+        datetime pairing_expires_at
+        bigint created_by FK "users"
+        datetime deleted_at
+    }
+    EMPLOYEE_KIOSK_PIN {
+        bigint id PK
+        bigint employee_id FK "unique"
+        string pin_hash "bcrypt"
+        boolean must_change
+        smallint failed_attempts
+        datetime locked_until
+        bigint issued_by FK "users"
+        datetime issued_at
+        datetime changed_at
+        datetime last_used_at
     }
 ```
 
@@ -1689,7 +1721,7 @@ These parts of it did not become tables:
 | `COMPANY_PROFILE` | It is the `organizations` row ([ADR 0005](../decisions/0005-multi-tenancy.md)). |
 | `BACKUP` | Built as `data_exports` (§12): an export of one organisation's records, since the shared database is backed up by its host ([ADR 0066](../decisions/0066-data-export-a-copy-of-the-workspace-not-a-backup.md)). |
 | `EMAIL_TEMPLATE` | Never built. Notification mail is rendered from code. |
-| `ATTENDANCE` + `ATTENDANCE_IMPORT_BATCH` | Built instead as `attendance_records` + `attendance_punches`, with schedules, assignments, the roster and policies (§6). There is no bulk import. Device ingestion was built and then removed ([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)), as were attendance requests and periods ([ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)). |
+| `ATTENDANCE` + `ATTENDANCE_IMPORT_BATCH` | Built instead as `attendance_records` + `attendance_punches`, with schedules, assignments, the roster and policies (§6). There is no bulk import. Device ingestion was built and then removed ([ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md)); the kiosk came back paired and PIN-protected ([ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md)), scanners did not. So were attendance requests and periods ([ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)). |
 | Payroll & Benefits (`PAYROLL_PERIOD`, `PAYSLIP*`, `ALLOWANCE_TYPE`, `DEDUCTION_TYPE`, `EMPLOYEE_ALLOWANCE`, `EMPLOYEE_DEDUCTION`, `BENEFIT_*`) | Built, then removed ([ADR 0019](../decisions/0019-remove-payroll-and-benefits.md)). |
 | `ML_MODEL` | Replaced by a `model_version` string on each run, plus `local_models` for an organisation's own models (§10). |
 | `ATTRITION_PREDICTION`, `PROMOTION_READINESS` | Built as run + score pairs (§10). |

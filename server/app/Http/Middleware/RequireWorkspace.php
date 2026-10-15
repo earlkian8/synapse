@@ -57,6 +57,8 @@ class RequireWorkspace
         'home',
         'files.logo',
         'careers.',
+        // The kiosk (ADR 0092) tells a signed-in person to sign out first.
+        'kiosk.',
         'invite.',
         'legal.',
     ];

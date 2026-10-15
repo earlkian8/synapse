@@ -22,6 +22,10 @@ createInertiaApp({
             // anywhere yet (ADR 0026) — it cannot assume the app shell.
             case name === 'invite':
                 return null;
+            // A kiosk is a device at a site, not a page of the app (ADR 0092):
+            // nobody is signed in on it, and it brings its own screen.
+            case name === 'kiosk':
+                return null;
             // The Privacy Policy and the Terms of Service are public, and read
             // before anybody has an account (ADR 0063).
             case name.startsWith('legal/'):

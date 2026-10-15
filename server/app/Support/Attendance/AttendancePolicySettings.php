@@ -350,7 +350,7 @@ final readonly class AttendancePolicySettings
 
         $sources = array_values(array_intersect(AttendancePunch::CAPTURE_SOURCES, $value));
 
-        // A policy saved when kiosks and scanners existed (ADR 0054) may have
+        // A policy saved when biometric scanners existed (ADR 0054) may have
         // allowed only them. A policy allows at least one way to punch, so it
         // reads as allowing every way there is rather than none.
         return $sources === [] ? $default : $sources;

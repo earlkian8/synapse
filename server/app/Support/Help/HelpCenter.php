@@ -274,6 +274,14 @@ final class HelpCenter
             'screens' => ['/attendance/roster'],
             'related' => ['work-schedules-and-holidays', 'reviewing-attendance'],
         ],
+        'attendance-kiosks' => [
+            'category' => 'workforce', 'title' => 'Attendance kiosks',
+            'summary' => 'Set up a shared tablet where people without a phone clock in, give them PINs, and keep kiosks safe.',
+            'any' => ['attendance.kiosks.manage'],
+            'keywords' => ['kiosk', 'bundy', 'time clock', 'tablet', 'pin', 'no phone', 'without a phone', 'pair', 'pairing code', 'shared device', 'locked pin', 'forgot pin'],
+            'screens' => ['/attendance/kiosks'],
+            'related' => ['clocking-in-and-out', 'attendance-policies', 'work-locations'],
+        ],
         'clocking-in-and-out' => [
             'category' => 'workforce', 'title' => 'Clocking in and out',
             'summary' => 'Record your own time: clocking in, breaks and clocking out, and what happens when a punch is refused.',

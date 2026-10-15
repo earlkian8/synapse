@@ -407,3 +407,51 @@
     background: var(--card);
     color: var(--muted-foreground);
 }
+
+/* ── Kiosk (ADR 0092) ────────────────────────────────────────────────────────
+   The one motion the kiosk makes on its own account: a punch is stamped onto
+   the person's time card, the way a bundy clock prints it. A PIN that doesn't
+   match shakes the dots. Both are skipped when motion is reduced. */
+@keyframes kiosk-stamp {
+    0% {
+        opacity: 0;
+        transform: scale(1.9) rotate(-9deg);
+    }
+
+    55% {
+        opacity: 1;
+        transform: scale(0.94) rotate(-2deg);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(-2deg);
+    }
+}
+
+@keyframes kiosk-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-8px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(8px);
+    }
+}
+
+@keyframes kiosk-drain {
+    from {
+        transform: scaleX(1);
+    }
+
+    to {
+        transform: scaleX(0);
+    }
+}

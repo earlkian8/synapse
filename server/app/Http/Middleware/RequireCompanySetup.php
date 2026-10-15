@@ -65,6 +65,7 @@ class RequireCompanySetup
         // Public surfaces, which a signed-in owner may still be looking at.
         'home',
         'careers.',
+        'kiosk.',
         'invite.',
         'legal.',
     ];

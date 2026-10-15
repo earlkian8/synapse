@@ -112,14 +112,19 @@ export const APP_NAVIGATION: AppNavGroup[] = [
             },
             // { title: 'Departments', href: '/departments', icon: Building2 },
             {
-                // One entry for the module (ADR 0090): the time records and the
-                // shift roster they are judged against. Somebody who may only see
-                // the roster lands on it.
+                // One entry for the module (ADR 0090): the time records, the
+                // shift roster they are judged against, and the kiosks (ADR
+                // 0092). Somebody who may only see the roster, or only look after
+                // the kiosks, lands on theirs.
                 title: 'Attendance',
                 href: '/attendance',
                 icon: CalendarCheck,
-                permissionAny: ['attendance.view', 'attendance.roster.view'],
-                summary: 'Time records, sign-offs and the shift roster',
+                permissionAny: [
+                    'attendance.view',
+                    'attendance.roster.view',
+                    'attendance.kiosks.manage',
+                ],
+                summary: 'Time records, sign-offs, the shift roster and kiosks',
             },
             // {
             //     title: 'My Attendance',

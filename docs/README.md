@@ -53,6 +53,7 @@ commit history rather than repeating them.
 - [Global search](./modules/global-search.md) — the top bar's ⌘K palette: people, records, screens and help in one search, read for the searcher, opening the record itself.
 - [Privacy Policy and Terms of Service](./modules/legal-documents.md) — the public `/privacy` and `/terms`, written from what the system does under the Data Privacy Act, naming the deployment's operator from configuration.
 - [Work Schedule & Holidays (Company Setup)](./modules/work-schedule-holidays.md) — shift patterns + the holiday calendar (holidays aren't charged as leave).
+- [Attendance kiosks](./modules/attendance-kiosks.md) — shared tablets where people without a phone clock in with their employee number and a PIN: pairing, PINs, placement at the kiosk's site.
 - [Attendance Policies (Company Setup)](./modules/attendance-policies.md) — how a day is judged: presets and typed options, minute buckets, the payroll period summary.
 - [Work Locations (Company Setup)](./modules/work-locations.md) — sites drawn on a map, the fences punches are checked against, and who is based where.
 - [Departments (Company Setup)](./modules/departments.md) — org-structure config: department hierarchy + positions.
@@ -173,6 +174,7 @@ commit history rather than repeating them.
 - [0089 — People start and leave their own workspaces](./decisions/0089-people-start-and-leave-their-own-workspaces.md)
 - [0090 — The roster is Attendance's, and departments bring their positions](./decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)
 - [0091 — Postings say what they pay, and anyone assigned can interview](./decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md)
+- [0092 — Kiosks for people without a phone: a paired device and a PIN of their own](./decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md) (supersedes the kiosk half of 0054)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

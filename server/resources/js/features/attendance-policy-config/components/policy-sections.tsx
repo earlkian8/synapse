@@ -533,7 +533,7 @@ export function PolicySections({
                     <InputError message={error('capture', 'allowed_sources')} />
                 </div>
                 <ToggleRow
-                    label="A selfie with every mobile punch"
+                    label="A photo with every app and kiosk punch"
                     checked={s.capture.selfie_required}
                     onChange={(selfie_required) =>
                         onChange('capture', { selfie_required })

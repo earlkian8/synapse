@@ -60,6 +60,7 @@ class PermissionRegistry
             'attendance.clock' => 'Clock in / out (self-service)',
             'attendance.roster.view' => 'View the shift roster',
             'attendance.roster.manage' => 'Assign schedules & set one-off shift overrides',
+            'attendance.kiosks.manage' => 'Set up kiosks & issue the PINs people without a phone clock in with',
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
