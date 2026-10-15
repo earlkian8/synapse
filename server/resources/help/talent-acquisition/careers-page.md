@@ -6,12 +6,18 @@ On **Recruitment**, open a posting's **⋯** menu and choose **Copy public link*
 
 Only **open** postings are public. A draft, closed or filled posting's page can't be reached, and a posting past its closing date stops taking applications even before it is closed.
 
+## What applicants see
+
+Each posting shows where the role is (for example "Hybrid · Makati HQ", with the site's address on its page), the employment type, the minimum experience and the closing date. When you've given a pay range and left **Show the pay on the careers page** on, it shows the pay as well, for example "₱25,000–₱35,000 a month".
+
 ## What applicants are asked
 
 The application form asks for:
 
 - their name and contact details;
-- a **résumé** — unless the posting turned **Require a résumé** off;
+- their years of experience (half years such as 2.5 are fine);
+- a **résumé** — unless the posting turned **Ask for a résumé** off;
+- their **expected pay**, in the posting's period (for example "Expected monthly pay") — unless the posting turned **Ask for expected pay** off;
 - optional supporting documents, such as a cover letter, certificates or a portfolio;
 - answers to the posting's own **screening questions**, as Yes or No.
 

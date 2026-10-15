@@ -82,10 +82,12 @@ export const APP_NAVIGATION: AppNavGroup[] = [
         label: 'Talent Acquisition',
         items: [
             {
+                // One entry for the module (ADR 0091): HR lands on the postings,
+                // somebody who only interviews on their own interviews.
                 title: 'Recruitment',
                 href: '/recruitment',
                 icon: BriefcaseBusiness,
-                permission: 'recruitment.view',
+                permissionAny: ['recruitment.view', 'recruitment.interview'],
                 summary: 'Job postings, applicants and interviews',
             },
             {

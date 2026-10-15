@@ -37,9 +37,16 @@ final class SystemGuide
         'recruitment' => [
             'title' => 'Recruitment', 'menu' => 'Talent Acquisition', 'path' => '/recruitment', 'any' => ['recruitment.view'],
             'about' => 'Job postings, applicants and each posting\'s hiring board (its pipeline stages), interviews, AI candidate insights, and hiring someone straight into the employee roster. Open postings get a public careers page.',
-            'tasks' => ['Create a posting and publish it', 'Add applicants and move them through the stages', 'Schedule and record interviews', 'Rank candidates and read AI insights', 'Hire an applicant — they become an employee'],
+            'tasks' => ['Create a posting with its pay range, work arrangement and site, and publish it', 'Add applicants and move them through the stages', 'Schedule and record interviews', 'Rank candidates and read AI insights', 'Hire an applicant — they become an employee'],
             'assistant' => 'Everything on this screen: postings, applicants, stage moves, interviews, rankings and hiring.',
             'keywords' => ['hire', 'hiring', 'job', 'posting', 'vacancy', 'applicant', 'candidate', 'interview', 'careers'],
+        ],
+        'my-interviews' => [
+            'title' => 'My interviews', 'menu' => 'Recruitment → My interviews', 'path' => '/recruitment/interviews', 'any' => ['recruitment.interview'],
+            'about' => 'The candidate interviews HR has booked you on: when and where, the candidate\'s résumé and answers, and your verdict and feedback. Only your own interviews; postings and the hiring board stay with HR.',
+            'tasks' => ['See your upcoming interviews', 'Open a candidate\'s résumé before the interview', 'Record Passed or Not a fit, with feedback'],
+            'assistant' => 'Not available yet: record your verdict on this screen.',
+            'keywords' => ['my interviews', 'interviewer', 'interview a candidate', 'verdict', 'feedback'],
         ],
         'onboarding' => [
             'title' => 'Onboarding', 'menu' => 'Talent Acquisition', 'path' => '/onboarding', 'any' => ['onboarding.view'],

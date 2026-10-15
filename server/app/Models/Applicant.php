@@ -35,7 +35,8 @@ class Applicant extends Model
     protected function casts(): array
     {
         return [
-            'years_experience' => 'integer',
+            // Whole or half years: "1.5" (ADR 0091).
+            'years_experience' => 'float',
         ];
     }
 

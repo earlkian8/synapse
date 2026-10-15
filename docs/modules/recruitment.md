@@ -3,7 +3,9 @@
 An applicant tracking system (ATS): post vacancies, move candidates through a hiring
 pipeline, schedule interviews, and **hire** — which creates an employee. The *why* is
 in [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md); how pipelines
-became tenant-defined data is [ADR 0029](../decisions/0029-configurable-recruitment-pipelines.md).
+became tenant-defined data is [ADR 0029](../decisions/0029-configurable-recruitment-pipelines.md);
+a posting's pay and place, and interviewing without the board, are
+[ADR 0091](../decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md).
 This is the *how*. Everything is tenant-scoped (ADR 0005).
 
 Recruitment is deliberately **generic** — a SaaS HR ERP is used by every department, not
@@ -29,6 +31,19 @@ Both levels are laid out like the Workforce modules (header · compact stat tile
 toolbar · table · pagination), from the shared table kit
 ([ADR 0048](../decisions/0048-talent-acquisition-and-offboarding-join-the-table-kit.md)).
 
+The module header switches between **My interviews** (with the count still to record)
+and **Job postings**, each shown only to people who may open it (`RecruitmentNav`).
+
+- **`/recruitment/interviews`** (`recruitment.interview`): **My interviews**, the
+  interviews the person is assigned (ADR 0091).
+  - *To record* (pending, soonest first) and *Recorded* (the latest 50).
+  - An interview opens a modal: time, mode and join link; the candidate's experience,
+    location, résumé, LinkedIn, portfolio, email and phone; their cover note and
+    answers to the posting's questions; then the verdict (*Not yet · Passed · Not a
+    fit*) and feedback.
+  - It leaves out expected salary, HR's rating and notes, the fit score and the
+    candidate's other documents.
+  - Someone who can interview but not view the board is sent here from `/recruitment`.
 - **`/recruitment`**: every job posting as **one table**.
   - Six stat tiles; search, department and status filters with Reset; *Export* (with
     the current filters) and *New posting*.
@@ -36,7 +51,8 @@ toolbar · table · pagination), from the shared table kit
     pipeline (active · total), status and closing date.
   - It sorts by title, openings, status and closing date, and is paged on the server.
   - A row opens the posting's **pipeline**. The row menu has *View details* (a read-only
-    modal with the overview, public application link, description and requirements,
+    modal with the overview (including work arrangement and pay), public application
+    link, description and requirements,
     pipeline summary and a **status progress** indicator, plus *Open pipeline* and
     *Edit*), *Open pipeline*, *Copy public link*, *Edit*, *Set status* and *Delete*.
 - **`/recruitment/{posting}`**: the **pipeline**.
@@ -219,8 +235,15 @@ Each organisation has a public careers board at `/careers/{slug}`; every **open*
 posting has its own shareable page at `/careers/{slug}/jobs/{hashid}` where a
 candidate applies with their details, a résumé (**required unless the posting turned it
 off**), optional supporting documents, and answers to the posting's own **screening
-questions** (rendered as Yes/No fields, saved to `screening_answers`). The surface is
-unauthenticated — there is no logged-in tenant — so:
+questions** (rendered as Yes/No fields, saved to `screening_answers`).
+
+The board and the job page show where the role is ("Hybrid · Makati HQ", with the
+site's address on the job page), the employment type, the minimum experience and, when
+the posting shows it, the pay ("₱25,000–₱35,000 a month"). The form asks for expected pay
+in the posting's period ("Expected monthly pay") only when the posting asks for it, and
+years of experience take one decimal place.
+
+The surface is unauthenticated — there is no logged-in tenant — so:
 
 - Routes live in [`routes/careers.php`](../../server/routes/careers.php) (outside
   the auth group) and are served by `App\Http\Controllers\Public\CareersController`.
@@ -261,15 +284,22 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   pipeline needs exactly one `won` stage and at least one `lost` stage.
 - A **posting** points at one pipeline, has a status (`draft → open → closed / filled`),
   an `openings` count, a `closing_date` (required once `open`), optional screening
-  criteria (`min_years_experience`, `skills`, and its own `screening_questions`), and two
-  opt-outs: `requires_resume` and `use_fit_scoring` (both default on). It auto-fills when
-  its openings are hired and auto-closes when its closing date passes.
+  criteria (`min_years_experience`, one decimal place; `skills`; and its own
+  `screening_questions`), and two opt-outs: `requires_resume` and `use_fit_scoring`
+  (both default on). It auto-fills when its openings are hired and auto-closes when its
+  closing date passes.
+- A posting's **pay** is `salary_min` / `salary_max` (either may be empty) in a
+  `salary_period` (`monthly` · `annual` · `daily` · `hourly`), shown publicly when
+  `show_salary`. `asks_expected_salary` decides whether applicants are asked theirs.
+  Its **place** is a `work_arrangement` (`onsite` · `hybrid` · `remote`) and an optional
+  `work_location_id`. `JobPosting::money()` is the one way pay is written out.
 - An **applicant** is a standalone candidate (not a user or employee); the pool is
   reusable across postings.
 - An **application** is one applicant on one posting (`unique(posting, applicant)`),
   carrying a `recruitment_pipeline_stage_id` (its stage in the posting's own pipeline), a
-  `rating`, `screening_answers`, the last LLM read (`ai_insights` JSON), and — once
-  hired — `hired_employee_id`.
+  `rating`, `screening_answers`, an `expected_salary` with its `expected_salary_period`
+  (filled from the posting when not given), the last LLM read (`ai_insights` JSON), and
+  — once hired — `hired_employee_id`.
 - An **interview** belongs to an application; scheduling one advances the application to
   the pipeline's next open stage by default (or an explicit target stage).
 
@@ -279,7 +309,8 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   (index / show-pipeline / store / update / destroy), `JobPostingStatusController`,
   `ApplicantController`, `JobApplicationController` (store / show / stage / reject /
   update / destroy), `InterviewController`, **`HireController`** (the bridge),
-  `RecruitmentExportController`, and **`RecruitmentPipelineController`**
+  `RecruitmentExportController`, **`MyInterviewsController`** (an interviewer's own
+  interviews, built by `Queries\MyInterviews`), and **`RecruitmentPipelineController`**
   (`app/Http/Controllers/Recruitment/`, mounted under Company Setup — index / store /
   update / destroy for pipelines and their stages, mirroring
   `OnboardingProgramController`'s "replace the whole child collection on save" pattern).
@@ -304,8 +335,15 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   / `forgetResume()` keep file cleanup in one place.
 - `routes/recruitment.php` (literal-prefixed routes precede the `{jobPosting}`
   wildcard); pipeline management routes live in `routes/setup.php` alongside the other
-  Company Setup screens. Every route is gated by a **Recruitment** permission (9 in the
-  registry, including `recruitment.configure-pipelines`).
+  Company Setup screens. Every route is gated by a **Recruitment** permission (10 in the
+  registry, including `recruitment.configure-pipelines` and `recruitment.interview`).
+  `/recruitment` and recording an interview check in the controller, because two
+  permissions can reach each.
+- **`App\Support\Recruitment\Interviewers`** decides who is an interviewer: active
+  members of this workspace whose role holds `recruitment.interview` or
+  `.schedule-interviews` (or HR Manager). The picker, the booking request and the
+  assistant all ask it. `mayRecord()` lets HR record any verdict and an interviewer
+  their own; `notify()` tells the interviewer when they are booked.
 - Mutations are activity-logged (`logName: 'recruitment'`); a new application and a
   hire notify the `hr-manager` role.
 
@@ -406,8 +444,10 @@ footer** rather than stacking a second dialog on top of the first.
 ## Permissions
 
 `recruitment.view`, `.create`, `.update`, `.delete`, `.manage-pipeline`,
-`.schedule-interviews`, `.hire`, `.export`, `.configure-pipelines`. Seeded to Super
-Admin / Administrator (all) and HR Manager (all of recruitment).
+`.schedule-interviews`, `.hire`, `.export`, `.configure-pipelines`, `.interview`.
+HR Manager holds all of them. The built-in **Department Head** and **Staff** roles hold
+`.interview` (ADR 0091), which reaches only the interviews a person is assigned: My
+interviews, those candidates' résumés, and their own verdicts.
 `.manage-pipeline` gates moving/rejecting candidates on a posting's board;
 `.configure-pipelines` is separate and gates the Company Setup screen that defines
 pipelines and their stages — a recruiter can run hiring day-to-day without being able
@@ -468,6 +508,14 @@ recruitment data at all, which is what makes the module's empty state — the
   candidate, delete-a-hire, un-hire, empty edit, an unresolvable stage name), `advance_application`
   **refusing to reject or hire**, the three read-outs, the saved-vs-refreshed AI read
   (Gemini faked), and tenant isolation.
+- `tests/Feature/Recruitment/PostingPayAndPlaceTest.php` — pay range, period and
+  visibility, work arrangement and site, decimal experience, the expected-pay period
+  (asked, defaulted, skipped when the posting doesn't ask) and the careers page output.
+- `tests/Feature/Recruitment/InterviewersTest.php` — `recruitment.interview`: the picker
+  lists only this workspace's interviewers, booking someone who can't interview is
+  refused, My interviews shows only one's own (without the expected salary), an
+  interviewer records their own verdict but not another's, the résumé is readable only
+  for one's own candidates, the redirect from `/recruitment`, and the notification.
 - `tests/Feature/Careers/PublicCareersTest.php` — the public board and apply flow,
   including an **optional-résumé** posting accepting a submission without one, and
   screening questions round-tripping into `screening_answers`.

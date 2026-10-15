@@ -344,10 +344,10 @@ export function ApplicationDetailDialog({
                                     }
                                 />
                             </div>
-                            {current.expected_salary && (
+                            {current.expected_salary_label && (
                                 <Row
-                                    label="Expected salary"
-                                    value={`₱${Number(current.expected_salary).toLocaleString()}`}
+                                    label="Expected pay"
+                                    value={current.expected_salary_label}
                                 />
                             )}
                             {current.cover_note && (
@@ -829,6 +829,10 @@ function InterviewsSection({
                                     label: u.full_name,
                                 }))}
                             />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                                People whose role lets them interview. They see
+                                it under Recruitment → My interviews.
+                            </p>
                         </div>
                         <div>
                             <Label

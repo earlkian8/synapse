@@ -59,7 +59,14 @@ those two don't cover.
 | `description` / `requirements` | text, nullable | |
 | `employment_type` | string | regular / probationary / contractual / part_time. |
 | `openings` | smallint | Default 1. Posting auto-fills when this many are hired. |
+| `salary_min` / `salary_max` | decimal(12,2), nullable | The pay range; either may be empty ("from …", "up to …"). ADR 0091. |
+| `salary_period` | string(10) | Default `monthly`; monthly / annual / daily / hourly. The period the range and applicants' expected pay are in. |
+| `show_salary` | boolean | Default `true`. When `false`, the careers page hides the range. |
+| `work_arrangement` | string(10) | Default `onsite`; onsite / hybrid / remote. |
+| `work_location_id` | FK → work_locations, nullable | The site the role is based at. `nullOnDelete`. |
+| `min_years_experience` | decimal(4,1), nullable | Fit-scoring criterion, e.g. 1.5. |
 | `requires_resume` | boolean | Default `true`. When `false`, the public application form makes the résumé optional. |
+| `asks_expected_salary` | boolean | Default `true`. When `false`, applicants aren't asked their expected pay. |
 | `use_fit_scoring` | boolean | Default `true`. When `false`, the pipeline skips the automatic fit score/ranking; candidates sort by applied date instead. |
 | `status` | string | draft / open / closed / filled. Indexed. |
 | `closing_date` | date, nullable | |
@@ -78,7 +85,7 @@ The standalone candidate pool (not users or employees).
 | `current_location` | string, nullable | City / region. |
 | `headline` | string, nullable | Current role / one-liner. |
 | `linkedin_url` / `portfolio_url` | string, nullable | Professional links. |
-| `years_experience` | tinyint, nullable | 0–60. |
+| `years_experience` | decimal(4,1), nullable | 0–60, one decimal place (ADR 0091). |
 | `source` | string | website / referral / linkedin / agency / walk_in / other. |
 | `resume` | string, nullable | The **primary CV**, stored on the private `uploads` disk; copied into the 201 file at hire. |
 | `notes` | text, nullable | |
@@ -110,6 +117,7 @@ One applicant on one posting, moving through the pipeline.
 | `applicant_id` | FK → applicants | `cascadeOnDelete`. |
 | `rating` | tinyint, nullable | 1–5. |
 | `expected_salary` | decimal(12,2), nullable | |
+| `expected_salary_period` | string(10), nullable | monthly / annual / daily / hourly. Filled from the posting when not given; null when there is no figure, and on answers from before ADR 0091. |
 | `cover_note` | text, nullable | |
 | `rejected_reason` | text, nullable | |
 | `screening_answers` | json, nullable | `{question_id: bool}`, answers to the posting's `job_posting_screening_questions`. |
@@ -123,7 +131,7 @@ One applicant on one posting, moving through the pipeline.
 | --- | --- | --- |
 | `id` | bigint (PK) | |
 | `job_application_id` | FK → job_applications | `cascadeOnDelete`. |
-| `interviewer_id` | FK → users, nullable | The actor. `nullOnDelete`. |
+| `interviewer_id` | FK → users, nullable | Who conducts it: someone `Interviewers` allows (ADR 0091), who sees it under My interviews. `nullOnDelete`. |
 | `scheduled_at` | timestamp | Indexed. |
 | `mode` | string | onsite / online / phone. |
 | `location` | string, nullable | Venue or meeting link. |

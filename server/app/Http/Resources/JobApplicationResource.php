@@ -23,6 +23,8 @@ class JobApplicationResource extends JsonResource
             'stage_kind' => $this->pipelineStage->kind,
             'rating' => $this->rating,
             'expected_salary' => $this->expected_salary,
+            'expected_salary_period' => $this->expected_salary_period,
+            'expected_salary_label' => $this->expectedSalaryLabel(),
             'cover_note' => $this->cover_note,
             'rejected_reason' => $this->rejected_reason,
             'screening_answers' => $this->screening_answers ?? null,

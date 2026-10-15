@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Models\JobPosting;
 use App\Support\TenantRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,11 +30,13 @@ class StoreJobApplicationRequest extends FormRequest
             'headline' => ['nullable', 'string', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             'portfolio_url' => ['nullable', 'url', 'max:255'],
-            'years_experience' => ['nullable', 'integer', 'between:0,60'],
+            'years_experience' => ['nullable', 'numeric', 'decimal:0,1', 'between:0,60'],
             'source' => ['nullable', Rule::in(StoreApplicantRequest::SOURCES)],
 
             // Application details.
             'expected_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            // What the figure is per; left out, it takes the posting's (ADR 0091).
+            'expected_salary_period' => ['nullable', Rule::in(JobPosting::SALARY_PERIODS)],
             'cover_note' => ['nullable', 'string', 'max:5000'],
             'rating' => ['nullable', 'integer', 'between:1,5'],
 

@@ -16,6 +16,17 @@ class JobPosting extends Model
     /** @use HasFactory<JobPostingFactory> */
     use BelongsToOrganization, HasFactory, HasHashid;
 
+    /**
+     * What a pay figure is quoted per — a posting's range, and the expected
+     * salary an applicant gives for it (ADR 0091). Monthly is how most
+     * Philippine roles are quoted; daily for daily-rated work, hourly for
+     * part-time, annual for senior packages.
+     */
+    public const SALARY_PERIODS = ['monthly', 'annual', 'daily', 'hourly'];
+
+    /** Where the work is done. */
+    public const WORK_ARRANGEMENTS = ['onsite', 'hybrid', 'remote'];
+
     protected $fillable = [
         'organization_id',
         'recruitment_pipeline_id',
@@ -30,6 +41,13 @@ class JobPosting extends Model
         'use_fit_scoring',
         'employment_type',
         'openings',
+        'salary_min',
+        'salary_max',
+        'salary_period',
+        'show_salary',
+        'asks_expected_salary',
+        'work_arrangement',
+        'work_location_id',
         'status',
         'closing_date',
         'posted_by',
@@ -39,7 +57,12 @@ class JobPosting extends Model
     {
         return [
             'openings' => 'integer',
-            'min_years_experience' => 'integer',
+            // Whole or half years: "1.5" (ADR 0091).
+            'min_years_experience' => 'float',
+            'salary_min' => 'decimal:2',
+            'salary_max' => 'decimal:2',
+            'show_salary' => 'boolean',
+            'asks_expected_salary' => 'boolean',
             'skills' => 'array',
             'requires_resume' => 'boolean',
             'use_fit_scoring' => 'boolean',
@@ -67,6 +90,47 @@ class JobPosting extends Model
     public function screeningQuestions(): HasMany
     {
         return $this->hasMany(JobPostingScreeningQuestion::class)->orderBy('position')->orderBy('id');
+    }
+
+    /**
+     * The site the role is based at, when it has one.
+     *
+     * @return BelongsTo<WorkLocation, $this>
+     */
+    public function workLocation(): BelongsTo
+    {
+        return $this->belongsTo(WorkLocation::class);
+    }
+
+    /**
+     * The pay range as a reader would say it — "₱25,000–₱35,000 a month",
+     * "From ₱600 a day" — or null when none was given.
+     */
+    public function payLabel(): ?string
+    {
+        return self::money($this->salary_min, $this->salary_max, $this->salary_period);
+    }
+
+    /**
+     * A pay figure or range in pesos, with the period it is quoted per.
+     */
+    public static function money(int|float|string|null $min, int|float|string|null $max = null, ?string $period = null): ?string
+    {
+        $format = fn ($value): string => '₱'.number_format((float) $value, fmod((float) $value, 1.0) === 0.0 ? 0 : 2);
+        $per = match ($period) {
+            'annual' => ' a year',
+            'daily' => ' a day',
+            'hourly' => ' an hour',
+            'monthly' => ' a month',
+            default => '',
+        };
+
+        return match (true) {
+            $min !== null && $max !== null && (float) $min !== (float) $max => $format($min).'–'.$format($max).$per,
+            $min !== null => ($max === null ? 'From ' : '').$format($min).$per,
+            $max !== null => 'Up to '.$format($max).$per,
+            default => null,
+        };
     }
 
     /**

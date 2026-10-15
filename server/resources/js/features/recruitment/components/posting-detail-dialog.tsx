@@ -16,7 +16,7 @@ import {
     ModalSection,
 } from '@/components/modal';
 import { Button } from '@/components/ui/button';
-import { TYPE_LABELS } from '../constants';
+import { TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '../constants';
 import type { ManagedPosting, RecruitmentPermissions } from '../types';
 import {
     PostingStatusBadge,
@@ -118,6 +118,27 @@ export function PostingDetailDialog({
                             <Row
                                 label="Employment type"
                                 value={TYPE_LABELS[posting.employment_type]}
+                            />
+                            <Row
+                                label="Work arrangement"
+                                value={
+                                    posting.work_location &&
+                                    posting.work_arrangement !== 'remote'
+                                        ? `${WORK_ARRANGEMENT_LABELS[posting.work_arrangement]} · ${posting.work_location}`
+                                        : WORK_ARRANGEMENT_LABELS[
+                                              posting.work_arrangement
+                                          ]
+                                }
+                            />
+                            <Row
+                                label="Pay"
+                                value={
+                                    posting.pay_label === null
+                                        ? 'Not stated'
+                                        : posting.show_salary
+                                          ? posting.pay_label
+                                          : `${posting.pay_label} (not shown to applicants)`
+                                }
                             />
                             <Row
                                 label="Closing date"

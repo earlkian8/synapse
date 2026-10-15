@@ -6,6 +6,7 @@ use App\Http\Controllers\Recruitment\InterviewController;
 use App\Http\Controllers\Recruitment\JobApplicationController;
 use App\Http\Controllers\Recruitment\JobPostingController;
 use App\Http\Controllers\Recruitment\JobPostingStatusController;
+use App\Http\Controllers\Recruitment\MyInterviewsController;
 use App\Http\Controllers\Recruitment\PipelineExportController;
 use App\Http\Controllers\Recruitment\RecruitmentExportController;
 use Illuminate\Support\Facades\Route;
@@ -21,7 +22,8 @@ Route::middleware(['auth', 'verified'])
     ->prefix('recruitment')
     ->name('recruitment.')
     ->group(function () {
-        Route::get('/', [JobPostingController::class, 'index'])->middleware('can:recruitment.view')->name('index');
+        // The board; somebody who only interviews is sent to their interviews.
+        Route::get('/', [JobPostingController::class, 'index'])->name('index');
         Route::get('export', RecruitmentExportController::class)->middleware('can:recruitment.export')->name('export');
         Route::post('/', [JobPostingController::class, 'store'])->middleware('can:recruitment.create')->name('store');
 
@@ -40,8 +42,11 @@ Route::middleware(['auth', 'verified'])
         Route::post('applications/{application}/hire', HireController::class)->middleware('can:recruitment.hire')->name('applications.hire');
         Route::post('applications/{application}/interviews', [InterviewController::class, 'store'])->middleware('can:recruitment.schedule-interviews')->name('interviews.store');
 
-        // Interviews.
-        Route::post('interviews/{interview}', [InterviewController::class, 'update'])->middleware('can:recruitment.schedule-interviews')->name('interviews.update');
+        // Interviews. One's own (ADR 0091) — the interviews you are assigned —
+        // and recording a verdict, which HR may do for any interview and an
+        // interviewer for their own (checked in the controller).
+        Route::get('interviews', [MyInterviewsController::class, 'index'])->middleware('can:recruitment.interview')->name('interviews.mine');
+        Route::post('interviews/{interview}', [InterviewController::class, 'update'])->name('interviews.update');
         Route::delete('interviews/{interview}', [InterviewController::class, 'destroy'])->middleware('can:recruitment.schedule-interviews')->name('interviews.destroy');
 
         // A posting and its pipeline board (wildcard — declared last). The

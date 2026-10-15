@@ -28,4 +28,6 @@ export const recruitmentRoutes = {
         `/recruitment/applications/${id}/interviews`,
 
     interview: (id: number) => `/recruitment/interviews/${id}`,
+    /** The interviews assigned to the signed-in person (ADR 0091). */
+    myInterviews: '/recruitment/interviews',
 } as const;

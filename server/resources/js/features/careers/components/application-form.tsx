@@ -5,7 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import type { CareersOrg, DocumentTypeOption, PostingDetail } from '../types';
+import type {
+    CareersOrg,
+    DocumentTypeOption,
+    PostingDetail,
+    SalaryPeriod,
+} from '../types';
+
+/** "Expected monthly pay" — asked in the posting's own terms. */
+const PERIOD_ADJECTIVE: Record<SalaryPeriod, string> = {
+    monthly: 'monthly',
+    annual: 'yearly',
+    daily: 'daily',
+    hourly: 'hourly',
+};
 
 type DocumentRow = { type: string; file: File | null };
 
@@ -172,6 +185,9 @@ export function ApplicationForm({
                             type="number"
                             min="0"
                             max="60"
+                            step="0.5"
+                            inputMode="decimal"
+                            placeholder="e.g. 1.5"
                             value={data.years_experience}
                             onChange={(e) =>
                                 setData('years_experience', e.target.value)
@@ -236,22 +252,34 @@ export function ApplicationForm({
                     </p>
                 </Field>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                        label="Expected salary (₱)"
-                        error={errors.expected_salary}
-                    >
-                        <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={data.expected_salary}
-                            onChange={(e) =>
-                                setData('expected_salary', e.target.value)
-                            }
-                        />
-                    </Field>
-                </div>
+                {posting.asks_expected_salary && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Field
+                            label={`Expected ${PERIOD_ADJECTIVE[posting.salary_period]} pay`}
+                            error={errors.expected_salary}
+                        >
+                            <div className="relative">
+                                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-slate-400">
+                                    ₱
+                                </span>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={data.expected_salary}
+                                    onChange={(e) =>
+                                        setData(
+                                            'expected_salary',
+                                            e.target.value,
+                                        )
+                                    }
+                                    className="pl-7"
+                                />
+                            </div>
+                        </Field>
+                    </div>
+                )}
 
                 <Field label="Cover note" error={errors.cover_note}>
                     <textarea

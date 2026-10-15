@@ -40,6 +40,12 @@ export type PipelineView = 'table' | 'board';
 export type DepartmentRef = { id: number; name: string; code: string };
 export type PositionRef = { id: number; title: string };
 
+/** What a pay figure is quoted per (ADR 0091). */
+export type SalaryPeriod = 'monthly' | 'annual' | 'daily' | 'hourly';
+
+/** Where the work is done. */
+export type WorkArrangement = 'onsite' | 'hybrid' | 'remote';
+
 export type ManagedPosting = {
     id: number;
     hashid: string;
@@ -52,6 +58,16 @@ export type ManagedPosting = {
     use_fit_scoring: boolean;
     employment_type: EmploymentType;
     openings: number;
+    salary_min: string | null;
+    salary_max: string | null;
+    salary_period: SalaryPeriod;
+    show_salary: boolean;
+    /** "₱25,000–₱35,000 a month", or null when no pay was given. */
+    pay_label: string | null;
+    asks_expected_salary: boolean;
+    work_arrangement: WorkArrangement;
+    work_location_id: number | null;
+    work_location?: string | null;
     status: PostingStatus;
     closing_date: string | null;
     closes_human: string | null;
@@ -196,6 +212,9 @@ export type Application = {
     stage_kind: StageKind;
     rating: number | null;
     expected_salary: string | null;
+    expected_salary_period: SalaryPeriod | null;
+    /** "₱30,000 a month" — with the period it was given in, when known. */
+    expected_salary_label: string | null;
     cover_note: string | null;
     rejected_reason: string | null;
     screening_answers: Record<number, boolean> | null;
@@ -276,6 +295,8 @@ export type PostingOptions = {
     departments: DepartmentRef[];
     positions: { id: number; title: string; department_id: number | null }[];
     pipelines: PipelineOption[];
+    /** The sites a role can be based at (Company Setup → Locations). */
+    locations: { id: number; name: string }[];
 };
 
 export type InterviewerRef = { id: number; full_name: string };
@@ -337,6 +358,8 @@ export type PostingsPageProps = {
     options: PostingOptions;
     can: RecruitmentPermissions;
     filters: PostingsFilters;
+    /** Your own interviews still waiting on a verdict (ADR 0091). */
+    nav: { interviews: number };
 };
 
 export type PipelinePageProps = {
@@ -350,3 +373,37 @@ export type PipelinePageProps = {
 /** How the pipeline candidates are ordered client-side. */
 export type PipelineSort =
     'default' | 'fit' | 'rating' | 'recent' | 'oldest' | 'name';
+
+/** One interview assigned to the signed-in person (ADR 0091). */
+export type MyInterview = {
+    id: number;
+    scheduled_at: string | null;
+    scheduled_label: string | null;
+    scheduled_human: string | null;
+    is_past: boolean;
+    mode: InterviewMode;
+    location: string | null;
+    notes: string | null;
+    result: InterviewResult;
+    feedback: string | null;
+    posting: { title: string | null; department: string | null };
+    stage: string | null;
+    candidate: {
+        name: string;
+        initials: string;
+        headline: string | null;
+        current_location: string | null;
+        years_experience: number | null;
+        email: string | null;
+        phone: string | null;
+        linkedin_url: string | null;
+        portfolio_url: string | null;
+        resume_url: string | null;
+        cover_note: string | null;
+    };
+    screening: { label: string; answer: boolean }[];
+};
+
+export type MyInterviewsPageProps = {
+    interviews: { pending: MyInterview[]; done: MyInterview[] };
+};

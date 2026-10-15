@@ -7,9 +7,23 @@
 
 Scheduling an interview moves the candidate on to the next stage of your pipeline, so the board keeps up without an extra step. Upcoming interviews also appear in the queue on the dashboard of whoever can act on them.
 
+## Who can interview
+
+The interviewer doesn't have to be in HR. Anyone in your company whose role includes **Interview the candidates you're assigned** can be picked. Department heads and staff have it by default; you can change that under **Roles & Permissions**. The interviewer list shows only people who can interview. If someone is missing, give one of their roles that permission.
+
+When you book someone, they get a notification. They see the interview under **Recruitment** → **My interviews**, which shows only the interviews they're booked on. It doesn't show your postings or pipelines. There they find:
+
+- the time, the mode and the meeting link;
+- the candidate's experience, location, résumé, LinkedIn, email and phone;
+- their cover note and their answers to the posting's yes/no questions.
+
+They don't see the candidate's expected pay, your rating or notes, the fit score, or other documents such as IDs.
+
+After the interview, they choose **Passed** or **Not a fit**, add their feedback, and **Save verdict**. It appears on the candidate straight away.
+
 ## Recording the outcome
 
-After the interview, set its result to **Passed** or **Failed** from the candidate's interview list. The result feeds the candidate's [fit score](/help/talent-acquisition/candidates-and-the-pipeline), and a failed interview makes **reject** the recommended next step.
+If the interviewer has recorded it, the result is already there. Otherwise set it to **Passed** or **Failed** from the candidate's interview list; HR can record any interview. The result feeds the candidate's [fit score](/help/talent-acquisition/candidates-and-the-pipeline), and a failed interview makes **reject** the recommended next step.
 
 ## Hiring
 

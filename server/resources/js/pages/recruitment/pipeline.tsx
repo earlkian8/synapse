@@ -462,6 +462,7 @@ export default function RecruitmentPipeline() {
 
             <AddCandidateDialog
                 postingId={posting.hashid}
+                salaryPeriod={posting.salary_period}
                 options={options}
                 open={addOpen}
                 onOpenChange={setAddOpen}

@@ -28,6 +28,7 @@ class JobApplication extends Model
         'recruitment_pipeline_stage_id',
         'rating',
         'expected_salary',
+        'expected_salary_period',
         'cover_note',
         'rejected_reason',
         'screening_answers',
@@ -35,6 +36,33 @@ class JobApplication extends Model
         'applied_at',
         'decided_at',
     ];
+
+    /**
+     * An expected salary always says what it is per (ADR 0091). Given without
+     * a period — the careers form, which asks in the posting's terms, or the
+     * assistant — it takes the posting's pay period; cleared, it loses it.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (JobApplication $application): void {
+            if ($application->expected_salary === null) {
+                $application->expected_salary_period = null;
+            } elseif ($application->expected_salary_period === null) {
+                $application->expected_salary_period = $application->jobPosting?->salary_period ?? 'monthly';
+            }
+        });
+    }
+
+    /**
+     * The expected salary as a reader would say it — "₱30,000 a month" — or
+     * null when none was given.
+     */
+    public function expectedSalaryLabel(): ?string
+    {
+        return $this->expected_salary === null
+            ? null
+            : JobPosting::money($this->expected_salary, $this->expected_salary, $this->expected_salary_period);
+    }
 
     protected function casts(): array
     {

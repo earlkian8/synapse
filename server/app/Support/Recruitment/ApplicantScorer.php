@@ -153,12 +153,16 @@ class ApplicantScorer
         $max = self::WEIGHTS['experience'];
         $years ??= 0;
 
+        // Half years count (ADR 0091): 1.5 of a required 2 is three quarters.
+        $years = (float) $years;
+        $plural = fn (float $value): string => $value.' yr'.($value === 1.0 ? '' : 's');
+
         if ($required !== null && $required > 0) {
             $ratio = min($years / $required, 1);
-            $detail = "{$years} yr".($years === 1 ? '' : 's')." (needs {$required})";
+            $detail = $plural($years)." (needs {$required})";
         } else {
             $ratio = min($years / self::EXPERIENCE_RUNWAY, 1);
-            $detail = $years > 0 ? "{$years} yr".($years === 1 ? '' : 's').' experience' : 'No experience listed';
+            $detail = $years > 0 ? $plural($years).' experience' : 'No experience listed';
         }
 
         return $this->component('experience', 'Experience', (int) round($ratio * $max), $max, $detail);

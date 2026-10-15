@@ -26,6 +26,8 @@ type Props = {
     id?: string;
     'aria-describedby'?: string;
     'aria-invalid'?: boolean;
+    /** Names the control when no visible label points at it. */
+    'aria-label'?: string;
 };
 
 /**
@@ -44,6 +46,7 @@ export function FormSelect({
     id,
     'aria-describedby': describedBy,
     'aria-invalid': invalid,
+    'aria-label': ariaLabel,
 }: Props) {
     return (
         <Select value={value} onValueChange={onChange} disabled={disabled}>
@@ -51,6 +54,7 @@ export function FormSelect({
                 id={id}
                 aria-describedby={describedBy}
                 aria-invalid={invalid}
+                aria-label={ariaLabel}
                 className={className ?? 'w-full'}
             >
                 <SelectValue placeholder={placeholder} />

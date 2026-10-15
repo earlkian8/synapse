@@ -38,6 +38,7 @@ class JobApplicationController extends Controller
             'applicant_id' => $applicant->id,
             'recruitment_pipeline_stage_id' => $jobPosting->pipeline->entryStage()->id,
             'expected_salary' => $data['expected_salary'] ?? null,
+            'expected_salary_period' => $data['expected_salary_period'] ?? null,
             'cover_note' => $data['cover_note'] ?? null,
             'rating' => $data['rating'] ?? null,
             'screening_answers' => $data['screening_answers'] ?? null,
@@ -229,6 +230,7 @@ class JobApplicationController extends Controller
         $validated = $request->validate([
             'rating' => ['nullable', 'integer', 'between:1,5'],
             'expected_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'expected_salary_period' => ['nullable', Rule::in(JobPosting::SALARY_PERIODS)],
             'cover_note' => ['nullable', 'string', 'max:5000'],
         ]);
 

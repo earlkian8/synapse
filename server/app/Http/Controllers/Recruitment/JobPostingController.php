@@ -10,15 +10,17 @@ use App\Http\Resources\JobApplicationResource;
 use App\Http\Resources\JobPostingResource;
 use App\Models\Applicant;
 use App\Models\Department;
+use App\Models\Interview;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
 use App\Models\Position;
 use App\Models\RecruitmentPipeline;
-use App\Models\User;
+use App\Models\WorkLocation;
 use App\Queries\JobPostingsIndexQuery;
 use App\Queries\RecruitmentStatistics;
 use App\Support\ActivityLogger;
 use App\Support\Recruitment\ApplicantScorer;
+use App\Support\Recruitment\Interviewers;
 use App\Support\Recruitment\PipelineInsights;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,8 +34,16 @@ class JobPostingController extends Controller
     /**
      * Display the job-postings board.
      */
-    public function index(Request $request, JobPostingsIndexQuery $query, RecruitmentStatistics $statistics): Response
+    public function index(Request $request, JobPostingsIndexQuery $query, RecruitmentStatistics $statistics): Response|RedirectResponse
     {
+        // One sidebar entry for the module (ADR 0091): somebody who only
+        // interviews lands on their own interviews.
+        if ($request->user()->cannot('recruitment.view')) {
+            abort_unless($request->user()->can('recruitment.interview'), 403);
+
+            return redirect()->route('recruitment.interviews.mine');
+        }
+
         [$sort, $direction] = $query->sort($request);
 
         return Inertia::render('recruitment/index', [
@@ -41,6 +51,11 @@ class JobPostingController extends Controller
             'stats' => $statistics->toArray(),
             'options' => $this->formOptions(),
             'can' => $this->permissions($request),
+            // Your interviews still waiting on a verdict, for the section switcher.
+            'nav' => ['interviews' => Interview::query()
+                ->where('interviewer_id', $request->user()->id)
+                ->where('result', 'pending')
+                ->count()],
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'status' => $query->status($request),
@@ -60,6 +75,7 @@ class JobPostingController extends Controller
         $jobPosting->load([
             'department:id,name,code',
             'position:id,title',
+            'workLocation:id,name',
             'postedBy:id,first_name,middle_name,last_name,suffix',
             'pipeline.stages',
             'screeningQuestions',
@@ -240,6 +256,8 @@ class JobPostingController extends Controller
             'departments' => Department::orderBy('name')->get(['id', 'name', 'code']),
             'positions' => Position::orderBy('title')->get(['id', 'title', 'department_id']),
             'pipelines' => RecruitmentPipeline::orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'is_default']),
+            // The sites a role can be based at (Company Setup → Locations).
+            'locations' => WorkLocation::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ];
     }
 
@@ -253,12 +271,9 @@ class JobPostingController extends Controller
         $appliedIds = $posting->applications()->pluck('applicant_id');
 
         return [
-            'interviewers' => User::query()
-                ->where('is_active', true)
-                ->orderBy('first_name')
-                ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix'])
-                ->map(fn (User $u): array => ['id' => $u->id, 'full_name' => $u->full_name])
-                ->all(),
+            // This workspace's people who may interview — never every account
+            // on the instance (ADR 0091).
+            'interviewers' => Interviewers::options(),
             'applicants' => ApplicantResource::collection(
                 Applicant::query()
                     ->whereNotIn('id', $appliedIds)

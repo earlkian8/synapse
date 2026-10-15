@@ -39,6 +39,7 @@ class PermissionRegistry
             'recruitment.delete' => 'Delete postings & applicants',
             'recruitment.manage-pipeline' => 'Move applications & reject',
             'recruitment.schedule-interviews' => 'Schedule & record interviews',
+            'recruitment.interview' => 'Interview the candidates you\'re assigned: see them & record your verdict (self-service)',
             'recruitment.hire' => 'Hire applicants (create employees)',
             'recruitment.export' => 'Export recruitment data',
             'recruitment.configure-pipelines' => 'Configure pipeline templates (stages)',

@@ -1,16 +1,19 @@
 import { Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
+    Banknote,
     Briefcase,
     CalendarClock,
     CheckCircle2,
+    Clock3,
+    GraduationCap,
     MapPin,
     Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ApplicationForm } from '@/features/careers/components/application-form';
 import { CareersShell } from '@/features/careers/components/careers-shell';
-import { EMPLOYMENT_TYPE_LABELS } from '@/features/careers/types';
+import { EMPLOYMENT_TYPE_LABELS, placeLabel } from '@/features/careers/types';
 import type { CareersShowProps } from '@/features/careers/types';
 
 export default function CareersShow({
@@ -44,8 +47,23 @@ export default function CareersShow({
                     )}
                     <span className="inline-flex items-center gap-1.5">
                         <MapPin className="size-4" />
+                        {placeLabel(posting)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                        <Clock3 className="size-4" />
                         {EMPLOYMENT_TYPE_LABELS[posting.employment_type]}
                     </span>
+                    {posting.min_years_experience !== null &&
+                        posting.min_years_experience > 0 && (
+                            <span className="inline-flex items-center gap-1.5">
+                                <GraduationCap className="size-4" />
+                                {posting.min_years_experience}+{' '}
+                                {posting.min_years_experience === 1
+                                    ? 'year'
+                                    : 'years'}{' '}
+                                of experience
+                            </span>
+                        )}
                     <span className="inline-flex items-center gap-1.5">
                         <Users className="size-4" />
                         {posting.openings}{' '}
@@ -58,6 +76,18 @@ export default function CareersShow({
                         </span>
                     )}
                 </div>
+
+                {posting.pay && (
+                    <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900">
+                        <Banknote className="size-4 text-[#0a9ca3]" />
+                        {posting.pay}
+                    </p>
+                )}
+                {posting.address && posting.work_arrangement !== 'remote' && (
+                    <p className="mt-3 text-sm text-slate-500">
+                        {posting.address}
+                    </p>
+                )}
 
                 {posting.description && (
                     <Prose title="About the role" body={posting.description} />

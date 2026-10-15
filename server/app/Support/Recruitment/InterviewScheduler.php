@@ -32,6 +32,8 @@ class InterviewScheduler
     {
         $interview = $application->interviews()->create($data);
 
+        Interviewers::notify($interview, auth()->user());
+
         if ($application->pipelineStage->kind !== 'open') {
             return $interview;
         }

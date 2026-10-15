@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Models\User;
+use App\Support\Recruitment\Interviewers;
 use App\Support\TenantRule;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +22,14 @@ class StoreInterviewRequest extends FormRequest
         $pipelineId = $application?->jobPosting?->recruitment_pipeline_id;
 
         return [
-            'interviewer_id' => ['nullable', 'integer', TenantRule::member()],
+            // Only somebody who may open the interview can be put on it (ADR 0091).
+            'interviewer_id' => ['nullable', 'integer', TenantRule::member(), function (string $attribute, mixed $value, Closure $fail): void {
+                $why = Interviewers::whyNot(User::find($value));
+
+                if ($why !== null) {
+                    $fail($why);
+                }
+            }],
             'scheduled_at' => ['required', 'date'],
             'mode' => ['required', Rule::in(self::MODES)],
             'location' => ['nullable', 'string', 'max:255'],

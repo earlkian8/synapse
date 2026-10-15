@@ -8,6 +8,7 @@ use App\Models\Interview;
 use App\Models\JobApplication;
 use App\Models\RecruitmentPipelineStage;
 use App\Support\ActivityLogger;
+use App\Support\Recruitment\Interviewers;
 use App\Support\Recruitment\InterviewScheduler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,16 +43,29 @@ class InterviewController extends Controller
     }
 
     /**
-     * Record an interview's outcome (and optionally its feedback).
+     * Record an interview's outcome (and optionally its feedback) — HR for any
+     * interview, an interviewer for their own (ADR 0091).
      */
     public function update(Request $request, Interview $interview): RedirectResponse
     {
+        abort_unless(Interviewers::mayRecord($request->user(), $interview), 403);
+
         $validated = $request->validate([
             'result' => ['required', Rule::in(InterviewScheduler::RESULTS)],
             'feedback' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $interview->update($validated);
+
+        $interview->loadMissing('application.applicant', 'application.jobPosting');
+
+        ActivityLogger::log(
+            event: 'updated',
+            description: 'Recorded the interview with '.$interview->application->applicant->full_name.' as '.$interview->result,
+            subject: $interview->application->jobPosting,
+            logName: 'recruitment',
+            subjectLabel: $interview->application->applicant->full_name,
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Interview updated.']);
 

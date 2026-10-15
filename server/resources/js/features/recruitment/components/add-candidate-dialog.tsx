@@ -14,13 +14,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { SOURCE_LABELS, SOURCE_OPTIONS } from '../constants';
+import {
+    SALARY_PERIOD_OPTIONS,
+    SOURCE_LABELS,
+    SOURCE_OPTIONS,
+} from '../constants';
 import { recruitmentRoutes } from '../routes';
-import type { ApplicantSource, PipelineOptions } from '../types';
+import type { ApplicantSource, PipelineOptions, SalaryPeriod } from '../types';
 import { RatingStars } from './rating-stars';
 
 type Props = {
     postingId: string;
+    /** What the posting's pay is quoted per — expected pay is asked the same way. */
+    salaryPeriod: SalaryPeriod;
     options: PipelineOptions;
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -30,6 +36,7 @@ const NEW = '__new__';
 
 export function AddCandidateDialog({
     postingId,
+    salaryPeriod,
     options,
     open,
     onOpenChange,
@@ -50,6 +57,7 @@ export function AddCandidateDialog({
                 {open && (
                     <FormBody
                         postingId={postingId}
+                        salaryPeriod={salaryPeriod}
                         options={options}
                         onDone={() => onOpenChange(false)}
                     />
@@ -61,10 +69,12 @@ export function AddCandidateDialog({
 
 function FormBody({
     postingId,
+    salaryPeriod,
     options,
     onDone,
 }: {
     postingId: string;
+    salaryPeriod: SalaryPeriod;
     options: PipelineOptions;
     onDone: () => void;
 }) {
@@ -81,6 +91,8 @@ function FormBody({
         years_experience: '',
         source: 'website' as ApplicantSource,
         expected_salary: '',
+        // Asked in the posting's terms unless HR says otherwise (ADR 0091).
+        expected_salary_period: salaryPeriod,
         cover_note: '',
         rating: null as number | null,
     });
@@ -268,7 +280,9 @@ function FormBody({
                                     type="number"
                                     min="0"
                                     max="60"
-                                    inputMode="numeric"
+                                    step="0.5"
+                                    inputMode="decimal"
+                                    placeholder="e.g. 1.5"
                                     value={data.years_experience}
                                     onChange={(e) =>
                                         setData(
@@ -319,20 +333,46 @@ function FormBody({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
-                        label="Expected salary"
-                        error={errors.expected_salary}
-                        hint="Monthly, in pesos."
+                        label="Expected pay"
+                        error={
+                            errors.expected_salary ??
+                            errors.expected_salary_period
+                        }
+                        group
                     >
-                        <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            inputMode="decimal"
-                            value={data.expected_salary}
-                            onChange={(e) =>
-                                setData('expected_salary', e.target.value)
-                            }
-                        />
+                        <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
+                            <div className="relative">
+                                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                                    ₱
+                                </span>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={data.expected_salary}
+                                    onChange={(e) =>
+                                        setData(
+                                            'expected_salary',
+                                            e.target.value,
+                                        )
+                                    }
+                                    aria-label="Expected pay"
+                                    className="pl-7"
+                                />
+                            </div>
+                            <FormSelect
+                                value={data.expected_salary_period}
+                                onChange={(v) =>
+                                    setData(
+                                        'expected_salary_period',
+                                        v as SalaryPeriod,
+                                    )
+                                }
+                                options={SALARY_PERIOD_OPTIONS}
+                                aria-label="Expected pay is"
+                            />
+                        </div>
                     </FormField>
                     <FormField label="Rating" error={errors.rating} group>
                         <div className="flex h-9 items-center">

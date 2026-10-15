@@ -172,6 +172,7 @@ commit history rather than repeating them.
 - [0088 — The app opens its modules from Services, and Home holds the person's shortcuts](./decisions/0088-the-app-opens-its-modules-from-services.md)
 - [0089 — People start and leave their own workspaces](./decisions/0089-people-start-and-leave-their-own-workspaces.md)
 - [0090 — The roster is Attendance's, and departments bring their positions](./decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)
+- [0091 — Postings say what they pay, and anyone assigned can interview](./decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

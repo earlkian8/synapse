@@ -204,9 +204,9 @@ final class HelpCenter
         // ── Talent acquisition ───────────────────────────────────────────────
         'job-postings' => [
             'category' => 'talent-acquisition', 'title' => 'Job postings',
-            'summary' => 'Open a vacancy, choose its hiring process and screening criteria, publish it with a closing date, and follow it to filled.',
+            'summary' => 'Open a vacancy with its pay, work arrangement and site, choose its hiring process and screening criteria, publish it with a closing date, and follow it to filled.',
             'any' => ['recruitment.view'], 'featured' => true,
-            'keywords' => ['job', 'posting', 'vacancy', 'opening', 'publish', 'closing date', 'screening questions', 'hiring'],
+            'keywords' => ['job', 'posting', 'vacancy', 'opening', 'publish', 'closing date', 'screening questions', 'hiring', 'salary', 'pay range', 'monthly', 'remote', 'hybrid', 'work arrangement', 'experience'],
             'screens' => ['/recruitment'],
             'related' => ['candidates-and-the-pipeline', 'careers-page', 'recruitment-pipelines'],
         ],
@@ -220,16 +220,17 @@ final class HelpCenter
         ],
         'interviews-and-hiring' => [
             'category' => 'talent-acquisition', 'title' => 'Interviews and hiring',
-            'summary' => 'Schedule interviews and record their outcome, then hire the candidate — which creates their employee record and starts their onboarding.',
-            'any' => ['recruitment.view'],
-            'keywords' => ['interview', 'schedule interview', 'hire', 'offer', 'new hire', 'outcome'],
+            'summary' => 'Schedule interviews with anyone allowed to interview, record their outcome, then hire the candidate — which creates their employee record and starts their onboarding.',
+            'any' => ['recruitment.view', 'recruitment.interview'],
+            'keywords' => ['interview', 'schedule interview', 'hire', 'offer', 'new hire', 'outcome', 'my interviews', 'interviewer', 'verdict', 'feedback'],
+            'screens' => ['/recruitment/interviews'],
             'related' => ['candidates-and-the-pipeline', 'onboarding-new-hires', 'employee-records'],
         ],
         'careers-page' => [
             'category' => 'talent-acquisition', 'title' => 'Your public careers page',
             'summary' => 'Every open posting gets a public page where anyone can apply. Sharing the link, and what applicants are asked.',
             'any' => ['recruitment.view'],
-            'keywords' => ['careers', 'public link', 'apply', 'application form', 'job board', 'share posting'],
+            'keywords' => ['careers', 'public link', 'apply', 'application form', 'job board', 'share posting', 'expected salary', 'expected pay'],
             'related' => ['job-postings', 'candidates-and-the-pipeline'],
         ],
         'onboarding-new-hires' => [

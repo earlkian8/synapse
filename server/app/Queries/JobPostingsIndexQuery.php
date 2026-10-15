@@ -55,6 +55,7 @@ class JobPostingsIndexQuery
             ->with([
                 'department:id,name,code',
                 'position:id,title',
+                'workLocation:id,name',
                 'postedBy:id,first_name,middle_name,last_name,suffix',
                 'pipeline:id,name',
             ])

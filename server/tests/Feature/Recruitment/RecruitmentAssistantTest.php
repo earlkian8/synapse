@@ -132,7 +132,7 @@ test('it creates a posting with screening criteria', function () {
         ->and($posting)->not->toBeNull()
         ->and($posting->department_id)->toBe($department->id)
         ->and($posting->position_id)->toBe($position->id)
-        ->and($posting->min_years_experience)->toBe(5)
+        ->and($posting->min_years_experience)->toBe(5.0)
         ->and($posting->skills)->toBe(['Laravel', 'PostgreSQL'])
         ->and($posting->status)->toBe('open');
 });
@@ -228,7 +228,7 @@ test('it searches the candidate pool and adds someone new', function () {
     $applicant = Applicant::where('email', 'mark@example.test')->first();
 
     expect($result->failed())->toBeFalse()
-        ->and($applicant->years_experience)->toBe(6)
+        ->and($applicant->years_experience)->toBe(6.0)
         ->and($applicant->source)->toBe('referral');
 });
 
@@ -258,7 +258,7 @@ test('it updates a candidate profile and refuses an empty edit', function () {
 
     expect($result->failed())->toBeFalse()
         ->and($applicant->fresh()->headline)->toBe('Senior Developer')
-        ->and($applicant->fresh()->years_experience)->toBe(9);
+        ->and($applicant->fresh()->years_experience)->toBe(9.0);
 
     expect(agent($user, 'update_applicant', ['applicant' => 'Jane Doe'])->failed())->toBeTrue();
 });

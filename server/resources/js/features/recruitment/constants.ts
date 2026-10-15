@@ -5,7 +5,9 @@ import type {
     InterviewMode,
     InterviewResult,
     PostingStatus,
+    SalaryPeriod,
     StageKind,
+    WorkArrangement,
 } from './types';
 
 export const STATUS_FILTERS = [
@@ -24,6 +26,34 @@ export const DEFAULT_FILTERS = {
     direction: 'desc',
     per_page: 10,
 } as const;
+
+export const SALARY_PERIOD_OPTIONS: { value: SalaryPeriod; label: string }[] = [
+    { value: 'monthly', label: 'per month' },
+    { value: 'annual', label: 'per year' },
+    { value: 'daily', label: 'per day' },
+    { value: 'hourly', label: 'per hour' },
+];
+
+/** The period as an adjective — "Expected monthly salary". */
+export const SALARY_PERIOD_ADJECTIVE: Record<SalaryPeriod, string> = {
+    monthly: 'monthly',
+    annual: 'yearly',
+    daily: 'daily',
+    hourly: 'hourly',
+};
+
+export const WORK_ARRANGEMENT_OPTIONS: {
+    value: WorkArrangement;
+    label: string;
+}[] = [
+    { value: 'onsite', label: 'On-site' },
+    { value: 'hybrid', label: 'Hybrid' },
+    { value: 'remote', label: 'Remote' },
+];
+
+export const WORK_ARRANGEMENT_LABELS = Object.fromEntries(
+    WORK_ARRANGEMENT_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<WorkArrangement, string>;
 
 export const EMPLOYMENT_TYPE_OPTIONS: {
     value: EmploymentType;

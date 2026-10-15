@@ -24,13 +24,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
-import { EMPLOYMENT_TYPE_OPTIONS, POSTING_STATUS_OPTIONS } from '../constants';
+import { cn } from '@/lib/utils';
+import {
+    EMPLOYMENT_TYPE_OPTIONS,
+    POSTING_STATUS_OPTIONS,
+    SALARY_PERIOD_OPTIONS,
+    WORK_ARRANGEMENT_OPTIONS,
+} from '../constants';
 import { recruitmentRoutes } from '../routes';
 import type {
     EmploymentType,
     ManagedPosting,
     PostingOptions,
     PostingStatus,
+    SalaryPeriod,
+    WorkArrangement,
 } from '../types';
 
 type ScreeningQuestionDraft = { label: string };
@@ -68,8 +76,8 @@ export function PostingFormDialog({
                     title={isEditing ? 'Edit posting' : 'New job posting'}
                     description={
                         isEditing
-                            ? 'Update the role, its screening criteria, and how long it stays open.'
-                            : 'Open a vacancy to start collecting applications.'
+                            ? 'Changes show on the careers page straight away.'
+                            : 'Describe the role, then publish it to start taking applications.'
                     }
                 />
 
@@ -112,11 +120,19 @@ function FormBody({
         position_id: str(posting?.position_id),
         employment_type: posting?.employment_type ?? 'regular',
         openings: str(posting?.openings ?? 1),
+        salary_min: str(posting?.salary_min),
+        salary_max: str(posting?.salary_max),
+        salary_period: posting?.salary_period ?? ('monthly' as SalaryPeriod),
+        show_salary: posting?.show_salary ?? true,
+        work_arrangement:
+            posting?.work_arrangement ?? ('onsite' as WorkArrangement),
+        work_location_id: str(posting?.work_location_id),
         status: posting?.status ?? 'open',
         closing_date: posting?.closing_date ?? '',
         min_years_experience: str(posting?.min_years_experience),
         skills: posting?.skills ?? [],
         requires_resume: posting?.requires_resume ?? true,
+        asks_expected_salary: posting?.asks_expected_salary ?? true,
         use_fit_scoring: posting?.use_fit_scoring ?? true,
         screening_questions: (posting?.screening_questions ?? []).map(
             (q): ScreeningQuestionDraft => ({ label: q.label }),
@@ -126,6 +142,7 @@ function FormBody({
     });
 
     const closingRequired = data.status === 'open';
+    const hasPay = data.salary_min !== '' || data.salary_max !== '';
 
     const setQuestion = (index: number, label: string) =>
         setData(
@@ -186,8 +203,11 @@ function FormBody({
             for (const key of [
                 'department_id',
                 'position_id',
+                'work_location_id',
                 'closing_date',
                 'min_years_experience',
+                'salary_min',
+                'salary_max',
                 'description',
                 'requirements',
             ]) {
@@ -196,14 +216,15 @@ function FormBody({
                 }
             }
 
+            // A remote role is not based at a site.
+            if (payload.work_arrangement === 'remote') {
+                cleaned.work_location_id = null;
+            }
+
             cleaned.recruitment_pipeline_id = Number(
                 payload.recruitment_pipeline_id,
             );
             cleaned.openings = Number(payload.openings) || 1;
-            cleaned.min_years_experience =
-                cleaned.min_years_experience === null
-                    ? null
-                    : Number(payload.min_years_experience);
             cleaned.skills = payload.skills
                 .map((skill) => skill.trim())
                 .filter((skill) => skill.length > 0);
@@ -226,12 +247,12 @@ function FormBody({
     return (
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
             <ModalBody className="space-y-7">
-                <Section title="Role" subtitle="What you are hiring for.">
+                <Section title="Role">
                     <FormField label="Job title" required error={errors.title}>
                         <Input
                             value={data.title}
                             onChange={(e) => setData('title', e.target.value)}
-                            placeholder="e.g. Software Engineer"
+                            placeholder="e.g. Payroll Officer"
                             required
                         />
                     </FormField>
@@ -298,50 +319,161 @@ function FormBody({
                                 required
                             />
                         </FormField>
+                    </div>
+                </Section>
+
+                <Section title="Pay & place">
+                    <FormField
+                        label="Pay range"
+                        error={errors.salary_min ?? errors.salary_max}
+                        hint="A range, a starting figure, or a cap. Leave it empty if you'd rather not say."
+                        group
+                    >
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_9rem]">
+                            <MoneyInput
+                                label="Lowest pay"
+                                value={data.salary_min}
+                                onChange={(v) => setData('salary_min', v)}
+                                placeholder="25,000"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                to
+                            </span>
+                            <MoneyInput
+                                label="Highest pay"
+                                value={data.salary_max}
+                                onChange={(v) => setData('salary_max', v)}
+                                placeholder="35,000"
+                            />
+                            <div className="col-span-3 sm:col-span-1">
+                                <FormSelect
+                                    value={data.salary_period}
+                                    onChange={(v) =>
+                                        setData(
+                                            'salary_period',
+                                            v as SalaryPeriod,
+                                        )
+                                    }
+                                    options={SALARY_PERIOD_OPTIONS}
+                                    aria-label="Pay is quoted"
+                                />
+                            </div>
+                        </div>
+                    </FormField>
+
+                    {hasPay && (
+                        <Toggle
+                            label="Show the pay on the careers page"
+                            hint="Turn off to keep it for your own reference."
+                            checked={data.show_salary}
+                            onChange={(v) => setData('show_salary', v)}
+                        />
+                    )}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
-                            label="Status"
-                            required
-                            error={errors.status}
+                            label="Work arrangement"
+                            error={errors.work_arrangement}
+                            group
                         >
-                            <FormSelect
-                                value={data.status}
-                                onChange={(v) =>
-                                    setData('status', v as PostingStatus)
+                            <Segmented
+                                label="Work arrangement"
+                                value={data.work_arrangement}
+                                onChange={(v) => setData('work_arrangement', v)}
+                                options={WORK_ARRANGEMENT_OPTIONS}
+                            />
+                        </FormField>
+                        {data.work_arrangement !== 'remote' && (
+                            <FormField
+                                label="Based at"
+                                error={errors.work_location_id}
+                                hint={
+                                    options.locations.length === 0
+                                        ? 'Add your sites under Company Setup → Locations.'
+                                        : undefined
                                 }
-                                options={POSTING_STATUS_OPTIONS}
+                            >
+                                <FormSelect
+                                    value={data.work_location_id || NONE}
+                                    placeholder="Select a site…"
+                                    noneValue={NONE}
+                                    onChange={(v) =>
+                                        setData('work_location_id', v)
+                                    }
+                                    options={options.locations.map((l) => ({
+                                        value: String(l.id),
+                                        label: l.name,
+                                    }))}
+                                />
+                            </FormField>
+                        )}
+                    </div>
+                </Section>
+
+                <Section title="About the role">
+                    <FormField label="Description" error={errors.description}>
+                        <textarea
+                            value={data.description ?? ''}
+                            onChange={(e) =>
+                                setData('description', e.target.value)
+                            }
+                            rows={5}
+                            placeholder="What the role does, who it works with, and what a good week looks like."
+                            className={TEXTAREA_CLASS}
+                        />
+                    </FormField>
+                    <FormField label="Requirements" error={errors.requirements}>
+                        <textarea
+                            value={data.requirements ?? ''}
+                            onChange={(e) =>
+                                setData('requirements', e.target.value)
+                            }
+                            rows={4}
+                            placeholder="Education, licences and certifications the role needs."
+                            className={TEXTAREA_CLASS}
+                        />
+                    </FormField>
+                    <div className="grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                        <FormField
+                            label="Experience"
+                            error={errors.min_years_experience}
+                            hint="Minimum, in years."
+                        >
+                            <Input
+                                type="number"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                                inputMode="decimal"
+                                value={data.min_years_experience}
+                                onChange={(e) =>
+                                    setData(
+                                        'min_years_experience',
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="e.g. 1.5"
                             />
                         </FormField>
                         <FormField
-                            label="Closing date"
-                            required={closingRequired}
-                            error={errors.closing_date}
-                            hint={
-                                closingRequired
-                                    ? 'Applications close on this date.'
-                                    : 'Optional while the posting is a draft.'
-                            }
+                            label="Skills"
+                            error={errors['skills'] ?? errors['skills.0']}
+                            hint="Press Enter or a comma after each."
                         >
-                            <Input
-                                type="date"
-                                value={data.closing_date ?? ''}
-                                onChange={(e) =>
-                                    setData('closing_date', e.target.value)
-                                }
-                                required={closingRequired}
+                            <SkillsInput
+                                value={data.skills}
+                                onChange={(skills) => setData('skills', skills)}
                             />
                         </FormField>
                     </div>
                 </Section>
 
-                <Section
-                    title="Hiring process"
-                    subtitle="Which pipeline this posting runs on, and how candidates apply."
-                >
+                <Section title="Applications">
                     <FormField
-                        label="Pipeline"
+                        label="Hiring pipeline"
                         required
                         error={errors.recruitment_pipeline_id}
-                        hint="The stages a candidate moves through for this role. Manage pipelines from Company Setup."
+                        hint="The stages candidates move through. Pipelines are managed in Company Setup."
                     >
                         <FormSelect
                             value={data.recruitment_pipeline_id}
@@ -359,71 +491,35 @@ function FormBody({
 
                     <div className="grid gap-3 sm:grid-cols-2">
                         <Toggle
-                            label="Require a résumé"
-                            hint="Turn off for roles where a CV isn't the norm (e.g. drivers, warehouse staff)."
+                            label="Ask for a résumé"
+                            hint="Off for roles where a CV isn't usual."
                             checked={data.requires_resume}
                             onChange={(v) => setData('requires_resume', v)}
                         />
                         <Toggle
-                            label="Rank candidates automatically"
-                            hint="Scores and sorts applicants by fit. Turn off to review everyone in application order."
+                            label="Ask for expected pay"
+                            hint={`Asked ${SALARY_PERIOD_OPTIONS.find((o) => o.value === data.salary_period)?.label ?? 'per month'}, like your range.`}
+                            checked={data.asks_expected_salary}
+                            onChange={(v) => setData('asks_expected_salary', v)}
+                        />
+                        <Toggle
+                            label="Rank candidates by fit"
+                            hint="Scores experience and skills against this posting."
                             checked={data.use_fit_scoring}
                             onChange={(v) => setData('use_fit_scoring', v)}
                         />
                     </div>
-                </Section>
-
-                <Section
-                    title="Screening criteria"
-                    subtitle="Optional — sharpens the automatic candidate ranking for this role."
-                >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <FormField
-                            label="Minimum experience (years)"
-                            error={errors.min_years_experience}
-                            hint="Candidates at or above this earn full experience marks."
-                        >
-                            <Input
-                                type="number"
-                                min="0"
-                                max="50"
-                                inputMode="numeric"
-                                value={data.min_years_experience}
-                                onChange={(e) =>
-                                    setData(
-                                        'min_years_experience',
-                                        e.target.value,
-                                    )
-                                }
-                                placeholder="e.g. 3"
-                            />
-                        </FormField>
-                        <FormField
-                            label="Required skills"
-                            error={errors['skills'] ?? errors['skills.0']}
-                            hint="Press Enter or comma to add. Matched against the candidate's headline, notes and cover letter."
-                        >
-                            <SkillsInput
-                                value={data.skills}
-                                onChange={(skills) => setData('skills', skills)}
-                            />
-                        </FormField>
-                    </div>
 
                     <FormField
-                        label="Screening questions"
+                        label="Yes/no questions"
                         error={
                             errors['screening_questions'] ??
                             errors['screening_questions.0.label']
                         }
-                        hint="Yes/No questions candidates answer on the application form — e.g. 'Valid driver's license?' or 'Available for night shift?'"
+                        hint="Asked on the application form, e.g. “Can you work night shifts?”"
                         group
                     >
-                        {data.screening_questions.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
-                                No screening questions yet.
-                            </p>
-                        ) : (
+                        {data.screening_questions.length > 0 && (
                             <div className="space-y-2">
                                 {data.screening_questions.map((q, index) => (
                                     <QuestionRow
@@ -451,7 +547,11 @@ function FormBody({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-2.5"
+                            className={
+                                data.screening_questions.length > 0
+                                    ? 'mt-2.5'
+                                    : undefined
+                            }
                             onClick={addQuestion}
                         >
                             <Plus className="size-4" />
@@ -460,37 +560,38 @@ function FormBody({
                     </FormField>
                 </Section>
 
-                <Section
-                    title="Details"
-                    subtitle="The job description and requirements, as candidates will read them."
-                >
-                    <div className="grid gap-4 lg:grid-cols-2">
+                <Section title="Publishing">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
-                            label="Description"
-                            error={errors.description}
+                            label="Status"
+                            required
+                            error={errors.status}
                         >
-                            <textarea
-                                value={data.description ?? ''}
-                                onChange={(e) =>
-                                    setData('description', e.target.value)
+                            <FormSelect
+                                value={data.status}
+                                onChange={(v) =>
+                                    setData('status', v as PostingStatus)
                                 }
-                                rows={5}
-                                placeholder="What the role does, who it works with, and what a good week looks like."
-                                className={TEXTAREA_CLASS}
+                                options={POSTING_STATUS_OPTIONS}
                             />
                         </FormField>
                         <FormField
-                            label="Requirements"
-                            error={errors.requirements}
+                            label="Closing date"
+                            required={closingRequired}
+                            error={errors.closing_date}
+                            hint={
+                                closingRequired
+                                    ? 'Applications close at the end of this day.'
+                                    : 'Optional while it is a draft.'
+                            }
                         >
-                            <textarea
-                                value={data.requirements ?? ''}
+                            <Input
+                                type="date"
+                                value={data.closing_date ?? ''}
                                 onChange={(e) =>
-                                    setData('requirements', e.target.value)
+                                    setData('closing_date', e.target.value)
                                 }
-                                rows={5}
-                                placeholder="Qualifications, licences, and the experience a candidate needs."
-                                className={TEXTAREA_CLASS}
+                                required={closingRequired}
                             />
                         </FormField>
                     </div>
@@ -512,6 +613,77 @@ function FormBody({
                 </Button>
             </ModalFooter>
         </form>
+    );
+}
+
+/** A peso amount — the figure, with ₱ in front of it. */
+function MoneyInput({
+    label,
+    value,
+    onChange,
+    placeholder,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+}) {
+    return (
+        <div className="relative">
+            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                ₱
+            </span>
+            <Input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                aria-label={label}
+                className="pl-7"
+            />
+        </div>
+    );
+}
+
+/** A small set of choices shown side by side — one is always picked. */
+function Segmented<T extends string>({
+    label,
+    value,
+    onChange,
+    options,
+}: {
+    label: string;
+    value: T;
+    onChange: (value: T) => void;
+    options: { value: T; label: string }[];
+}) {
+    return (
+        <div
+            role="radiogroup"
+            aria-label={label}
+            className="grid h-9 auto-cols-fr grid-flow-col gap-1 rounded-md border border-input p-0.5"
+        >
+            {options.map((option) => (
+                <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={value === option.value}
+                    onClick={() => onChange(option.value)}
+                    className={cn(
+                        'rounded-[5px] text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        value === option.value
+                            ? 'bg-[#0F2044] font-medium text-white dark:bg-[#0ABFBF] dark:text-[#0F2044]'
+                            : 'text-muted-foreground hover:text-foreground',
+                    )}
+                >
+                    {option.label}
+                </button>
+            ))}
+        </div>
     );
 }
 
@@ -624,23 +796,16 @@ function QuestionRow({
 
 function Section({
     title,
-    subtitle,
     children,
 }: {
     title: string;
-    subtitle: string;
     children: React.ReactNode;
 }) {
     return (
         <section className="space-y-4">
-            <div className="border-b border-border/70 pb-2.5">
-                <h3 className="text-sm font-semibold tracking-tight">
-                    {title}
-                </h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                    {subtitle}
-                </p>
-            </div>
+            <h3 className="border-b border-border/70 pb-2 text-sm font-semibold tracking-tight">
+                {title}
+            </h3>
             {children}
         </section>
     );

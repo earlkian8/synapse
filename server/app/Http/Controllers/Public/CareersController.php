@@ -55,7 +55,7 @@ class CareersController extends Controller
             ->where(fn ($query) => $query
                 ->whereNull('closing_date')
                 ->orWhereDate('closing_date', '>=', now()->toDateString()))
-            ->with(['department:id,name', 'position:id,title'])
+            ->with(['department:id,name', 'position:id,title', 'workLocation:id,name,address'])
             ->latest()
             ->get();
 
@@ -72,7 +72,7 @@ class CareersController extends Controller
     {
         $this->ensureOpenPosting($organization, $jobPosting);
 
-        $jobPosting->load(['department:id,name', 'position:id,title', 'screeningQuestions']);
+        $jobPosting->load(['department:id,name', 'position:id,title', 'workLocation:id,name,address', 'screeningQuestions']);
 
         return Inertia::render('careers/show', [
             'organization' => $this->organizationPayload($organization),
@@ -131,7 +131,10 @@ class CareersController extends Controller
             $application = $jobPosting->applications()->create([
                 'applicant_id' => $applicant->id,
                 'recruitment_pipeline_stage_id' => $jobPosting->pipeline->entryStage()->id,
-                'expected_salary' => $data['expected_salary'] ?? null,
+                // Asked in the posting's own terms ("Expected monthly salary"),
+                // and only when the posting asks at all (ADR 0091).
+                'expected_salary' => $jobPosting->asks_expected_salary ? ($data['expected_salary'] ?? null) : null,
+                'expected_salary_period' => $jobPosting->salary_period,
                 'cover_note' => $data['cover_note'] ?? null,
                 'screening_answers' => $data['screening_answers'] ?? null,
                 'applied_at' => now(),
@@ -216,6 +219,10 @@ class CareersController extends Controller
             'closing_date' => $posting->closing_date?->toDateString(),
             'department' => $posting->department?->name,
             'position' => $posting->position?->title,
+            'work_arrangement' => $posting->work_arrangement,
+            'location' => $posting->workLocation?->name,
+            // The pay only when the employer chose to show it.
+            'pay' => $posting->show_salary ? $posting->payLabel() : null,
             'excerpt' => $posting->description ? mb_strimwidth((string) $posting->description, 0, 160, '…') : null,
         ];
     }
@@ -232,6 +239,11 @@ class CareersController extends Controller
             'description' => $posting->description,
             'requirements' => $posting->requirements,
             'requires_resume' => $posting->requires_resume,
+            'address' => $posting->workLocation?->address,
+            'min_years_experience' => $posting->min_years_experience,
+            // The expected-salary question, in the posting's own terms.
+            'asks_expected_salary' => $posting->asks_expected_salary,
+            'salary_period' => $posting->salary_period,
             'screening_questions' => $posting->screeningQuestions->map(fn ($question) => [
                 'id' => $question->id,
                 'label' => $question->label,

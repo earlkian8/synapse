@@ -8,14 +8,21 @@ The **⋯** menu on a row has **View details**, **Open pipeline**, **Copy public
 
 ## Creating a posting
 
-1. Choose **New posting**.
-2. Fill in the **Job title**, **Department**, **Position**, **Employment type**, the number of **Openings**, and the **Description** and **Requirements** applicants will read.
-3. Choose the **pipeline** it runs on. New postings start on your default pipeline; see [Recruitment pipelines](/help/company-setup/recruitment-pipelines).
-4. Decide two things:
-    - **Require a résumé** — on by default. Turn it off for roles where a CV isn't how people apply.
-    - **Rank candidates automatically** — on by default. Turn it off and candidates are simply listed by when they applied.
-5. Optionally add **screening criteria**: **Minimum experience (years)**, **Required skills**, and your own **Screening questions** that applicants answer Yes or No (for example "Do you hold a valid driver's licence?").
-6. Choose a **Status** — **Draft** to keep working on it, or **Open** to publish it — and a **Closing date**, which publishing requires. Save.
+Choose **New posting**. The form has five parts.
+
+1. **Role**: the **Job title**, **Department**, **Position**, **Employment type** and number of **Openings**.
+2. **Pay & place**:
+    - **Pay range**: the lowest and highest pay, and whether it is **per month**, **per year**, **per day** or **per hour**. Fill in both for a range, only the first for "from ₱…", or only the second for "up to ₱…". Leave both empty if you'd rather not say.
+    - **Show the pay on the careers page**: on by default. Turn it off to keep the range for your own reference.
+    - **Work arrangement**: **On-site**, **Hybrid** or **Remote**, and the site the role is **Based at** (one of your [work locations](/help/company-setup/work-locations)). Remote roles have no site.
+3. **About the role**: the **Description** and **Requirements** applicants will read, the minimum **Experience** in years (half years such as 1.5 are fine), and the **Skills** you're looking for.
+4. **Applications**:
+    - The **Hiring pipeline** it runs on. New postings start on your default pipeline; see [Recruitment pipelines](/help/company-setup/recruitment-pipelines).
+    - **Ask for a résumé**: on by default. Turn it off for roles where a CV isn't how people apply.
+    - **Ask for expected pay**: on by default. Applicants give it in the same period as your range, for example "Expected monthly pay".
+    - **Rank candidates by fit**: on by default. It scores experience and skills against the posting. Turn it off and candidates are listed by when they applied.
+    - **Yes/no questions** of your own, for example "Do you hold a valid driver's licence?"
+5. **Publishing**: a **Status** (**Draft** to keep working on it, or **Open** to publish it) and a **Closing date**, which publishing requires. Save.
 
 ## Statuses
 
@@ -34,6 +41,8 @@ A posting fills itself when its last opening is hired, and closes itself the day
 ## What you can do depends on your role
 
 Viewing recruitment, creating and editing postings, moving candidates, scheduling interviews, hiring and exporting are separate permissions, so a role can, for example, review candidates without being able to hire. If an action is missing for you, your role doesn't include it.
+
+Interviewing is a permission of its own, **Interview the candidates you're assigned**. Department heads and staff have it by default. It shows them only the interviews they're booked on, not your postings or pipelines. See [Interviews and hiring](/help/talent-acquisition/interviews-and-hiring).
 
 ## Next
 

@@ -1,7 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowRight, Briefcase, CalendarClock, MapPin } from 'lucide-react';
+import {
+    ArrowRight,
+    Banknote,
+    Briefcase,
+    CalendarClock,
+    Clock3,
+    MapPin,
+} from 'lucide-react';
 import { CareersShell } from '@/features/careers/components/careers-shell';
-import { EMPLOYMENT_TYPE_LABELS } from '@/features/careers/types';
+import { EMPLOYMENT_TYPE_LABELS, placeLabel } from '@/features/careers/types';
 import type { CareersBoardProps, PostingCard } from '@/features/careers/types';
 
 export default function CareersIndex({
@@ -64,8 +71,18 @@ function PostingRow({
                     )}
                     <span className="inline-flex items-center gap-1">
                         <MapPin className="size-3.5" />
+                        {placeLabel(posting)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <Clock3 className="size-3.5" />
                         {EMPLOYMENT_TYPE_LABELS[posting.employment_type]}
                     </span>
+                    {posting.pay && (
+                        <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                            <Banknote className="size-3.5" />
+                            {posting.pay}
+                        </span>
+                    )}
                     {posting.closing_date && (
                         <span className="inline-flex items-center gap-1">
                             <CalendarClock className="size-3.5" />

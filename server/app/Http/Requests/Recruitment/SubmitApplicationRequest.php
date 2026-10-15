@@ -34,7 +34,7 @@ class SubmitApplicationRequest extends FormRequest
             'headline' => ['nullable', 'string', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             'portfolio_url' => ['nullable', 'url', 'max:255'],
-            'years_experience' => ['nullable', 'integer', 'between:0,60'],
+            'years_experience' => ['nullable', 'numeric', 'decimal:0,1', 'between:0,60'],
 
             // Application-level details.
             'expected_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999'],

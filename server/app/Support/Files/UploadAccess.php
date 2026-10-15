@@ -22,7 +22,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * found. Then the same permission the screen showing that record asks for is
  * asked here:
  *
- * - a résumé or applicant document — `recruitment.view`;
+ * - a résumé — `recruitment.view`, or the asker interviews that candidate
+ *   (ADR 0091); an applicant document — `recruitment.view`;
  * - an employee document or certification — `employees.view`, or it is the
  *   asker's own;
  * - a clock-in photo — `attendance.view`, or it is the asker's own punch;
@@ -55,8 +56,7 @@ final class UploadAccess
         }
 
         return match ($folder) {
-            'applicant-resumes' => $user->can('recruitment.view')
-                && $this->exists(Applicant::query(), 'resume', $path),
+            'applicant-resumes' => $this->resume($user, $path),
             'applicant-documents' => $user->can('recruitment.view')
                 && $this->exists(ApplicantDocument::query(), 'file', $path),
             'employee-documents' => $this->employeeFile(EmployeeDocument::query(), $user, $path),
@@ -69,6 +69,23 @@ final class UploadAccess
                 ->exists(),
             default => false,
         };
+    }
+
+    /**
+     * A résumé opens for recruiters, and for an interviewer of that candidate —
+     * the CV is what they interview from. Their other documents (IDs,
+     * transcripts) stay with recruiters.
+     */
+    private function resume(User $user, string $path): bool
+    {
+        $query = Applicant::query()->where('resume', $path);
+
+        if ($user->can('recruitment.view')) {
+            return $query->exists();
+        }
+
+        return $user->can('recruitment.interview')
+            && $query->whereHas('applications.interviews', fn (Builder $q) => $q->where('interviewer_id', $user->id))->exists();
     }
 
     /**

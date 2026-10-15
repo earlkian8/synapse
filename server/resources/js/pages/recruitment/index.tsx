@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/features/recruitment/components/confirm-dialog'
 import { PostingDetailDialog } from '@/features/recruitment/components/posting-detail-dialog';
 import { PostingFormDialog } from '@/features/recruitment/components/posting-form-dialog';
 import { PostingsTable } from '@/features/recruitment/components/postings-table';
+import { RecruitmentNav } from '@/features/recruitment/components/recruitment-nav';
 import { RecruitmentStatsCards } from '@/features/recruitment/components/recruitment-stats';
 import {
     DEFAULT_FILTERS,
@@ -39,7 +40,7 @@ type ConfirmConfig = {
  * posting's pipeline of candidates.
  */
 export default function RecruitmentIndex() {
-    const { postings, stats, options, can, filters } =
+    const { postings, stats, options, can, filters, nav } =
         usePage<PostingsPageProps>().props;
     const table = usePostingsFilters(filters);
 
@@ -118,6 +119,12 @@ export default function RecruitmentIndex() {
                 <PageHeader
                     title="Recruitment"
                     description="Post vacancies, track applicants through the hiring pipeline, and hire."
+                    actions={
+                        <RecruitmentNav
+                            current="postings"
+                            pending={nav.interviews}
+                        />
+                    }
                 />
 
                 <RecruitmentStatsCards stats={stats} />

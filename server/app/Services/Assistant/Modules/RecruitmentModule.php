@@ -30,6 +30,7 @@ use App\Support\ApplicantHirer;
 use App\Support\Notifier;
 use App\Support\Recruitment\ApplicantInsights;
 use App\Support\Recruitment\ApplicantScorer;
+use App\Support\Recruitment\Interviewers;
 use App\Support\Recruitment\InterviewScheduler;
 use App\Support\Recruitment\PipelineInsights;
 use Illuminate\Database\Eloquent\Builder;
@@ -343,8 +344,12 @@ class RecruitmentModule extends Module implements ContributesContext
                         'status' => ['type' => 'STRING', 'enum' => StoreJobPostingRequest::STATUSES, 'description' => 'Defaults to open.'],
                         'description' => ['type' => 'STRING'],
                         'requirements' => ['type' => 'STRING'],
-                        'min_years_experience' => ['type' => 'INTEGER', 'description' => 'Screening criterion: minimum years of experience.'],
+                        'min_years_experience' => ['type' => 'NUMBER', 'description' => 'Screening criterion: minimum years of experience; half years allowed (1.5).'],
                         'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Screening criterion: required skill keywords.'],
+                        'salary_min' => ['type' => 'NUMBER', 'description' => 'Least the role pays, in pesos.'],
+                        'salary_max' => ['type' => 'NUMBER', 'description' => 'Most the role pays, in pesos.'],
+                        'salary_period' => ['type' => 'STRING', 'enum' => JobPosting::SALARY_PERIODS, 'description' => 'What the pay is quoted per. Defaults to monthly.'],
+                        'work_arrangement' => ['type' => 'STRING', 'enum' => JobPosting::WORK_ARRANGEMENTS, 'description' => 'Defaults to onsite.'],
                         'closing_date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD; required when status is open.'],
                     ],
                     'required' => ['title'],
@@ -364,8 +369,12 @@ class RecruitmentModule extends Module implements ContributesContext
                         'openings' => ['type' => 'INTEGER'],
                         'description' => ['type' => 'STRING'],
                         'requirements' => ['type' => 'STRING'],
-                        'min_years_experience' => ['type' => 'INTEGER'],
+                        'min_years_experience' => ['type' => 'NUMBER'],
                         'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                        'salary_min' => ['type' => 'NUMBER'],
+                        'salary_max' => ['type' => 'NUMBER'],
+                        'salary_period' => ['type' => 'STRING', 'enum' => JobPosting::SALARY_PERIODS],
+                        'work_arrangement' => ['type' => 'STRING', 'enum' => JobPosting::WORK_ARRANGEMENTS],
                         'closing_date' => ['type' => 'STRING', 'description' => 'YYYY-MM-DD'],
                     ],
                     'required' => ['posting'],
@@ -711,10 +720,14 @@ class RecruitmentModule extends Module implements ContributesContext
             'position_id' => $position,
             'description' => $args['description'] ?? null,
             'requirements' => $args['requirements'] ?? null,
-            'min_years_experience' => isset($args['min_years_experience']) ? (int) $args['min_years_experience'] : null,
+            'min_years_experience' => isset($args['min_years_experience']) ? (float) $args['min_years_experience'] : null,
             'skills' => $this->skills($args['skills'] ?? null),
             'employment_type' => $args['employment_type'] ?? 'probationary',
             'openings' => (int) ($args['openings'] ?? 1) ?: 1,
+            'salary_min' => isset($args['salary_min']) ? (float) $args['salary_min'] : null,
+            'salary_max' => isset($args['salary_max']) ? (float) $args['salary_max'] : null,
+            'salary_period' => $args['salary_period'] ?? 'monthly',
+            'work_arrangement' => $args['work_arrangement'] ?? 'onsite',
             'status' => $this->normaliseStatus($args['status'] ?? null) ?? 'open',
             'closing_date' => $this->date($args['closing_date'] ?? null),
         ];
@@ -758,8 +771,16 @@ class RecruitmentModule extends Module implements ContributesContext
             'description' => array_key_exists('description', $args) ? $args['description'] : $posting->description,
             'requirements' => array_key_exists('requirements', $args) ? $args['requirements'] : $posting->requirements,
             'min_years_experience' => array_key_exists('min_years_experience', $args)
-                ? (filled($args['min_years_experience']) ? (int) $args['min_years_experience'] : null)
+                ? (filled($args['min_years_experience']) ? (float) $args['min_years_experience'] : null)
                 : $posting->min_years_experience,
+            'salary_min' => array_key_exists('salary_min', $args)
+                ? (filled($args['salary_min']) ? (float) $args['salary_min'] : null)
+                : $posting->salary_min,
+            'salary_max' => array_key_exists('salary_max', $args)
+                ? (filled($args['salary_max']) ? (float) $args['salary_max'] : null)
+                : $posting->salary_max,
+            'salary_period' => $args['salary_period'] ?? $posting->salary_period,
+            'work_arrangement' => $args['work_arrangement'] ?? $posting->work_arrangement,
             'skills' => array_key_exists('skills', $args) ? $this->skills($args['skills']) : $posting->skills,
             'employment_type' => $args['employment_type'] ?? $posting->employment_type,
             'openings' => isset($args['openings']) ? (int) $args['openings'] : $posting->openings,
@@ -1543,6 +1564,11 @@ class RecruitmentModule extends Module implements ContributesContext
 
         $interview->update($changes);
 
+        // A new interviewer hears about it, as one booked from the board does.
+        if ($interview->wasChanged('interviewer_id')) {
+            Interviewers::notify($interview->load('interviewer'), $user);
+        }
+
         $name = $interview->application?->applicant?->full_name ?? 'the candidate';
         $recorded = isset($changes['result']);
 
@@ -2034,9 +2060,14 @@ class RecruitmentModule extends Module implements ContributesContext
         // cannot be found is an error, never a silently unassigned interview.
         [$member, $error] = $this->resolveMember($name);
 
-        return $member !== null
-            ? $member->id
-            : ToolResult::error('Looked up the interviewer', $error);
+        if ($member === null) {
+            return ToolResult::error('Looked up the interviewer', $error);
+        }
+
+        // Only somebody who could open the interview (ADR 0091).
+        $why = Interviewers::whyNot($member);
+
+        return $why === null ? $member->id : ToolResult::error('Checked the interviewer', $why);
     }
 
     /**
@@ -2074,7 +2105,7 @@ class RecruitmentModule extends Module implements ContributesContext
             'headline' => ['type' => 'STRING', 'description' => 'e.g. Senior Backend Engineer.'],
             'linkedin_url' => ['type' => 'STRING'],
             'portfolio_url' => ['type' => 'STRING'],
-            'years_experience' => ['type' => 'INTEGER'],
+            'years_experience' => ['type' => 'NUMBER', 'description' => 'Half years allowed (1.5).'],
             'source' => ['type' => 'STRING', 'enum' => StoreApplicantRequest::SOURCES],
             'notes' => ['type' => 'STRING', 'description' => 'Recruiter notes. From a CV: a short summary of key skills, education, recent roles and achievements.'],
         ];
@@ -2206,7 +2237,7 @@ class RecruitmentModule extends Module implements ContributesContext
         foreach (array_keys($this->applicantProperties()) as $field) {
             if (array_key_exists($field, $args)) {
                 $data[$field] = $field === 'years_experience'
-                    ? (filled($args[$field]) ? (int) $args[$field] : null)
+                    ? (filled($args[$field]) ? round((float) $args[$field], 1) : null)
                     : (is_string($args[$field]) ? trim($args[$field]) : $args[$field]);
             }
         }
@@ -2369,6 +2400,7 @@ class RecruitmentModule extends Module implements ContributesContext
             meta: [
                 ucfirst($posting->status),
                 $posting->openings.' opening'.($posting->openings === 1 ? '' : 's'),
+                $posting->payLabel(),
                 $open !== null ? $open.' active' : null,
                 match (true) {
                     $days === null => null,
@@ -2393,7 +2425,7 @@ class RecruitmentModule extends Module implements ContributesContext
             title: $applicant->full_name,
             subtitle: $applicant->headline ?: $applicant->email,
             meta: [
-                $applicant->years_experience !== null ? $applicant->years_experience.' yr'.($applicant->years_experience === 1 ? '' : 's') : null,
+                $applicant->years_experience !== null ? $applicant->years_experience.' yr'.((float) $applicant->years_experience === 1.0 ? '' : 's') : null,
                 ucfirst(str_replace('_', ' ', (string) $applicant->source)),
                 isset($applicant->applications_count) ? $applicant->applications_count.' application'.($applicant->applications_count === 1 ? '' : 's') : null,
             ],

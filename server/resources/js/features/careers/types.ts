@@ -13,6 +13,16 @@ export type CareersOrg = {
 export type EmploymentType =
     'regular' | 'probationary' | 'contractual' | 'part_time';
 
+export type SalaryPeriod = 'monthly' | 'annual' | 'daily' | 'hourly';
+
+export type WorkArrangement = 'onsite' | 'hybrid' | 'remote';
+
+export const WORK_ARRANGEMENT_LABELS: Record<WorkArrangement, string> = {
+    onsite: 'On-site',
+    hybrid: 'Hybrid',
+    remote: 'Remote',
+};
+
 export type PostingCard = {
     hashid: string;
     title: string;
@@ -21,6 +31,11 @@ export type PostingCard = {
     closing_date: string | null;
     department: string | null;
     position: string | null;
+    work_arrangement: WorkArrangement;
+    /** The site the role is based at. */
+    location: string | null;
+    /** The pay range, when the employer shows it ("₱25,000–₱35,000 a month"). */
+    pay: string | null;
     excerpt: string | null;
 };
 
@@ -30,6 +45,11 @@ export type PostingDetail = PostingCard & {
     description: string | null;
     requirements: string | null;
     requires_resume: boolean;
+    address: string | null;
+    min_years_experience: number | null;
+    /** Whether the form asks for an expected salary, and per what. */
+    asks_expected_salary: boolean;
+    salary_period: SalaryPeriod;
     screening_questions: ScreeningQuestion[];
 };
 
@@ -54,3 +74,12 @@ export type CareersShowProps = {
     /** Flashed true immediately after a successful submission. */
     applied?: boolean;
 };
+
+/** "Hybrid · Makati office", "Remote", "On-site". */
+export function placeLabel(posting: PostingCard): string {
+    const arrangement = WORK_ARRANGEMENT_LABELS[posting.work_arrangement];
+
+    return posting.location && posting.work_arrangement !== 'remote'
+        ? `${arrangement} · ${posting.location}`
+        : arrangement;
+}
