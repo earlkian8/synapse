@@ -3,8 +3,6 @@
 > **Status: built.** This is the data model the application runs on, drawn from the
 > schema the migrations produce (every migration up to
 > `2026_10_05_000000_create_data_exports_table`, introspected on 2026-10-05; §8's
-> performance tables re-checked up to
-> `2026_10_10_020000_create_performance_self_service_tables` on 2026-10-10, and §8's
 > training tables up to `2026_10_11_000000_create_training_self_service_tables` on
 > 2026-10-11; the holiday, work-location, offboarding and tour tables of §1, §2a and §5
 > up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12; §13's admin
@@ -442,9 +440,7 @@ erDiagram
 ### 2b. Catalogues: leave, awards and the performance framework
 
 See [leave tables](./leave-tables.md), [awards tables](./awards-tables.md) and
-[performance tables](./performance-tables.md). The goal library (`goal_templates`) is
-part of the performance framework; a goal copies an entry rather than referring to it
-for its wording ([ADR 0073](../decisions/0073-goals-with-check-ins-and-calibration-sessions.md)).
+[performance tables](./performance-tables.md).
 
 ```mermaid
 erDiagram
@@ -528,17 +524,6 @@ erDiagram
         date start_date
         date end_date
         string status "draft|open|closed"
-        datetime deleted_at
-    }
-    GOAL_TEMPLATE {
-        bigint id PK
-        string name "a goal-library entry"
-        text description
-        string measure "percent|number"
-        decimal start_value
-        decimal target_value
-        string unit
-        boolean is_active
         datetime deleted_at
     }
 ```
@@ -1079,15 +1064,6 @@ their dates. See [performance tables](./performance-tables.md),
 [ADR 0028](../decisions/0028-appraisal-frameworks-and-tenant-rating-models.md) and
 [ADR 0013](../decisions/0013-training-and-development.md).
 
-The people around an appraisal take part in it
-([ADR 0072](../decisions/0072-appraisal-reviews-and-acknowledgement-by-the-employee.md),
-[ADR 0073](../decisions/0073-goals-with-check-ins-and-calibration-sessions.md)):
-reviews answered on the appraisal's own lines, goals with append-only check-ins, and
-calibration sessions whose every move is a row. `shared_at`, `acknowledged_by` and
-`employee_comment` record the employee's side; `scored_band` / `scored_label` keep
-what the scorecard gave when calibration moved `result_band`. `calibration_participants`
-(session ↔ user) is a pivot confined through its session.
-
 Employees join training themselves and programs meet in sessions
 ([ADR 0074](../decisions/0074-training-self-enrolment-sessions-and-attendance.md)): a
 request to join is a `training_enrollments` row (`requested` → `enrolled` | `declined`),
@@ -1105,17 +1081,6 @@ erDiagram
     PERFORMANCE_EVALUATION ||--o{ PERFORMANCE_SCORE : "broken down into"
     KPI_CRITERION |o--o{ PERFORMANCE_SCORE : "scored on"
     REVIEW_TEMPLATE_ITEM |o--o{ PERFORMANCE_SCORE : "copied from"
-    PERFORMANCE_EVALUATION ||--o{ APPRAISAL_REVIEW : "asks for"
-    EMPLOYEE ||--o{ APPRAISAL_REVIEW : reviews
-    APPRAISAL_REVIEW ||--o{ APPRAISAL_REVIEW_SCORE : "answers in"
-    PERFORMANCE_SCORE ||--o{ APPRAISAL_REVIEW_SCORE : "answered on"
-    EMPLOYEE ||--o{ PERFORMANCE_GOAL : "works toward"
-    EVALUATION_PERIOD ||--o{ PERFORMANCE_GOAL : "set in"
-    GOAL_TEMPLATE |o--o{ PERFORMANCE_GOAL : "copied from"
-    PERFORMANCE_GOAL ||--o{ GOAL_CHECK_IN : "checked in on"
-    EVALUATION_PERIOD ||--o{ CALIBRATION_SESSION : "calibrated in"
-    CALIBRATION_SESSION ||--o{ CALIBRATION_ADJUSTMENT : moves
-    PERFORMANCE_EVALUATION ||--o{ CALIBRATION_ADJUSTMENT : "moved by"
     TRAINING_PROGRAM ||--o{ TRAINING_ENROLLMENT : enrolls
     EMPLOYEE ||--o{ TRAINING_ENROLLMENT : attends
     TRAINING_PROGRAM ||--o{ TRAINING_SESSION : "meets in"
@@ -1136,17 +1101,11 @@ erDiagram
         bigint evaluator_id FK "users"
         decimal overall_score
         decimal overall_percent
-        string result_band "calibrated when moved"
+        string result_band
         string result_label
-        string scored_band "what the scorecard gave, once moved"
-        string scored_label
-        datetime calibrated_at
         string status "draft|submitted|acknowledged"
         datetime submitted_at
-        datetime shared_at "the employee can read it"
         datetime acknowledged_at
-        bigint acknowledged_by FK "users"
-        text employee_comment
         text remarks
         json ai_insights
     }
@@ -1169,78 +1128,6 @@ erDiagram
         decimal score
         text remarks
         int sort_order
-    }
-    APPRAISAL_REVIEW {
-        bigint id PK
-        bigint performance_evaluation_id FK "unique with reviewer"
-        bigint reviewer_id FK "employees"
-        string relationship "self|manager|peer|direct_report"
-        string status "pending|submitted|declined|cancelled"
-        bigint requested_by FK "users"
-        date due_on
-        text strengths
-        text improvements
-        text decline_reason
-        datetime submitted_at
-        datetime declined_at
-        datetime reminded_at
-    }
-    APPRAISAL_REVIEW_SCORE {
-        bigint id PK
-        bigint appraisal_review_id FK "unique with line"
-        bigint performance_score_id FK
-        decimal score "on the line's own scale"
-        text remarks
-    }
-    PERFORMANCE_GOAL {
-        bigint id PK
-        bigint employee_id FK
-        bigint evaluation_period_id FK
-        bigint goal_template_id FK
-        string title
-        text description
-        string measure "percent|number"
-        decimal start_value
-        decimal target_value
-        decimal current_value
-        string unit
-        decimal weight
-        date due_on
-        string status "active|achieved|missed|dropped"
-        string health "on_track|at_risk|off_track"
-        datetime last_check_in_at
-        bigint created_by FK "users"
-        datetime closed_at
-    }
-    GOAL_CHECK_IN {
-        bigint id PK
-        bigint performance_goal_id FK
-        bigint author_id FK "users"
-        decimal value
-        string health
-        text note
-    }
-    CALIBRATION_SESSION {
-        bigint id PK
-        bigint evaluation_period_id FK
-        string name
-        date scheduled_for
-        json department_ids "null = whole cycle"
-        string status "open|completed|cancelled"
-        text notes
-        bigint facilitator_id FK "users"
-        datetime completed_at
-    }
-    CALIBRATION_ADJUSTMENT {
-        bigint id PK
-        bigint calibration_session_id FK
-        bigint performance_evaluation_id FK
-        string from_band
-        string from_label
-        string to_band
-        string to_label
-        text reason
-        bigint adjusted_by FK "users"
     }
     TRAINING_PROGRAM {
         bigint id PK

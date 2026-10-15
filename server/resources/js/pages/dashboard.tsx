@@ -4,7 +4,6 @@ import {
     CalendarCheck2,
     CalendarPlus,
     Clock3,
-    Gauge,
     GraduationCap,
     HandHeart,
     UserRound,
@@ -137,12 +136,6 @@ function PersonalStart() {
             icon: <CalendarCheck2 className="size-5" />,
             title: 'My invitations',
             desc: 'Answer your invitations and subscribe to them.',
-        },
-        can('performance.participate') && {
-            href: '/performance/me',
-            icon: <Gauge className="size-5" />,
-            title: 'My performance',
-            desc: 'Your appraisals, goals and the reviews asked of you.',
         },
         can('training.participate') && {
             href: '/training/me',

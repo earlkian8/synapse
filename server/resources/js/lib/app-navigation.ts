@@ -140,13 +140,11 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 summary: 'Requests, approvals and balances',
             },
             {
-                // One entry for everybody (ADR 0072): HR lands on the cycle's
-                // appraisals, someone who only takes part on their own.
                 title: 'Performance Management',
                 href: '/performance',
                 icon: Gauge,
-                permissionAny: ['performance.view', 'performance.participate'],
-                summary: 'Appraisals, reviews, goals and calibration',
+                permission: 'performance.view',
+                summary: 'Appraisals and review cycles',
             },
             {
                 // One entry for everybody (ADR 0074): HR lands on the programs,

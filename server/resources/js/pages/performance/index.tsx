@@ -25,7 +25,6 @@ import { EvaluationTable } from '@/features/performance/components/evaluation-ta
 import type { EvaluationSort } from '@/features/performance/components/evaluation-table';
 import { LaunchCycleModal } from '@/features/performance/components/launch-cycle-modal';
 import { OpenAppraisalModal } from '@/features/performance/components/open-appraisal-modal';
-import { PerformanceNav } from '@/features/performance/components/performance-nav';
 import { PerformanceStatsCards } from '@/features/performance/components/performance-stats';
 import { PeriodStatusBadge } from '@/features/performance/components/status-badge';
 import { formatDate } from '@/features/performance/constants';
@@ -65,7 +64,6 @@ export default function PerformanceIndex() {
         distribution,
         byDepartment,
         can,
-        nav,
     } = usePage<PerformanceIndexPageProps>().props;
 
     const [openAppraisal, setOpenAppraisal] = useState(false);
@@ -167,12 +165,12 @@ export default function PerformanceIndex() {
 
     return (
         <>
-            <Head title="Appraisals" />
+            <Head title="Performance Management" />
 
             <PageBody>
                 {/* The cycle is the unit of work, so it leads the page. */}
                 <PageHeader
-                    title="Appraisals"
+                    title="Performance Management"
                     description={
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                             <span className="flex items-center gap-1.5">
@@ -228,7 +226,25 @@ export default function PerformanceIndex() {
                         </div>
                     }
                     actions={
-                        <PerformanceNav current="appraisals" counts={nav} />
+                        can.manage && (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setOpenAppraisal(true)}
+                                >
+                                    <Plus className="size-4" />
+                                    Open one
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={() => setLaunchOpen(true)}
+                                >
+                                    <Rocket className="size-4" />
+                                    Launch cycle
+                                </Button>
+                            </>
+                        )
                     }
                 />
 
@@ -260,41 +276,18 @@ export default function PerformanceIndex() {
                                 : undefined
                         }
                         actions={
-                            <>
-                                {evaluations.length > 0 && (
-                                    <Button variant="outline" size="sm" asChild>
-                                        <a
-                                            href={performanceRoutes.export(
-                                                currentPeriodId,
-                                            )}
-                                        >
-                                            <Download className="size-4" />
-                                            Export
-                                        </a>
-                                    </Button>
-                                )}
-                                {can.manage && (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setOpenAppraisal(true)
-                                            }
-                                        >
-                                            <Plus className="size-4" />
-                                            Open one
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            onClick={() => setLaunchOpen(true)}
-                                        >
-                                            <Rocket className="size-4" />
-                                            Launch cycle
-                                        </Button>
-                                    </>
-                                )}
-                            </>
+                            evaluations.length > 0 && (
+                                <Button variant="outline" size="sm" asChild>
+                                    <a
+                                        href={performanceRoutes.export(
+                                            currentPeriodId,
+                                        )}
+                                    >
+                                        <Download className="size-4" />
+                                        Export
+                                    </a>
+                                </Button>
+                            )
                         }
                     >
                         <SearchInput
@@ -428,5 +421,5 @@ function emptyCycle({
 }
 
 PerformanceIndex.layout = {
-    breadcrumbs: [{ title: 'Performance Management', href: '/performance' }],
+    breadcrumbs: [{ title: 'Performance', href: '/performance' }],
 };

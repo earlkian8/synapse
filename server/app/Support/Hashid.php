@@ -102,6 +102,12 @@ class Hashid
             }
 
             $number = $number * 62 + $position;
+
+            // No id encodes past the modulus, and a long word (a stale
+            // `/performance/reviews` link) would overflow an int.
+            if ($number >= self::MOD) {
+                return null;
+            }
         }
 
         return $number;

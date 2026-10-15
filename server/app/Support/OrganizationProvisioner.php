@@ -195,7 +195,7 @@ class OrganizationProvisioner
                 'permissions' => [
                     // Self-service (as an employee themselves)
                     'attendance.clock', 'leave.request',
-                    'events.respond', 'awards.participate', 'performance.participate',
+                    'events.respond', 'awards.participate',
                     'training.participate', 'offboarding.resign',
                     // Interviewing the candidates they are assigned (ADR 0091)
                     'recruitment.interview',
@@ -216,22 +216,20 @@ class OrganizationProvisioner
 
             // 3. Staff — the regular employee. Self-service only: record attendance,
             //    file/cancel their own leave, answer their event invitations, take
-            //    part in recognition, take part in their own appraisal — read and
-            //    acknowledge it, write the reviews asked of them, check in on goals —
-            //    join training and follow their own sessions and certificates,
-            //    resign, answer their exit interview and download their COE, and
-            //    interview a candidate when HR assigns them one (ADR 0091).
+            //    part in recognition, join training and follow their own sessions
+            //    and certificates, resign, answer their exit interview and download
+            //    their COE, and interview a candidate when HR assigns them one
+            //    (ADR 0091).
             [
                 'name' => Role::STAFF,
                 'label' => 'Staff',
-                'description' => 'Regular employee with self-service access: record attendance, file leave, answer invitations, recognise colleagues, take part in their own appraisal and join training.',
+                'description' => 'Regular employee with self-service access: record attendance, file leave, answer invitations, recognise colleagues and join training.',
                 'is_system' => true,
                 'permissions' => [
                     'attendance.clock',
                     'leave.request',
                     'events.respond',
                     'awards.participate',
-                    'performance.participate',
                     'training.participate',
                     'offboarding.resign',
                     'recruitment.interview',

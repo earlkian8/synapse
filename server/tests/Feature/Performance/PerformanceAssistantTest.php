@@ -106,7 +106,7 @@ test('a viewer is offered only the reads; a manager the writes too', function ()
     $viewer = actingAsUserWith(['performance.view']);
 
     expect(appraisalAgentTools($viewer))
-        ->toEqualCanonicalizing(['find_appraisals', 'get_appraisal', 'performance_summary', 'list_review_cycles', 'find_goals', 'find_calibration_sessions']);
+        ->toEqualCanonicalizing(['find_appraisals', 'get_appraisal', 'performance_summary', 'list_review_cycles']);
 
     $manager = actingAsUserWith(['performance.view', 'performance.manage']);
 
