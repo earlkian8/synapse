@@ -7,7 +7,6 @@ use App\Models\OffboardingProgram;
 use App\Models\OnboardingProgram;
 use App\Models\Organization;
 use App\Models\WorkLocation;
-use App\Models\WorkSchedule;
 use App\Support\Setup\CompanySetup;
 use App\Support\Setup\SetupBlueprints;
 use App\Support\Tenancy;
@@ -52,7 +51,6 @@ dataset('step screens', [
     'schedule' => [CompanySetup::SCHEDULE, 'setup.schedule.index'],
     'leave' => [CompanySetup::LEAVE_TYPES, 'setup.leave-types.index'],
     'locations' => [CompanySetup::LOCATIONS, 'setup.locations.index'],
-    'roster' => [CompanySetup::ROSTER, 'setup.roster.index'],
     'hiring' => [CompanySetup::RECRUITMENT, 'setup.recruitment-pipelines.index'],
     'onboarding' => [CompanySetup::ONBOARDING, 'setup.onboarding.index'],
     'appraisals' => [CompanySetup::PERFORMANCE, 'setup.kpi.index'],
@@ -63,7 +61,9 @@ dataset('step screens', [
 // ── Every Company Setup screen is a step ─────────────────────────────────────
 
 test('the wizard has a step for every Company Setup screen, each gated by that screen’s own ability', function () {
-    expect(CompanySetup::STEPS)->toHaveCount(12)
+    expect(CompanySetup::STEPS)->toHaveCount(11)
+        // The roster plans people's days, so it is Attendance's (ADR 0090).
+        ->and(CompanySetup::STEPS)->not->toContain('roster')
         ->and(array_keys(CompanySetup::ABILITIES))->toBe(CompanySetup::STEPS)
         ->and(array_keys(CompanySetup::SCREENS))->toBe(CompanySetup::STEPS);
 });
@@ -130,17 +130,11 @@ test('a step the person may not configure is shown without its screen', function
             ->etc());
 });
 
-test('the roster step reads its week from the query, as the roster screen does', function () {
+test('the wizard no longer opens on a roster step', function () {
     actingAsSuperAdmin();
     tenantOwingSetup();
 
-    $this->get(route('setup.wizard.show', ['view' => CompanySetup::ROSTER, 'date' => '2026-03-11']))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('screen.filters.date', '2026-03-11')
-            ->has('screen.roster.days', 7)
-            ->has('screen.roster.rows')
-            ->etc());
+    $this->get(route('setup.wizard.show', ['view' => 'roster']))->assertNotFound();
 });
 
 test('the company step carries the join code, as Employees → Access does', function () {
@@ -247,18 +241,6 @@ test('the wizard says which steps are configured, however they were configured',
             ->where('configured.departments', false)
             ->where('configured.company', true)
             ->etc());
-});
-
-test('the roster counts as configured once there is a default schedule to be rostered on', function () {
-    actingAsSuperAdmin();
-    $organization = tenantOwingSetup();
-
-    expect(CompanySetup::configured($organization)['roster'])->toBeFalse();
-
-    $schedule = WorkSchedule::create(['name' => 'Office Hours', 'type' => 'fixed', 'cycle_length_days' => 7, 'grace_minutes' => 0]);
-    $organization->forceFill(['default_work_schedule_id' => $schedule->id])->save();
-
-    expect(CompanySetup::configured($organization->refresh())['roster'])->toBeTrue();
 });
 
 test('continuing is held to the step module’s own permission', function () {

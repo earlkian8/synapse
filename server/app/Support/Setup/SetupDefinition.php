@@ -34,13 +34,16 @@ class SetupDefinition
     /**
      * The departments a step created: the suggestions that were ticked, in the
      * wording {@see SetupBlueprints} holds, followed by the ones the company
-     * described itself.
+     * described itself — each with the positions to open under it. A
+     * suggestion's positions are the titles the owner left ticked or typed,
+     * keyed by its code; a department the company wrote carries its own.
      *
      * @param  list<string>  $codes
-     * @param  list<array{name: string, code: string, description?: string|null}>  $custom
-     * @return list<array{name: string, code: string, description: string|null}>
+     * @param  list<array{name: string, code: string, description?: string|null, positions?: list<string>}>  $custom
+     * @param  array<string, list<string>>  $positions  blueprint code => position titles
+     * @return list<array{name: string, code: string, description: string|null, positions: list<string>}>
      */
-    public static function departments(array $codes, array $custom): array
+    public static function departments(array $codes, array $custom, array $positions = []): array
     {
         $definitions = [];
 
@@ -50,6 +53,7 @@ class SetupDefinition
                     'name' => $blueprint['name'],
                     'code' => $blueprint['code'],
                     'description' => $blueprint['description'],
+                    'positions' => array_values($positions[$blueprint['code']] ?? []),
                 ];
             }
         }
@@ -59,6 +63,7 @@ class SetupDefinition
                 'name' => $row['name'],
                 'code' => $row['code'],
                 'description' => self::text($row['description'] ?? null),
+                'positions' => array_values($row['positions'] ?? []),
             ];
         }
 

@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Download, Plus } from 'lucide-react';
+import type { ReactNode } from 'react';
 import {
     FilterSelect,
     ListToolbar,
@@ -15,6 +16,8 @@ import {
 import type { AttendanceFilters, AttendanceTab, DepartmentRef } from '../types';
 
 type Props = {
+    /** Board-wide actions shown first: signing days off, re-applying rules. */
+    before?: ReactNode;
     filters: AttendanceFilters;
     departments: DepartmentRef[];
     canManage: boolean;
@@ -115,9 +118,10 @@ const RESET_LABEL: Record<AttendanceTab, string> = {
 
 /**
  * The row above the attendance tables: the period stepper, search and filters
- * on the left, the exports and manual entry on the right.
+ * on the left; sign-off, re-apply, the exports and manual entry on the right.
  */
 export function AttendanceToolbar({
+    before,
     filters,
     departments,
     canManage,
@@ -145,6 +149,7 @@ export function AttendanceToolbar({
             onReset={onReset}
             actions={
                 <>
+                    {before}
                     <Button variant="outline" size="sm" asChild>
                         <a href={exportUrl}>
                             <Download className="size-4" />

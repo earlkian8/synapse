@@ -125,7 +125,7 @@ class SetupWizardController extends Controller
             'screen' => $screen,
 
             // What each step can offer to start from. Closures, like `existing`,
-            // so a step reloading only its screen (the roster's week) skips them.
+            // so a step reloading only its screen skips them.
             'blueprints' => fn (): array => [
                 'departments' => SetupBlueprints::departments(),
                 'leaveTypes' => SetupBlueprints::leaveTypes(),
@@ -195,25 +195,26 @@ class SetupWizardController extends Controller
 
     /**
      * Step 2 — the org structure: the suggested departments that were ticked,
-     * plus the ones the company described itself.
+     * plus the ones the company described itself, each with its positions.
      */
     public function departments(WizardDepartmentsRequest $request): RedirectResponse
     {
         $created = SetupInstaller::departments(SetupDefinition::departments(
             $request->validated('codes'),
             $request->validated('custom'),
+            $request->validated('positions') ?? [],
         ));
+
+        $what = $created['departments'].' '.str('department')->plural($created['departments'])
+            .($created['positions'] > 0 ? ' and '.$created['positions'].' '.str('position')->plural($created['positions']) : '');
 
         ActivityLogger::log(
             event: 'created',
-            description: "Set up {$created} ".str('department')->plural($created).' during company setup',
+            description: "Set up {$what} during company setup",
             logName: 'company-setup',
         );
 
-        return $this->completed(
-            CompanySetup::DEPARTMENTS,
-            $created.' '.str('department')->plural($created).' added.',
-        );
+        return $this->completed(CompanySetup::DEPARTMENTS, "{$what} added.");
     }
 
     /**

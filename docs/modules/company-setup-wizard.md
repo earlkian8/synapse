@@ -33,17 +33,31 @@ stretches; the working pane beside it is the app's own light surface.
 | Stretch | Step | Company Setup screen it carries | Suggestions to start from |
 | --- | --- | --- | --- |
 | Your company | 1 · Company | Company Profile, plus the join code (as on Employees → Access) | — (a form, prefilled; the zone starts from the browser's) |
-| | 2 · Departments | Departments — hierarchy, positions, heads, defaults | Common departments, customisable, or your own |
+| | 2 · Departments | Departments — hierarchy, positions, heads, defaults | Common departments, each with its usual positions (pre-selected, untick or add), customisable, or your own with positions typed |
 | Time & attendance | 3 · Attendance rules | Attendance Policies | The presets, customisable in the policy editor; an optional default schedule |
 | | 4 · Schedules & holidays | Work Schedule & Holidays | The Philippine holiday calendar, ticked |
 | | 5 · Leave | Leave Types | Statutory and common leave, customisable, or your own |
 | | 6 · Locations | Locations — fences on the map, who is based where | — |
-| | 7 · Shift roster | Shift Roster — the week, overrides, assignments | — |
-| Your people, hire to exit | 8 · Hiring | Recruitment Pipelines | Three process shapes, customisable, or draw your own |
-| | 9 · Onboarding | Onboarding Programs | The standard onboarding checklist |
-| | 10 · Appraisals | Performance Framework — frameworks, scales, criteria, review cycles | Three frameworks, customisable, or design your own |
-| | 11 · Awards | Award Types | The common award types |
-| | 12 · Offboarding | Offboarding Programs | The standard exit clearance |
+| Your people, hire to exit | 7 · Hiring | Recruitment Pipelines | Three process shapes, customisable, or draw your own |
+| | 8 · Onboarding | Onboarding Programs | The standard onboarding checklist |
+| | 9 · Appraisals | Performance Framework — frameworks, scales, criteria, review cycles | Three frameworks, customisable, or design your own |
+| | 10 · Awards | Award Types | The common award types |
+| | 11 · Offboarding | Offboarding Programs | The standard exit clearance |
+
+The shift roster is not a step
+([ADR 0090](../decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)):
+a new company has nobody to roster, and planning shifts is day-to-day work in
+Attendance → Shift roster. A company that answered the old roster step keeps that answer
+in `setup_steps`; nothing reads it.
+
+**Departments and their positions.** Ticking a suggested department opens its usual
+positions under the card (`PositionPicker`), already selected, with a field for titles
+the company uses instead; a department the company names or customises has the same
+field. The step posts `positions` keyed by the ticked codes and `custom.*.positions`;
+titles are trimmed, de-duplicated regardless of capital letters, capped at 30 a
+department, and refused for a code not being added. `SetupInstaller::departments()`
+creates each new department's positions and returns both counts ("3 departments and 9
+positions added."). Salary grades are set afterwards on the board under the step.
 
 Around them: a **welcome** (the three stretches, and that any step can wait) and a
 **send-off** (where each step landed, with *Review* or *Do it now* on each, and
@@ -107,8 +121,7 @@ view, with the step's Company Setup screen as the `screen` prop. With no view na
 server opens where the company left off (`CompanySetup::initialView`): the welcome when
 nothing is answered, the first pending step, or the send-off when everything is answered
 or setup is finished. Because the view is in the URL, a step's editors can post to their
-own routes and come `back()` to the same step; the roster's week, department and search
-are query parameters on the step's URL, reloaded as a partial reload of `screen`.
+own routes and come `back()` to the same step.
 
 `RequireCompanySetup` (in the `web` group, right after `SetCurrentOrganization`) sends an
 owner to the wizard until setup is closed. It is deliberately narrow — it acts only on:
@@ -151,8 +164,7 @@ as pending.
   `index` and the wizard step both call it.
 - **`Support\Setup\CompanySetup`** — the step vocabulary (`STEPS`, `ABILITIES`,
   `SCREENS`, `views()`, `DONE`/`SKIPPED`/`PENDING`), the progress reads/writes,
-  `initialView()` and `configured()` (whether each step's module holds anything; the
-  roster counts once there is a default schedule, an assignment or an override).
+  `initialView()` and `configured()` (whether each step's module holds anything).
 - **`Support\Setup\SetupBlueprints`** — every starting point: departments, leave types,
   holidays (with the Easter computation), pipelines, onboarding checklists, the criteria
   catalogue and frameworks, instruments, award types and exit clearances (the
@@ -183,15 +195,15 @@ over `features/setup-wizard/`:
 - `use-setup-wizard.ts` — navigation as visits to `/setup/wizard/{view}`, `skip`,
   `advance` (continue), `finish`, and which of them is in flight.
 - `components/suggestions-panel.tsx` — the tray; `section-heading.tsx` — the heading
-  over an editor; `editor-step.tsx` — a step that is only its editor (locations,
-  roster); `checklist-step.tsx` — onboarding and offboarding; one component per
+  over an editor; `editor-step.tsx` — a step that is only its editor (locations);
+  `position-picker.tsx` — a department's positions on the departments step;
+  `checklist-step.tsx` — onboarding and offboarding; one component per
   other step.
 - The editors are the Company Setup **managers**: `DepartmentsManager`,
   `PoliciesManager`, `ScheduleManager`, `LeaveTypesManager`, `LocationsManager`,
-  `RosterManager`, `PipelinesManager`, `OnboardingProgramsManager`,
+  `PipelinesManager`, `OnboardingProgramsManager`,
   `KpiManager`, `AwardTypesManager`, `OffboardingProgramsManager` — each in its own
-  feature folder, each rendered by its Company Setup page too. `RosterManager` takes the
-  URL its filters reload against.
+  feature folder, each rendered by its Company Setup page too.
 - `components/choice-card.tsx`, `custom-section.tsx`, `leave-type-fields.tsx`,
   `stage-editor.tsx`, `framework-editor.tsx` — the offers and what a company writes for
   itself, unchanged (ADR 0034).
@@ -213,7 +225,6 @@ module it configures, and carries its screen only for somebody holding it:
 | Schedules & holidays | `setup.schedule.manage` |
 | Leave | `setup.leave-types.manage` |
 | Locations | `setup.locations.manage` |
-| Shift roster | `setup.roster.manage` |
 | Hiring | `recruitment.configure-pipelines` |
 | Onboarding | `onboarding.manage-programs` |
 | Appraisals | `setup.kpi.manage` |

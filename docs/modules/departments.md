@@ -13,6 +13,9 @@ Everything is tenant-scoped (ADR 0005).
 - **`/setup/departments`** — the org-structure board: stats, search, and an expandable
   **department tree**. Each node shows its code, head, and employee/position counts.
   Selecting a department opens a **detail drawer** that manages its **positions** inline.
+  A company's first departments usually come from the setup wizard, which creates each
+  suggested department with its usual positions, or the titles typed for it
+  ([ADR 0090](../decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)).
   Archived departments live in a collapsible section with restore / permanent-delete.
 
 The interface is a **tree** (not a directory table) because departments are inherently

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Setup;
+namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\AssignScheduleRequest;
@@ -8,8 +8,8 @@ use App\Http\Requests\Attendance\RosterEntryRequest;
 use App\Models\Employee;
 use App\Models\ShiftRosterEntry;
 use App\Models\WorkSchedule;
-use App\Queries\Setup\ShiftRosterScreen;
 use App\Queries\ShiftRosterQuery;
+use App\Queries\ShiftRosterScreen;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\RosterWriter;
 use App\Support\Attendance\ScheduleAssigner;
@@ -20,9 +20,10 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The shift roster (ADR 0037) — who is due to work what, day by day. It is
- * configuration rather than a record: the plan Attendance judges each day
- * against, so it lives in Company Setup beside the schedules it is made of.
+ * The shift roster (ADR 0037) — who is due to work what, day by day: the plan
+ * Attendance judges each day against. It is day-to-day attendance work, so it
+ * is a section of Attendance beside the time records it explains (ADR 0090),
+ * not a Company Setup screen; the schedules it is made of stay in Setup.
  *
  * The board is built by {@see ShiftRosterQuery}. Its writes — one-off shift
  * overrides, and putting people on a schedule from a date — go through the
@@ -42,7 +43,7 @@ class ShiftRosterController extends Controller
      */
     public function index(Request $request, ShiftRosterScreen $screen): Response
     {
-        return Inertia::render('setup/roster', $screen->toArray($request));
+        return Inertia::render('attendance/roster', $screen->toArray($request));
     }
 
     /**

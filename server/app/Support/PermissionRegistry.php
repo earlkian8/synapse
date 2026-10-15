@@ -57,6 +57,8 @@ class PermissionRegistry
             'attendance.view' => 'View attendance & time records',
             'attendance.manage' => 'Manual entry, corrections & approvals',
             'attendance.clock' => 'Clock in / out (self-service)',
+            'attendance.roster.view' => 'View the shift roster',
+            'attendance.roster.manage' => 'Assign schedules & set one-off shift overrides',
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
@@ -97,8 +99,6 @@ class PermissionRegistry
             'setup.company.manage' => 'Manage company profile',
             'setup.schedule.view' => 'View work schedules & holidays',
             'setup.schedule.manage' => 'Manage work schedules & holidays',
-            'setup.roster.view' => 'View the shift roster',
-            'setup.roster.manage' => 'Assign schedules & set one-off shift overrides',
             'setup.attendance-policies.view' => 'View attendance policies',
             'setup.attendance-policies.manage' => 'Manage attendance policies',
             'setup.locations.view' => 'View work locations',

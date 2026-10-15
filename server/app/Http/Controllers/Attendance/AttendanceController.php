@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Setup\ShiftRosterController;
 use App\Http\Requests\Attendance\ReapplyScheduleRequest;
 use App\Http\Requests\Attendance\StoreAttendanceRecordRequest;
 use App\Http\Requests\Attendance\UpdateAttendanceRecordRequest;
@@ -29,8 +28,8 @@ use Inertia\Response;
  * The HR-facing attendance board — a day's Daily Time Records for the whole team,
  * with manual entry, corrections and sign-off. Self-service clocking lives in
  * {@see MyAttendanceController}; the mobile API in App\Http\Controllers\Api.
- * The shift roster — the plan rather than the record — is Company Setup's
- * ({@see ShiftRosterController}).
+ * The shift roster — the plan the record is judged against — is the module's
+ * other section ({@see ShiftRosterController}, ADR 0090).
  */
 class AttendanceController extends Controller
 {
@@ -48,7 +47,15 @@ class AttendanceController extends Controller
         AttendanceStatistics $statistics,
         AttendanceWeeklyQuery $weekly,
         AttendanceMonthlyReport $monthly,
-    ): Response {
+    ): Response|RedirectResponse {
+        // One sidebar entry for the module (ADR 0090): somebody who may see the
+        // roster but not the time records lands on the roster.
+        if ($request->user()->cannot('attendance.view')) {
+            abort_unless($request->user()->can('attendance.roster.view'), 403);
+
+            return redirect()->route('attendance.roster.index');
+        }
+
         $date = $query->date($request);
         $tab = $this->tab($request);
         $department = $request->integer('department') ?: null;

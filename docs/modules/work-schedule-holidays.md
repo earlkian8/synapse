@@ -9,9 +9,10 @@ controller per catalogue.
 > Status: **Active** · Route prefix: `/setup/schedule`
 > Sidebar: Company Setup → Work Schedule & Holidays (gated by `setup.schedule.view`)
 
-Who works which of these templates on which date — the **shift roster** — is its own
-Company Setup page beside this one (`/setup/roster`, Company Setup → Shift Roster, gated
-by `setup.roster.view`); see [Attendance → Shift Roster](./attendance.md#shift-roster).
+Who works which of these templates on which date — the **shift roster** — is a section
+of Attendance (`/attendance/roster`, gated by `attendance.roster.view`, ADR 0090); see
+[Attendance → Shift Roster](./attendance.md#shift-roster). The templates are set up here
+once; the roster is planned week to week there.
 Employees see their own week of it, holidays included, in the mobile app's **My
 schedule** ([ADR 0083](../decisions/0083-my-schedule-in-the-app.md)).
 

@@ -19,7 +19,6 @@ use App\Http\Controllers\Setup\RatingScaleController;
 use App\Http\Controllers\Setup\ReviewTemplateController;
 use App\Http\Controllers\Setup\ScheduleSetupController;
 use App\Http\Controllers\Setup\SetupWizardController;
-use App\Http\Controllers\Setup\ShiftRosterController;
 use App\Http\Controllers\Setup\WorkLocationController;
 use App\Http\Controllers\Setup\WorkScheduleController;
 use App\Support\Setup\CompanySetup;
@@ -94,12 +93,8 @@ Route::middleware(['auth', 'verified'])
         Route::patch('schedule/holidays/{holiday}/restore', [HolidayController::class, 'restore'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.restore');
         Route::delete('schedule/holidays/{holiday}/force', [HolidayController::class, 'forceDelete'])->middleware('can:setup.schedule.manage')->name('schedule.holidays.force-delete');
 
-        // Shift Roster — who is due to work what, day by day (ADR 0037): the plan
-        // Attendance judges each day against. Overrides are addressed by hashid.
-        Route::get('roster', [ShiftRosterController::class, 'index'])->middleware('can:setup.roster.view')->name('roster.index');
-        Route::post('roster/entries', [ShiftRosterController::class, 'store'])->middleware('can:setup.roster.manage')->name('roster.store');
-        Route::delete('roster/entries/{shiftRosterEntry}', [ShiftRosterController::class, 'destroy'])->middleware('can:setup.roster.manage')->name('roster.destroy');
-        Route::post('roster/assign', [ShiftRosterController::class, 'assign'])->middleware('can:setup.roster.manage')->name('roster.assign');
+        // The Shift Roster moved to Attendance (ADR 0090); old links still land.
+        Route::redirect('roster', '/attendance/roster', 301);
 
         // Attendance Policies — how a day is judged (ADR 0038): grace, rounding,
         // lateness thresholds, overtime, breaks, night differential. Addressed by

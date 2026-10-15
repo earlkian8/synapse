@@ -61,7 +61,7 @@ test('setup progress needs the company profile permission', function () {
 
     $card = guideAgent($owner, 'get_setup_progress')->cards[0];
 
-    expect($card['title'])->toBe('1 of 12 setup steps answered')
+    expect($card['title'])->toBe('1 of 11 setup steps answered')
         ->and($card['meta'][0])->toBe('Company profile: done')
         ->and(guideAgent(actingAsUserWith(['leave.view']), 'get_setup_progress')->detail)->toContain("don't have permission");
 });

@@ -20,11 +20,16 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 and [ADR 0041](../decisions/0041-attendance-days-close-themselves.md) (the end-of-day
 job, recompute when inputs change, reminders) and
 [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)
-(requests and periods removed; the roster moved to Company Setup); this is the *how*.
+(requests and periods removed) and
+[ADR 0090](../decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)
+(the roster is a section of Attendance again); this is the *how*.
 Everything is tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
-> Sidebar: Workforce → Attendance (HR) and Workforce → My Attendance (self-service)
+> Sidebar: Workforce → Attendance, for `attendance.view` or `attendance.roster.view`
+> (a roster-only viewer lands on the roster). Sections (`AttendanceNav`, in the page
+> header): **My attendance** ‖ **Time records** · **Shift roster**, each shown only to
+> whoever may open it.
 
 ## Surfaces
 
@@ -115,8 +120,10 @@ Everything is tenant-scoped (ADR 0005).
   `duplicate`), `punched_at` (the phone's time, for a punch queued offline) and
   `sent_at` (the phone's clock when it sent, to measure skew) — see
   [Mobile App](./mobile-app.md).
-- **The shift roster** — the *plan* rather than the record — is configuration, so it
-  lives in Company Setup: see [Shift Roster](#shift-roster) below.
+- **The shift roster** — the *plan* the record is judged against — is the module's
+  other section: see [Shift Roster](#shift-roster) below.
+- The board's **Sign off N days** and **Re-apply rules** sit in its toolbar, before the
+  exports and manual entry; the header holds the sections.
 
 The daily log stays a per-person table — the right tool for "what happened today" — while
 the weekly/monthly tabs give the depth and the exceptions table gives the utility (so it
@@ -301,16 +308,18 @@ own.
 
 ## Shift Roster
 
-**`/setup/roster`** (Company Setup → Shift Roster) — the **plan** rather than the record:
+**`/attendance/roster`** (Attendance → Shift roster) — the **plan** rather than the record:
 employees down, the week across, each cell the shift `ShiftResolver` says applies, with
 the schedule's name under it and a **pin** where a one-off override is in force. Its
 stepper is not capped at today — planning next week is the point of it — with search and
 a department filter. Clicking a cell opens the override (another shift's hours for that
 date, hours of its own, or a day off, with a reason); **Assign a schedule** puts the
-week's people on a shift from a date. It sits beside the schedules it is made of, because
-it is what attendance is judged *against*, not what happened. Gated on
-`setup.roster.view` / `setup.roster.manage`; built by `ShiftRosterQuery`, written by
-`Setup\ShiftRosterController` through `RosterWriter` and `ScheduleAssigner`.
+week's people on a shift from a date (in the toolbar). It sits beside the time records,
+because planning who works when is day-to-day attendance work (ADR 0090); the schedules it
+is made of stay in Company Setup. Gated on `attendance.roster.view` /
+`attendance.roster.manage`; built by `ShiftRosterQuery` (the page's props by
+`ShiftRosterScreen`), written by `Attendance\ShiftRosterController` through `RosterWriter`
+and `ScheduleAssigner`. `/setup/roster` redirects here.
 
 Each employee sees **their own row** in the mobile app's **My schedule**
 (`GET /api/schedule`, `MySchedule`,
@@ -378,7 +387,7 @@ non-working holidays, and never seeds a punch that has not happened yet).
 re-applying rules, sign-off) and `attendance.clock` (record your own punches). Built-in
 roles: **HR Manager** gets all of them; **Department Head** and **Staff** get
 `attendance.clock` (the Department Head also `attendance.view`). The roster is
-`setup.roster.view` / `setup.roster.manage` (overrides and assigning schedules —
+`attendance.roster.view` / `attendance.roster.manage` (overrides and assigning schedules —
 including naming an attendance policy on the assignment). The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
 `setup.locations.view` / `.manage`. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
@@ -392,10 +401,10 @@ The agent's **Attendance** capability (available with `attendance.view` or
 - **`record_punch`** — clock an employee in/out (gated by `attendance.manage`).
 - **`find_shifts`** — "who works Saturday?", "what is Ana's shift next week?" — the
   roster, not the records, with each shift's source spelled out. Gated by
-  `setup.roster.view`; your own shifts need nothing. Capped at 31 days, 200 people
+  `attendance.roster.view`; your own shifts need nothing. Capped at 31 days, 200 people
   and 40 cards.
 - **`set_roster_entry`** — "put Ben on the night shift on the 20th" (gated by
-  `setup.roster.manage`).
+  `attendance.roster.manage`).
 - **`find_attendance_exceptions`** — "who hasn't clocked in?", "who is missing a
   clock-out?", "who punched outside the office this week?": not clocked in, missing
   clock-out, outside the site, auto-closed, absent, clock skew, or all

@@ -7,7 +7,6 @@ import { OffboardingProgramsManager } from '@/features/offboarding/components/pr
 import { OnboardingProgramsManager } from '@/features/onboarding/components/programs-manager';
 import { CATEGORY_META } from '@/features/onboarding/constants';
 import type { TaskCategory } from '@/features/onboarding/types';
-import { RosterManager } from '@/features/roster/components/roster-manager';
 import AttendanceStep from '@/features/setup-wizard/components/attendance-step';
 import AwardsStep from '@/features/setup-wizard/components/awards-step';
 import ChecklistStep from '@/features/setup-wizard/components/checklist-step';
@@ -304,28 +303,6 @@ function StepView({
                             <SectionHeading
                                 title="Your sites"
                                 hint="Draw each office, plant or store as a fence on the map. Whether a punch from outside one is flagged or refused is each attendance policy’s call; people and a default schedule and policy can be set per site."
-                            />
-                        }
-                    />
-                </EditorStep>
-            );
-
-        case 'roster':
-            return (
-                <EditorStep
-                    {...controls}
-                    emptyNote="Set a default schedule first, or skip — the roster fills in as people join."
-                >
-                    <RosterManager
-                        {...screenFor<'roster'>()}
-                        reload={{
-                            url: setupWizardRoutes.view('roster'),
-                            only: ['screen'],
-                        }}
-                        heading={
-                            <SectionHeading
-                                title="The week ahead"
-                                hint="Everyone works the company default schedule unless their department, site or own assignment says otherwise. Put people on a schedule from a date, or change one day’s shift by clicking it."
                             />
                         }
                     />

@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import ChoiceCard from './choice-card';
 import CustomSection, { CustomRow } from './custom-section';
+import PositionPicker from './position-picker';
 import SectionHeading from './section-heading';
 import StepBody from './step-body';
 import StepFooter, { continueAction } from './step-footer';
@@ -25,9 +26,11 @@ type Props = StepControls & {
 
 /**
  * The org structure. Tick the functions the company has, reword the ones it
- * calls something else, and add the ones only it has — then shape them in the
- * same board Company Setup uses: nest them, give each a head, the schedule and
- * policy its people default to, and the positions under it.
+ * calls something else, and add the ones only it has — each with its positions:
+ * a ticked suggestion opens its usual titles, already selected, and any
+ * department can take titles typed for it. Then shape them in the same board
+ * Company Setup uses: nest them, give each a head, the schedule and policy its
+ * people default to, and salary grades for the positions.
  *
  * Nothing is pre-ticked: a department list is the one thing on this screen that
  * really is different at every company, and a pre-filled one would be adopted
@@ -59,7 +62,13 @@ export default function DepartmentsStep({
     } = useForm({
         codes: [] as string[],
         custom: [] as DepartmentDraft[],
+        /** Ticked suggestion code => the position titles to create under it. */
+        positions: {} as Record<string, string[]>,
     });
+
+    const offered = (code: string | null) =>
+        blueprints.find((blueprint) => blueprint.code === code)?.positions ??
+        [];
 
     const taken = new Set(existing.map((name) => name.toLowerCase()));
 
@@ -71,16 +80,31 @@ export default function DepartmentsStep({
             .filter((code): code is string => code !== null),
     );
 
+    /** Ticking a suggestion brings its usual positions; unticking drops them. */
     const toggle = (code: string, checked: boolean) => {
         clearErrors('codes');
 
-        setData(
-            'codes',
-            checked
-                ? [...data.codes, code]
-                : data.codes.filter((value) => value !== code),
-        );
+        setData((current) => {
+            const positions = { ...current.positions };
+
+            if (checked) {
+                positions[code] = offered(code);
+            } else {
+                delete positions[code];
+            }
+
+            return {
+                ...current,
+                codes: checked
+                    ? [...current.codes, code]
+                    : current.codes.filter((value) => value !== code),
+                positions,
+            };
+        });
     };
+
+    const setPositions = (code: string, titles: string[]) =>
+        setData('positions', { ...data.positions, [code]: titles });
 
     const setRow = (index: number, patch: Partial<DepartmentDraft>) => {
         setData(
@@ -96,20 +120,30 @@ export default function DepartmentsStep({
         setData('custom', [...data.custom, draft]);
     };
 
-    /** Take a suggestion over: out of the ticked list, into the company's own. */
+    /**
+     * Take a suggestion over: out of the ticked list, into the company's own —
+     * with the positions it had picked, or its usual ones if it wasn't ticked.
+     */
     const customise = (blueprint: DepartmentBlueprint) => {
-        setData((current) => ({
-            codes: current.codes.filter((code) => code !== blueprint.code),
-            custom: [
-                ...current.custom,
-                {
-                    name: blueprint.name,
-                    code: blueprint.code,
-                    description: blueprint.description,
-                    source: blueprint.code,
-                },
-            ],
-        }));
+        setData((current) => {
+            const { [blueprint.code]: picked, ...positions } =
+                current.positions;
+
+            return {
+                codes: current.codes.filter((code) => code !== blueprint.code),
+                custom: [
+                    ...current.custom,
+                    {
+                        name: blueprint.name,
+                        code: blueprint.code,
+                        description: blueprint.description,
+                        source: blueprint.code,
+                        positions: picked ?? blueprint.positions,
+                    },
+                ],
+                positions,
+            };
+        });
     };
 
     const total =
@@ -132,6 +166,7 @@ export default function DepartmentsStep({
                 name: row.name,
                 code: row.code,
                 description: row.description,
+                positions: row.positions,
             })),
         }));
 
@@ -219,6 +254,14 @@ export default function DepartmentsStep({
                 aria-label={`Department ${index + 1} description`}
                 className="mt-2 bg-background"
             />
+
+            <PositionPicker
+                department={row.name || `department ${index + 1}`}
+                suggested={offered(row.source)}
+                value={row.positions}
+                onChange={(titles) => setRow(index, { positions: titles })}
+                className="mt-3 border-t border-dashed border-sidebar-border pt-3"
+            />
         </CustomRow>
     ));
 
@@ -231,11 +274,11 @@ export default function DepartmentsStep({
                     collapsible={controls.configured}
                     description={
                         <>
-                            Pick the ones your company has. Call one something
-                            else with{' '}
+                            Pick the ones your company has. Each brings its
+                            usual positions: untick the ones you don't use, or
+                            add your own. Call a department something else with{' '}
                             <span className="text-foreground">Customise</span>,
-                            or name your own — then nest them and add positions
-                            below.
+                            or name your own.
                         </>
                     }
                     summary={
@@ -248,53 +291,81 @@ export default function DepartmentsStep({
                     submitDisabled={total === 0}
                     processing={processing && !continuing}
                 >
-                    <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div className="grid items-start gap-2.5 sm:grid-cols-2">
                         {blueprints.map((blueprint) => {
                             const already = taken.has(
                                 blueprint.name.toLowerCase(),
                             );
                             const moved = customised.has(blueprint.code);
 
+                            const ticked = data.codes.includes(blueprint.code);
+
                             return (
-                                <ChoiceCard
+                                <div
                                     key={blueprint.code}
-                                    mode="multiple"
-                                    name="departments"
-                                    value={blueprint.code}
-                                    checked={data.codes.includes(
-                                        blueprint.code,
+                                    className="flex flex-col"
+                                >
+                                    <ChoiceCard
+                                        mode="multiple"
+                                        name="departments"
+                                        value={blueprint.code}
+                                        checked={ticked}
+                                        // Joined to the positions under it.
+                                        className={
+                                            ticked
+                                                ? '[&>span]:rounded-b-none'
+                                                : undefined
+                                        }
+                                        onChange={(checked) =>
+                                            toggle(blueprint.code, checked)
+                                        }
+                                        disabled={already || moved}
+                                        title={blueprint.name}
+                                        description={blueprint.description}
+                                        aside={
+                                            already ? (
+                                                'Already added'
+                                            ) : moved ? (
+                                                'In your list'
+                                            ) : (
+                                                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
+                                                    {blueprint.code}
+                                                </code>
+                                            )
+                                        }
+                                        action={
+                                            already || moved ? undefined : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        customise(blueprint)
+                                                    }
+                                                    className="ml-7 text-[11px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                                                >
+                                                    Customise
+                                                </button>
+                                            )
+                                        }
+                                    />
+                                    {ticked && (
+                                        <PositionPicker
+                                            department={blueprint.name}
+                                            suggested={blueprint.positions}
+                                            value={
+                                                data.positions[
+                                                    blueprint.code
+                                                ] ?? []
+                                            }
+                                            onChange={(titles) =>
+                                                setPositions(
+                                                    blueprint.code,
+                                                    titles,
+                                                )
+                                            }
+                                            className="rounded-b-xl border border-t-0 border-[#0ABFBF] bg-[#0ABFBF]/[0.03] px-4 pt-3 pb-4"
+                                        />
                                     )}
-                                    onChange={(checked) =>
-                                        toggle(blueprint.code, checked)
-                                    }
-                                    disabled={already || moved}
-                                    title={blueprint.name}
-                                    description={blueprint.description}
-                                    aside={
-                                        already ? (
-                                            'Already added'
-                                        ) : moved ? (
-                                            'In your list'
-                                        ) : (
-                                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
-                                                {blueprint.code}
-                                            </code>
-                                        )
-                                    }
-                                    action={
-                                        already || moved ? undefined : (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    customise(blueprint)
-                                                }
-                                                className="ml-7 text-[11px] font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                                            >
-                                                Customise
-                                            </button>
-                                        )
-                                    }
-                                />
+                                </div>
                             );
                         })}
                     </div>
@@ -303,7 +374,7 @@ export default function DepartmentsStep({
 
                     <CustomSection
                         title="Departments you name yourself"
-                        hint="Anything the list above doesn't cover, and anything you customised. A short code goes on reports and exports — leave it blank and we'll make one from the name."
+                        hint="Anything the list above doesn't cover, and anything you customised, with the positions in it. A short code goes on reports and exports — leave it blank and we'll make one from the name."
                         addLabel="Add a department"
                         empty="Nothing here yet. Everything you add becomes a real department you can nest, staff and post jobs against."
                         onAdd={() =>
@@ -312,6 +383,7 @@ export default function DepartmentsStep({
                                 code: '',
                                 description: '',
                                 source: null,
+                                positions: [],
                             })
                         }
                     >
@@ -321,7 +393,7 @@ export default function DepartmentsStep({
 
                 <SectionHeading
                     title="Your departments"
-                    hint="Open a department to add the positions under it. Edit one to nest it under another, or to set the schedule and attendance policy its people default to. Heads can be named once people have joined."
+                    hint="Open a department to add more positions or set their salary grades. Edit one to nest it under another, or to set the schedule and attendance policy its people default to. Heads can be named once people have joined."
                 />
 
                 <DepartmentsManager {...screen} showStats={false} />

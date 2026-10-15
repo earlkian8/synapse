@@ -265,6 +265,14 @@ final class HelpCenter
             'keywords' => ['correct attendance', 'manual entry', 'missed punch', 'forgot to clock out', 'sign off', 'approve overtime', 're-apply rules', 'edit punches'],
             'related' => ['reviewing-attendance', 'attendance-policies'],
         ],
+        'shift-roster' => [
+            'category' => 'workforce', 'title' => 'Shift roster',
+            'summary' => 'See who works which shift each day, assign people to a schedule from a date, and change a single day.',
+            'any' => ['attendance.roster.view'],
+            'keywords' => ['roster', 'shift', 'assignment', 'override', 'day off', 'who works', 'plan'],
+            'screens' => ['/attendance/roster'],
+            'related' => ['work-schedules-and-holidays', 'reviewing-attendance'],
+        ],
         'clocking-in-and-out' => [
             'category' => 'workforce', 'title' => 'Clocking in and out',
             'summary' => 'Record your own time: clocking in, breaks and clocking out, and what happens when a punch is refused.',
@@ -484,14 +492,6 @@ final class HelpCenter
             'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'rest day', 'night shift', 'rotation', 'split shift', 'grace', 'holy week', 'maundy thursday', 'good friday', 'easter', 'local holiday', 'regional holiday'],
             'screens' => ['/setup/schedule'],
             'related' => ['shift-roster', 'attendance-policies'],
-        ],
-        'shift-roster' => [
-            'category' => 'company-setup', 'title' => 'Shift roster',
-            'summary' => 'See who works which shift each day, assign people to a schedule from a date, and change a single day.',
-            'any' => ['setup.roster.view'],
-            'keywords' => ['roster', 'shift', 'assignment', 'override', 'day off', 'who works', 'plan'],
-            'screens' => ['/setup/roster'],
-            'related' => ['work-schedules-and-holidays', 'reviewing-attendance'],
         ],
         'attendance-policies' => [
             'category' => 'company-setup', 'title' => 'Attendance policies',

@@ -36,21 +36,43 @@ use Carbon\CarbonInterface;
 class SetupBlueprints
 {
     /**
-     * The functions almost every company has. Codes match the ones the demo
-     * tenant seeds, so a company that adopts these reads the same as the sample
-     * data people are shown.
+     * The functions almost every company has, each with the positions it usually
+     * holds. Codes and titles match the ones the demo tenant seeds, so a company
+     * that adopts these reads the same as the sample data people are shown.
      *
-     * @return list<array{code: string, name: string, description: string}>
+     * Ticking a department offers its positions already ticked — the owner chose
+     * the department, and the titles are listed right under it to untick — and
+     * any title the company uses instead is typed beside them.
+     *
+     * @return list<array{code: string, name: string, description: string, positions: list<string>}>
      */
     public static function departments(): array
     {
         return [
-            ['code' => 'HR', 'name' => 'Human Resources', 'description' => 'Hiring, records, benefits and employee relations.'],
-            ['code' => 'FIN', 'name' => 'Finance', 'description' => 'Accounting, payroll, budgeting and statutory remittances.'],
-            ['code' => 'OPS', 'name' => 'Operations', 'description' => 'The work the business is paid for, and the people who deliver it.'],
-            ['code' => 'IT', 'name' => 'Information Technology', 'description' => 'Systems, equipment, access and support.'],
-            ['code' => 'SAL', 'name' => 'Sales & Marketing', 'description' => 'Winning customers and keeping them.'],
-            ['code' => 'ADM', 'name' => 'Administration', 'description' => 'Facilities, procurement and general office support.'],
+            [
+                'code' => 'HR', 'name' => 'Human Resources', 'description' => 'Hiring, records, benefits and employee relations.',
+                'positions' => ['HR Manager', 'HR Officer', 'Recruiter'],
+            ],
+            [
+                'code' => 'FIN', 'name' => 'Finance', 'description' => 'Accounting, payroll, budgeting and statutory remittances.',
+                'positions' => ['Finance Manager', 'Accountant', 'Payroll Officer'],
+            ],
+            [
+                'code' => 'OPS', 'name' => 'Operations', 'description' => 'The work the business is paid for, and the people who deliver it.',
+                'positions' => ['Operations Manager', 'Operations Supervisor', 'Operations Associate'],
+            ],
+            [
+                'code' => 'IT', 'name' => 'Information Technology', 'description' => 'Systems, equipment, access and support.',
+                'positions' => ['IT Manager', 'Software Engineer', 'Systems Administrator', 'IT Support Specialist'],
+            ],
+            [
+                'code' => 'SAL', 'name' => 'Sales & Marketing', 'description' => 'Winning customers and keeping them.',
+                'positions' => ['Sales Manager', 'Account Executive', 'Marketing Specialist'],
+            ],
+            [
+                'code' => 'ADM', 'name' => 'Administration', 'description' => 'Facilities, procurement and general office support.',
+                'positions' => ['Office Manager', 'Administrative Assistant', 'Purchasing Officer'],
+            ],
         ];
     }
 

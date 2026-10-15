@@ -39,14 +39,16 @@ use Illuminate\Support\Facades\DB;
 class SetupInstaller
 {
     /**
-     * Create the given departments. Returns how many were new — the count the
-     * wizard reports back.
+     * Create the given departments, each with the positions it was defined
+     * with. Returns how many of each were new — the counts the wizard reports
+     * back. A department that already exists is left alone, its positions too.
      *
-     * @param  list<array{name: string, code: string, description: string|null}>  $definitions
+     * @param  list<array{name: string, code: string, description: string|null, positions?: list<string>}>  $definitions
+     * @return array{departments: int, positions: int}
      */
-    public static function departments(array $definitions): int
+    public static function departments(array $definitions): array
     {
-        $created = 0;
+        $created = ['departments' => 0, 'positions' => 0];
 
         foreach ($definitions as $definition) {
             // The per-tenant unique index on `code` ignores archived rows, so ask
@@ -56,13 +58,18 @@ class SetupInstaller
                 continue;
             }
 
-            Department::create([
+            $department = Department::create([
                 'name' => $definition['name'],
                 'code' => $definition['code'],
                 'description' => $definition['description'],
             ]);
 
-            $created++;
+            $created['departments']++;
+
+            foreach ($definition['positions'] ?? [] as $title) {
+                $department->positions()->create(['title' => $title]);
+                $created['positions']++;
+            }
         }
 
         return $created;

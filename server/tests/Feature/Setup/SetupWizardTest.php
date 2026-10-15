@@ -4,6 +4,7 @@ use App\Models\Department;
 use App\Models\KpiCriterion;
 use App\Models\LeaveType;
 use App\Models\Organization;
+use App\Models\Position;
 use App\Models\RatingScale;
 use App\Models\RecruitmentPipeline;
 use App\Models\ReviewTemplate;
@@ -177,6 +178,69 @@ test('the departments step creates the picked suggestions and the typed ones', f
     expect(Department::pluck('code')->sort()->values()->all())->toBe(['FIN', 'HR', 'QA'])
         ->and(Department::where('code', 'HR')->value('name'))->toBe('Human Resources')
         ->and(CompanySetup::statuses($organization->refresh())['departments'])->toBe(CompanySetup::DONE);
+});
+
+test('a ticked department brings the positions left picked, and the ones typed for it', function () {
+    actingAsSuperAdmin();
+    unfinishedTenant();
+
+    $this->post(route('setup.wizard.departments'), [
+        'codes' => ['FIN', 'IT'],
+        // Accountant unticked from Finance, a title typed beside the others, and
+        // one typed twice in different case — kept once.
+        'positions' => [
+            'FIN' => ['Finance Manager', 'Payroll Officer', ' Tax Specialist ', 'tax specialist', ''],
+            'IT' => SetupBlueprints::departments()[3]['positions'],
+        ],
+        'custom' => [[
+            'name' => 'Quality Assurance', 'code' => 'QA',
+            'positions' => ['QA Lead', 'QA Analyst'],
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    assertToast('success', '3 departments and 9 positions added.');
+
+    $titles = fn (string $code): array => Position::query()
+        ->where('department_id', Department::where('code', $code)->value('id'))
+        ->orderBy('id')->pluck('title')->all();
+
+    expect($titles('FIN'))->toBe(['Finance Manager', 'Payroll Officer', 'Tax Specialist'])
+        ->and($titles('IT'))->toBe(['IT Manager', 'Software Engineer', 'Systems Administrator', 'IT Support Specialist'])
+        ->and($titles('QA'))->toBe(['QA Lead', 'QA Analyst']);
+});
+
+test('every suggested department offers its usual positions', function () {
+    foreach (SetupBlueprints::departments() as $blueprint) {
+        expect($blueprint['positions'])->not->toBeEmpty();
+    }
+});
+
+test('positions are only taken for a department being added in the step', function () {
+    actingAsSuperAdmin();
+    unfinishedTenant();
+
+    $this->post(route('setup.wizard.departments'), [
+        'codes' => ['HR'],
+        'positions' => ['FIN' => ['Accountant']],
+        'custom' => [],
+    ])->assertSessionHasErrors('positions');
+
+    expect(Department::count())->toBe(0)
+        ->and(Position::count())->toBe(0);
+});
+
+test('a department the company already has keeps its own positions', function () {
+    actingAsSuperAdmin();
+    unfinishedTenant();
+    Department::create(['name' => 'Human Resources', 'code' => 'HR']);
+
+    $this->post(route('setup.wizard.departments'), [
+        'codes' => ['HR', 'FIN'],
+        'positions' => ['HR' => ['Recruiter'], 'FIN' => ['Accountant']],
+        'custom' => [],
+    ])->assertSessionHasNoErrors();
+
+    expect(Position::pluck('title')->all())->toBe(['Accountant']);
 });
 
 test('a typed department with no code gets one from its name', function () {

@@ -1,7 +1,6 @@
 import {
     Award,
     Building2,
-    CalendarClock,
     CalendarDays,
     CalendarRange,
     Clock,
@@ -39,8 +38,8 @@ export const GROUPS: { group: StepGroup; label: string }[] = [
 /**
  * Every Company Setup screen as a step, in the order the server walks them
  * (`CompanySetup::STEPS`). Where one step's options come from an earlier one —
- * a site's default schedule, a roster's schedules — the earlier one comes
- * first.
+ * a site's default schedule — the earlier one comes first. The shift roster is
+ * Attendance's, not a step (ADR 0090).
  */
 export const STEPS: StepMeta[] = [
     {
@@ -101,16 +100,6 @@ export const STEPS: StepMeta[] = [
         purpose:
             'Each site is a fence on the map that web and app punches are placed against.',
         href: '/setup/locations',
-    },
-    {
-        step: 'roster',
-        group: 'time',
-        icon: CalendarClock,
-        label: 'Shift roster',
-        title: 'Who works which shift?',
-        purpose:
-            'The plan each day of attendance is judged against — who is due in, and when.',
-        href: '/setup/roster',
     },
     {
         step: 'recruitment',

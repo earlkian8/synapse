@@ -87,6 +87,14 @@ final class DataExportCatalogue
                 ['table' => 'attendance_punches', 'files' => ['photo']],
             ],
         ],
+        'roster' => [
+            'label' => 'Shift roster', 'section' => 'Workforce', 'permission' => 'attendance.roster.view',
+            'description' => 'Who was assigned which schedule and when, and every one-off shift override.',
+            'tables' => [
+                ['table' => 'employee_schedule_assignments'],
+                ['table' => 'shift_roster_entries'],
+            ],
+        ],
         'leave' => [
             'label' => 'Leave', 'section' => 'Workforce', 'permission' => 'leave.view',
             'description' => 'Leave types, yearly entitlements and every request with its review.',
@@ -221,14 +229,6 @@ final class DataExportCatalogue
                 ['table' => 'holidays'],
                 // Which sites a local holiday is kept at (ADR 0078).
                 ['table' => 'holiday_work_location', 'scope' => 'work_locations'],
-            ],
-        ],
-        'roster' => [
-            'label' => 'Shift roster', 'section' => 'Company Setup', 'permission' => 'setup.roster.view',
-            'description' => 'Who was assigned which schedule and when, and every one-off shift override.',
-            'tables' => [
-                ['table' => 'employee_schedule_assignments'],
-                ['table' => 'shift_roster_entries'],
             ],
         ],
         'attendance-policies' => [

@@ -1,26 +1,29 @@
 <?php
 
-namespace App\Queries\Setup;
+namespace App\Queries;
 
 use App\Models\AttendancePolicy;
 use App\Models\Department;
 use App\Models\WorkSchedule;
-use App\Queries\AttendanceRecordsIndexQuery;
-use App\Queries\ShiftRosterQuery;
 use Illuminate\Http\Request;
 
 /**
- * Company Setup → Shift Roster (ADR 0037): the week containing `date` (the
+ * Attendance → Shift Roster (ADR 0037, 0090): the week containing `date` (the
  * organisation's this week by default), optionally narrowed to one department or
  * a search, and the templates its dialogs choose from.
  */
-class ShiftRosterScreen implements SetupScreen
+class ShiftRosterScreen
 {
     public function __construct(
         private readonly ShiftRosterQuery $roster,
         private readonly AttendanceRecordsIndexQuery $dates,
     ) {}
 
+    /**
+     * The roster page's props, shaped as the client's `RosterPageProps`.
+     *
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         $date = $this->dates->date($request);
@@ -44,7 +47,7 @@ class ShiftRosterScreen implements SetupScreen
                 // What an assignment can single somebody out to be judged by (ADR 0038).
                 'policies' => AttendancePolicy::query()->orderBy('name')->get(['id', 'name']),
             ],
-            'can' => ['manage' => $request->user()->can('setup.roster.manage')],
+            'can' => ['manage' => $request->user()->can('attendance.roster.manage')],
             'filters' => [
                 'date' => $date,
                 'search' => $search,

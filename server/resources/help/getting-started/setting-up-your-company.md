@@ -12,18 +12,19 @@ The guide runs in three stretches:
 |                               | 4 · Schedules & holidays | Working hours and your holiday calendar                        |
 |                               | 5 · Leave                | The kinds of leave you offer                                   |
 |                               | 6 · Locations            | Your work sites and their clock-in fences                      |
-|                               | 7 · Shift roster         | Who works which shift                                          |
-| **Your people, hire to exit** | 8 · Hiring               | The stages your hiring runs through                            |
-|                               | 9 · Onboarding           | The checklist new hires start from                             |
-|                               | 10 · Appraisals          | What appraisals are scored against, and a review cycle         |
-|                               | 11 · Awards              | The awards you give                                            |
-|                               | 12 · Offboarding         | The clearance checklist for exits                              |
+| **Your people, hire to exit** | 7 · Hiring               | The stages your hiring runs through                            |
+|                               | 8 · Onboarding           | The checklist new hires start from                             |
+|                               | 9 · Appraisals           | What appraisals are scored against, and a review cycle         |
+|                               | 10 · Awards              | The awards you give                                            |
+|                               | 11 · Offboarding         | The clearance checklist for exits                              |
+
+Who works which shift is not a setup step: it fills in as people join, and you plan it day to day on the [shift roster](/help/workforce/shift-roster), in **Attendance**.
 
 ## Working through a step
 
 Each step is laid out the same way:
 
-1. **Suggestions**, where there are any — for example common departments, the Philippine holiday calendar, statutory leave types or ready-made hiring processes. Tick the ones you want; most can be **customised** before you add them, and every step lets you start from nothing instead.
+1. **Suggestions**, where there are any — for example common departments with their usual positions, the Philippine holiday calendar, statutory leave types or ready-made hiring processes. Tick the ones you want; most can be **customised** before you add them, and every step lets you start from nothing instead.
 2. **The editor** — the Company Setup screen itself. Anything you add appears here straight away, ready to rename, nest or extend.
 3. **The footer** — **Back**, **Skip this step**, and one button forward. **Continue** needs the step to hold something; if you picked suggestions, the button says what it will add first (for example "Add 5 leave types and continue").
 

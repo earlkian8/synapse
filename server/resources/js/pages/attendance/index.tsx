@@ -1,9 +1,10 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CheckCheck, RefreshCw, UserRound } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { CheckCheck, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PageBody, PageHeader } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
+import { AttendanceNav } from '@/features/attendance/components/attendance-nav';
 import { AttendanceStatsCards } from '@/features/attendance/components/attendance-stats';
 import { AttendanceToolbar } from '@/features/attendance/components/attendance-toolbar';
 import { AttendanceViewTabs } from '@/features/attendance/components/attendance-view-tabs';
@@ -195,40 +196,7 @@ export default function AttendanceIndex() {
                 <PageHeader
                     title="Attendance"
                     description="The team's daily time records — who's in, who's late, and who's out."
-                    actions={
-                        <>
-                            {can.manage && stats.pending > 0 && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setApproveOpen(true)}
-                                >
-                                    <CheckCheck className="size-4" />
-                                    Sign off{' '}
-                                    <span className="tabular-nums">
-                                        {stats.pending}
-                                    </span>{' '}
-                                    {stats.pending === 1 ? 'day' : 'days'}
-                                </Button>
-                            )}
-                            {can.manage && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setReapplyOpen(true)}
-                                >
-                                    <RefreshCw className="size-4" />
-                                    Re-apply rules
-                                </Button>
-                            )}
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href={attendanceRoutes.me}>
-                                    <UserRound className="size-4" />
-                                    My attendance
-                                </Link>
-                            </Button>
-                        </>
-                    }
+                    actions={<AttendanceNav current="records" />}
                 />
 
                 <AttendanceStatsCards stats={stats} />
@@ -237,6 +205,36 @@ export default function AttendanceIndex() {
                     <AttendanceViewTabs value={filters.tab} onChange={setTab} />
 
                     <AttendanceToolbar
+                        before={
+                            can.manage && (
+                                <>
+                                    {stats.pending > 0 && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setApproveOpen(true)}
+                                        >
+                                            <CheckCheck className="size-4" />
+                                            Sign off{' '}
+                                            <span className="tabular-nums">
+                                                {stats.pending}
+                                            </span>{' '}
+                                            {stats.pending === 1
+                                                ? 'day'
+                                                : 'days'}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setReapplyOpen(true)}
+                                    >
+                                        <RefreshCw className="size-4" />
+                                        Re-apply rules
+                                    </Button>
+                                </>
+                            )
+                        }
                         filters={filters}
                         departments={options.departments}
                         canManage={can.manage}

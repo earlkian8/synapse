@@ -92,7 +92,7 @@ class AttendanceModule extends Module implements ContributesContext, ExplainsCon
     {
         return [
             'record_punch' => 'attendance.manage',
-            'set_roster_entry' => 'setup.roster.manage',
+            'set_roster_entry' => 'attendance.roster.manage',
             'find_attendance_exceptions' => 'attendance.view',
             'find_pending_sign_offs' => 'attendance.view',
             'sign_off_attendance' => 'attendance.manage',
@@ -492,7 +492,7 @@ class AttendanceModule extends Module implements ContributesContext, ExplainsCon
     {
         // The same rule as attendance: without the roster permission, only the
         // asker's own shifts exist here, and nobody else's name is looked up.
-        if ($user->cannot('setup.roster.view')) {
+        if ($user->cannot('attendance.roster.view')) {
             $employee = $this->ownRecordNamed($user, $args);
 
             if (! $employee) {
@@ -561,7 +561,7 @@ class AttendanceModule extends Module implements ContributesContext, ExplainsCon
      */
     private function setRosterEntry(User $user, array $args): ToolResult
     {
-        if ($user->cannot('setup.roster.manage')) {
+        if ($user->cannot('attendance.roster.manage')) {
             return $this->denied('change the shift roster');
         }
 

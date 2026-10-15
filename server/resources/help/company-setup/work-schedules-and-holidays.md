@@ -23,7 +23,7 @@ Each schedule shows how many people are assigned to it. Star one as your **compa
 
 The most specific one wins, in this order:
 
-1. a one-off change on the [shift roster](/help/company-setup/shift-roster) for that day;
+1. a one-off change on the [shift roster](/help/workforce/shift-roster) for that day;
 2. a schedule assigned to them from a date;
 3. the schedule on their employee record;
 4. their department's default;
@@ -48,7 +48,7 @@ A holiday that follows Easter or a weekday is worked out for every year — you 
 
 ### Who keeps it
 
-A holiday is kept by **everyone**, or only at **some sites** — a city's charter day, a provincial feast. A local holiday is a day off only for the people whose base site (their primary [work location](/help/company-setup/work-locations), or their only one) is one of its sites: their leave isn't charged on it and their attendance reads it as a holiday. Everyone else works as usual. The [shift roster](/help/company-setup/shift-roster) marks it on the person's own cell.
+A holiday is kept by **everyone**, or only at **some sites** — a city's charter day, a provincial feast. A local holiday is a day off only for the people whose base site (their primary [work location](/help/company-setup/work-locations), or their only one) is one of its sites: their leave isn't charged on it and their attendance reads it as a holiday. Everyone else works as usual. The [shift roster](/help/workforce/shift-roster) marks it on the person's own cell.
 
 ### Type
 

@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -41,16 +42,19 @@ function weekLabel(date: string): string {
 }
 
 /**
- * The roster's week stepper and filters. The roster reads forward — next week
- * is planned before it happens — so the stepper never stops at today.
+ * The roster's week stepper, filters and actions. The roster reads forward —
+ * next week is planned before it happens — so the stepper never stops at today.
  */
 export function RosterToolbar({
+    actions,
     filters,
     departments,
     onDate,
     onSearch,
     onDepartment,
 }: {
+    /** What can be done to the roster as a whole — assigning a schedule. */
+    actions?: ReactNode;
     filters: RosterFilters;
     departments: DepartmentRef[];
     onDate: (value: string) => void;
@@ -178,6 +182,8 @@ export function RosterToolbar({
                         ))}
                     </SelectContent>
                 </Select>
+
+                {actions}
             </div>
         </div>
     );

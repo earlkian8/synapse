@@ -63,6 +63,7 @@ Each is guarded by the view permission of its screen.
 | | `onboarding` | `onboarding.view` | onboarding_programs, onboarding_program_tasks, onboarding_cases, onboarding_tasks |
 | Workforce | `employees` | `employees.view` | employees 📎, employee_documents 📎, employee_certifications 📎, employee_promotions, employee_invitations, organization_join_requests |
 | | `attendance` | `attendance.view` | attendance_records, attendance_punches 📎 |
+| | `roster` | `attendance.roster.view` | employee_schedule_assignments, shift_roster_entries |
 | | `leave` | `leave.view` | leave_types, leave_balances, leave_requests |
 | | `performance` | `performance.view` | rating_scales, kpi_criteria, review_templates, review_template_items, goal_templates, evaluation_periods, performance_evaluations, performance_scores, appraisal_reviews, appraisal_review_scores, performance_goals, goal_check_ins, calibration_sessions, calibration_participants, calibration_adjustments |
 | | `training` | `training.view` | training_programs, training_enrollments, training_sessions, training_attendances, training_costs, training_budgets (certificates are rows of employee_certifications) |
@@ -75,7 +76,6 @@ Each is guarded by the view permission of its screen.
 | Company Setup | `company` | `setup.company.view` | organizations (its own row) 📎 |
 | | `structure` | `setup.departments.view` | departments, positions |
 | | `schedules` | `setup.schedule.view` | work_schedules, work_schedule_days, holidays, holiday_work_location |
-| | `roster` | `setup.roster.view` | employee_schedule_assignments, shift_roster_entries |
 | | `attendance-policies` | `setup.attendance-policies.view` | attendance_policies |
 | | `locations` | `setup.locations.view` | work_locations, employee_work_locations |
 | System | `users` | `users.view` | users (members) 📎, organization_user |

@@ -69,6 +69,13 @@ final class SystemGuide
             'assistant' => 'Read attendance and exceptions, record punches, set roster entries, sign off days (one or all pending) and re-apply schedules and policies to a period.',
             'keywords' => ['attendance', 'dtr', 'time', 'clock', 'punch', 'late', 'overtime', 'absent', 'undertime', 'sign off', 'approve overtime'],
         ],
+        'roster' => [
+            'title' => 'Shift Roster', 'menu' => 'Attendance → Shift roster', 'path' => '/attendance/roster', 'any' => ['attendance.roster.view'],
+            'about' => 'Who works which schedule, and one-off shift changes for a day.',
+            'tasks' => ['Assign schedules to people', 'Override a single day'],
+            'assistant' => 'Read shifts and set a one-off roster entry; bulk assignment stays on this screen.',
+            'keywords' => ['roster', 'shift', 'assignment', 'override'],
+        ],
         'my-attendance' => [
             'title' => 'My attendance', 'menu' => 'Attendance (also the mobile app)', 'path' => '/attendance/me', 'any' => ['attendance.clock'],
             'about' => 'Your own time record, and clocking in and out.',
@@ -314,13 +321,6 @@ final class SystemGuide
             'assistant' => 'Everything on this screen.',
             'keywords' => ['schedule', 'shift', 'working hours', 'holiday', 'calendar', 'rest day', 'holy week', 'maundy thursday', 'good friday', 'local holiday', 'regional holiday'],
         ],
-        'roster' => [
-            'title' => 'Shift Roster', 'menu' => 'Company Setup', 'path' => '/setup/roster', 'any' => ['setup.roster.view'],
-            'about' => 'Who works which schedule, and one-off shift changes for a day.',
-            'tasks' => ['Assign schedules to people', 'Override a single day'],
-            'assistant' => 'Read shifts and set a one-off roster entry; bulk assignment stays on this screen.',
-            'keywords' => ['roster', 'shift', 'assignment', 'override'],
-        ],
         'attendance-policies' => [
             'title' => 'Attendance Policies', 'menu' => 'Company Setup', 'path' => '/setup/attendance-policies', 'any' => ['setup.attendance-policies.view'],
             'about' => 'How a day is judged: grace periods, rounding, overtime and night-differential rules, half days, and which clock-in methods count.',
@@ -474,7 +474,7 @@ final class SystemGuide
     public const SETUP_STEPS = [
         'company' => 'Company profile', 'departments' => 'Departments', 'attendance' => 'Attendance policies',
         'schedule' => 'Work schedules & holidays', 'leave-types' => 'Leave types', 'locations' => 'Locations',
-        'roster' => 'Shift roster', 'recruitment' => 'Recruitment pipelines', 'onboarding' => 'Onboarding programs',
+        'recruitment' => 'Recruitment pipelines', 'onboarding' => 'Onboarding programs',
         'performance' => 'Performance framework', 'awards' => 'Award types', 'offboarding' => 'Offboarding programs',
     ];
 

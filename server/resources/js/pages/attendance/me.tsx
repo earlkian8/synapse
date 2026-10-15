@@ -17,11 +17,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { AttendanceNav } from '@/features/attendance/components/attendance-nav';
 import { AttendanceStatusBadge } from '@/features/attendance/components/attendance-status-badge';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { PunchTimeline } from '@/features/attendance/components/punch-timeline';
 import { formatDuration, formatTime } from '@/features/attendance/constants';
-import { attendanceRoutes } from '@/features/attendance/routes';
 import type { MyAttendancePageProps } from '@/features/attendance/types';
 import { useOrganizationTimeZone } from '@/hooks/use-organization-time-zone';
 
@@ -52,12 +52,9 @@ export default function MyAttendance() {
 
             <PageBody>
                 <PageHeader
-                    back={{
-                        href: attendanceRoutes.index,
-                        label: 'Back to attendance',
-                    }}
                     title="My Attendance"
                     description="Clock in and out, and review your daily time record."
+                    actions={<AttendanceNav current="me" />}
                 />
 
                 <StatTiles
@@ -95,7 +92,7 @@ export default function MyAttendance() {
                     ]}
                 />
 
-                <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
                     {/* Clock + today */}
                     <div className="flex flex-col gap-4">
                         <ClockCard

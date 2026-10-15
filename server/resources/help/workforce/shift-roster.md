@@ -1,4 +1,4 @@
-**Company Setup** → **Shift Roster** is the **plan**: who is due to work what, day by day. Attendance is judged against it — the record of what actually happened is on the attendance board.
+**Attendance** → **Shift roster** is the **plan**: who is due to work what, day by day. Attendance is judged against it — the record of what actually happened is in the same module, under **Time records**. Switch between the two at the top of the page.
 
 ## Reading the roster
 

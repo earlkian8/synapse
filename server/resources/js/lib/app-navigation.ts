@@ -6,7 +6,6 @@ import {
     Building,
     CalendarCheck,
     CalendarClock,
-    CalendarCog,
     CalendarDays,
     CalendarRange,
     ClipboardList,
@@ -111,11 +110,14 @@ export const APP_NAVIGATION: AppNavGroup[] = [
             },
             // { title: 'Departments', href: '/departments', icon: Building2 },
             {
+                // One entry for the module (ADR 0090): the time records and the
+                // shift roster they are judged against. Somebody who may only see
+                // the roster lands on it.
                 title: 'Attendance',
                 href: '/attendance',
                 icon: CalendarCheck,
-                permission: 'attendance.view',
-                summary: 'Daily time records and sign-offs',
+                permissionAny: ['attendance.view', 'attendance.roster.view'],
+                summary: 'Time records, sign-offs and the shift roster',
             },
             // {
             //     title: 'My Attendance',
@@ -258,15 +260,6 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: CalendarClock,
                 permission: 'setup.schedule.view',
                 summary: 'Working hours and the holiday calendar',
-            },
-            {
-                // Who is due to work what, day by day (ADR 0037) — the plan each day
-                // of attendance is judged against.
-                title: 'Shift Roster',
-                href: '/setup/roster',
-                icon: CalendarCog,
-                permission: 'setup.roster.view',
-                summary: 'Who works which shift, day by day',
             },
             {
                 title: 'Attendance Policies',

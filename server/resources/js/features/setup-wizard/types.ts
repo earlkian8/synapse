@@ -19,7 +19,6 @@ import type {
     StageDraft,
     StageKind,
 } from '@/features/recruitment-pipelines/types';
-import type { RosterPageProps } from '@/features/roster/types';
 import type {
     HolidayType,
     ScheduleSetupPageProps,
@@ -37,7 +36,6 @@ export type SetupStep =
     | 'schedule'
     | 'leave-types'
     | 'locations'
-    | 'roster'
     | 'recruitment'
     | 'onboarding'
     | 'performance'
@@ -58,6 +56,8 @@ export type DepartmentBlueprint = {
     code: string;
     name: string;
     description: string;
+    /** The positions it usually holds, offered when it is ticked. */
+    positions: string[];
 };
 
 /** A suggested kind of leave, with the entitlement it normally carries. */
@@ -213,7 +213,6 @@ export type StepScreens = {
     schedule: ScheduleSetupPageProps;
     'leave-types': LeaveTypesPageProps;
     locations: LocationsPageProps;
-    roster: RosterPageProps;
     recruitment: PipelinesPageProps;
     onboarding: OnboardingProgramsPageProps;
     performance: KpiSetupPageProps;
@@ -291,6 +290,8 @@ export type DepartmentDraft = {
     description: string;
     /** The blueprint code this started as, or null when written from nothing. */
     source: string | null;
+    /** The position titles to create under it. */
+    positions: string[];
 };
 
 /** A kind of leave the company described itself, with its whole policy. */

@@ -11,9 +11,9 @@ type Props = StepControls & {
 };
 
 /**
- * A step that is its Company Setup editor and nothing else — sites, devices, the
- * roster — where there is no sensible suggestion to start from, because what is
- * there depends entirely on the company's own buildings, hardware and people.
+ * A step that is its Company Setup editor and nothing else — sites — where there
+ * is no sensible suggestion to start from, because what is there depends
+ * entirely on the company's own buildings.
  * Every action the screen offers is here; the step only adds the way on.
  */
 export default function EditorStep({

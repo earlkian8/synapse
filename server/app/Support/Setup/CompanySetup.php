@@ -7,7 +7,6 @@ use App\Http\Middleware\RequireCompanySetup;
 use App\Models\AttendancePolicy;
 use App\Models\AwardType;
 use App\Models\Department;
-use App\Models\EmployeeScheduleAssignment;
 use App\Models\Holiday;
 use App\Models\LeaveType;
 use App\Models\OffboardingProgram;
@@ -15,7 +14,6 @@ use App\Models\OnboardingProgram;
 use App\Models\Organization;
 use App\Models\RecruitmentPipeline;
 use App\Models\ReviewTemplate;
-use App\Models\ShiftRosterEntry;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Queries\Setup\AttendancePoliciesScreen;
@@ -29,7 +27,6 @@ use App\Queries\Setup\OnboardingProgramsScreen;
 use App\Queries\Setup\PerformanceFrameworkScreen;
 use App\Queries\Setup\RecruitmentPipelinesScreen;
 use App\Queries\Setup\SetupScreen;
-use App\Queries\Setup\ShiftRosterScreen;
 use App\Queries\Setup\WorkScheduleScreen;
 
 /**
@@ -63,8 +60,6 @@ class CompanySetup
 
     public const LOCATIONS = 'locations';
 
-    public const ROSTER = 'roster';
-
     public const RECRUITMENT = 'recruitment';
 
     public const ONBOARDING = 'onboarding';
@@ -78,10 +73,12 @@ class CompanySetup
     /**
      * The steps, in the order the wizard walks them: the company and its shape,
      * then time (how a day is judged, when people work, the time they take off,
-     * where they clock in, who works which shift), then a person's life
-     * at the company from hire to exit. Where one step's options come from an
-     * earlier one — a site's default schedule, a roster's schedules — the
-     * earlier one comes first.
+     * where they clock in), then a person's life at the company from hire to
+     * exit. Where one step's options come from an earlier one — a site's default
+     * schedule — the earlier one comes first.
+     *
+     * The shift roster is not a step (ADR 0090): it plans people's days, so it
+     * belongs to Attendance and fills in as people join.
      */
     public const STEPS = [
         self::COMPANY,
@@ -90,7 +87,6 @@ class CompanySetup
         self::SCHEDULE,
         self::LEAVE_TYPES,
         self::LOCATIONS,
-        self::ROSTER,
         self::RECRUITMENT,
         self::ONBOARDING,
         self::PERFORMANCE,
@@ -127,7 +123,6 @@ class CompanySetup
         self::SCHEDULE => 'setup.schedule.manage',
         self::LEAVE_TYPES => 'setup.leave-types.manage',
         self::LOCATIONS => 'setup.locations.manage',
-        self::ROSTER => 'setup.roster.manage',
         self::RECRUITMENT => 'recruitment.configure-pipelines',
         self::ONBOARDING => 'onboarding.manage-programs',
         self::PERFORMANCE => 'setup.kpi.manage',
@@ -149,7 +144,6 @@ class CompanySetup
         self::SCHEDULE => WorkScheduleScreen::class,
         self::LEAVE_TYPES => LeaveTypesScreen::class,
         self::LOCATIONS => LocationsScreen::class,
-        self::ROSTER => ShiftRosterScreen::class,
         self::RECRUITMENT => RecruitmentPipelinesScreen::class,
         self::ONBOARDING => OnboardingProgramsScreen::class,
         self::PERFORMANCE => PerformanceFrameworkScreen::class,
@@ -268,9 +262,7 @@ class CompanySetup
      * its Company Setup screen, or by the step's own actions, rather than through
      * its suggestions.
      *
-     * The company profile always exists, so its step is always configured. The
-     * roster is configured once anybody has something to be rostered on: a
-     * company default schedule, an assignment, or a one-off shift.
+     * The company profile always exists, so its step is always configured.
      *
      * @return array<string, bool>
      */
@@ -283,9 +275,6 @@ class CompanySetup
             self::SCHEDULE => WorkSchedule::query()->exists() || Holiday::query()->exists(),
             self::LEAVE_TYPES => LeaveType::query()->exists(),
             self::LOCATIONS => WorkLocation::query()->exists(),
-            self::ROSTER => $organization->default_work_schedule_id !== null
-                || EmployeeScheduleAssignment::query()->exists()
-                || ShiftRosterEntry::query()->exists(),
             self::RECRUITMENT => RecruitmentPipeline::query()->exists(),
             self::ONBOARDING => OnboardingProgram::query()->exists(),
             self::PERFORMANCE => ReviewTemplate::query()->exists(),
