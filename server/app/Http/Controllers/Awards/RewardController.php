@@ -8,11 +8,11 @@ use App\Http\Requests\Recognition\PointAdjustmentRequest;
 use App\Http\Requests\Recognition\RecognitionSettingsRequest;
 use App\Http\Requests\Recognition\ReviewNominationRequest;
 use App\Http\Requests\Recognition\RewardRequest;
-use App\Models\AwardNomination;
 use App\Models\Employee;
 use App\Models\PointTransaction;
 use App\Models\Reward;
 use App\Models\RewardRedemption;
+use App\Queries\NominationCases;
 use App\Queries\RecognitionFeed;
 use App\Support\ActivityLogger;
 use App\Support\Hashid;
@@ -69,7 +69,7 @@ class RewardController extends Controller
                 'is_mine' => $r->employee?->user_id === $request->user()->id,
             ])->all(),
             'counts' => ['pending' => RewardRedemption::query()->pending()->count()],
-            'pending_nominations' => AwardNomination::query()->pending()->count(),
+            'pending_nominations' => NominationCases::pendingCount(),
             'balances' => $balances->map(fn ($row): array => [
                 'employee' => RecognitionFeed::person($people[$row->employee_id] ?? null),
                 'balance' => (int) $row->balance,

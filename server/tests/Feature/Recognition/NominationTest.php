@@ -120,3 +120,55 @@ test('only the nominator withdraws, and only while it waits', function () {
         ->and(fn () => $this->workflow->withdraw($nomination, $this->nominator))->toThrow(RecognitionException::class)
         ->and(AwardNomination::query()->pending()->count())->toBe(0);
 });
+
+test('colleagues nominating the same person for the same award are one case: one award, every nominator told', function () {
+    $second = User::factory()->create(['is_active' => true]);
+    $first = $this->workflow->nominate($this->nominee, $this->type, NOMINATION_REASON, $this->nominator);
+    $other = $this->workflow->nominate($this->nominee, $this->type, 'Trained three new hires in their very first week.', $second);
+
+    Notification::assertSentTo($this->hr, SystemNotification::class, fn (SystemNotification $n): bool => $n->title === "{$this->nominee->full_name} nominated again for Spot Award"
+        && str_contains($n->body, '2 colleagues'));
+
+    $award = $this->workflow->approve($other, $this->hr, null, null);
+
+    expect($first->refresh()->status)->toBe('approved')
+        ->and($other->refresh()->status)->toBe('approved')
+        ->and($first->employee_award_id)->toBe($award->id)
+        ->and($other->employee_award_id)->toBe($award->id)
+        // Given once, with its points once, in the words of the nomination decided through.
+        ->and(EmployeeAward::query()->where('employee_id', $this->nominee->id)->count())->toBe(1)
+        ->and(app(PointsLedger::class)->balance($this->nominee))->toBe(50)
+        ->and($award->reason)->toBe('Trained three new hires in their very first week.')
+        // The other nomination can't give it a second time.
+        ->and(fn () => $this->workflow->approve($first, $this->hr, null, null))
+        ->toThrow(RecognitionException::class, 'already approved');
+
+    Notification::assertSentTo($this->nominator, SystemNotification::class, fn (SystemNotification $n): bool => str_contains($n->title, 'approved'));
+    Notification::assertSentTo($second, SystemNotification::class, fn (SystemNotification $n): bool => str_contains($n->title, 'approved'));
+});
+
+test('turning a case down turns down every nomination in it, and tells each nominator', function () {
+    $second = User::factory()->create(['is_active' => true]);
+    $first = $this->workflow->nominate($this->nominee, $this->type, NOMINATION_REASON, $this->nominator);
+    $other = $this->workflow->nominate($this->nominee, $this->type, 'Trained three new hires in their very first week.', $second);
+    $elsewhere = $this->workflow->nominate($this->nominee, AwardType::create(['name' => 'Team Player', 'is_active' => true]), NOMINATION_REASON, $second);
+
+    $this->workflow->reject($first, $this->hr, 'Recognised for this last month.');
+
+    expect($other->refresh()->status)->toBe('rejected')
+        ->and($other->review_note)->toBe('Recognised for this last month.')
+        // Another award is another case.
+        ->and($elsewhere->refresh()->status)->toBe('pending');
+
+    Notification::assertSentTo($second, SystemNotification::class, fn (SystemNotification $n): bool => str_contains($n->body, 'Recognised for this last month.'));
+});
+
+test('a reviewer who nominated in a case decides none of it, through anyone’s nomination', function () {
+    $mine = $this->workflow->nominate($this->nominee, $this->type, NOMINATION_REASON, $this->hr);
+    $theirs = $this->workflow->nominate($this->nominee, $this->type, 'Trained three new hires in their very first week.', $this->nominator);
+
+    expect(fn () => $this->workflow->approve($theirs, $this->hr, null, null))
+        ->toThrow(RecognitionException::class, 'someone else has to review it')
+        ->and($mine->refresh()->status)->toBe('pending')
+        ->and($theirs->refresh()->status)->toBe('pending');
+});

@@ -123,9 +123,9 @@ test('HR reviews nominations: approve with an edited citation, or turn down', fu
 
     $this->get(route('awards.nominations'))->assertInertia(fn (Assert $page) => $page
         ->component('awards/nominations')
-        ->has('nominations', 2)
+        ->has('cases', 2)
         ->where('counts.pending', 2)
-        ->where('nominations.0.reason', 'Rebuilt the onboarding checklist from scratch.'));
+        ->where('cases.0.reason', 'Rebuilt the onboarding checklist from scratch.'));
 
     $this->post(route('awards.nominations.approve', $first), ['citation' => 'For a checklist that finally works.'])->assertRedirect();
     assertToast('success', 'Approved');
@@ -134,6 +134,34 @@ test('HR reviews nominations: approve with an edited citation, or turn down', fu
 
     expect($first->refresh()->award->reason)->toBe('For a checklist that finally works.')
         ->and($second->refresh()->status)->toBe('rejected')
+        ->and(app(PointsLedger::class)->balance($this->colleague))->toBe(40);
+});
+
+test('two colleagues nominating one person for one award are one card, with both their words', function () {
+    $ana = User::factory()->create(['is_active' => true, 'first_name' => 'Ana', 'last_name' => 'Cruz']);
+    $ben = User::factory()->create(['is_active' => true, 'first_name' => 'Ben', 'last_name' => 'Reyes']);
+    AwardNomination::create(['award_type_id' => $this->type->id, 'employee_id' => $this->colleague->id, 'nominated_by' => $ana->id, 'reason' => 'Rebuilt the onboarding checklist from scratch.']);
+    $second = AwardNomination::create(['award_type_id' => $this->type->id, 'employee_id' => $this->colleague->id, 'nominated_by' => $ben->id, 'reason' => 'Trained three new hires in their first week.']);
+    actingAsSuperAdmin();
+
+    $this->get(route('awards.nominations'))->assertInertia(fn (Assert $page) => $page
+        ->has('cases', 1)
+        ->where('counts.pending', 1)
+        ->where('cases.0.nominated_by', 'Ana Cruz and Ben Reyes')
+        ->has('cases.0.nominations', 2)
+        ->where('cases.0.nominations.1.reason', 'Trained three new hires in their first week.'));
+    $this->get(route('awards.index'))->assertInertia(fn (Assert $page) => $page->where('pending_nominations', 1));
+
+    // Approved through either nomination, the case is decided once.
+    $this->post(route('awards.nominations.approve', $second))->assertRedirect();
+    assertToast('success', 'Everyone who nominated them has been told.');
+
+    $this->get(route('awards.nominations'))->assertInertia(fn (Assert $page) => $page
+        ->has('cases', 1)
+        ->where('cases.0.status', 'approved')
+        ->where('counts.pending', 0)
+        ->where('counts.approved', 1));
+    expect(AwardNomination::query()->where('status', 'approved')->count())->toBe(2)
         ->and(app(PointsLedger::class)->balance($this->colleague))->toBe(40);
 });
 

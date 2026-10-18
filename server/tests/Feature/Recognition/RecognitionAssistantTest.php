@@ -77,6 +77,27 @@ test('HR finds and approves a nomination, with its points', function () {
         ->and($again->detail)->toContain('No pending nomination');
 });
 
+test('in chat, two nominations of one person for one award are one case, decided once', function () {
+    $ana = User::factory()->create(['is_active' => true, 'first_name' => 'Ana', 'last_name' => 'Cruz']);
+    $ben = User::factory()->create(['is_active' => true, 'first_name' => 'Ben', 'last_name' => 'Reyes']);
+    $rosa = Employee::factory()->create(['first_name' => 'Rosa', 'middle_name' => null, 'last_name' => 'Lim', 'suffix' => null]);
+    AwardNomination::create(['award_type_id' => $this->type->id, 'employee_id' => $rosa->id, 'nominated_by' => $ana->id, 'reason' => 'Rebuilt the whole onboarding checklist alone.']);
+    AwardNomination::create(['award_type_id' => $this->type->id, 'employee_id' => $rosa->id, 'nominated_by' => $ben->id, 'reason' => 'Trained three new hires in their first week.']);
+    $hr = actingAsSuperAdmin();
+
+    $found = recognitionAgent($hr, 'find_nominations');
+    $approved = recognitionAgent($hr, 'review_nomination', ['employee' => 'Rosa Lim', 'decision' => 'approve']);
+    $decided = recognitionAgent($hr, 'find_nominations', ['status' => 'approved']);
+
+    expect($found->cards)->toHaveCount(1)
+        ->and($found->cards[0]['meta'])->toContain('Nominated by Ana Cruz and Ben Reyes')
+        ->and($approved->status)->toBe('done')
+        ->and($approved->detail)->toContain('all 2 nominators told')
+        ->and(AwardNomination::query()->pending()->count())->toBe(0)
+        ->and(app(PointsLedger::class)->balance($rosa))->toBe(40)
+        ->and($decided->cards)->toHaveCount(1);
+});
+
 test('HR sees requests for rewards and hands one over', function () {
     $user = User::factory()->create(['is_active' => true]);
     $rosa = Employee::factory()->create(['user_id' => $user->id, 'first_name' => 'Rosa', 'middle_name' => null, 'last_name' => 'Lim', 'suffix' => null]);

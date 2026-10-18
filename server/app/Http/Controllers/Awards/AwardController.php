@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Awards;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployeeAwardResource;
-use App\Models\AwardNomination;
 use App\Models\AwardType;
 use App\Models\Employee;
 use App\Models\EmployeeAward;
+use App\Queries\NominationCases;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -50,7 +50,7 @@ class AwardController extends Controller
             'employees' => $this->activeEmployees(),
             'stats' => $this->stats($awards),
             'can' => ['manage' => $request->user()->can('awards.manage')],
-            'pending_nominations' => $request->user()->can('awards.manage') ? AwardNomination::query()->pending()->count() : null,
+            'pending_nominations' => $request->user()->can('awards.manage') ? NominationCases::pendingCount() : null,
         ]);
     }
 

@@ -8,6 +8,7 @@ use App\Models\AwardType;
 use App\Models\EmployeeAward;
 use App\Models\RewardRedemption;
 use App\Models\User;
+use App\Queries\NominationCases;
 use App\Services\Assistant\Contracts\ContributesContext;
 use App\Services\Assistant\Contracts\ContributesTopicContext;
 use App\Services\Assistant\Retrieval\ContextSection;
@@ -26,6 +27,7 @@ use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -176,7 +178,7 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             : '';
 
         $review = $this->allows($user, 'awards.manage')
-            ? "\n- find_nominations lists colleagues' nominations (pending by default); review_nomination approves one (giving the award and its points, citation defaulting to the reason) or rejects it with a note. find_redemptions lists reward requests (pending by default); handle_redemption fulfils or declines one — declining refunds the points. Nobody reviews their own. get_my_points with an employee reads that person's balance."
+            ? "\n- find_nominations lists colleagues' nominations as cases — one per person and award, with everyone who nominated them (pending by default); review_nomination decides a case: approving gives the award and its points once, for everyone who nominated them (the citation defaults to the first reason); rejecting turns them all down with a note. find_redemptions lists reward requests (pending by default); handle_redemption fulfils or declines one — declining refunds the points. Nobody reviews their own. get_my_points with an employee reads that person's balance."
             : '';
 
         return <<<TXT
@@ -424,7 +426,8 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
                 $lines[] = 'Front-runners on the nomination board: '.$leaders->implode('; ').'.';
             }
 
-            $pending = AwardNomination::query()->pending()->count();
+            // Cases, not rows: two colleagues nominating the same person for one award is one decision.
+            $pending = NominationCases::pendingCount();
             $requests = RewardRedemption::query()->pending()->count();
 
             if ($pending + $requests > 0) {
@@ -781,7 +784,7 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
         return ToolResult::ok(
             "Nominated {$employee->full_name} for {$type->name}",
             'HR will review it.',
-            $this->nominationCard($nomination->load(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name']), 'Nominated'),
+            $this->nominationCard(collect([$nomination->load(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name'])]), 'Nominated'),
         );
     }
 
@@ -864,16 +867,15 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             }
         }
 
-        $cards = AwardNomination::query()
-            ->with(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name'])
-            ->where('status', $status)
-            ->when($employee !== null, fn (Builder $q) => $q->where('employee_id', $employee->id))
-            ->when($type !== null, fn (Builder $q) => $q->where('award_type_id', $type->id))
-            ->when($status === 'pending', fn (Builder $q) => $q->oldest('id'), fn (Builder $q) => $q->latest('id'))
-            ->limit(self::MAX_RESULTS)
-            ->get()
-            ->map(fn (AwardNomination $n): array => $this->nominationCard($n, Str::ucfirst($n->status)))
-            ->all();
+        // One card a case — a person and an award, with everyone who nominated them —
+        // read the way the queue reads them (NominationCases).
+        $cases = ($status === 'pending' ? NominationCases::pending() : NominationCases::decided(365))
+            ->filter(fn (Collection $case): bool => $case->first()->status === $status
+                && ($employee === null || $case->first()->employee_id === $employee->id)
+                && ($type === null || $case->first()->award_type_id === $type->id))
+            ->take(self::MAX_RESULTS);
+
+        $cards = $cases->map(fn (Collection $case): array => $this->nominationCard($case, Str::ucfirst($status)))->values()->all();
 
         return ToolResult::found('Searched nominations', count($cards)." {$status}", $cards);
     }
@@ -922,9 +924,10 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             return ToolResult::error('Looked up the nomination', "{$employee->full_name} has nominations for ".$pending->map(fn (AwardNomination $n): string => $n->awardType?->name ?? 'an award')->unique()->implode(', ').'. Say which award.');
         }
 
-        // Several colleagues may nominate the same person for the same award;
-        // the oldest is reviewed first, as on the queue.
+        // Several colleagues may nominate the same person for the same award:
+        // that is one case, and deciding it decides them all (NominationWorkflow).
         $nomination = $pending->first();
+        $backers = $pending->where('award_type_id', $nomination->award_type_id)->count();
 
         try {
             if ($decision === 'approve') {
@@ -938,15 +941,22 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             return ToolResult::error('Reviewed the nomination', $e->getMessage());
         }
 
-        $nomination->refresh()->load(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name']);
+        $case = AwardNomination::query()
+            ->where('employee_id', $nomination->employee_id)
+            ->where('award_type_id', $nomination->award_type_id)
+            ->where('reviewed_at', $nomination->refresh()->reviewed_at)
+            ->with(['employee', 'awardType:id,name,points', 'nominator:id,first_name,last_name'])
+            ->oldest('id')
+            ->get();
         $verb = $decision === 'approve' ? 'Approved' : 'Rejected';
+        $told = $backers > 1 ? " — all {$backers} nominators told" : '';
 
         return ToolResult::ok(
             "{$verb} {$employee->full_name}'s nomination",
-            $decision === 'approve' && ($nomination->awardType?->points ?? 0) > 0
+            ($decision === 'approve' && ($nomination->awardType?->points ?? 0) > 0
                 ? "{$nomination->awardType->name} given, +{$nomination->awardType->points} points"
-                : $nomination->awardType?->name,
-            $this->nominationCard($nomination, $verb),
+                : $nomination->awardType?->name).$told,
+            $this->nominationCard($case, $verb),
         );
     }
 
@@ -1235,10 +1245,16 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
     /**
      * @return array<string, mixed>
      */
-    private function nominationCard(AwardNomination $n, string $badge): array
+    /**
+     * A case on a card: the person and the award, every nominator, and the
+     * first nominator's words (the citation's starting point).
+     *
+     * @param  Collection<int, AwardNomination>  $case
+     */
+    private function nominationCard(Collection $case, string $badge): array
     {
+        $n = $case->first();
         $employee = $n->employee;
-        $by = $n->nominator ? trim($n->nominator->first_name.' '.$n->nominator->last_name) : null;
 
         return $this->card(
             kind: 'award',
@@ -1251,7 +1267,7 @@ class AwardsModule extends Module implements ContributesContext, ContributesTopi
             title: ($employee?->full_name ?? 'Employee').' — '.($n->awardType?->name ?? 'Award'),
             subtitle: Str::limit((string) $n->reason, 160),
             meta: [
-                $by ? "Nominated by {$by}" : null,
+                'Nominated by '.NominationCases::nominators($case),
                 $n->created_at?->format('M j, Y'),
                 ($n->awardType?->points ?? 0) > 0 ? "{$n->awardType->points} points" : null,
                 filled($n->review_note) ? 'Note: '.Str::limit((string) $n->review_note, 120) : null,

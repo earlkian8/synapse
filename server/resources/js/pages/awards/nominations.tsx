@@ -23,7 +23,7 @@ import { awardsRoutes } from '@/features/awards/routes';
 import { formatDay } from '@/features/events/constants';
 import { NOMINATION_STATUS } from '@/features/recognition/constants';
 import type {
-    Nomination,
+    NominationCase,
     NominationQueuePageProps,
 } from '@/features/recognition/types';
 
@@ -40,16 +40,18 @@ function today(): string {
 
 /**
  * Awards → Nominations (ADR 0071): what colleagues put forward, oldest first,
- * each approved into an award — citation editable, an AI draft on offer — or
- * turned down with a word to the nominator. Below, the last 90 days' decisions.
+ * one card a person and award — however many colleagues nominated them, each
+ * with their own words. A card is approved into one award (citation editable,
+ * an AI draft on offer) or turned down, and everyone who nominated hears it.
+ * Below, the last 90 days' decisions.
  */
 export default function NominationQueue() {
-    const { nominations, counts, ai_available } =
+    const { cases, counts, ai_available } =
         usePage<NominationQueuePageProps>().props;
-    const pending = nominations.filter((n) => n.status === 'pending');
-    const decided = nominations.filter((n) => n.status !== 'pending');
-    const [approving, setApproving] = useState<Nomination | null>(null);
-    const [rejecting, setRejecting] = useState<Nomination | null>(null);
+    const pending = cases.filter((n) => n.status === 'pending');
+    const decided = cases.filter((n) => n.status !== 'pending');
+    const [approving, setApproving] = useState<NominationCase | null>(null);
+    const [rejecting, setRejecting] = useState<NominationCase | null>(null);
 
     return (
         <>
@@ -137,15 +139,30 @@ export default function NominationQueue() {
                                                 {n.nominee.position}
                                             </p>
                                         )}
-                                        <blockquote className="border-l-2 border-[#0ABFBF]/60 pl-3 text-sm leading-relaxed">
-                                            {n.reason}
-                                        </blockquote>
-                                        <p className="text-xs text-muted-foreground">
-                                            Nominated by{' '}
-                                            {n.nominator ??
-                                                'a former colleague'}{' '}
-                                            · {formatDay(n.created_at)}
-                                        </p>
+                                        {n.nominations.length > 1 && (
+                                            <p className="text-xs font-medium text-[#007C7D] dark:text-[#0ABFBF]">
+                                                Put forward by{' '}
+                                                {n.nominations.length}{' '}
+                                                colleagues
+                                            </p>
+                                        )}
+                                        <ul className="flex flex-col gap-3 pt-1">
+                                            {n.nominations.map((entry) => (
+                                                <li key={entry.id}>
+                                                    <blockquote className="border-l-2 border-[#0ABFBF]/60 pl-3 text-sm leading-relaxed">
+                                                        {entry.reason}
+                                                    </blockquote>
+                                                    <p className="mt-1 pl-3.5 text-xs text-muted-foreground">
+                                                        {entry.nominator ??
+                                                            'A former colleague'}
+                                                        ,{' '}
+                                                        {formatDay(
+                                                            entry.created_at,
+                                                        )}
+                                                    </p>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     </div>
                                     {n.is_mine ? (
                                         <p className="shrink-0 text-xs text-muted-foreground md:max-w-40 md:text-right">
@@ -198,7 +215,7 @@ export default function NominationQueue() {
                                         <span className="text-muted-foreground">
                                             {' '}
                                             · {n.award_type?.name} · by{' '}
-                                            {n.nominator ?? '—'}
+                                            {n.nominated_by}
                                         </span>
                                     </span>
                                     <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -241,7 +258,7 @@ function ApproveDialog({
     aiAvailable,
     onClose,
 }: {
-    nomination: Nomination | null;
+    nomination: NominationCase | null;
     aiAvailable: boolean;
     onClose: () => void;
 }) {
@@ -258,7 +275,10 @@ function ApproveDialog({
                     </DialogTitle>
                     <DialogDescription>
                         The citation is what they and the wall see. It starts as
-                        the nominator’s words.
+                        the first nominator’s words.{' '}
+                        {nomination && nomination.nominations.length > 1
+                            ? `All ${nomination.nominations.length} nominators are told.`
+                            : ''}
                     </DialogDescription>
                 </DialogHeader>
                 {nomination && (
@@ -279,7 +299,7 @@ function ApproveForm({
     aiAvailable,
     onDone,
 }: {
-    nomination: Nomination;
+    nomination: NominationCase;
     aiAvailable: boolean;
     onDone: () => void;
 }) {
@@ -356,6 +376,29 @@ function ApproveForm({
                         {draftError}
                     </p>
                 )}
+                {nomination.nominations.length > 1 && (
+                    <div className="mt-3 flex flex-col gap-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                            Start from any nominator’s words
+                        </p>
+                        {nomination.nominations.map((entry) => (
+                            <button
+                                key={entry.id}
+                                type="button"
+                                onClick={() => setCitation(entry.reason)}
+                                aria-pressed={citation === entry.reason}
+                                className="rounded-md border border-border px-3 py-2 text-left text-xs leading-relaxed transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none aria-pressed:border-[#0ABFBF] aria-pressed:bg-[#0ABFBF]/5"
+                            >
+                                <span className="line-clamp-2">
+                                    {entry.reason}
+                                </span>
+                                <span className="mt-1 block text-muted-foreground">
+                                    {entry.nominator ?? 'A former colleague'}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
             <div className="w-44">
                 <Label htmlFor="awarded-on" className="mb-1.5 block">
@@ -393,7 +436,7 @@ function RejectDialog({
     nomination,
     onClose,
 }: {
-    nomination: Nomination | null;
+    nomination: NominationCase | null;
     onClose: () => void;
 }) {
     const [note, setNote] = useState('');
@@ -424,8 +467,10 @@ function RejectDialog({
                 <DialogHeader>
                     <DialogTitle>Turn down this nomination?</DialogTitle>
                     <DialogDescription>
-                        {nomination?.nominator ?? 'The nominator'} is told. A
-                        short reason helps them nominate well next time.
+                        {nomination && nomination.nominations.length > 1
+                            ? `All ${nomination.nominations.length} nominators are told.`
+                            : `${nomination?.nominator ?? 'The nominator'} is told.`}{' '}
+                        A short reason helps them nominate well next time.
                     </DialogDescription>
                 </DialogHeader>
                 <textarea

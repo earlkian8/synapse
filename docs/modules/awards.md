@@ -41,9 +41,15 @@ points · My nominations** (`awards.participate`), then **Awards** (`awards.view
   type or search by employee. HR can **give recognition**, **export**, and **edit** or
   **remove** an award from its row menu.
 - **`/awards/nominations`** (`awards.manage`) — **Nominations**, view *From
-  colleagues*: the pending queue, oldest first, each approved (citation editable, AI
-  draft offered, date) or turned down with a note; below, decisions from the last 90
-  days. A nomination the reviewer is part of shows who decides instead of buttons.
+  colleagues*: the pending queue, oldest first, as **one card per person and award**
+  however many colleagues nominated them
+  ([ADR 0095](../decisions/0095-nominations-of-one-person-for-one-award-are-one-case.md)).
+  The card shows each nominator's own words with their name and date. It is approved
+  once (citation editable, starting from the first nominator's words or any other's,
+  AI draft offered, date) or turned down with a note, and every nominator is told.
+  Below are the decisions from the last 90 days, a case to a row. A case the reviewer
+  is part of (a nominator in it, or the nominee) shows who decides instead of buttons.
+  The count on every Awards page is of cases.
 - **`/awards/shortlist`** — Nominations, view **AI shortlist** (the "nomination
   board" before ADR 0071), in two levels. First, a table of award types (what each
   weighs, nominees, the front-runner and their score). Opening one (`?type=`) shows
@@ -108,8 +114,11 @@ Recognition's own rules live in `App\Support\Recognition` and refuse in words
   settings); the recipient is notified. Taking kudos down reverses their points.
 - **`NominationWorkflow`** — an active colleague, not oneself; a type open to
   nominations; a reason of 20–1,000 characters; one pending per nominator, nominee and
-  type; no reviewer who nominated or is nominated. Approval gives the award through
-  `AwardWorkflow::give()`.
+  type; no reviewer who nominated in the case or is nominated. Approving or turning down
+  any nomination decides its whole **case** (every pending nomination of the same
+  person for the same award, read again under a lock): the award is given once through
+  `AwardWorkflow::give()`, and every nominator is told. `App\Queries\NominationCases`
+  reads the queue, the count and the assistant's lists as cases.
 - **`RewardWorkflow`** — redeeming locks the employee and the reward, checks balance
   and stock, debits and decrements in one transaction; cancel and decline refund and
   restock; nobody handles their own request.
@@ -139,8 +148,9 @@ assistant ([ADR 0050](../decisions/0050-assistant-training-awards-and-events.md)
 - **Taking part** (`awards.participate`): `give_kudos` and `nominate_colleague` —
   both tell someone else, so both wait for **Confirm** — and `get_my_points` (balance,
   kudos left, recent lines; HR may name someone else, nobody else may).
-- **Review** (`awards.manage`): `find_nominations` and `find_redemptions` (pending by
-  default, oldest first), and `review_nomination` (approve or reject) and
+- **Review** (`awards.manage`): `find_nominations` (cases, one card per person and
+  award with everyone who nominated them) and `find_redemptions` (pending by default,
+  oldest first), and `review_nomination` (approve or reject a whole case) and
   `handle_redemption` (fulfil or decline), which wait for **Confirm**.
 - **Retrieval:**
   - a question about a person carries their recognitions with the citations. One's

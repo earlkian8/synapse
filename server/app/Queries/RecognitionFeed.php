@@ -221,6 +221,32 @@ final class RecognitionFeed
     }
 
     /**
+     * A case HR reviews (see {@see NominationCases}): one person and award, every
+     * nominator with their own words, oldest first. It is decided through its
+     * first nomination's id, which decides the rest with it.
+     *
+     * @param  Collection<int, AwardNomination>  $case
+     * @return array<string, mixed>
+     */
+    public static function nominationCase(Collection $case): array
+    {
+        $first = $case->first();
+
+        return [
+            ...self::nomination($first),
+            'created_at' => $case->min(fn (AwardNomination $n) => $n->created_at)?->toIso8601String(),
+            'latest_at' => $case->max(fn (AwardNomination $n) => $n->created_at)?->toIso8601String(),
+            'nominated_by' => NominationCases::nominators($case),
+            'nominations' => $case->map(fn (AwardNomination $n): array => [
+                'id' => $n->id,
+                'reason' => $n->reason,
+                'nominator' => $n->nominator ? trim("{$n->nominator->first_name} {$n->nominator->last_name}") : null,
+                'created_at' => $n->created_at?->toIso8601String(),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function reward(Reward $reward, ?int $balance = null): array

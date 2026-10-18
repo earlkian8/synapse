@@ -126,8 +126,26 @@ export type MyRewardsPageProps = {
     history: LedgerLine[];
 };
 
+/**
+ * A case HR reviews: one person and award, with everyone who nominated them
+ * (oldest first). Decided through its first nomination's id, which decides
+ * the rest with it.
+ */
+export type NominationCase = Nomination & {
+    /** "Ana Cruz and Ben Reyes" — everyone who put them forward. */
+    nominated_by: string;
+    /** When the latest nominator put them forward. */
+    latest_at: string | null;
+    nominations: {
+        id: number;
+        reason: string;
+        nominator: string | null;
+        created_at: string | null;
+    }[];
+};
+
 export type NominationQueuePageProps = {
-    nominations: Nomination[];
+    cases: NominationCase[];
     counts: { pending: number; approved: number; rejected: number };
     ai_available: boolean;
 };
