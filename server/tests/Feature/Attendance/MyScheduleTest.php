@@ -4,6 +4,7 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\TrainingProgram;
 use App\Models\WorkLocation;
 use App\Support\Attendance\RosterWriter;
 use App\Support\OrganizationClock;
@@ -80,7 +81,7 @@ test('a week shows each day’s shift, the holiday, a change and the person’s 
         // The weekend.
         ->and($days['2026-10-17']['is_working_day'])->toBeFalse()
         ->and($days['2026-10-17']['label'])->toBe('Rest day')
-        ->and($week['totals'])->toBe(['shifts' => 3, 'minutes' => 480 + 480 + 540]);
+        ->and($week['totals'])->toBe(['shifts' => 3, 'minutes' => 480 + 480 + 540, 'training' => 0]);
 });
 
 test('approved half a day is due for half the hours, and leave on a rest day is not shown', function () {
@@ -97,7 +98,7 @@ test('approved half a day is due for half the hours, and leave on a rest day is 
         ->and($days['2026-10-16']['leave'])->not->toBeNull()
         ->and($days['2026-10-17']['leave'])->toBeNull()
         ->and($days['2026-10-18']['leave'])->toBeNull()
-        ->and($week['totals'])->toBe(['shifts' => 4, 'minutes' => 240 + 480 * 3]);
+        ->and($week['totals'])->toBe(['shifts' => 4, 'minutes' => 240 + 480 * 3, 'training' => 0]);
 });
 
 test('rejected and cancelled leave, and somebody else’s, stay off the week', function () {
@@ -158,4 +159,49 @@ test('an account with no employee record is refused, and a stranger is not let i
     $this->app['auth']->forgetGuards();
 
     $this->getJson('/api/schedule')->assertUnauthorized();
+});
+
+test('the training sessions I hold a seat at sit on their days, at my site’s hour (ADR 0094)', function () {
+    [, $employee] = scheduleWorker();
+
+    $program = TrainingProgram::create(['name' => 'Forklift Safety', 'start_date' => '2026-10-01', 'end_date' => '2026-10-31', 'enrollment_mode' => 'open']);
+    $program->enrollments()->create(['employee_id' => $employee->id, 'status' => 'enrolled']);
+    $program->sessions()->create(['session_date' => '2026-10-13', 'starts_at' => '13:00', 'ends_at' => '16:00', 'location' => 'Room 2', 'title' => 'Day one']);
+    $program->sessions()->create(['session_date' => '2026-10-13', 'starts_at' => '09:00', 'ends_at' => '11:00']);
+    $program->sessions()->create(['session_date' => '2026-10-18', 'starts_at' => '23:00', 'ends_at' => '23:45']);
+    $program->sessions()->create(['session_date' => '2026-10-20', 'starts_at' => '09:00', 'ends_at' => '11:00']);
+
+    // Asked for, not yet a seat: its sessions are not on the week.
+    $asked = TrainingProgram::create(['name' => 'Excel', 'start_date' => '2026-10-01', 'end_date' => '2026-10-31', 'enrollment_mode' => 'approval']);
+    $asked->enrollments()->create(['employee_id' => $employee->id, 'status' => 'requested']);
+    $asked->sessions()->create(['session_date' => '2026-10-14', 'starts_at' => '09:00', 'ends_at' => '11:00']);
+
+    $week = $this->getJson('/api/schedule?week=2026-10-12')->assertOk()->json('data');
+    $days = collect($week['days'])->keyBy('date');
+
+    expect(collect($days['2026-10-13']['training'])->pluck('starts_at')->all())->toBe(['09:00', '13:00'])
+        ->and($days['2026-10-13']['training'][1])->toBe([
+            'id' => $days['2026-10-13']['training'][1]['id'],
+            'title' => 'Day one',
+            'starts_at' => '13:00',
+            'ends_at' => '16:00',
+            'location' => 'Room 2',
+            'program' => ['hashid' => $program->hashid, 'name' => 'Forklift Safety'],
+        ])
+        ->and($days['2026-10-14']['training'])->toBe([])
+        ->and($days['2026-10-18']['training'])->toHaveCount(1)
+        // Training adds to a day; it excuses no work.
+        ->and($days['2026-10-13']['is_due'])->toBeTrue()
+        ->and($week['totals']['training'])->toBe(3);
+
+    // A site an hour ahead sees the late session at midnight, on the next day — the next week.
+    $tokyo = WorkLocation::create(['name' => 'Tokyo Office', 'latitude' => 35.68, 'longitude' => 139.76, 'radius_meters' => 150, 'timezone' => 'Asia/Tokyo']);
+    $tokyo->employees()->attach($employee->id, ['is_primary' => true]);
+
+    $days = collect($this->getJson('/api/schedule?week=2026-10-12')->json('data.days'))->keyBy('date');
+    $next = collect($this->getJson('/api/schedule?week=2026-10-19')->json('data.days'))->keyBy('date');
+
+    expect($days['2026-10-13']['training'][0]['starts_at'])->toBe('10:00')
+        ->and($days['2026-10-18']['training'])->toBe([])
+        ->and($next['2026-10-19']['training'][0])->toMatchArray(['starts_at' => '00:00', 'ends_at' => '00:45']);
 });

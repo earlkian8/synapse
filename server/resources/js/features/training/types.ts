@@ -268,7 +268,11 @@ export type MySession = {
     ends_at: string;
     location: string | null;
     notes: string | null;
-    program: { name: string | null; provider: string | null };
+    program: {
+        hashid: string | null;
+        name: string | null;
+        provider: string | null;
+    };
 };
 
 export type MyTrainingTab = 'sessions' | 'programs' | 'certificates';
@@ -282,7 +286,25 @@ export type MyTrainingPageProps = {
     nav: TrainingNavCounts;
 };
 
-export type CatalogProgram = TrainingProgram & {
+/** A program as a participant sees it on Browse: never its budget or HR's notes. */
+export type CatalogProgram = Pick<
+    TrainingProgram,
+    | 'id'
+    | 'hashid'
+    | 'name'
+    | 'description'
+    | 'provider'
+    | 'start_date'
+    | 'end_date'
+    | 'capacity'
+    | 'status'
+    | 'enrollment_mode'
+    | 'issues_certificate'
+    | 'certificate_validity_months'
+    | 'seats_remaining'
+    | 'is_full'
+    | 'sessions_count'
+> & {
     mine: {
         id: number;
         status: TrainingEnrollmentStatus;

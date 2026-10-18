@@ -58,6 +58,8 @@ export type AuthUser = {
   can_recognize: boolean;
   /** Leaving: their resignation, exit interview and certificate (ADR 0076). */
   can_resign?: boolean;
+  /** Training: their programs, sessions and certificates, and joining (ADR 0094). */
+  can_train?: boolean;
   /** The app's own tour (ADR 0080): still to be offered? */
   tour?: { owed: boolean; version: number } | null;
 };
@@ -435,7 +437,9 @@ export type SearchTarget =
   | { screen: 'attendance'; date: string }
   | { screen: 'event'; id: string }
   | { screen: 'awards' }
-  | { screen: 'holidays' };
+  | { screen: 'holidays' }
+  | { screen: 'training'; id: string }
+  | { screen: 'certificate'; id: number };
 
 export type SearchItem = {
   id: string;
@@ -446,7 +450,7 @@ export type SearchItem = {
 };
 
 export type SearchGroup = {
-  key: 'leave' | 'attendance' | 'events' | 'awards' | 'holidays';
+  key: 'leave' | 'attendance' | 'events' | 'awards' | 'holidays' | 'training';
   label: string;
   items: SearchItem[];
 };
@@ -493,6 +497,17 @@ export type ScheduleDay = {
   /** Work is expected: a working day no holiday or approved leave excuses. */
   is_due: boolean;
   due_minutes: number;
+  /** Training sessions on this day, at this person's clock (ADR 0094). They excuse no work. */
+  training: ScheduleTraining[];
+};
+
+export type ScheduleTraining = {
+  id: number;
+  title: string | null;
+  starts_at: string;
+  ends_at: string;
+  location: string | null;
+  program: { hashid: string; name: string };
 };
 
 export type ScheduleWeek = {
@@ -501,5 +516,111 @@ export type ScheduleWeek = {
   today: string;
   timezone: string;
   days: ScheduleDay[];
-  totals: { shifts: number; minutes: number };
+  totals: { shifts: number; minutes: number; training: number };
+};
+
+// ── Training (ADR 0094) ─────────────────────────────────────────────────────
+
+export type TrainingProgramStatus = 'upcoming' | 'ongoing' | 'completed';
+export type TrainingEnrollmentStatus = 'requested' | 'enrolled' | 'completed' | 'dropped' | 'declined';
+/** Who may join: HR alone, anyone while seats last, or anyone HR approves. */
+export type TrainingEnrollmentMode = 'closed' | 'open' | 'approval';
+export type TrainingMark = 'present' | 'late' | 'absent' | 'excused';
+export type CertificateStanding = 'valid' | 'expiring' | 'expired' | 'renewed';
+
+/** A program as a participant sees it: never its budget or HR's notes. */
+export type TrainingListing = {
+  id: number;
+  hashid: string;
+  name: string;
+  description: string | null;
+  provider: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  capacity: number | null;
+  status: TrainingProgramStatus;
+  enrollment_mode: TrainingEnrollmentMode;
+  issues_certificate: boolean;
+  /** Null: it never expires. */
+  certificate_validity_months: number | null;
+  seats_remaining: number | null;
+  is_full: boolean;
+  sessions_count: number;
+};
+
+export type CatalogEntry = TrainingListing & {
+  mine: { id: number; status: TrainingEnrollmentStatus } | null;
+};
+
+export type TrainingRate = { attended: number; counted: number; rate: number | null };
+
+export type MyTrainingEnrollment = {
+  id: number;
+  status: TrainingEnrollmentStatus;
+  score: number | null;
+  completed_at: string | null;
+  requested_on: string | null;
+  /** HR's note on a declined request. */
+  decision_note: string | null;
+  attendance: TrainingRate;
+  can_withdraw: boolean;
+  certificate_id: number | null;
+  program: {
+    hashid: string;
+    name: string;
+    provider: string | null;
+    description: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    status: TrainingProgramStatus;
+  };
+};
+
+/** A sitting: a day, and local start and end times on the organisation's clock. */
+export type TrainingSitting = {
+  id: number;
+  title: string | null;
+  session_date: string;
+  starts_at: string;
+  ends_at: string;
+  location: string | null;
+  notes: string | null;
+};
+
+export type MyTrainingSession = TrainingSitting & {
+  program: { hashid: string | null; name: string | null; provider: string | null };
+};
+
+export type TrainingCertificate = {
+  id: number;
+  name: string;
+  issuer: string | null;
+  certificate_no: string | null;
+  issued_date: string | null;
+  expiry_date: string | null;
+  standing: CertificateStanding;
+  score: number | null;
+  program: { hashid: string; name: string; archived: boolean } | null;
+  employee?: { full_name: string; employee_no: string | null } | null;
+};
+
+export type CertificateDetail = TrainingCertificate & {
+  completed_on: string | null;
+  organization: string | null;
+  expiring_days: number;
+};
+
+export type MyTraining = {
+  enrollments: MyTrainingEnrollment[];
+  sessions: MyTrainingSession[];
+  certificates: TrainingCertificate[];
+  expiring_days: number;
+};
+
+/** One program with the person's own place on it. */
+export type TrainingProgramDetail = TrainingListing & {
+  sessions: (TrainingSitting & { is_held: boolean; mark: TrainingMark | null })[];
+  mine: MyTrainingEnrollment | null;
+  /** What the person can do: join at once, ask, nothing (full), or nothing at all. */
+  join: 'join' | 'ask' | 'full' | null;
 };

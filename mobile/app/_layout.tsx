@@ -145,6 +145,10 @@ function RootNavigator() {
         <Stack.Screen name="account/details" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="account/password" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="schedule/index" />
+        <Stack.Screen name="training/index" />
+        <Stack.Screen name="training/browse" />
+        <Stack.Screen name="training/[id]" />
+        <Stack.Screen name="training/certificate/[id]" />
       </Stack>
     </>
   );

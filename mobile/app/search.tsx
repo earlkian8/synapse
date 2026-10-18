@@ -32,6 +32,10 @@ function hrefFor(target: SearchTarget): Href {
       return `/events/${target.id}`;
     case 'awards':
       return '/awards';
+    case 'training':
+      return `/training/${target.id}`;
+    case 'certificate':
+      return `/training/certificate/${target.id}`;
     default:
       return '/holidays';
   }
@@ -43,12 +47,14 @@ const GROUP_ICONS: Record<SearchGroup['key'], IconName> = {
   events: 'calendarPlus',
   awards: 'trophy',
   holidays: 'holiday',
+  training: 'training',
 };
 
 /**
  * Search (ADR 0081): the app's screens, found on the phone as one types, and
- * one's own records — leave, days ("late", "oct 3"), invitations, awards and
- * holidays — from the server. Never anybody else's.
+ * one's own records — leave, days ("late", "oct 3"), invitations, awards,
+ * holidays, and training and certificates (ADR 0094) — from the server. Never
+ * anybody else's.
  */
 export default function SearchScreen() {
   const { status } = useTheme();

@@ -81,8 +81,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   balances, and the latest award. A **search** button in the large title opens Search.
 - **Services** ([ADR 0088](../decisions/0088-the-app-opens-its-modules-from-services.md))
   — `app/(tabs)/services.tsx`: a field that opens Search, the *On your Home* card with
-  **Edit**, then every service the person may open in five families (*Your time*,
-  *Calendar*, *Time off*, *Recognition*, *Your employment*), each a card holding a
+  **Edit**, then every service the person may open in six families (*Your time*,
+  *Calendar*, *Time off*, *Recognition*, *Learning*, *Your employment*), each a card holding a
   four-column grid of drawn tiles. In edit mode a tile shows a plus or a minus and a tap
   pins or unpins it (seven at most; **Restore** returns to the defaults). The list is
   `features/services/catalog.ts`, which Home and Search read too. Pins are kept on the
@@ -136,7 +136,27 @@ every `useQuery` screen refetches against the new company's tenant context.
   week, Monday to Sunday, as the roster has it. A week switcher (and a sideways swipe),
   the week's shifts and hours, and the seven days: hours (or the holiday, the leave,
   *Rest day*) and a pill for *Holiday*, *On leave*, *Half day*, *Pending* or *Changed*. A
-  day that has started opens its attendance record.
+  day that has started opens its attendance record. The training sessions the person
+  holds a seat at sit under their day, at their site's hour, and open their program
+  (ADR 0094).
+- **Training** ([ADR 0094](../decisions/0094-training-in-the-app.md)) — the *Learning*
+  family in Services (jade, with drawn tiles: a mortarboard, books on a shelf, a sealed
+  certificate), for those with `can_train` and an employee record.
+  `app/training/index.tsx` is **My training**: the next session on the navy card with
+  *Add to calendar*, then *Coming up* (an agenda by day), *Programs* (grouped by where the
+  person stands) and *Certificates* (`?tab=certificates` is the Certificates service).
+  `app/training/browse.tsx` is **Browse**: the programs open to sign-ups, soonest first,
+  each with its first day as a calendar leaf, its sessions, its seats as one capsule a
+  seat, who can join and its certificate, with a search field and an *Open to join · On
+  approval* filter. `app/training/[id].tsx` is **a program**: what it is, *Your place*
+  (the request, HR's note on a declined one, attendance as one square a held session,
+  the score, the certificate), every session with the person's mark or *Add to calendar*,
+  and *Join program* / *Ask to join* (confirmed in a sheet), *Withdraw request* or *Leave
+  program* (confirmed by a system alert). `app/training/certificate/[id].tsx` draws **a
+  certificate**: an engraved jade frame, the holder's name in the system serif, and a gold
+  seal that comes down onto the sheet once. A lapsed or renewed one wears a stamp. Its
+  standing in words, its details and *Share* are below it. *Add to calendar* opens a
+  10-minute signed link to the session's `.ics` in the phone's browser.
 - **Resignation** ([ADR 0076](../decisions/0076-employees-resign-and-leavers-answer-an-exit-interview.md),
   [ADR 0077](../decisions/0077-an-exits-papers-are-generated-as-pdfs.md)) —
   `app/resignation/index.tsx` shows the same thing as My resignation on the web
@@ -154,8 +174,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   site.
 - **Search** ([ADR 0081](../decisions/0081-search-finds-attendance-days-and-the-app-searches-ones-own.md))
   — `app/search.tsx`: the app's screens (the services catalogue, with their drawn tiles) matched on the phone, and the person's own
-  leave, days, invitations, awards and holidays from the server, grouped; a result
-  opens its screen.
+  leave, days, invitations, awards, holidays, and training and certificates (ADR 0094)
+  from the server, grouped; a result opens its screen.
 - **The tour** ([ADR 0080](../decisions/0080-tour-versions-per-stop-runs-and-a-tour-in-the-app.md))
   — `features/tour/tab-tour.tsx`: a spotlight over the tab bar with a card above it
   (Home, Attendance, Clock, Services, Profile), offered once after sign-in and replayed
@@ -179,7 +199,7 @@ every `useQuery` screen refetches against the new company's tenant context.
 | Method & path | Purpose |
 |---|---|
 | `POST /api/auth/register` (public, throttled) | Create an identity; returns a session with `organization: null`, `needs_workspace: true` |
-| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) — unless the person's base site keeps its own (`employee.timezone`, ADR 0079). It also says whether the person may resign (`can_resign`) and owes the app's tour (`tour`) |
+| `POST /api/auth/login`, `GET /api/me`, `POST /api/auth/logout` | Token session; payload includes the token's `organization` (may be `null`), whose `timezone` is the clock every punch time is shown on, whatever zone the phone is in (ADR 0036) — unless the person's base site keeps its own (`employee.timezone`, ADR 0079). It also says whether the person may resign (`can_resign`), takes part in training (`can_train`), and owes the app's tour (`tour`) |
 | `POST /api/auth/switch` | Re-issue the token bound to another company the identity belongs to |
 | `POST /api/workspaces/preview` · `POST /api/workspaces/join` | Look up / redeem a company join code (throttled) |
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
@@ -187,7 +207,10 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/profile` | Own 201 profile (masked IDs) |
 | `POST /api/auth/forgot-password` (public, throttled) | Mail Fortify's reset link; the same answer for any address (503 if mail fails) |
 | `GET` · `PATCH /api/account` · `PUT /api/account/password` | One's own sign-in account: name and email (a new address needs `current_password`), and the password (ends the other app sessions) |
-| `GET /api/schedule?week=` | One's own week of shifts (`MySchedule`): hours, holiday, leave, whether HR changed the day, and the week's totals |
+| `GET /api/schedule?week=` | One's own week of shifts (`MySchedule`): hours, holiday, leave, whether HR changed the day, the training sessions on it (ADR 0094), and the week's totals |
+| `GET /api/training` · `GET /api/training/catalog` · `GET /api/training/programs/{hashid}` | My training, Browse, and one program with one's own place on it (`training.participate`, ADR 0094) |
+| `POST /api/training/programs/{hashid}/join` · `DELETE /api/training/enrollments/{id}` | Join or ask to join; withdraw a request or leave before the start |
+| `POST /api/training/sessions/{id}/calendar-link` · `GET /api/training/certificates/{id}` | A 10-minute signed link to a session's `.ics` (`GET /api/documents/training-session/{session}/{user}`, public, signed); one of one's certificates |
 | `GET /api/awards` | Own recognitions |
 | `GET /api/events` · `GET /api/events/{hashid}` · `POST /api/events/{hashid}/respond` | Own invitations and answering them (`events.respond`) |
 | `GET /api/calendar-feed` · `POST /api/calendar-feed/reset` | The person's calendar-feed links |

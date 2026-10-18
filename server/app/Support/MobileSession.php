@@ -131,6 +131,8 @@ class MobileSession
             'can_recognize' => $organization !== null && $user->can('awards.participate'),
             // Leaving (ADR 0076): their resignation, exit interview and certificate.
             'can_resign' => $organization !== null && $user->can('offboarding.resign'),
+            // Training (ADR 0094): their programs, sessions and certificates, and joining.
+            'can_train' => $organization !== null && $user->can('training.participate'),
             // The app's own tour (ADR 0080): owed until answered once.
             'tour' => ['owed' => ProductTour::owesMobile($user), 'version' => ProductTour::MOBILE_VERSION],
         ];

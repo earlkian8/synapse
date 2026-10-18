@@ -5,12 +5,15 @@ namespace App\Support\Search;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\EmployeeAward;
+use App\Models\EmployeeCertification;
 use App\Models\EventAttendee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\TrainingEnrollment;
 use App\Models\User;
 use App\Support\HolidayCalendar;
 use App\Support\OrganizationClock;
+use App\Support\Training\TrainingCertificates;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
@@ -48,6 +51,7 @@ final class MySearch
             $user->can('events.respond') ? $this->group('events', 'Events', $this->events($employee, $words)) : null,
             $this->group('awards', 'Awards', $this->awards($employee, $words)),
             $this->group('holidays', 'Holidays', $this->holidays($employee, $words)),
+            $user->can('training.participate') ? $this->group('training', 'Training', $this->training($employee, $words)) : null,
         ]));
     }
 
@@ -230,6 +234,57 @@ final class MySearch
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Own programs (requests included) by the program's name or provider, and
+     * own certificates by name. "training" or "certificates" alone lists them.
+     *
+     * @param  list<string>  $words
+     * @return list<array<string, mixed>>
+     */
+    private function training(Employee $employee, array $words): array
+    {
+        $cues = ['training', 'trainings', 'program', 'programs', 'course', 'courses', 'certificate', 'certificates', 'cert', 'certs'];
+        $named = array_values(array_diff($words, $cues));
+
+        if ($named === [] && array_intersect($words, $cues) === []) {
+            return [];
+        }
+
+        $onlyCertificates = $named === [] && array_intersect($words, ['certificate', 'certificates', 'cert', 'certs']) !== [];
+
+        $programs = $onlyCertificates ? collect() : TrainingEnrollment::query()
+            ->where('employee_id', $employee->id)
+            ->whereHas('program', fn (Builder $program) => GlobalSearch::matchEveryWord($program, $named))
+            ->with('program:id,name,provider,start_date,end_date')
+            ->latest('id')
+            ->limit(GlobalSearch::LIMIT)
+            ->get()
+            ->map(fn (TrainingEnrollment $enrollment): array => [
+                'id' => 'training:'.$enrollment->id,
+                'title' => $enrollment->program->name,
+                'subtitle' => $enrollment->program->provider,
+                'hint' => $enrollment->status === 'requested' ? 'Asked to join' : Str::headline((string) $enrollment->status),
+                'target' => ['screen' => 'training', 'id' => $enrollment->program->hashid],
+            ]);
+
+        // Every certificate of theirs is read, so a renewed one says so; a person holds few.
+        $theirs = EmployeeCertification::query()->fromTraining()->where('employee_id', $employee->id)->latest('issued_date')->latest('id')->get();
+        $renewed = TrainingCertificates::renewedIds($theirs);
+
+        $certificates = $theirs
+            ->filter(fn (EmployeeCertification $certificate): bool => collect($named)->every(fn (string $word): bool => Str::contains(Str::lower($certificate->name), $word)))
+            ->take(GlobalSearch::LIMIT)
+            ->map(fn (EmployeeCertification $certificate): array => [
+                'id' => 'certificate:'.$certificate->id,
+                'title' => $certificate->name,
+                'subtitle' => trim('Certificate '.($certificate->certificate_no ?? '')),
+                'hint' => Str::headline(TrainingCertificates::standing($certificate, isset($renewed[$certificate->id]))),
+                'target' => ['screen' => 'certificate', 'id' => $certificate->id],
+            ]);
+
+        return $programs->concat($certificates)->take(GlobalSearch::LIMIT * 2)->values()->all();
     }
 
     /**

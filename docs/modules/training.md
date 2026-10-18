@@ -13,7 +13,9 @@ employees **join programs** themselves (or ask to), and programs meet in **sessi
 with **attendance**. Since
 [ADR 0075](../decisions/0075-training-certificates-with-expiry-and-budgets-with-costs.md),
 completing a program can earn a **certificate that expires**, and what training costs
-is recorded against **budgets**.
+is recorded against **budgets**. Since
+[ADR 0094](../decisions/0094-training-in-the-app.md), people take part from the
+**mobile app** too.
 
 > Status: **Active** · Route prefix: `/training`
 > Sidebar: Workforce → Training & Development (for `training.view` or `training.participate`)
@@ -61,8 +63,9 @@ has **My training**.
   request waiting or declined with HR's note; *Withdraw request* / *Leave program*
   where allowed) and **Certificates**.
 - **`/training/catalog`** — **Browse**: programs open to sign-ups that are not over,
-  each with its dates, sessions, seats left and certificate, and **Join** / **Ask to
-  join** (or where the person stands).
+  soonest first, each with its dates, sessions, seats left and certificate, and
+  **Join** / **Ask to join** (or where the person stands). A program here is a
+  participant's view of it (`MyTraining::listing()`): never its budget or AI notes.
 - **`/training/schedule`** — **Schedule**: every session in a month (`?month=YYYY-MM`),
   Monday first, filterable by program. A held session with no attendance has an amber
   dot; programs running that month with no session are listed below. On a phone the
@@ -216,9 +219,22 @@ run († waits for the user's **Confirm**).
     certificates;
   - a question about training that names nobody carries the overview.
 
+## In the app (ADR 0094)
+
+The mobile app's **Learning** family (Services) has **My training**, **Browse** and
+**Certificates**, on `GET /api/training`, `/api/training/catalog`,
+`/api/training/programs/{hashid}` (with `join` and, on an enrollment, `DELETE
+/api/training/enrollments/{id}`), a 10-minute signed `.ics` link per session, and
+`/api/training/certificates/{id}`. All are behind `training.participate`, self-scoped, and
+read through `App\Queries\MyTraining`, the same reading the web's My training and Browse
+use. Changes go through `TrainingSelfService` and are logged "via the app". The sessions a
+person holds a seat at also show on the app's **My schedule** (at their site's hour), and
+their programs and certificates are found by the app's **Search**. See the
+[Mobile app](./mobile-app.md) doc for the screens.
+
 ## Out of scope
 
 Training-needs analysis from performance gaps; rooms for sessions (booked through
 Events' room booking); session reminders; waitlists; budgets per department and spend
-approval; reminders for certifications typed in on the profile; training on the mobile
-app.
+approval; reminders for certifications typed in on the profile; running training
+(approving, grading, attendance) from the mobile app.

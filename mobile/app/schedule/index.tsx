@@ -14,11 +14,14 @@ import { StepButton } from '@/components/ui/step-button';
 import { AppText } from '@/components/ui/text';
 import { scheduleApi } from '@/features/schedule/api';
 import { dayBlock, dayFlag, dayLines, hours, shiftDate, weekLabel } from '@/features/schedule/meta';
+import { groupOf } from '@/features/services/catalog';
+import { ServiceIcon } from '@/features/services/components/service-glyph';
+import { sittingTime } from '@/features/training/meta';
 import { useAuth } from '@/lib/auth';
 import { enter } from '@/lib/motion';
 import { useQuery } from '@/lib/use-query';
 import { useTheme } from '@/theme/theme';
-import type { ScheduleDay, ScheduleWeek } from '@/types/api';
+import type { ScheduleDay, ScheduleTraining, ScheduleWeek } from '@/types/api';
 
 /**
  * My schedule (ADR 0083): one's own week, Monday to Sunday — the hours of each
@@ -27,7 +30,8 @@ import type { ScheduleDay, ScheduleWeek } from '@/types/api';
  *
  * Step or swipe a week either way, back for what was planned and ahead for
  * what is coming. A day that has started opens its attendance record, so the
- * plan and what happened are one tap apart.
+ * plan and what happened are one tap apart. The training sessions one holds a
+ * seat at sit under their day (ADR 0094), and open their program.
  */
 export default function ScheduleScreen() {
   const router = useRouter();
@@ -66,9 +70,16 @@ export default function ScheduleScreen() {
           </AppText>
           {shown && (
             <AppText variant="subheadline" tone="secondary" numeric>
-              {shown.totals.shifts === 0
-                ? 'No shifts this week'
-                : `${shown.totals.shifts} ${shown.totals.shifts === 1 ? 'shift' : 'shifts'} · ${hours(shown.totals.minutes)}`}
+              {[
+                shown.totals.shifts === 0
+                  ? 'No shifts this week'
+                  : `${shown.totals.shifts} ${shown.totals.shifts === 1 ? 'shift' : 'shifts'} · ${hours(shown.totals.minutes)}`,
+                (shown.totals.training ?? 0) > 0
+                  ? `${shown.totals.training} training ${shown.totals.training === 1 ? 'session' : 'sessions'}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </AppText>
           )}
         </View>
@@ -91,11 +102,18 @@ export default function ScheduleScreen() {
             <View>
               <ListSection
                 leadingWidth={40}
-                footer="HR sets your schedule. A day they change for you shows as Changed. Tap a day that has started to see its record."
+                footer="HR sets your schedule. A day they change for you shows as Changed. Tap a day that has started to see its record, or a training session to see its program."
               >
-                {shown.days.map((day) => (
-                  <DayRow key={day.date} day={day} onOpen={day.is_past || day.is_today ? () => open(day) : undefined} />
-                ))}
+                {shown.days.flatMap((day) => [
+                  <DayRow key={day.date} day={day} onOpen={day.is_past || day.is_today ? () => open(day) : undefined} />,
+                  ...(day.training ?? []).map((session) => (
+                    <TrainingRow
+                      key={`training-${session.id}`}
+                      session={session}
+                      onOpen={() => router.push({ pathname: '/training/[id]', params: { id: session.program.hashid } })}
+                    />
+                  )),
+                ])}
               </ListSection>
             </View>
           </GestureDetector>
@@ -139,6 +157,28 @@ function DayRow({ day, onOpen }: { day: ScheduleDay; onOpen?: () => void }) {
       accessory={flag ? <Pill label={flag.label} color={flag.color} /> : undefined}
       onPress={onOpen}
       accessibilityLabel={[day.is_today ? 'Today' : weekday, date, title, subtitle, flag?.label].filter(Boolean).join(', ')}
+    />
+  );
+}
+
+/**
+ * A training session under its day: Learning's tile where the date would be,
+ * so it reads as part of that day without being mistaken for one.
+ */
+function TrainingRow({ session, onOpen }: { session: ScheduleTraining; onOpen: () => void }) {
+  const time = sittingTime(session.starts_at, session.ends_at);
+
+  return (
+    <ListRow
+      leading={
+        <View style={styles.dateBlock}>
+          <ServiceIcon glyph="mortarboard" hue={groupOf('learning').hue} size={28} />
+        </View>
+      }
+      title={session.program.name}
+      subtitle={[time, session.title, session.location].filter(Boolean).join(' · ')}
+      onPress={onOpen}
+      accessibilityLabel={`Training: ${session.program.name}, ${time}${session.location ? `, ${session.location}` : ''}`}
     />
   );
 }

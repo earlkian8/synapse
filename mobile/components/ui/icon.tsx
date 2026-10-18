@@ -33,6 +33,7 @@ const GLYPHS = {
   eyeSlash: { ios: 'eye.slash', android: 'visibility_off' },
   send: { ios: 'paperplane.fill', android: 'send' },
   retry: { ios: 'arrow.clockwise', android: 'refresh' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
 
   // Punches
   clockIn: { ios: 'arrow.right.circle.fill', android: 'login' },
@@ -76,6 +77,7 @@ const GLYPHS = {
   checklist: { ios: 'checklist', android: 'checklist' },
   survey: { ios: 'list.bullet.clipboard.fill', android: 'assignment' },
   certificate: { ios: 'doc.richtext.fill', android: 'workspace_premium' },
+  training: { ios: 'graduationcap.fill', android: 'school' },
   holiday: { ios: 'sun.horizon.fill', android: 'beach_access' },
   tour: { ios: 'map.fill', android: 'map' },
   flag: { ios: 'flag.fill', android: 'flag' },

@@ -15,10 +15,12 @@ use App\Http\Controllers\Api\RecognitionController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\TourController;
+use App\Http\Controllers\Api\TrainingController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Public\CalendarFeedController as CalendarSubscriptionController;
 use App\Http\Controllers\Public\CertificateDownloadController;
+use App\Http\Controllers\Public\TrainingSessionCalendarController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -62,6 +64,13 @@ Route::get('documents/certificate/{case}/{user}', CertificateDownloadController:
     ->whereNumber('user')
     ->middleware(['signed', 'throttle:20,1'])
     ->name('api.documents.certificate');
+
+// A training session for the phone's calendar (ADR 0094), the same way: the
+// browser has no token, so the short-lived signature in the address is the key.
+Route::get('documents/training-session/{session}/{user}', TrainingSessionCalendarController::class)
+    ->whereNumber(['session', 'user'])
+    ->middleware(['signed', 'throttle:20,1'])
+    ->name('api.documents.training-session');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->name('api.me');
@@ -137,6 +146,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('rewards', [RecognitionController::class, 'rewards'])->name('api.rewards.index');
         Route::post('rewards/{reward}/redeem', [RecognitionController::class, 'redeem'])->middleware('throttle:20,1')->name('api.rewards.redeem');
         Route::patch('redemptions/{redemption}/cancel', [RecognitionController::class, 'cancel'])->whereNumber('redemption')->name('api.redemptions.cancel');
+    });
+
+    // Training (ADR 0094): one's own programs, sessions and certificates, the
+    // programs one may join, and joining or withdrawing.
+    Route::middleware('can:training.participate')->group(function () {
+        Route::get('training', [TrainingController::class, 'index'])->name('api.training.index');
+        Route::get('training/catalog', [TrainingController::class, 'catalog'])->name('api.training.catalog');
+        Route::get('training/programs/{trainingProgram}', [TrainingController::class, 'show'])->name('api.training.show');
+        Route::post('training/programs/{trainingProgram}/join', [TrainingController::class, 'join'])->middleware('throttle:20,1')->name('api.training.join');
+        Route::delete('training/enrollments/{enrollment}', [TrainingController::class, 'withdraw'])->whereNumber('enrollment')->name('api.training.withdraw');
+        Route::post('training/sessions/{session}/calendar-link', [TrainingController::class, 'sessionLink'])->whereNumber('session')->middleware('throttle:30,1')->name('api.training.session-link');
+        Route::get('training/certificates/{certificate}', [TrainingController::class, 'certificate'])->whereNumber('certificate')->name('api.training.certificate');
     });
 
     // Leaving (ADRs 0076, 0077): one's own resignation, exit interview and

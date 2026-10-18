@@ -35,6 +35,9 @@ export type GlyphName =
   | 'door'
   | 'person'
   | 'lock'
+  | 'mortarboard'
+  | 'books'
+  | 'certificate'
   | 'all';
 
 type Ink = { fill: string; deep: string; paper: string; wash: string };
@@ -227,6 +230,53 @@ function Drawing({ name, ink }: { name: GlyphName; ink: Ink }) {
           <Rect x={7} y={13.5} width={18} height={14} rx={3.5} fill={fill} />
           <Circle cx={16} cy={19.3} r={2.1} fill={paper} />
           <Rect x={15.1} y={19.5} width={1.8} height={4.2} rx={0.9} fill={paper} />
+        </>
+      );
+
+    // A mortarboard: the board, the cap under it, and the tassel off one side.
+    case 'mortarboard':
+      return (
+        <>
+          <Path d="M9 15.4 V21.2 C9 23.4 12.1 25.2 16 25.2 C19.9 25.2 23 23.4 23 21.2 V15.4 L16 18.6 Z" fill={deep} />
+          <Path d="M16 5.6 L29 12 L16 18.4 L3 12 Z" fill={fill} />
+          {/* The cord runs across the board in paper, and hangs off it in deep. */}
+          <Path d="M16 12 L24 14.3" stroke={paper} strokeWidth={1.6} strokeLinecap="round" />
+          <Path d="M24.6 14.6 V21.4" {...line} strokeWidth={1.6} />
+          <Rect x={23.4} y={21} width={2.4} height={4.4} rx={1.1} fill={deep} />
+          <Circle cx={16} cy={12} r={1.5} fill={paper} />
+        </>
+      );
+
+    // The catalogue: books on a shelf, the last leaning on its neighbour.
+    case 'books':
+      return (
+        <>
+          <Rect x={5} y={8.5} width={5.4} height={18.5} rx={1.2} fill={fill} />
+          <Rect x={5} y={11.6} width={5.4} height={1.5} fill={paper} />
+          <Rect x={5} y={22.2} width={5.4} height={1.5} fill={paper} />
+          <Rect x={11.4} y={5.2} width={5.6} height={21.8} rx={1.2} fill={deep} />
+          <Rect x={13} y={9} width={2.4} height={6} rx={1.2} fill={paper} />
+          <G transform="rotate(-14 25.5 27)">
+            <Rect x={20} y={8.5} width={5.5} height={18.5} rx={1.2} fill={fill} />
+            <Rect x={20} y={12} width={5.5} height={1.5} fill={paper} />
+            <Rect x={20} y={21.6} width={5.5} height={1.5} fill={paper} />
+          </G>
+          <Path d="M3.5 28.4 H28.5" {...line} />
+        </>
+      );
+
+    // A certificate: the sheet, two lines of it, and a seal on its ribbons.
+    case 'certificate':
+      return (
+        <>
+          <Rect x={3.5} y={5} width={25} height={18} rx={2.6} fill={fill} />
+          <Rect x={7.5} y={9.2} width={15} height={2.1} rx={1.05} fill={paper} />
+          <Rect x={7.5} y={13.4} width={9} height={1.8} rx={0.9} fill={paper} />
+          <Path d="M19.4 24 L17.8 30 L20.4 28.9 L22 30.8 L23.2 25 Z" fill={deep} />
+          <Path d="M26.6 24 L28.2 30 L25.6 28.9 L24 30.8 L22.8 25 Z" fill={deep} />
+          <Circle cx={23} cy={20.6} r={6.2} fill={paper} />
+          <Path d={star(23, 20.6, 4.9, 4.1, 10)} fill={deep} />
+          <Path d="M20.9 20.7 L22.4 22.2 L25.2 19.3" stroke={paper} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </>
       );
 

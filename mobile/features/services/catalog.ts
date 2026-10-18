@@ -10,7 +10,7 @@ import type { AuthUser } from '@/types/api';
 
 import type { GlyphName } from './components/service-glyph';
 
-export type ServiceGroupKey = 'time' | 'calendar' | 'leave' | 'recognition' | 'work';
+export type ServiceGroupKey = 'time' | 'calendar' | 'leave' | 'recognition' | 'learning' | 'work';
 
 export type ServiceGroup = {
   key: ServiceGroupKey;
@@ -20,14 +20,16 @@ export type ServiceGroup = {
 };
 
 /**
- * The groups, in the order the Services tab shows them. Five hues, one per kind
- * of thing, so the grid reads as families rather than a rainbow of one-offs.
+ * The groups, in the order the Services tab shows them. One hue per kind of
+ * thing, so the grid reads as families rather than a rainbow of one-offs.
+ * Learning's jade sits far enough from Time's teal to be told apart in a grid.
  */
 export const SERVICE_GROUPS: ServiceGroup[] = [
   { key: 'time', title: 'Your time', hue: '#0ABFBF' },
   { key: 'calendar', title: 'Calendar', hue: '#2F7CF6' },
   { key: 'leave', title: 'Time off', hue: '#5856D6' },
   { key: 'recognition', title: 'Recognition', hue: '#FF6A3D' },
+  { key: 'learning', title: 'Learning', hue: '#2E9D57' },
   { key: 'work', title: 'Your employment', hue: '#5B6B8C' },
 ];
 
@@ -45,6 +47,9 @@ export type ServiceKey =
   | 'nominations'
   | 'rewards'
   | 'awards'
+  | 'training'
+  | 'trainingBrowse'
+  | 'certificates'
   | 'record'
   | 'resignation'
   | 'account'
@@ -69,6 +74,7 @@ export type Service = {
 
 const hasEmployee = (user: AuthUser) => !!user.employee;
 const recognizes = (user: AuthUser) => user.can_recognize;
+const trains = (user: AuthUser) => !!user.can_train && hasEmployee(user);
 
 export const SERVICES: Service[] = [
   {
@@ -197,6 +203,36 @@ export const SERVICES: Service[] = [
     glyph: 'trophy',
     href: '/awards',
     keywords: 'awards trophy recognition',
+  },
+  {
+    key: 'training',
+    title: 'My training',
+    label: 'Training',
+    group: 'learning',
+    glyph: 'mortarboard',
+    href: '/training',
+    keywords: 'training trainings programs program courses course sessions seminar learning attendance score',
+    available: trains,
+  },
+  {
+    key: 'trainingBrowse',
+    title: 'Browse training',
+    label: 'Browse',
+    group: 'learning',
+    glyph: 'books',
+    href: '/training/browse',
+    keywords: 'browse training catalogue catalog join sign up enroll programs courses seminars learn',
+    available: trains,
+  },
+  {
+    key: 'certificates',
+    title: 'My certificates',
+    label: 'Certificates',
+    group: 'learning',
+    glyph: 'certificate',
+    href: { pathname: '/training', params: { tab: 'certificates' } },
+    keywords: 'certificates certificate cert certification training expiry expires renew',
+    available: trains,
   },
   {
     key: 'record',

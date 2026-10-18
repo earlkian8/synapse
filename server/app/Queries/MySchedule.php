@@ -5,6 +5,8 @@ namespace App\Queries;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\TrainingEnrollment;
+use App\Models\TrainingSession;
 use App\Models\WorkLocation;
 use App\Support\Attendance\ResolvedShift;
 use App\Support\Attendance\ShiftResolver;
@@ -15,7 +17,8 @@ use Illuminate\Support\Collection;
 
 /**
  * One person's own week, as the app's My schedule shows it (ADR 0083): the
- * shift for each day, the holiday on it, and any leave they have filed for it.
+ * shift for each day, the holiday on it, any leave they have filed for it, and
+ * the training sessions they hold a seat at (ADR 0094).
  *
  * It is the roster board's row for one person ({@see ShiftRosterQuery}) — the
  * same {@see ShiftResolver} answer and the same holidays, a local one at their
@@ -48,6 +51,7 @@ final class MySchedule
         $shifts = $this->shifts->forMany(collect([$employee]), $start->toDateString(), $end->toDateString())[$employee->id] ?? [];
         $holidays = HolidayCalendar::forEmployees(collect([$employee]), $start, $end)->for($employee->id);
         $leave = $this->leave($employee, $start, $end);
+        $training = $this->training($employee, $start, $end, $zone);
 
         $days = [];
 
@@ -61,7 +65,7 @@ final class MySchedule
                 $holidays[$key] ?? null,
                 $leave,
                 $today,
-            );
+            ) + ['training' => $training[$key] ?? []];
         }
 
         $due = array_filter($days, fn (array $day): bool => $day['is_due']);
@@ -75,6 +79,7 @@ final class MySchedule
             'totals' => [
                 'shifts' => count($due),
                 'minutes' => array_sum(array_map(fn (array $day): int => $day['due_minutes'], $due)),
+                'training' => array_sum(array_map(fn (array $day): int => count($day['training']), $days)),
             ],
         ];
     }
@@ -154,6 +159,52 @@ final class MySchedule
             ->get()
             ->sortBy(fn (LeaveRequest $request): int => $request->status === 'approved' ? 0 : 1)
             ->values();
+    }
+
+    /**
+     * The sessions of the programs the person holds a seat on, by the day they
+     * fall on here. A session is set on the organisation's wall clock (ADR
+     * 0074); a site that keeps its own clock sees it at its own hour, and on
+     * its own date when the difference carries it past midnight. Training adds
+     * to the day; it excuses no work.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function training(Employee $employee, CarbonImmutable $start, CarbonImmutable $end, ?string $zone): array
+    {
+        $programs = TrainingEnrollment::query()->where('employee_id', $employee->id)->active()->pluck('training_program_id');
+
+        if ($programs->isEmpty()) {
+            return [];
+        }
+
+        $local = OrganizationClock::zone($zone);
+
+        return TrainingSession::query()
+            ->whereIn('training_program_id', $programs)
+            ->ofLivePrograms()
+            // A day either side: a zone apart can move a session onto this week.
+            ->whereBetween('session_date', [$start->subDay()->toDateString(), $end->addDay()->toDateString()])
+            ->with('program:id,name,provider')
+            ->chronological()
+            ->get()
+            ->map(fn (TrainingSession $session): array => [
+                'session' => $session,
+                'starts' => $session->startsAt()->setTimezone($local),
+                'ends' => $session->endsAt()->setTimezone($local),
+            ])
+            ->filter(fn (array $row): bool => $row['starts']->toDateString() >= $start->toDateString() && $row['starts']->toDateString() <= $end->toDateString())
+            ->sortBy(fn (array $row): int => $row['starts']->getTimestamp())
+            ->groupBy(fn (array $row): string => $row['starts']->toDateString())
+            ->map(fn ($rows): array => $rows->map(fn (array $row): array => [
+                'id' => $row['session']->id,
+                'title' => $row['session']->title,
+                'starts_at' => $row['starts']->format('H:i'),
+                'ends_at' => $row['ends']->format('H:i'),
+                'location' => $row['session']->location,
+                'program' => ['hashid' => $row['session']->program->hashid, 'name' => $row['session']->program->name],
+            ])->values()->all())
+            ->all();
     }
 
     private function covers(LeaveRequest $request, CarbonImmutable $day): bool
