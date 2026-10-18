@@ -218,6 +218,31 @@ require approval — identical to the web `LeaveRequestController`.
 Against a deployed server ([Deployment](../deployment.md)), set
 `EXPO_PUBLIC_API_URL=https://<your-domain>/api` in `mobile/.env` instead.
 
+## Building it
+
+Installable builds come from EAS Build, configured in `mobile/eas.json` (ADR 0093).
+The app is `com.synapsehr.app` on both platforms, and its link scheme is `synapse://`.
+
+- **`preview`**: an APK to install directly or post on the landing page. Internal
+  distribution, so EAS gives an install link and QR code.
+- **`production`**: an Android App Bundle (`.aab`) for Google Play, or an iOS build for
+  the App Store. EAS keeps the build number (`appVersionSource: remote`) and raises it
+  on every production build.
+
+Both profiles bake in `EXPO_PUBLIC_API_URL` from `eas.json`, which points at the
+deployed server. `mobile/.env` is git-ignored, so EAS never uploads it. To build
+against another server, change the URL in `eas.json`.
+
+```bash
+cd mobile
+npx eas-cli@latest login
+npx eas-cli@latest init                                     # once: links the project, writes extra.eas.projectId
+npx eas-cli@latest build --platform android --profile preview   # APK
+```
+
+The user-facing version is `expo.version` in `app.json`. Raise it for a release, and
+keep the landing page's `appVersion` (`landing/src/lib/links.ts`) in step.
+
 ## Conventions
 
 - `lib/api.ts` — the single fetch client (base URL + Bearer token + 422 parsing). A 401

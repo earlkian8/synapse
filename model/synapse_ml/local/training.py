@@ -185,7 +185,7 @@ def fit(ex_model: str, X: pd.DataFrame, y: pd.Series, groups: np.ndarray) -> Any
         return PromotionReadinessModel(SEED).fit(X, y, complete=False)
     if ex_model == "performance":
         return PerformanceForecastModel.for_sample(len(X), SEED).fit(X, y, groups=groups)
-    return attrition_model.random_forest(SEED).fit(X, y)
+    return attrition_model.fit(attrition_model.svm(), X, y)
 
 
 def predict(ex_model: str, fitted: Any, records: list[dict[str, Any]], X: pd.DataFrame) -> dict[str, np.ndarray]:

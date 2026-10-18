@@ -61,3 +61,12 @@ def test_exact_erp_values_encode_exactly_like_the_matching_survey_answers():
                               "overtime_hours_90d": 5.0, "absences_90d": 4.0, "lates_90d": 1.5, "employment_type": "regular"}])
 
     assert (prep.transform(erp[features.FEATURES]) == prep.transform(answered[features.FEATURES])).all()
+
+
+def test_overtime_is_recorded_but_not_a_model_input():
+    assert "overtime_hours_90d" in features.RECORDED_FEATURES
+    assert "overtime_hours_90d" not in features.FEATURES
+    assert set(features.FEATURES) | set(features.EXCLUDED) == set(features.RECORDED_FEATURES)
+
+    prep = features.preprocessor().fit(survey.load()[0][features.FEATURES])
+    assert list(prep.feature_names_in_) == features.FEATURES

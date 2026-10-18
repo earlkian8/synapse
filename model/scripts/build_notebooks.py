@@ -1,7 +1,7 @@
 """
 Generate the Synapse HR-ERP "Predictive Workforce Analytics" notebooks with nbformat.
 
-    notebooks/01_attrition_model.ipynb     — Random Forest attrition risk (attrition surveys)
+    notebooks/01_attrition_model.ipynb     — calibrated SVM attrition risk (attrition survey)
     notebooks/02_performance_model.ipynb   — Gradient Boosting forecast with conformal intervals
     notebooks/03_promotion_model.ipynb     — calibrated Logistic Regression promotion readiness
 
@@ -63,7 +63,7 @@ log = run.log
 """
 
 # ======================================================================================
-# 1) ATTRITION — Random Forest classification on the merged attrition surveys
+# 1) ATTRITION — calibrated SVM classification on the merged attrition survey
 # ======================================================================================
 
 
@@ -72,36 +72,37 @@ def build_attrition() -> nbf.NotebookNode:
     cells = []
 
     cells.append(md("""
-# 01 · Attrition Risk — Random Forest on the attrition surveys
+# 01 · Attrition Risk — a calibrated SVM on the attrition survey
 
 **Goal** — a 0–100 **flight-risk score** for every active employee that HR can act on
 *before* a resignation, served from data the Synapse ERP actually holds.
 
-**Data** — two exports of one survey (`data/raw/attrition-survey-{1,2}.csv`) asking people
-about an employer they worked for: employment type, tenure, monthly salary, time since their
-last promotion, their overtime / absences / lateness over their last three months — and how
-it ended. Every predictor has an ERP answer (employee record, promotions, 90 days of
-attendance).
+**Data** — one merged export of a nine-question survey (`data/raw/attrition_dataset.csv`)
+asking people about an employer they worked for: employment type, tenure, monthly salary,
+time since their last promotion, their overtime / absences / lateness over their last three
+months — and how it ended. Its `Dataset Source` column says where each response was gathered.
+Every predictor has an ERP answer (employee record, promotions, 90 days of attendance).
 
 **Target** — `left = 1` for *I resigned voluntarily*, `0` for *I am still employed there*.
 Retirement, contract end and dismissal are exits the employee did not choose, so they are
 excluded rather than counted as attrition.
 
-**Algorithm — Random Forest**, chosen by the comparison in §4: on this small, banded table
-the tree ensembles beat every linear model, because the signal is in interactions and
-non-monotone shapes (new hires *and* mid-tenure staff leave most), not straight lines.
+**Algorithm — an RBF support-vector machine**, isotonically calibrated, chosen by the
+comparison in §4: it scores each person by how close their answers sit to those of the people
+who left, which suits a small, banded table whose signal is in non-monotone shapes (new hires
+*and* mid-tenure staff leave most). Overtime is recorded but not an input (§5).
 
 **Where the logic lives** — this notebook is the narrative. Cleaning is
 `synapse_ml.attrition.survey`, the feature contract `…features`, the models `…model`, the
 evaluation protocol `…evaluation` — all tested under `tests/`.
 
-**Honesty up front** — 155 usable rows is small and the signal is modest. The notebook says
-exactly how modest (§4–§6) rather than presenting one lucky split.
+**Honesty up front** — about 200 usable rows is small and the signal is moderate. The notebook
+says exactly how moderate (§4–§8) rather than presenting one lucky split.
 """))
 
     cells.append(code(SETUP_CELL.format(model_name="attrition")))
 
-    cells.append(md("## 1 · Load, merge & clean both surveys"))
+    cells.append(md("## 1 · Load & clean the survey"))
     cells.append(code("""
 from synapse_ml.attrition import evaluation, features, model as models, survey
 
@@ -115,16 +116,18 @@ X, y = df[features.FEATURES], df[survey.TARGET]
 groups = df["pattern"]           # identical answer sets stay on one side of every split
 rate = float(y.mean())
 log.info("rows=%d · left=%d (%.1f%%) · stayed=%d", len(y), y.sum(), rate * 100, (1 - y).sum())
+log.info("model inputs (%d): %s · recorded, not modelled: %s", len(features.FEATURES),
+         ", ".join(features.FEATURES), ", ".join(features.EXCLUDED))
 df.head()
 """))
     cells.append(code("""
 by_source = pd.crosstab(df["source"], y.map({0: "stayed", 1: "left"}))
 by_source["left rate"] = (by_source["left"] / by_source.sum(axis=1)).round(2)
-log.info("outcome by survey:\\n%s", by_source.to_string())
+log.info("outcome by source:\\n%s", by_source.to_string())
 
 fig, ax = plt.subplots(figsize=(5, 3.2))
 by_source[["stayed", "left"]].plot(kind="bar", stacked=True, ax=ax, color=["#4c72b0", "#dd8452"], rot=0)
-ax.set_title(f"Outcome by survey · overall left rate {rate:.0%}")
+ax.set_title(f"Outcome by source · overall left rate {rate:.0%}")
 run.save_fig(fig, "01_class_balance"); plt.show()
 by_source
 """))
@@ -132,23 +135,25 @@ by_source
     cells.append(md("""
 ## 2 · Who left — rate by answer band
 
-Each feature in the bands the survey asked in. The two surveys reached different populations
-(survey 2 is mostly long-tenured, better-paid public-sector staff, few of whom resigned), so
-the pooled pattern is partly *who answered which survey* — §6 tests that directly.
+Every recorded answer, in the bands the survey asked in. The two sources reached different
+populations (`attrition-survey-2` is mostly long-tenured, better-paid public-sector staff, few
+of whom resigned), so the pooled pattern is partly *who answered where* — §7 tests that
+directly. Note overtime: the share who left barely moves across its bands.
 """))
     cells.append(code("""
 fig, axes = plt.subplots(2, 4, figsize=(18, 7.5))
-for ax, feature in zip(axes.flat, features.FEATURES):
+for ax, feature in zip(axes.flat, features.RECORDED_FEATURES):
     if feature in features.BAND_EDGES:
-        band = X[feature].map(lambda v: features.band_of(feature, v) if pd.notna(v) else np.nan)
+        band = df[feature].map(lambda v: features.band_of(feature, v) if pd.notna(v) else np.nan)
     else:
-        band = X[feature]
+        band = df[feature]
     t = pd.DataFrame({"band": band, "left": y}).dropna().groupby("band")["left"].agg(["mean", "size"])
     labels = [features.BAND_LABELS[feature][int(b)] for b in t.index] if feature in features.BAND_LABELS else list(t.index)
-    ax.bar(range(len(t)), t["mean"], color="#8172b3")
+    ax.bar(range(len(t)), t["mean"], color="#bbbbbb" if feature in features.EXCLUDED else "#8172b3")
     ax.set_xticks(range(len(t)), [f"{l}\\n(n={n})" for l, n in zip(labels, t["size"])], fontsize=8)
     ax.axhline(rate, color="k", lw=0.8, ls="--")
-    ax.set_title(features.FEATURE_LABELS[feature]); ax.set_ylim(0, 1)
+    ax.set_title(features.FEATURE_LABELS[feature] + (" — not modelled" if feature in features.EXCLUDED else ""))
+    ax.set_ylim(0, 1)
     log.info("left rate by %s:\\n%s", feature, t.assign(label=labels).to_string())
 fig.suptitle("Share who left, by answer band (dashed = overall rate)")
 fig.tight_layout(); run.save_fig(fig, "02_attrition_by_driver"); plt.show()
@@ -157,12 +162,13 @@ fig.tight_layout(); run.save_fig(fig, "02_attrition_by_driver"); plt.show()
     cells.append(md("""
 ## 3 · Evaluation protocol
 
-With 155 rows a single train/test split swings on a handful of people, so every estimate is
-**repeated, grouped, stratified 5-fold cross-validation** (10 repeats): each row is scored by a
-model that never saw it, rows with an identical answer pattern share a fold, and each repeat
+With about 200 rows a single train/test split swings on a handful of people, so every estimate
+is **repeated, grouped, stratified 5-fold cross-validation** (10 repeats): each row is scored by
+a model that never saw it, rows with an identical answer pattern share a fold, and each repeat
 reshuffles (`synapse_ml.attrition.evaluation`). Every candidate shares one preprocessor —
-median-impute, band each value with the survey's own edges, one-hot employment type — so the
-comparison is between estimators.
+median-impute, band each value with the survey's own edges, one-hot employment type — and is
+fitted with both outcomes weighted equally (`models.fit`), so the comparison is between
+estimators.
 """))
 
     cells.append(md("## 4 · Which algorithm — a like-for-like comparison"))
@@ -183,15 +189,43 @@ ax.set_title("Repeated grouped CV · ROC-AUC (mean ± sd over repeats)")
 run.save_fig(fig, "03_model_comparison"); plt.show()
 table
 """))
+    cells.append(md("""
+The SVM leads the forests by about 0.03 and the linear and boosted models by far more. Its
+scores are calibrated **isotonically**: the calibrator learns from a few dozen held-out rows,
+and a sigmoid fitted on that few can come out with its slope reversed — silently inverting the
+ranking. An isotonic map is increasing by construction, so it can only reshape the scale.
+"""))
 
     cells.append(md("""
-## 5 · Is the signal real? — a permutation test
+## 5 · Why overtime is not an input — an ablation
+
+Overtime is recorded (§2) and the ERP sends it, but the model reads it only if it helps. The
+same comparison, with overtime put back:
+"""))
+    cells.append(code("""
+with_overtime = features.NUMERIC_FEATURES + ["overtime_hours_90d"]
+X_all = df[with_overtime + features.CATEGORICAL_FEATURES]
+ablation = {
+    "SVM": (comparison[models.CHOSEN]["roc_auc"],
+            evaluation.summarise(evaluation.oof_predictions(models.svm(numeric=with_overtime), X_all, y, groups), y)["roc_auc"]),
+    "Random Forest": (comparison["Random Forest"]["roc_auc"],
+                      evaluation.summarise(evaluation.oof_predictions(
+                          models.pipeline(models.candidates()["Random Forest"].named_steps["clf"], numeric=with_overtime),
+                          X_all, y, groups), y)["roc_auc"]),
+}
+ablation = pd.DataFrame(ablation, index=["without overtime", "with overtime"]).T.round(3)
+log.info("overtime ablation (ROC-AUC):\\n%s", ablation.to_string())
+ablation
+"""))
+
+    cells.append(md("""
+## 6 · Is the signal real? — a permutation test
 
 Shuffle the outcome, re-run the cross-validation, repeat 100 times. The p-value is the share of
 shuffles that did at least as well as the real outcomes.
 """))
     cells.append(code("""
-chosen = models.random_forest()
+chosen = models.svm()
 observed = comparison[models.CHOSEN]["roc_auc"]
 null, p_value = evaluation.permutation_test(chosen, X, y, groups, observed)
 log.info("permutation test · observed ROC-AUC %.3f · null mean %.3f sd %.3f · p=%.3f",
@@ -205,11 +239,28 @@ run.save_fig(fig, "04_permutation_test"); plt.show()
 """))
 
     cells.append(md("""
-## 6 · Does it travel? — train on one survey, test on the other
+## 7 · Does the choice flatter it? — nested cross-validation
 
-The hardest honest test: a model that only learned *which survey population someone came
-from* falls apart here. Reported, not optimised — it is the known limit of this data and the
-reason the model is labelled *provisional* until retrained on the organisation's own departures.
+The SVM's settings (C, gamma) and its inputs were chosen by looking at these same rows, so §4
+is a little optimistic. Nested cross-validation re-runs the *whole choice* inside each training
+fold — the settings are picked without ever seeing the rows they are then scored on. Its score
+is the honest floor; the truth for the fixed model lies between it and §4.
+"""))
+    cells.append(code("""
+import itertools
+grid = [{"C": C, "gamma": g} for C, g in itertools.product([0.3, 1, 3, 10], ["scale", 0.1, 0.3, 1.0])]
+nested, nested_choices = evaluation.nested_cv(models.svm, grid, X, y, groups)
+log.info("nested CV · ROC-AUC %.3f ± %.3f per repeat %s", np.mean(nested), np.std(nested), np.round(nested, 3).tolist())
+log.info("nested CV · settings chosen per fold: %s",
+         pd.Series([f"C={c['C']} gamma={c['gamma']}" for c in nested_choices]).value_counts().to_dict())
+"""))
+
+    cells.append(md("""
+## 8 · Does it travel? — train on one source, test on the other
+
+The hardest honest test: a model that only learned *which population someone came from* falls
+apart here. Reported, not optimised — it is the known limit of this data and the reason the
+model is labelled *provisional* until retrained on the organisation's own departures.
 """))
     cells.append(code("""
 cross_source = evaluation.cross_source(chosen, X, y, df["source"])
@@ -218,7 +269,7 @@ for split, auc in cross_source.items():
 cross_source
 """))
 
-    cells.append(md("## 7 · The chosen model, out of fold — curves, calibration and tiers"))
+    cells.append(md("## 9 · The chosen model, out of fold — curves, calibration and tiers"))
     cells.append(code("""
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import PrecisionRecallDisplay, RocCurveDisplay, roc_auc_score
@@ -239,17 +290,22 @@ tier = pd.cut(oof, bins=[-0.01, cuts["low_below"], cuts["medium_below"], 1.01], 
 tier_table = pd.crosstab(tier, y.map({0: "stayed", 1: "left"}))
 tier_table["left rate"] = (tier_table["left"] / tier_table.sum(axis=1)).round(2)
 log.info("out-of-fold tiers vs outcome:\\n%s", tier_table.to_string())
+
+quintile = pd.qcut(oof, 5, labels=["lowest fifth", "2nd", "3rd", "4th", "highest fifth"])
+by_quintile = pd.DataFrame({"score": oof * 100, "left": y}).groupby(quintile, observed=True).agg(
+    score_from=("score", "min"), score_to=("score", "max"), people=("left", "size"), left_rate=("left", "mean")).round(2)
+log.info("out-of-fold score fifths vs outcome:\\n%s", by_quintile.to_string())
 tier_table
 """))
 
     cells.append(md("""
-The score is **relative, not a calibrated probability**: the forest is trained with balanced
-class weights and the survey over-samples leavers relative to any real workforce, so a score of
-70 means *this profile looks much more like the people who left than those who stayed* — not
-"70% chance". The tier table is what each tier has meant on unseen rows.
+The score is **relative, not a calibrated probability**: both outcomes are weighted equally in
+training and the survey over-samples leavers relative to any real workforce, so a score of 70
+means *this profile looks much more like the people who left than those who stayed* — not "70%
+chance". The tier and fifth tables are what each score range has meant on unseen rows.
 """))
 
-    cells.append(md("## 8 · What drives it — permutation importance, out of fold"))
+    cells.append(md("## 10 · What drives it — permutation importance, out of fold"))
     cells.append(code("""
 imp = evaluation.oof_permutation_importance(chosen, X, y, groups).rename(features.FEATURE_LABELS).sort_values()
 log.info("out-of-fold permutation importance (ROC-AUC drop):\\n%s", imp.sort_values(ascending=False).to_string())
@@ -261,46 +317,50 @@ run.save_fig(fig, "06_feature_importance"); plt.show()
 """))
 
     cells.append(md("""
-## 9 · Fit on everything, check ERP parity, persist
+## 11 · Fit on everything, check ERP parity, persist
 
 The served model is fit on all rows (the CV above estimated how a model built this way
 performs). Then the load-bearing check: an employee's exact ERP figures must score exactly like
-the survey answers they correspond to.
+the survey answers they correspond to — and the overtime the ERP still sends must change nothing.
 """))
     cells.append(code("""
 from sklearn.base import clone
 
-final = clone(chosen).fit(X, y)
+final = models.fit(clone(chosen), X, y)
 
 erp = pd.DataFrame([{"employment_type": "regular", "tenure_years": 4.2, "monthly_salary": 18_500,
                      "ever_promoted": 0, "years_since_promotion": 4.2,
-                     "overtime_hours_90d": 7.25, "absences_90d": 3, "lates_90d": 2}])[features.FEATURES]
+                     "overtime_hours_90d": 7.25, "absences_90d": 3, "lates_90d": 2}])
 answered = pd.DataFrame([{"employment_type": "regular", "tenure_years": 4.0, "monthly_salary": 20_000,
                           "ever_promoted": 0, "years_since_promotion": 4.0,
-                          "overtime_hours_90d": 5.0, "absences_90d": 4.0, "lates_90d": 1.5}])[features.FEATURES]
-p_erp, p_answered = final.predict_proba(erp)[0, 1], final.predict_proba(answered)[0, 1]
+                          "overtime_hours_90d": 120.0, "absences_90d": 4.0, "lates_90d": 1.5}])
+p_erp, p_answered = final.predict_proba(erp[features.FEATURES])[0, 1], final.predict_proba(answered[features.FEATURES])[0, 1]
 assert abs(p_erp - p_answered) < 1e-12, (p_erp, p_answered)
 log.info("ERP parity · exact ERP values score %.4f, the matching survey answers %.4f", p_erp, p_answered)
 """))
     cells.append(code("""
-rf_cv = comparison[models.CHOSEN]
+svm_cv = comparison[models.CHOSEN]
 run.save_model(final, "attrition_model")
 run.save_json(features.feature_contract(X), "feature_contract")
 run.save_metrics({
-    "algorithm": "RandomForestClassifier",
+    "algorithm": "SVC",
+    "calibration": "isotonic, 5 folds averaged; both outcomes weighted equally",
     "evaluation": f"{evaluation.REPEATS}x repeated grouped stratified {evaluation.FOLDS}-fold CV",
-    "cv_roc_auc": rf_cv["roc_auc"], "cv_roc_auc_sd": rf_cv["roc_auc_sd"],
-    "cv_pr_auc": rf_cv["pr_auc"], "cv_brier": rf_cv["brier"],
+    "cv_roc_auc": svm_cv["roc_auc"], "cv_roc_auc_sd": svm_cv["roc_auc_sd"],
+    "cv_pr_auc": svm_cv["pr_auc"], "cv_brier": svm_cv["brier"],
+    "nested_cv_roc_auc": float(np.mean(nested)), "nested_cv_roc_auc_sd": float(np.std(nested)),
     "permutation_p_value": p_value,
     "cross_source_roc_auc": cross_source,
     "comparison": {name: round(scores["roc_auc"], 4) for name, scores in comparison.items()},
+    "overtime_ablation_roc_auc": ablation.to_dict(orient="index"),
+    "excluded_features": features.EXCLUDED,
     "positive_rate": rate,
     "n_rows": int(len(y)), "n_left": int(y.sum()),
     "rows_by_source": df["source"].value_counts().to_dict(),
     "dropped": report.dropped,
 })
-run.finish(summary=f"RandomForest: CV ROC-AUC={rf_cv['roc_auc']:.3f}±{rf_cv['roc_auc_sd']:.3f}, "
-                   f"PR-AUC={rf_cv['pr_auc']:.3f}, permutation p={p_value:.3f}")
+run.finish(summary=f"SVM: CV ROC-AUC={svm_cv['roc_auc']:.3f}±{svm_cv['roc_auc_sd']:.3f}, "
+                   f"nested={np.mean(nested):.3f}, PR-AUC={svm_cv['pr_auc']:.3f}, permutation p={p_value:.3f}")
 """))
 
     nb.cells = cells

@@ -1,13 +1,18 @@
-"""Load, merge and clean the attrition surveys into the model's training table.
+"""Load and clean the attrition survey responses into the model's training table.
 
-Two Google-Forms exports (``data/raw/attrition-survey-{1,2}.csv``) ask the same nine
-questions of people about an employer they worked for. This module is the single
-source of truth for every decision made on the way to a tidy dataset:
+``data/raw/attrition_dataset.csv`` is one merged export of the nine-question survey
+people answered about an employer they worked for: its ``Dataset Source`` column names
+where each response was gathered (``aldrich_gathered`` holds the first export and the
+responses collected after it; ``attrition-survey-2`` the second export). This module is
+the single source of truth for every decision made on the way to a tidy dataset:
 
 * **Who is kept.** Consenting respondents, and only the two outcomes that answer
   "did this person *choose* to leave?": resigned voluntarily (``left = 1``) and still
   employed (``left = 0``). Retirement, contract end and dismissal are a different event,
   so they are excluded rather than counted as attrition — or as staying.
+* **What the merge lost.** Re-saving the exports turned the answer "None" (no overtime)
+  into a blank, the only blank an answered question can hold, so a blank overtime answer
+  is read back as "None".
 * **Resubmissions.** Identical answers from the same survey within
   ``RESUBMIT_WINDOW`` are one person pressing Submit twice. Identical answers further
   apart are kept — co-workers legitimately tick the same bands — but share a
@@ -32,12 +37,13 @@ import numpy as np
 import pandas as pd
 
 from ..paths import PROCESSED_DATA_DIR, RAW_DATA_DIR
-from .features import FEATURES
+from .features import RECORDED_FEATURES
 
-SURVEY_FILES = ("attrition-survey-1.csv", "attrition-survey-2.csv")
+DATASET_FILE = "attrition_dataset.csv"
 MERGED_PATH = PROCESSED_DATA_DIR / "attrition-survey-merged.csv"
 
 TARGET = "left"
+SOURCE_COLUMN = "Dataset Source"
 RESUBMIT_WINDOW = timedelta(minutes=2)
 
 # Each export's header, by the stable prefix every question starts with.
@@ -71,6 +77,7 @@ EXCLUDED_OUTCOMES = {"I retired", "My contract or project ended", "I was termina
 # --------------------------------------------------------------------------------------
 
 NEVER_PROMOTED = "I was never promoted"
+NO_OVERTIME = "None"
 
 # Survey employment types -> the ERP's four. Project-based, fixed-term and
 # casual/seasonal work are all fixed engagements the ERP records as `contractual`.
@@ -108,7 +115,7 @@ YEARS_SINCE_PROMOTION = {
 }
 
 OVERTIME_HOURS = {
-    "None": 0.0,
+    NO_OVERTIME: 0.0,
     "1 to 10 hours": 5.0,
     "11 to 25 hours": 18.0,
     "26 to 50 hours": 38.0,
@@ -169,27 +176,28 @@ class CleaningReport:
 # --------------------------------------------------------------------------------------
 
 
-def load_raw(directory: Path = RAW_DATA_DIR, files: tuple[str, ...] = SURVEY_FILES) -> pd.DataFrame:
-    """Read and stack the survey exports, verbatim but for whitespace.
+def load_raw(directory: Path = RAW_DATA_DIR, filename: str = DATASET_FILE) -> pd.DataFrame:
+    """Read the merged export, verbatim but for whitespace and the blanks the merge left.
 
     ``keep_default_na=False`` is load-bearing: pandas otherwise reads the answer "None"
     (no overtime) as a missing value, silently turning a real answer into an imputed one.
+    ``utf-8-sig`` drops the byte-order mark the export starts with.
     """
-    frames = []
-    for filename in files:
-        raw = pd.read_csv(directory / filename, dtype=str, keep_default_na=False, encoding="utf-8")
-        df = _rename_questions(raw, filename)
-        df.insert(0, "source", Path(filename).stem)
-        if "reference" not in df:
-            df.insert(1, "reference", "")
-        frames.append(df)
+    raw = pd.read_csv(directory / filename, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+    if SOURCE_COLUMN not in raw:
+        raise ValueError(f"{filename}: no '{SOURCE_COLUMN}' column")
+    source = raw.pop(SOURCE_COLUMN)
+    df = _rename_questions(raw, filename)
+    df.insert(0, "source", source)
+    if "reference" not in df:
+        df.insert(1, "reference", "")
 
-    df = pd.concat(frames, ignore_index=True)
     for column in df.columns:
         df[column] = df[column].astype(str).str.strip()
+    df.loc[df["overtime_answer"] == "", "overtime_answer"] = NO_OVERTIME
     df["submitted_at"] = pd.to_datetime(df["submitted_at"], format="%m/%d/%Y %H:%M:%S")
 
-    # Survey 1 has no reference numbers; give every row a stable one.
+    # The first export has no reference numbers; give every row a stable one.
     blank = df["reference"] == ""
     df.loc[blank, "reference"] = df[blank].groupby("source").cumcount().add(1).map(lambda n: f"S1-{n:04d}")
     return df
@@ -251,11 +259,11 @@ def encode(df: pd.DataFrame) -> pd.DataFrame:
     out["absences_90d"] = df["absences_answer"].map(ABSENCE_DAYS)
     out["lates_90d"] = df["lates_answer"].map(LATE_TIMES)
     out["employment_type"] = df["employment_type_answer"].map(EMPLOYMENT_TYPES)
-    return out[FEATURES]
+    return out[RECORDED_FEATURES]
 
 
 def load(directory: Path = RAW_DATA_DIR) -> tuple[pd.DataFrame, CleaningReport]:
-    """Load, merge and clean both surveys."""
+    """Load and clean the merged survey export."""
     return clean(load_raw(directory))
 
 

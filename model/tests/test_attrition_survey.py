@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from synapse_ml.attrition import survey
-from synapse_ml.attrition.features import FEATURES
+from synapse_ml.attrition.features import RECORDED_FEATURES
 
 
 @pytest.fixture(scope="module")
@@ -19,7 +19,7 @@ def cleaned():
 
 def _raw_row(**overrides) -> dict:
     row = {
-        "source": "attrition-survey-1",
+        "source": "aldrich_gathered",
         "reference": "",
         "submitted_at": pd.Timestamp("2026-09-15 20:00:00"),
         "consent": survey.CONSENTED,
@@ -40,10 +40,10 @@ def _raw_row(**overrides) -> dict:
 # ── The real data ────────────────────────────────────────────────────────────
 
 
-def test_both_surveys_are_merged_and_every_dropped_row_is_accounted_for(cleaned):
+def test_every_source_is_kept_and_every_dropped_row_is_accounted_for(cleaned):
     tidy, report = cleaned
 
-    assert set(tidy["source"]) == {"attrition-survey-1", "attrition-survey-2"}
+    assert set(tidy["source"]) == {"aldrich_gathered", "attrition-survey-2"}
     assert sum(report.raw_rows.values()) == report.kept + sum(report.dropped.values())
     assert report.kept == len(tidy)
     assert report.positives == int(tidy[survey.TARGET].sum())
@@ -64,11 +64,11 @@ def test_references_are_unique(cleaned):
     assert tidy["reference"].is_unique
 
 
-def test_every_feature_is_present_and_only_salary_is_ever_missing(cleaned):
+def test_every_answer_is_present_and_only_salary_is_ever_missing(cleaned):
     tidy, _ = cleaned
 
-    assert list(tidy[FEATURES].columns) == FEATURES
-    missing = tidy[FEATURES].isna().sum()
+    assert list(tidy[RECORDED_FEATURES].columns) == RECORDED_FEATURES
+    missing = tidy[RECORDED_FEATURES].isna().sum()
     assert set(missing[missing > 0].index) <= {"monthly_salary"}
 
 
@@ -79,6 +79,28 @@ def test_the_answer_none_is_zero_overtime_not_a_missing_value(cleaned):
 
     assert tidy["overtime_hours_90d"].notna().all()
     assert (tidy["overtime_hours_90d"] == 0).sum() > 0
+
+
+def test_a_blank_overtime_answer_is_the_none_the_merge_lost(tmp_path):
+    # Re-saving the exports blanked "None"; read back, it is zero overtime again.
+    raw = pd.read_csv(survey.RAW_DATA_DIR / survey.DATASET_FILE, dtype=str, keep_default_na=False,
+                      encoding="utf-8-sig", nrows=2)
+    overtime = next(c for c in raw.columns if c.startswith("6."))
+    raw[overtime] = ["", "1 to 10 hours"]
+    raw.to_csv(tmp_path / survey.DATASET_FILE, index=False, encoding="utf-8-sig")
+
+    loaded = survey.load_raw(tmp_path)
+
+    assert loaded["overtime_answer"].tolist() == [survey.NO_OVERTIME, "1 to 10 hours"]
+
+
+def test_an_export_without_its_source_column_fails_loudly(tmp_path):
+    raw = pd.read_csv(survey.RAW_DATA_DIR / survey.DATASET_FILE, dtype=str, keep_default_na=False,
+                      encoding="utf-8-sig", nrows=1)
+    raw.drop(columns=[survey.SOURCE_COLUMN]).to_csv(tmp_path / survey.DATASET_FILE, index=False)
+
+    with pytest.raises(ValueError, match="Dataset Source"):
+        survey.load_raw(tmp_path)
 
 
 # ── The rules, on constructed rows ───────────────────────────────────────────

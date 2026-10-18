@@ -50,8 +50,8 @@ TIER_BINS = ((0.33, "low"), (0.66, "medium"), (1.01, "high"))
 PROTECTED_FEATURES = {"gender", "marital_status", "age", "education_level", "city_tier"}
 
 # Occlusion effects smaller than this (two risk points) are not offered as a reason.
-# On the attrition forest real drivers move a score by 10–35 points; below ~2 the
-# effect is the forest's own noise and reads as contradiction, not insight.
+# On the attrition model real drivers move a score by 10–35 points; below ~2 the
+# effect is the model's own noise and reads as contradiction, not insight.
 OCCLUSION_FLOOR = 0.02
 
 FEATURE_LABELS = dict(ATTRITION_FEATURE_LABELS)

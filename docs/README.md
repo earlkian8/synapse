@@ -175,6 +175,7 @@ commit history rather than repeating them.
 - [0090 — The roster is Attendance's, and departments bring their positions](./decisions/0090-the-roster-is-attendances-and-departments-bring-their-positions.md)
 - [0091 — Postings say what they pay, and anyone assigned can interview](./decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md)
 - [0092 — Kiosks for people without a phone: a paired device and a PIN of their own](./decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md) (supersedes the kiosk half of 0054)
+- [0093 — The app ships through EAS, as com.synapsehr.app](./decisions/0093-the-app-ships-through-eas-as-com-synapsehr-app.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)

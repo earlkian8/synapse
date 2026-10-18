@@ -47,9 +47,16 @@ FEATURE_LABELS = {
     "employment_type": "Employment type",
 }
 
-NUMERIC_FEATURES = list(BAND_EDGES)
+# Recorded by the survey and sent by the ERP, but not a model input. Overtime's leave
+# rate is flat across its bands, and as an input it only adds noise: the chosen model
+# loses about 0.02 ROC-AUC with it (notebook §5). The ERP may keep sending it — the
+# service reads only ``FEATURES``.
+EXCLUDED = {"overtime_hours_90d": "no signal: the share who left is flat across its bands"}
+
 CATEGORICAL_FEATURES = ["employment_type"]
-FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+RECORDED_FEATURES = list(BAND_EDGES) + CATEGORICAL_FEATURES  # every encoded survey answer
+NUMERIC_FEATURES = [f for f in BAND_EDGES if f not in EXCLUDED]
+FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES  # the model's inputs
 
 # Tier cut-points on the probability scale (the inference service applies the same).
 TIER_CUTS = {"low_below": 0.33, "medium_below": 0.66}
@@ -60,13 +67,14 @@ def band_of(feature: str, value: float) -> int:
     return int(np.digitize([value], BAND_EDGES[feature])[0])
 
 
-def preprocessor(scale: bool = False):
+def preprocessor(scale: bool = False, numeric: list[str] | None = None):
     """The preprocessing every candidate model shares.
 
     Numeric: impute the median (in the survey only salary is ever missing — "prefer not
     to say"; in an organisation's own records, attendance that was never tracked),
     band each column with its own edges, optionally standardise for linear models.
-    Categorical: one-hot, ignoring values not seen in training. Built from stock
+    Categorical: one-hot, ignoring values not seen in training. ``numeric`` overrides
+    the numeric inputs (the notebook's ablation puts overtime back). Built from stock
     scikit-learn/NumPy callables only, so a fitted pipeline unpickles anywhere without
     importing this package.
     """
@@ -75,10 +83,11 @@ def preprocessor(scale: bool = False):
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
+    numeric = NUMERIC_FEATURES if numeric is None else numeric
     banding = ColumnTransformer(
         [
-            (name, FunctionTransformer(np.digitize, kw_args={"bins": np.asarray(edges)}, feature_names_out="one-to-one"), [i])
-            for i, (name, edges) in enumerate(BAND_EDGES.items())
+            (name, FunctionTransformer(np.digitize, kw_args={"bins": np.asarray(BAND_EDGES[name])}, feature_names_out="one-to-one"), [i])
+            for i, name in enumerate(numeric)
         ],
         verbose_feature_names_out=False,
     )
@@ -95,7 +104,7 @@ def preprocessor(scale: bool = False):
     ]
     return ColumnTransformer(
         [
-            ("num", Pipeline(numeric_steps), NUMERIC_FEATURES),
+            ("num", Pipeline(numeric_steps), numeric),
             ("cat", Pipeline(categorical_steps), CATEGORICAL_FEATURES),
         ]
     )
@@ -108,6 +117,7 @@ def feature_contract(X) -> dict:
         "numeric": NUMERIC_FEATURES,
         "categorical": CATEGORICAL_FEATURES,
         "categorical_levels": {col: sorted(X[col].dropna().unique().tolist()) for col in CATEGORICAL_FEATURES},
+        "excluded": EXCLUDED,
         "band_edges": BAND_EDGES,
         "band_labels": BAND_LABELS,
         "labels": FEATURE_LABELS,

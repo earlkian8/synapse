@@ -85,12 +85,15 @@ def test_the_artifact_is_trained_on_exactly_the_contract():
 def test_the_metrics_record_an_honest_evaluation():
     metrics = json.loads((ARTIFACT.parent / "metrics.json").read_text(encoding="utf-8"))
 
-    assert metrics["algorithm"] == "RandomForestClassifier"
+    assert metrics["algorithm"] == "SVC"
     assert metrics["n_rows"] == len(survey.load()[0])
-    for key in ("cv_roc_auc", "cv_pr_auc", "permutation_p_value", "cross_source_roc_auc"):
+    for key in ("cv_roc_auc", "cv_pr_auc", "nested_cv_roc_auc", "permutation_p_value", "cross_source_roc_auc"):
         assert key in metrics
     # Better than the prior-only baseline, or it should not be served at all.
     assert metrics["cv_roc_auc"] > metrics["comparison"]["Baseline (prior)"]
+    # Even with its settings chosen inside each fold, and beyond chance.
+    assert metrics["nested_cv_roc_auc"] > metrics["comparison"]["Baseline (prior)"]
+    assert metrics["permutation_p_value"] < 0.05
 
 
 # ── Serving ──────────────────────────────────────────────────────────────────
@@ -103,7 +106,7 @@ def test_health_lists_the_attrition_model(client):
     info = body["models"]["attrition"]
     assert info["kind"] == "classifier"
     assert info["feature_count"] == len(features.FEATURES)
-    assert info["version"].startswith("RandomForestClassifier@")
+    assert info["version"].startswith("SVC@")
     assert "cv_roc_auc" in info["metrics"]
 
 
@@ -142,11 +145,31 @@ def test_an_unknown_employment_type_is_ignored_not_an_error(client):
 
 
 def test_extreme_values_stay_in_the_outermost_band(client):
-    # 400 overtime hours is still "more than 100", so it scores like 120.
-    high, top_band = predict(client, {**ERP_EMPLOYEE, "overtime_hours_90d": 400},
-                             {**ERP_EMPLOYEE, "overtime_hours_90d": 120})
+    # 40 late arrivals is still "more than 10", so it scores like 12.
+    high, top_band = predict(client, {**ERP_EMPLOYEE, "lates_90d": 40},
+                             {**ERP_EMPLOYEE, "lates_90d": 12})
 
     assert high["probability"] == pytest.approx(top_band["probability"], abs=1e-12)
+
+
+def test_the_overtime_the_erp_still_sends_changes_nothing(client):
+    none, plenty = predict(client, {**ERP_EMPLOYEE, "overtime_hours_90d": 0},
+                           {**ERP_EMPLOYEE, "overtime_hours_90d": 150})
+
+    assert none["probability"] == plenty["probability"]
+    assert all(f["feature"] != "overtime_hours_90d" for f in plenty["factors"] or [])
+
+
+def test_scores_sit_on_the_scale_the_tiers_are_cut_on():
+    # Both outcomes weighted equally: averaged per outcome, the scores centre on 0.5
+    # rather than sinking to the survey's leave rate.
+    pipeline = joblib.load(ARTIFACT)
+    tidy, _ = survey.load()
+    scores = pipeline.predict_proba(tidy[features.FEATURES])[:, 1]
+    left = tidy[survey.TARGET] == 1
+
+    assert scores[left].mean() > scores[~left].mean()
+    assert (scores[left].mean() + scores[~left].mean()) / 2 == pytest.approx(0.5, abs=0.05)
 
 
 def test_refs_are_echoed_in_order_for_a_batch(client):

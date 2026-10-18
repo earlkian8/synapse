@@ -1,6 +1,6 @@
 """How the attrition model is evaluated.
 
-The dataset is small (155 rows), so a single train/test split would swing on a handful
+The dataset is small (about 200 rows), so a single train/test split would swing on a handful
 of people. Every estimate here is **repeated, grouped, stratified k-fold** out-of-fold
 scoring: each row is scored by a model that never saw it, rows sharing an answer
 pattern stay in the same fold (so a duplicate cannot leak its own label), and each
@@ -16,7 +16,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
 
-from .model import SEED
+from .model import SEED, fit
 
 REPEATS = 10
 FOLDS = 5
@@ -32,7 +32,7 @@ def oof_predictions(pipeline, X: pd.DataFrame, y: pd.Series, groups, repeats: in
     out = np.zeros((repeats, len(y)))
     for r in range(repeats):
         for train, test in _splits(X, y, groups, folds, seed + r):
-            fitted = clone(pipeline).fit(X.iloc[train], y.iloc[train])
+            fitted = fit(clone(pipeline), X.iloc[train], y.iloc[train])
             out[r, test] = fitted.predict_proba(X.iloc[test])[:, 1]
     return out
 
@@ -70,7 +70,7 @@ def cross_source(pipeline, X: pd.DataFrame, y: pd.Series, sources: pd.Series) ->
     scores = {}
     for source in sorted(sources.unique()):
         train = (sources == source).values
-        fitted = clone(pipeline).fit(X[train], y[train])
+        fitted = fit(clone(pipeline), X[train], y[train])
         scores[f"{source}->other"] = float(roc_auc_score(y[~train], fitted.predict_proba(X[~train])[:, 1]))
     return scores
 
@@ -81,8 +81,30 @@ def oof_permutation_importance(pipeline, X: pd.DataFrame, y: pd.Series, groups, 
     importances = []
     for r in range(repeats):
         for train, test in _splits(X, y, groups, folds, seed + r):
-            fitted = clone(pipeline).fit(X.iloc[train], y.iloc[train])
+            fitted = fit(clone(pipeline), X.iloc[train], y.iloc[train])
             result = permutation_importance(fitted, X.iloc[test], y.iloc[test], scoring="roc_auc",
                                             n_repeats=10, random_state=seed)
             importances.append(result.importances_mean)
     return pd.Series(np.mean(importances, axis=0), index=X.columns)
+
+
+def nested_cv(build, grid: list[dict], X: pd.DataFrame, y: pd.Series, groups, repeats: int = 5,
+              inner_repeats: int = 2, folds: int = FOLDS, seed: int = SEED) -> tuple[list[float], list[dict]]:
+    """Does tuning flatter the estimate? Out-of-fold ROC-AUC per repeat when the
+    settings are chosen inside each training fold, never seeing the rows they are
+    scored on. ``build(**settings)`` makes a pipeline; ``grid`` lists the settings tried.
+    Returns the per-repeat scores and the settings each outer fold chose."""
+    groups = np.asarray(groups)
+    scores, chosen = [], []
+    for r in range(repeats):
+        oof = np.zeros(len(y))
+        for train, test in _splits(X, y, groups, folds, seed + 100 + r):
+            X_tr, y_tr, g_tr = X.iloc[train], y.iloc[train], groups[train]
+            inner = [np.mean([roc_auc_score(y_tr, p) for p in
+                              oof_predictions(build(**settings), X_tr, y_tr, g_tr, inner_repeats, folds, seed + 200 + r)])
+                     for settings in grid]
+            best = grid[int(np.argmax(inner))]
+            chosen.append(best)
+            oof[test] = fit(build(**best), X_tr, y_tr).predict_proba(X.iloc[test])[:, 1]
+        scores.append(float(roc_auc_score(y, oof)))
+    return scores, chosen

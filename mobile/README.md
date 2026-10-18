@@ -69,3 +69,15 @@ npx tsc --noEmit                                    # typecheck
 npx expo lint                                       # lint
 npx expo export --platform ios --platform android   # bundles both, catches import errors
 ```
+
+## Building the app
+
+EAS Build makes the installable app (profiles in `eas.json`; see the mobile-app
+module doc). `preview` gives an APK, and `production` gives an Android App Bundle or an iOS build.
+Both point at the deployed API, set in `eas.json` rather than `.env`.
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest init                                       # once per project
+npx eas-cli@latest build --platform android --profile preview # APK
+```
