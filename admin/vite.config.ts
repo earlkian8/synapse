@@ -46,6 +46,16 @@ function contentSecurityPolicy(erpUrl: string): Plugin {
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), 'VITE_');
+
+    // .env is not committed, so a Vercel build only knows the ERP from the
+    // project's environment variables. Without one it would quietly build a
+    // portal that signs in to localhost.
+    if (process.env.VERCEL && !env.VITE_ERP_URL) {
+        throw new Error(
+            'Set VITE_ERP_URL in the Vercel project (Settings → Environment Variables).',
+        );
+    }
+
     const erpUrl = env.VITE_ERP_URL || 'http://localhost:8000';
 
     return {

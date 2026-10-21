@@ -67,6 +67,21 @@ Referrer-Policy: no-referrer
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 ```
 
+### On Vercel
+
+`vercel.json` does all of the above: it builds with Vite into `dist/`, sends every path
+that is not a file to `index.html`, adds those headers (and `X-Robots-Tag: noindex`), and
+caches the hashed files in `assets/` for a year. In the Vercel project:
+
+- **Root Directory:** `admin`.
+- **Environment Variables:** `VITE_ERP_URL` set to the deployed ERP, for example
+  `https://synapse-lzsdm.ondigitalocean.app` (no trailing slash). It is read at build
+  time, so redeploy after changing it. A Vercel build without it fails rather than
+  pointing the portal at `localhost`.
+
+The ERP needs no change for the portal's domain: its API allows requests from any origin
+and the portal signs in with a bearer token, not cookies.
+
 The portal is not part of the ERP's Docker image. Its API is: deploying the ERP runs the
 migration that creates `admins` and `admin_activity_logs`.
 

@@ -219,7 +219,9 @@ deployment with `EXPO_PUBLIC_API_URL=https://<your-domain>/api` in `mobile/.env`
 
 The [admin portal](./modules/admin-portal.md) is a static site in `admin/`, built and
 hosted on its own like the landing page, not in the image. Build it with
-`VITE_ERP_URL=https://<your-domain>`. Its API ships with the image: after the first
+`VITE_ERP_URL=https://<your-domain>`. On Vercel, `admin/vercel.json` holds the build,
+the single-page fallback and the headers; set the project's Root Directory to `admin` and
+`VITE_ERP_URL` in its environment variables. Its API ships with the image: after the first
 deploy that includes ADR 0085's migration, create the first admin inside the running
 container. The password is asked for at a hidden prompt:
 
