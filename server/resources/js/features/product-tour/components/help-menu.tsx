@@ -4,6 +4,7 @@ import {
     CircleHelp,
     Compass,
     FileQuestion,
+    MessageSquareWarning,
     Signpost,
 } from 'lucide-react';
 import { useRef } from 'react';
@@ -22,6 +23,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { helpRoutes } from '@/features/help-center/routes';
+import { problemReportLauncher } from '@/features/problem-reports/launcher';
+import { problemReportRoutes } from '@/features/problem-reports/routes';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { usePermissions } from '@/hooks/use-permissions';
 import { tourTarget } from '../targets';
@@ -30,7 +33,8 @@ import { useProductTour } from '../use-product-tour';
 /**
  * Help & resources, in the top bar: the Help Center (ADR 0062) and the article
  * for the page in view, where the tour is replayed from, and — for whoever
- * sets the company up — the way back into the Setup Guide.
+ * sets the company up — the way back into the Setup Guide. Last, telling the
+ * SYNAPSE team something is wrong (ADR 0096), and one's reports to them.
  */
 export function HelpMenu() {
     const { can } = usePermissions();
@@ -40,10 +44,10 @@ export function HelpMenu() {
         currentUrl === helpRoutes.index ||
         currentUrl.startsWith(`${helpRoutes.index}/`);
 
-    // The tour opens once the menu has finished closing: the menu hands focus
-    // back to its button as it goes, and the tour's first card must not have
+    // The tour and the report dialog open once the menu has finished closing:
+    // the menu hands focus back to its button as it goes, and neither may have
     // focus taken from it.
-    const launching = useRef(false);
+    const launching = useRef<'tour' | 'report' | null>(null);
 
     return (
         <DropdownMenu>
@@ -71,13 +75,20 @@ export function HelpMenu() {
                 sideOffset={8}
                 className="w-64"
                 onCloseAutoFocus={(event) => {
-                    if (!launching.current) {
+                    const launch = launching.current;
+
+                    if (!launch) {
                         return;
                     }
 
-                    launching.current = false;
+                    launching.current = null;
                     event.preventDefault();
-                    start('manual');
+
+                    if (launch === 'tour') {
+                        start('manual');
+                    } else {
+                        problemReportLauncher.open();
+                    }
                 }}
             >
                 <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
@@ -120,7 +131,7 @@ export function HelpMenu() {
                 <DropdownMenuItem
                     className="cursor-pointer items-start gap-2.5 py-2"
                     onSelect={() => {
-                        launching.current = true;
+                        launching.current = 'tour';
                     }}
                 >
                     <Signpost className="mt-0.5" />
@@ -147,6 +158,27 @@ export function HelpMenu() {
                         </Link>
                     </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    className="cursor-pointer items-start gap-2.5 py-2"
+                    onSelect={() => {
+                        launching.current = 'report';
+                    }}
+                >
+                    <MessageSquareWarning className="mt-0.5" />
+                    <span className="flex flex-col">
+                        <span className="font-medium">Report a problem</span>
+                        <span className="text-xs text-muted-foreground">
+                            When something isn’t working
+                        </span>
+                    </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    asChild
+                    className="cursor-pointer py-1.5 pl-[2.125rem] text-xs text-muted-foreground"
+                >
+                    <Link href={problemReportRoutes.index}>Your reports</Link>
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     );

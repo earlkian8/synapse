@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Help\HelpCenterController;
+use App\Http\Controllers\Support\ProblemReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,6 +18,12 @@ Route::middleware(['auth', 'verified'])
         Route::get('/', [HelpCenterController::class, 'index'])->name('index');
         Route::get('search', [HelpCenterController::class, 'search'])->name('search');
         Route::get('for', [HelpCenterController::class, 'forPage'])->name('for-page');
+        // Problems reported to the SYNAPSE team (ADR 0096): one's own, and
+        // sending one from the dialog any page opens (JSON, see bootstrap/app.php).
+        Route::get('reports', [ProblemReportController::class, 'index'])->name('reports.index');
+        Route::post('reports', [ProblemReportController::class, 'store'])
+            ->middleware('throttle:problem-reports')
+            ->name('reports.store');
         Route::get('{category}', [HelpCenterController::class, 'category'])
             ->where('category', '[a-z0-9-]+')
             ->name('category');

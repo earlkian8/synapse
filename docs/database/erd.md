@@ -7,7 +7,8 @@
 > 2026-10-11; the holiday, work-location, offboarding and tour tables of §1, §2a and §5
 > up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12; §13's admin
 portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13; §6's
-> kiosk tables from `2026_10_15_020000_create_attendance_kiosks` on 2026-10-15). It
+> kiosk tables from `2026_10_15_020000_create_attendance_kiosks` on 2026-10-15; §14's
+> problem reports from `2026_10_21_000000_create_problem_reports_tables` on 2026-10-21). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -1576,7 +1577,61 @@ erDiagram
 
 ---
 
-## 14. Framework tables
+## 14. Problem reports
+
+What people reported to the SYNAPSE team from the ERP and the app, and how the platform
+admins followed it up. See [problem report tables](./problem-reports-tables.md) and the
+[Problem reports](../modules/problem-reports.md) module doc.
+
+```mermaid
+erDiagram
+    USER ||--o{ PROBLEM_REPORT : "sent (cascade)"
+    ORGANIZATION |o--o{ PROBLEM_REPORT : "sent from (null on delete)"
+    ADMIN |o--o{ PROBLEM_REPORT : "last handled (null on delete)"
+    PROBLEM_REPORT ||--o{ PROBLEM_REPORT_ATTACHMENT : "screenshots (cascade)"
+
+    PROBLEM_REPORT {
+        bigint id PK
+        string reference UK "PR-7K2M9Q"
+        bigint user_id FK
+        bigint organization_id FK "context only, not a tenant scope"
+        string category "not_working|looks_wrong|slow|other"
+        string impact "blocked|workaround|minor"
+        string subject
+        text description
+        string platform "web|ios|android"
+        string page
+        string app_version
+        string device
+        json context "viewport, screen, timezone, language, theme"
+        string status "new|investigating|resolved|closed"
+        text reply "the sender reads it"
+        datetime replied_at
+        text internal_note "admins only"
+        bigint handled_by FK
+        datetime status_changed_at
+        datetime resolved_at
+    }
+
+    PROBLEM_REPORT_ATTACHMENT {
+        bigint id PK
+        bigint problem_report_id FK
+        string path UK "uploads disk, problem-reports/"
+        string name
+        string mime
+        int size
+        smallint width
+        smallint height
+    }
+```
+
+> Not tenant-scoped: a report is written to the platform, not to the company, and the
+> sender reads their own from any workspace
+> ([ADR 0096](../decisions/0096-people-report-problems-to-the-synapse-team.md)).
+
+---
+
+## 15. Framework tables
 
 Laravel's own plumbing, not drawn: `cache`, `cache_locks`, `jobs`, `job_batches`,
 `failed_jobs`, `sessions`, `password_reset_tokens` and `migrations`. Sessions, the

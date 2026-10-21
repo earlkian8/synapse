@@ -33,11 +33,14 @@ anywhere on a help page.
 
 **Still need help?** offers: *Ask the assistant* (only when it is offered to the
 reader — it opens with "About “<article>”: " typed, never sent), *Take the tour*, the
-*Setup Guide* (for `setup.company.manage`), and *Common questions* (the FAQ).
+*Setup Guide* (for `setup.company.manage`), and *Common questions* (the FAQ). Under
+them a line offers *Report a problem* and *Your reports*
+([ADR 0096](../decisions/0096-people-report-problems-to-the-synapse-team.md)), which also
+sit in the top bar's Help menu. Your reports lives at `/help/reports`.
 
 ## The content
 
-70 articles in 11 topics, written for the reader (second person, the screen's own
+71 articles in 11 topics, written for the reader (second person, the screen's own
 labels in bold, numbered steps for procedures):
 
 | Topic | Articles |
@@ -52,7 +55,7 @@ labels in bold, numbered steps for procedures):
 | Administration | User accounts, Roles and permissions, Activity logs, Trash bin, Exporting your company's data, How people take the tour, Sending announcements |
 | The assistant | Meet the assistant, What it will and will not do |
 | The mobile app | Joining your company, Clocking in from your phone, Leave / events / recognition / profile in the app, Search / holidays / resigning and the tour in the app |
-| Troubleshooting | Frequently asked questions |
+| Troubleshooting | Frequently asked questions, Reporting a problem |
 
 Bodies are Markdown under `server/resources/help/<category>/<slug>.md`. Besides
 GitHub-flavoured Markdown they use **callouts** — a blockquote opening with `[!NOTE]`,

@@ -624,3 +624,31 @@ export type TrainingProgramDetail = TrainingListing & {
   /** What the person can do: join at once, ask, nothing (full), or nothing at all. */
   join: 'join' | 'ask' | 'full' | null;
 };
+
+/** A problem reported to the SYNAPSE team (ADR 0096), as its sender reads it. */
+export type ProblemReportStatus = 'new' | 'investigating' | 'resolved' | 'closed';
+
+export type ProblemReport = {
+  reference: string;
+  category: 'not_working' | 'looks_wrong' | 'slow' | 'other';
+  category_label: string;
+  impact: 'blocked' | 'workaround' | 'minor';
+  impact_label: string;
+  subject: string;
+  description: string;
+  platform: 'web' | 'ios' | 'android';
+  platform_label: string;
+  /** The page (web) or part of the app it was sent about. */
+  page: string | null;
+  app_version: string | null;
+  status: ProblemReportStatus;
+  status_label: string;
+  is_open: boolean;
+  /** The SYNAPSE team's reply, once there is one. */
+  reply: string | null;
+  replied_at: string | null;
+  resolved_at: string | null;
+  updated_at: string | null;
+  created_at: string | null;
+  attachments: { id: number; name: string; url: string; width: number | null; height: number | null }[];
+};

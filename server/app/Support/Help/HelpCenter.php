@@ -652,7 +652,15 @@ final class HelpCenter
             'summary' => "A page you can't find, a code that didn't arrive, a time that looks wrong, a refused punch — and what to do.",
             'any' => [], 'featured' => false,
             'keywords' => ['faq', 'problem', 'not working', "can't see", 'missing page', 'no access', 'error', 'help', 'issue', 'wrong time'],
-            'related' => ['welcome-to-synapse', 'signing-in'],
+            'related' => ['welcome-to-synapse', 'signing-in', 'reporting-a-problem'],
+        ],
+        'reporting-a-problem' => [
+            'category' => 'troubleshooting', 'title' => 'Reporting a problem',
+            'summary' => 'Tell the SYNAPSE team when something is broken, slow or looks wrong — from the web or the app — and follow their reply in Your reports.',
+            'any' => [],
+            'keywords' => ['report a problem', 'bug', 'broken', 'error', 'not working', 'slow', 'screenshot', 'support', 'feedback', 'your reports', 'contact synapse'],
+            'screens' => ['/help/reports'],
+            'related' => ['faq', 'notifications'],
         ],
     ];
 

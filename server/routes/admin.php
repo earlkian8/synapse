@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminSessionController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\ProblemReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -48,6 +49,17 @@ Route::middleware(['auth:admin', 'admin.session', 'throttle:admin-api'])->group(
         Route::get('accounts', [AccountController::class, 'index'])->name('accounts.index');
         Route::get('accounts/{account}', [AccountController::class, 'show'])
             ->whereNumber('account')->name('accounts.show');
+
+        // Support (ADR 0096) — problem reports from the ERP and the app, which
+        // every admin follows up.
+        Route::get('problem-reports', [ProblemReportController::class, 'index'])->name('problem-reports.index');
+        Route::get('problem-reports/counts', [ProblemReportController::class, 'counts'])->name('problem-reports.counts');
+        Route::get('problem-reports/{report}', [ProblemReportController::class, 'show'])
+            ->whereNumber('report')->name('problem-reports.show');
+        Route::patch('problem-reports/{report}', [ProblemReportController::class, 'update'])
+            ->whereNumber('report')->middleware('throttle:60,1')->name('problem-reports.update');
+        Route::get('problem-reports/{report}/attachments/{attachment}', [ProblemReportController::class, 'attachment'])
+            ->whereNumber(['report', 'attachment'])->name('problem-reports.attachment');
 
         Route::middleware('admin.super')->group(function () {
             Route::get('admins', [AdminUserController::class, 'index'])->name('admins.index');

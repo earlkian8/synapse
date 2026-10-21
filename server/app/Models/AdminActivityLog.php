@@ -38,6 +38,7 @@ class AdminActivityLog extends Model
         'admin_password_reset' => 'Password reset',
         'admin_two_factor_reset' => 'Authenticator reset',
         'admin_deleted' => 'Admin deleted',
+        'problem_report_updated' => 'Problem report updated',
     ];
 
     /**

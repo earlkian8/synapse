@@ -2,6 +2,7 @@ import {
     Building2,
     Briefcase,
     LogIn,
+    MessageSquareWarning,
     Smartphone,
     UsersRound,
 } from 'lucide-react';
@@ -31,14 +32,19 @@ import {
 import { EventPill } from '@/features/activity/components/event-pill';
 import { organizationStatus } from '@/features/organizations/api';
 import { OrganizationName } from '@/features/organizations/components/organization-name';
+import {
+    ImpactMeter,
+    ReportStatusPill,
+} from '@/features/problem-reports/components/report-pills';
 import { useCurrentAdmin } from '@/hooks/use-current-admin';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
 import { useOverview } from './api';
 
 /**
- * The first screen: the platform in five numbers, then what changed lately —
- * new organisations, ERP sign-ins and, for a super admin, admin activity.
+ * The first screen: the platform in six numbers, then what changed lately —
+ * new organisations, ERP sign-ins, the problem reports still waiting on an
+ * answer and, for a super admin, admin activity.
  */
 export function OverviewPage() {
     usePageTitle('Overview');
@@ -101,10 +107,18 @@ export function OverviewPage() {
                                     icon: Smartphone,
                                     accent: 'violet',
                                 },
+                                {
+                                    key: 'reports',
+                                    label: 'Open reports',
+                                    value: formatNumber(stats.open_reports),
+                                    hint: `${formatNumber(stats.new_reports)} new`,
+                                    icon: MessageSquareWarning,
+                                    accent: 'amber',
+                                },
                             ]}
                         />
                     ) : (
-                        <SkeletonTiles count={5} />
+                        <SkeletonTiles count={6} />
                     )}
 
                     <div className="grid gap-4 xl:grid-cols-2">
@@ -261,6 +275,82 @@ export function OverviewPage() {
                             </DataTable>
                         </TableCard>
                     </div>
+
+                    <TableCard
+                        title="Problem reports waiting"
+                        description="The newest open reports from the ERP and the app"
+                        actions={
+                            <ViewAll to="/problem-reports">All reports</ViewAll>
+                        }
+                    >
+                        <DataTable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-1/2">
+                                        Report
+                                    </TableHead>
+                                    <TableHead className="hidden md:table-cell">
+                                        Impact
+                                    </TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">
+                                        Sent
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {!overview.data && (
+                                    <SkeletonRows columns={4} rows={3} />
+                                )}
+                                {overview.data?.open_reports.length === 0 && (
+                                    <EmptyRow colSpan={4}>
+                                        Nothing waiting. Every report has been
+                                        followed up.
+                                    </EmptyRow>
+                                )}
+                                {overview.data?.open_reports.map((report) => (
+                                    <TableRow key={report.id}>
+                                        <TableCell className="max-w-0">
+                                            <Link
+                                                to={`/problem-reports?id=${report.id}`}
+                                                className="block min-w-0 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                            >
+                                                <span className="block truncate font-medium">
+                                                    {report.subject}
+                                                </span>
+                                                <span className="block truncate text-xs text-muted-foreground">
+                                                    {report.reference} ·{' '}
+                                                    {report.organization
+                                                        ?.name ??
+                                                        'In no workspace'}
+                                                </span>
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell className="hidden md:table-cell">
+                                            <ImpactMeter
+                                                impact={report.impact}
+                                                label={report.impact_label}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <ReportStatusPill
+                                                status={report.status}
+                                                label={report.status_label}
+                                            />
+                                        </TableCell>
+                                        <TableCell
+                                            className="text-right text-muted-foreground"
+                                            title={formatDateTime(
+                                                report.created_at,
+                                            )}
+                                        >
+                                            {formatRelative(report.created_at)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </DataTable>
+                    </TableCard>
 
                     {admin.role === 'super_admin' && (
                         <TableCard

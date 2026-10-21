@@ -81,6 +81,8 @@ const GLYPHS = {
   holiday: { ios: 'sun.horizon.fill', android: 'beach_access' },
   tour: { ios: 'map.fill', android: 'map' },
   flag: { ios: 'flag.fill', android: 'flag' },
+  /** A screen that draws wrong: a problem report's "looks wrong" (ADR 0096). */
+  layoutBroken: { ios: 'rectangle.dashed', android: 'broken_image' },
 
   // Status and appearance
   info: { ios: 'info.circle.fill', android: 'info' },

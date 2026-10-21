@@ -85,10 +85,12 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // The mobile API, global search (ADR 0069), which the palette reads
-        // with fetch(), and the kiosk (ADR 0092) with the two screens that hand
-        // out its secrets: a lapsed session or a bad request must answer JSON
-        // (401, 422), not a redirect to an HTML page it cannot read.
+        // with fetch(), the kiosk (ADR 0092) with the two screens that hand
+        // out its secrets, and sending a problem report (ADR 0096): a lapsed
+        // session or a bad request must answer JSON (401, 422), not a redirect
+        // to an HTML page it cannot read.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*', 'search', 'kiosk/*', 'attendance/kiosks/pins', 'attendance/kiosks/*/pairing-code'),
+            fn (Request $request) => $request->is('api/*', 'search', 'kiosk/*', 'attendance/kiosks/pins', 'attendance/kiosks/*/pairing-code')
+                || ($request->is('help/reports') && $request->isMethod('POST')),
         );
     })->create();

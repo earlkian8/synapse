@@ -17,8 +17,9 @@ function contentSecurityPolicy(erpUrl: string): Plugin {
         "script-src 'self'",
         // Radix positions popovers with inline styles, which cannot carry a nonce.
         "style-src 'self' 'unsafe-inline'",
-        // Organisation logos come from the ERP's storage, wherever it is hosted.
-        `img-src 'self' data: https: ${erp}`,
+        // Organisation logos come from the ERP's storage, wherever it is hosted;
+        // problem-report screenshots are fetched with the token and shown as blobs.
+        `img-src 'self' data: blob: https: ${erp}`,
         "font-src 'self'",
         `connect-src ${erp}`,
         "object-src 'none'",

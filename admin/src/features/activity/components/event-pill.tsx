@@ -17,6 +17,7 @@ const TONES: Record<string, Tone> = {
     admin_password_reset: 'amber',
     admin_two_factor_reset: 'amber',
     admin_deleted: 'rose',
+    problem_report_updated: 'teal',
 };
 
 export function EventPill({ event, label }: { event: string; label: string }) {

@@ -81,3 +81,5 @@ Turn them on under **System** → **Notifications** in each browser you use, the
 ## Still stuck?
 
 If the assistant is offered to you, ask it — it can look at your own access and point you to the right screen. Otherwise, contact whoever manages SYNAPSE in your company: they can see your access and the [activity logs](/help/administration/activity-logs).
+
+If something is broken rather than unclear — an error, a page that won't load, a screen that looks wrong — tell the SYNAPSE team. See [Reporting a problem](/help/troubleshooting/reporting-a-problem).

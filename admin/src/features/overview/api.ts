@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ActivityEntry } from '@/features/activity/api';
 import type { Account } from '@/features/accounts/api';
 import type { Organization } from '@/features/organizations/api';
+import type { ProblemReport } from '@/features/problem-reports/api';
 import { api } from '@/lib/api';
 
 export type Overview = {
@@ -14,7 +15,10 @@ export type Overview = {
         unverified: number;
         employees: number;
         mobile_sessions: number;
+        open_reports: number;
+        new_reports: number;
     };
+    open_reports: ProblemReport[];
     newest_organizations: Organization[];
     recent_sign_ins: Account[];
     recent_activity: ActivityEntry[] | null;

@@ -21,10 +21,12 @@ ERP login, even an HR Manager's, does not open it.
 | **Accounts** | all admins | Every ERP sign-in account: status (active / unverified / inactive / archived), workspaces, two-factor, last sign-in. Filters include "in no workspace". A detail dialog: workspaces with roles, email verification, two-factor, password age, open app sessions. |
 | **Admin accounts** | super admins | Add (one-time password shown once), edit name / email / role, reset password, reset authenticator, deactivate / activate, delete (deactivated only). |
 | **Activity log** | super admins | Every sign-in, failed password or code, sign-out, password change, ended session and admin-account change, with IP and browser. Filter by event and admin. Read-only. |
+| **Problem reports** | all admins | What people reported from the ERP and the app ([ADR 0096](../decisions/0096-people-report-problems-to-the-synapse-team.md)): New, Investigating, Open and blocking, Resolved in 30 days; search, status (Open by default), impact, kind, platform. A dialog with what they wrote, their screenshots (fetched with the token), the sender and setting, and a follow-up: status, reply to the sender, internal note. The sidebar shows how many are new; Overview shows the open ones. See [Problem reports](./problem-reports.md). |
 | **Account and security** | every admin | One's own details, password change, authenticator status, the session's end and idle limit, "Sign out other sessions". |
 
 Monitoring is read-only on purpose: changing an ERP account or an organisation stays with
-the organisation's own HR, inside the ERP.
+the organisation's own HR, inside the ERP. Following up a problem report is the one thing
+an ordinary admin writes, and it writes to the report only.
 
 ---
 
@@ -86,6 +88,9 @@ Mounted in `bootstrap/app.php` (`then:`), routes in
 | PATCH/DELETE | `/api/admin/admins/{admin}` | `AdminUserController@update/destroy` | + super admin |
 | PATCH | `/api/admin/admins/{admin}/status` | `AdminUserController@status` | + super admin |
 | POST | `/api/admin/admins/{admin}/reset-password`, `/reset-two-factor` | `AdminUserController` | + super admin |
+| GET | `/api/admin/problem-reports`, `/counts`, `/{id}` | `ProblemReportController` | session + password current |
+| PATCH | `/api/admin/problem-reports/{id}` | `ProblemReportController@update` | session + password current, `throttle:60,1` |
+| GET | `/api/admin/problem-reports/{id}/attachments/{attachment}` | `ProblemReportController@attachment` | session + password current |
 | GET | `/api/admin/activity` | `ActivityLogController` | + super admin |
 
 Lists answer Laravel's paginated resource shape (`data`, `links`, `meta`) plus `stats`
@@ -134,7 +139,7 @@ sonner, qrcode.react, input-otp, Instrument Sans (self-hosted).
   footer), with facts packed into a bordered grid (label over value) and people in a
   bordered row list.
 - `src/features/<feature>/` — `api.ts` (types and query hooks) plus pages and
-  components: `auth`, `overview`, `organizations`, `accounts`, `admins`, `activity`,
+  components: `auth`, `overview`, `organizations`, `accounts`, `problem-reports`, `admins`, `activity`,
   `account`.
 - Filters, sort, page and the open record (`?id=`) live in the URL
   (`hooks/use-list-params.ts`), so a filtered view reloads and can be shared.

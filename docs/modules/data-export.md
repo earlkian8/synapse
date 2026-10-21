@@ -90,7 +90,8 @@ Each is guarded by the view permission of its screen.
 (`DataExportCatalogue::EXCLUDED`): `assistant_conversations`, `assistant_messages`
 (each person's own), `personal_access_tokens` (credentials), `data_exports` (this
 screen's history), `product_tour_runs` (usage telemetry about the app, not the
-company's records). Global and framework tables (`notifications`, `push_subscriptions`,
+company's records), `problem_reports` (written to the SYNAPSE team, not the company;
+[ADR 0096](../decisions/0096-people-report-problems-to-the-synapse-team.md)). Global and framework tables (`notifications`, `push_subscriptions`,
 `passkeys`, `sessions`, `jobs`, …) carry no `organization_id`.
 
 **Confinement.** Each table spec names a `scope`: `tenant` (`organization_id`, the

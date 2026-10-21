@@ -8,6 +8,7 @@ use App\Models\AttendancePunch;
 use App\Models\Employee;
 use App\Models\EmployeeCertification;
 use App\Models\EmployeeDocument;
+use App\Models\ProblemReportAttachment;
 use App\Models\User;
 use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,7 +31,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * - an employee photo — anybody in the workspace (the directory, the roster
  *   and recognition all show it);
  * - a profile photo — the person themselves, or anybody who shares the
- *   workspace with them.
+ *   workspace with them;
+ * - a screenshot on a problem report (ADR 0096) — the reporter alone, in
+ *   whichever workspace: the report is theirs, not the company's. Admins open
+ *   it through the portal's own route.
  */
 final class UploadAccess
 {
@@ -46,6 +50,13 @@ final class UploadAccess
 
         if ($folder === 'profile-photos' && $user->profile_photo === $path) {
             return true;
+        }
+
+        if ($folder === 'problem-reports') {
+            return ProblemReportAttachment::query()
+                ->where('path', $path)
+                ->whereHas('report', fn (Builder $q) => $q->where('user_id', $user->id))
+                ->exists();
         }
 
         // The tenant scope switches itself off when no workspace is bound, so

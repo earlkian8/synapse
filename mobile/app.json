@@ -59,7 +59,7 @@
         "expo-image-picker",
         {
           "cameraPermission": "SYNAPSE uses the camera for selfie verification when you clock in and out.",
-          "photosPermission": false,
+          "photosPermission": "SYNAPSE opens your photos when you attach a screenshot to a problem report.",
           "microphonePermission": false
         }
       ],

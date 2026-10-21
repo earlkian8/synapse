@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OffboardingController;
+use App\Http\Controllers\Api\ProblemReportController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RecognitionController;
 use App\Http\Controllers\Api\ScheduleController;
@@ -102,6 +103,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Search one's own records (ADR 0081), throttled like the web palette.
     Route::get('search', SearchController::class)->middleware('throttle:search')->name('api.search');
+
+    // Problems reported to the SYNAPSE team (ADR 0096) — one's own, whichever
+    // workspace they were sent from. Referenced by PR-XXXXXX, never by id.
+    Route::get('problem-reports', [ProblemReportController::class, 'index'])->name('api.problem-reports.index');
+    Route::post('problem-reports', [ProblemReportController::class, 'store'])->middleware('throttle:problem-reports')->name('api.problem-reports.store');
+    Route::get('problem-reports/{reference}', [ProblemReportController::class, 'show'])->name('api.problem-reports.show');
 
     // Self-service Daily Time Record.
     Route::get('attendance/today', [AttendanceController::class, 'today'])->name('api.attendance.today');

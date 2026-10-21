@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router';
 type Defaults = {
     sort: string;
     direction: 'asc' | 'desc';
+    /** The status shown when the address names none (`all` unless said). */
+    status?: string;
     /** Extra filters this list has, with their "everything" value. */
     extra?: Record<string, string>;
 };
@@ -12,7 +14,12 @@ type Defaults = {
  * view can be reloaded or shared with another admin. Changing a filter goes
  * back to page 1; `id` is the record whose detail sheet is open.
  */
-export function useListParams({ sort, direction, extra = {} }: Defaults) {
+export function useListParams({
+    sort,
+    direction,
+    status = 'all',
+    extra = {},
+}: Defaults) {
     const [params, setParams] = useSearchParams();
 
     const extras = Object.fromEntries(
@@ -24,7 +31,7 @@ export function useListParams({ sort, direction, extra = {} }: Defaults) {
 
     const values = {
         search: params.get('search') ?? '',
-        status: params.get('status') ?? 'all',
+        status: params.get('status') ?? status,
         sort: params.get('sort') ?? sort,
         direction: (params.get('direction') === 'asc'
             ? 'asc'
@@ -64,7 +71,7 @@ export function useListParams({ sort, direction, extra = {} }: Defaults) {
 
     const filtered =
         values.search !== '' ||
-        values.status !== 'all' ||
+        values.status !== status ||
         Object.entries(extra).some(([key, empty]) => extras[key] !== empty);
 
     return {
@@ -74,7 +81,7 @@ export function useListParams({ sort, direction, extra = {} }: Defaults) {
         openId,
         setSearch: (value: string) => update({ search: value }),
         setStatus: (value: string) =>
-            update({ status: value === 'all' ? null : value }),
+            update({ status: value === status ? null : value }),
         setExtra: (key: string, value: string) =>
             update({ [key]: value === extra[key] ? null : value }),
         setPage: (page: number) =>

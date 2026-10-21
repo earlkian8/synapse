@@ -12,6 +12,7 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar';
+import { useProblemReportCounts } from '@/features/problem-reports/api';
 import type { Admin } from '@/lib/types';
 import { AppLogo } from './app-logo';
 import { NAVIGATION } from './navigation';
@@ -98,10 +99,36 @@ function NavItemLink({
             >
                 <item.icon className="shrink-0" />
                 <span>{item.title}</span>
-                {isActive && (
-                    <span className="ml-auto h-4 w-1 rounded-full bg-[#0ABFBF] opacity-80" />
-                )}
+                <span className="ml-auto flex items-center gap-1.5">
+                    {item.count === 'problem-reports' && <NewReportsCount />}
+                    {isActive && (
+                        <span className="h-4 w-1 rounded-full bg-[#0ABFBF] opacity-80" />
+                    )}
+                </span>
             </Link>
         </SidebarMenuButton>
+    );
+}
+
+/**
+ * Problem reports nobody has picked up yet. Read when the sidebar mounts and
+ * again whenever a follow-up is saved — never polled, since a request keeps
+ * the session alive.
+ */
+function NewReportsCount() {
+    const counts = useProblemReportCounts();
+    const waiting = counts.data?.new ?? 0;
+
+    if (waiting === 0) {
+        return null;
+    }
+
+    return (
+        <span
+            className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0ABFBF] px-1.5 text-[11px] font-semibold text-[#0F2044] tabular-nums group-data-[collapsible=icon]:hidden"
+            aria-label={`${waiting} new`}
+        >
+            {waiting > 99 ? '99+' : waiting}
+        </span>
     );
 }

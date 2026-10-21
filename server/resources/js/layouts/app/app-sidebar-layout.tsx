@@ -4,6 +4,7 @@ import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
 import { Assistant } from '@/features/assistant/components/assistant';
+import { ReportProblemDialog } from '@/features/problem-reports/components/report-problem-dialog';
 import { ProductTour } from '@/features/product-tour/components/product-tour';
 import type { AppLayoutProps } from '@/types';
 
@@ -25,6 +26,8 @@ export default function AppSidebarLayout({
             <Assistant />
             {/* The first-run tour (ADR 0060) — offered once, replayed from Help. */}
             <ProductTour />
+            {/* Report a problem (ADR 0096) — opened from Help, anywhere. */}
+            <ReportProblemDialog />
         </AppShell>
     );
 }

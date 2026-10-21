@@ -194,6 +194,14 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('kiosk', fn (Request $request) => Limit::perMinute(120)
             ->by('kiosk:'.hash('sha256', (string) ($request->cookie(AuthenticateKiosk::COOKIE) ?? $request->ip()))));
 
+        // A problem report (ADR 0096) carries up to three images, and each one
+        // reaches the platform admins: plenty for somebody having a bad day, too
+        // few to flood the queue.
+        RateLimiter::for('problem-reports', fn (Request $request) => [
+            Limit::perMinutes(10, 5)->by('problem-reports:'.$request->user()?->id),
+            Limit::perDay(30)->by('problem-reports-day:'.$request->user()?->id),
+        ]);
+
         // Pairing codes are eight characters for fifteen minutes: safe only while
         // guessing them is slow.
         RateLimiter::for('kiosk-pairing', fn (Request $request) => Limit::perMinute(10)

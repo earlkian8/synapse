@@ -1,7 +1,15 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Compass, LifeBuoy, Signpost, Sparkles } from 'lucide-react';
+import {
+    Compass,
+    LifeBuoy,
+    MessageSquareWarning,
+    Signpost,
+    Sparkles,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { assistantLauncher } from '@/features/assistant/launcher';
+import { problemReportLauncher } from '@/features/problem-reports/launcher';
+import { problemReportRoutes } from '@/features/problem-reports/routes';
 import { useProductTour } from '@/features/product-tour/use-product-tour';
 import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
@@ -17,7 +25,8 @@ type Option = {
  * Where to turn when the manual hasn't answered it: the assistant (for people
  * it is offered to — it opens with the question started, never sent), the
  * tour, the Setup Guide for whoever sets the company up, and the questions
- * people ask most.
+ * people ask most. Under them, for when it isn't a question but something
+ * broken: report it to the SYNAPSE team (ADR 0096).
  */
 export function StillNeedHelp({
     topic,
@@ -145,6 +154,28 @@ export function StillNeedHelp({
                         </button>
                     );
                 })}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 border-t border-sidebar-border/70 pt-4 text-sm sm:flex-row sm:items-center sm:justify-between dark:border-sidebar-border">
+                <p className="flex items-center gap-2 text-muted-foreground">
+                    <MessageSquareWarning className="size-4 shrink-0" />
+                    Something in SYNAPSE not working as it should?
+                </p>
+                <div className="flex items-center gap-4 pl-6 sm:pl-0">
+                    <Link
+                        href={problemReportRoutes.index}
+                        className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                        Your reports
+                    </Link>
+                    <button
+                        type="button"
+                        onClick={() => problemReportLauncher.open()}
+                        className="font-medium text-[#0A9E9E] underline-offset-4 hover:underline dark:text-[#0ABFBF]"
+                    >
+                        Report a problem
+                    </button>
+                </div>
             </div>
         </section>
     );

@@ -39,6 +39,7 @@ final class Uploads
         'employee-photos',
         'profile-photos',
         'attendance/punches',
+        'problem-reports',
         self::LOGOS,
     ];
 

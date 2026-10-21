@@ -145,6 +145,37 @@ function messageFor(
     return 'Something went wrong on the server. Try again in a moment.';
 }
 
+/**
+ * A file the portal shows but may not link to — a screenshot on a problem
+ * report — fetched with the session's token, as a blob for an object URL.
+ */
+export async function apiBlob(
+    path: string,
+    signal?: AbortSignal,
+): Promise<Blob> {
+    const session = getSession();
+
+    const response = await fetch(`${API_ROOT}${path}`, {
+        headers: session ? { Authorization: `Bearer ${session.token}` } : {},
+        signal,
+        credentials: 'omit',
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+    });
+
+    if (response.status === 401 && session) {
+        endSession('expired');
+    }
+
+    if (!response.ok) {
+        throw new ApiError(response.status, messageFor(response.status, null));
+    }
+
+    touchSession();
+
+    return response.blob();
+}
+
 /** A query string from a filter object, leaving out what is empty. */
 export function query(
     params: Record<string, string | number | null | undefined>,

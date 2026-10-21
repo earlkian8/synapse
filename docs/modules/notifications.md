@@ -54,6 +54,8 @@ Recognition (category `awards`, ADR 0071) tells the **recipient of an award or k
 out the nominator and nominee) and of a reward request, the **nominator** of the
 decision, and the **requester** when a reward is handed over or declined, or their
 points are adjusted.
+Problem reports (category `support`, ADR 0096) tell the **sender** when a platform admin
+moves their report on or replies, linking to `/help/reports?report=PR-…`.
 `Notifier::holdersOf()` is the audience query behind `toPermission`, exposed so the
 digest can tell who already hears about everybody. The mobile app has no push channel
 of its own, so a reminder reaches a phone only as email or web push. Every call funnels through

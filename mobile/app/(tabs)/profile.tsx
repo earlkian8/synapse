@@ -148,10 +148,18 @@ export default function ProfileScreen() {
         <ListRow icon="lock" iconColor={status.rest} title="Change password" onPress={() => router.push('/account/password')} />
       </ListSection>
 
-      {/* Help */}
+      {/* Help — and telling the SYNAPSE team something is wrong (ADR 0096). */}
       <ListSection header="Help" withIcons>
         <ListRow icon="tour" iconColor={colors.tint} title="Take the tour" onPress={() => startTour('replay')} />
         <ListRow icon="search" iconColor={status.leave} title="Search" onPress={() => router.push('/search')} />
+        <ListRow
+          icon="flag"
+          iconColor={status.absent}
+          title="Report a problem"
+          subtitle="Tell the SYNAPSE team what went wrong"
+          onPress={() => router.push('/problem-reports/new')}
+        />
+        <ListRow icon="note" iconColor={status.rest} title="Your reports" onPress={() => router.push('/problem-reports')} />
       </ListSection>
 
       {/* Appearance */}

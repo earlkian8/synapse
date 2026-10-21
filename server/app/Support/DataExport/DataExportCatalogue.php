@@ -286,6 +286,7 @@ final class DataExportCatalogue
         'calendar_feeds' => 'Each person\'s private calendar link — a secret that opens their invitations, not a record.',
         'data_exports' => 'This screen\'s own history of archives.',
         'product_tour_runs' => 'How people moved through the product tour — usage telemetry about the app, not the company\'s records.',
+        'problem_reports' => 'Problems people reported to the SYNAPSE team — written to the platform, not the company; the workspace is only where it was sent from (ADR 0096).',
     ];
 
     /**

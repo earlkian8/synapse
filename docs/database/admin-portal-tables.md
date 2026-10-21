@@ -41,11 +41,11 @@ What admins did, append-only. Nothing in the application updates or deletes a ro
 | `admin_id` | FK → admins, nullable | Null on delete; null for a console action or a failed sign-in for an unknown email. |
 | `actor_name` | string, nullable | The admin's name at the time, kept after the account is gone. |
 | `actor_email` | string, nullable | Their email at the time, or the address tried in a failed sign-in. |
-| `event` | string(40), indexed | One of `AdminActivityLog::EVENTS`: `sign_in`, `sign_in_failed`, `sign_out`, `two_factor_enrolled`, `two_factor_failed`, `password_changed`, `sessions_revoked`, `admin_created`, `admin_updated`, `admin_activated`, `admin_deactivated`, `admin_password_reset`, `admin_two_factor_reset`, `admin_deleted`. |
+| `event` | string(40), indexed | One of `AdminActivityLog::EVENTS`: `sign_in`, `sign_in_failed`, `sign_out`, `two_factor_enrolled`, `two_factor_failed`, `password_changed`, `sessions_revoked`, `admin_created`, `admin_updated`, `admin_activated`, `admin_deactivated`, `admin_password_reset`, `admin_two_factor_reset`, `admin_deleted`, and `problem_report_updated` (ADR 0096, subject a `ProblemReport`, label its reference). |
 | `description` | text | A sentence for people, e.g. "Reset Ben Lim's password". |
 | `subject_type`, `subject_id` | nullable morph | The admin acted on, if any. |
 | `subject_label` | string, nullable | "Name (email)" of the subject at the time. |
-| `properties` | json, nullable | Event details: `reason` of a failed sign-in, `changes` of an update (`{field: {from, to}}`), `sessions_ended`, `via: console`. |
+| `properties` | json, nullable | Event details: `reason` of a failed sign-in, `changes` of an update (`{field: {from, to}}`), `sessions_ended`, `via: console`; for a report, `status` (`{from, to}`), `replied`, `note_changed`. |
 | `ip_address` | string(45), nullable | |
 | `user_agent` | text, nullable | Truncated to 512 characters. |
 | `created_at` | timestamp, indexed | No `updated_at`: rows never change. |

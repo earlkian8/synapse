@@ -123,7 +123,8 @@ every `useQuery` screen refetches against the new company's tenant context.
   masked, salary omitted), the workspace, appearance (light, dark, match phone), and
   sign-out behind a system alert; and the employee's recognitions (**My awards**, from
   Services). Profile is about oneself: the modules it used to list moved to Services
-  (ADR 0088), and it keeps a **Help** section (*Take the tour*, *Search*). The employee
+  (ADR 0088), and it keeps a **Help** section (*Take the tour*, *Search*, *Report a
+  problem* and *Your reports*, [ADR 0096](../decisions/0096-people-report-problems-to-the-synapse-team.md)). The employee
   record is read-only and says HR keeps it.
   An **Account** section edits the person's own sign-in account
   ([ADR 0082](../decisions/0082-the-app-resets-a-forgotten-password-and-edits-ones-own-account.md)):
@@ -205,6 +206,7 @@ every `useQuery` screen refetches against the new company's tenant context.
 | `GET /api/invitations` · `POST /api/invitations/preview` · `POST /api/invitations/accept` · `DELETE /api/invitations/{id}` | Invitations addressed to this identity |
 | `GET /api/attendance/today` · `POST /api/attendance/punch` · `GET /api/attendance/records` · `GET /api/attendance/summary` | DTR + metrics. A punch may carry `client_id` (idempotency), `punched_at` (the phone's time; marks it offline, judged against the policy's offline window) and `sent_at` (to measure clock skew) |
 | `GET /api/profile` | Own 201 profile (masked IDs) |
+| `GET` · `POST /api/problem-reports` · `GET /api/problem-reports/{reference}` | One's own problem reports to the SYNAPSE team, and sending one (multipart, up to 3 screenshots, `throttle:problem-reports`; ADR 0096) |
 | `POST /api/auth/forgot-password` (public, throttled) | Mail Fortify's reset link; the same answer for any address (503 if mail fails) |
 | `GET` · `PATCH /api/account` · `PUT /api/account/password` | One's own sign-in account: name and email (a new address needs `current_password`), and the password (ends the other app sessions) |
 | `GET /api/schedule?week=` | One's own week of shifts (`MySchedule`): hours, holiday, leave, whether HR changed the day, the training sessions on it (ADR 0094), and the week's totals |

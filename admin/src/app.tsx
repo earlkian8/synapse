@@ -6,7 +6,7 @@ import { NotFound, RequireSession, RequireSuperAdmin } from '@/layouts/guards';
 /**
  * The portal's screens, each loaded when first opened. Sign-in stands alone;
  * everything else needs a session (RequireSession), and admin accounts and the
- * log a super admin as well.
+ * log a super admin as well. Problem reports (ADR 0096) are every admin's.
  */
 export const router = createBrowserRouter([
     {
@@ -61,6 +61,19 @@ export const router = createBrowserRouter([
                             import('@/features/accounts/accounts-page').then(
                                 (module) => ({
                                     Component: module.AccountsPage,
+                                }),
+                            ),
+                    },
+                    {
+                        path: 'problem-reports',
+                        handle: crumbs({
+                            title: 'Problem reports',
+                            to: '/problem-reports',
+                        }),
+                        lazy: () =>
+                            import('@/features/problem-reports/problem-reports-page').then(
+                                (module) => ({
+                                    Component: module.ProblemReportsPage,
                                 }),
                             ),
                     },

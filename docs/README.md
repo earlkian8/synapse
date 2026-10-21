@@ -65,6 +65,7 @@ commit history rather than repeating them.
 - [Notifications](./modules/notifications.md) — in-app, email & web-push; broadcast & preferences.
 - [Mobile app](./modules/mobile-app.md) — the employee companion (Expo): clock in and out, attendance, leave, awards, several workspaces.
 - [Admin portal](./modules/admin-portal.md) — the platform console (`admin/`): every organisation and ERP account across tenants, read-only; its own admin accounts with mandatory two-factor; an append-only admin activity log.
+- [Problem reports](./modules/problem-reports.md) — anyone reports a problem to the SYNAPSE team from the ERP or the app, with screenshots, and follows it in Your reports; platform admins follow it up in the portal.
 
 ### Guides
 - [Deployment](./deployment.md) — the single Docker image (web app, ML service, queue, scheduler) and Supabase for the database and uploaded files.
@@ -96,6 +97,7 @@ commit history rather than repeating them.
 - [assistant tables](./database/assistant-tables.md) — conversations + messages (with the agent timeline and cards).
 - [data export tables](./database/data-export-tables.md) — the archives requested, their status, summary and keep-until date.
 - [admin portal tables](./database/admin-portal-tables.md) — platform admins and their append-only activity log.
+- [problem report tables](./database/problem-reports-tables.md) — problems reported to the SYNAPSE team, their follow-up, and their screenshots.
 
 ### Decisions
 - [0001 — User identity & management foundation](./decisions/0001-user-identity-and-management.md)
@@ -176,6 +178,7 @@ commit history rather than repeating them.
 - [0091 — Postings say what they pay, and anyone assigned can interview](./decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md)
 - [0092 — Kiosks for people without a phone: a paired device and a PIN of their own](./decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md) (supersedes the kiosk half of 0054)
 - [0093 — The app ships through EAS, as com.synapsehr.app](./decisions/0093-the-app-ships-through-eas-as-com-synapsehr-app.md)
+- [0096 — People report problems to the SYNAPSE team](./decisions/0096-people-report-problems-to-the-synapse-team.md)
 
 ### Changelog
 - [2026-06-10 — Profile photos, email verification & toast styling](./changelog/2026-06-10-01-user-profile-photos-verification-toasts.md)
@@ -299,3 +302,4 @@ commit history rather than repeating them.
 - [2026-10-12 — The new SYNAPSE mark, as vector, in every slot](./changelog/2026-10-12-03-new-synapse-mark.md)
 - [2026-10-13 — The admin portal](./changelog/2026-10-13-03-admin-portal.md)
 - [2026-10-13 — Admin portal: centred dialogs](./changelog/2026-10-13-04-admin-portal-dialogs.md)
+- [2026-10-21 — Report a problem, from the ERP and the app](./changelog/2026-10-21-01-report-a-problem.md)
