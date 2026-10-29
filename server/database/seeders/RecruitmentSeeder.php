@@ -76,7 +76,7 @@ class RecruitmentSeeder extends Seeder
      * *open* stages by index (0 = the entry stage), with `lost` for a rejection —
      * never by stage name.
      *
-     * @var list<array{title: string, department: string, pipeline: string, status: string, openings: int, resume: bool, scoring: bool, experience: int|null, skills: list<string>, questions: list<string>, applicants: int, offsets: list<int|string>}>
+     * @var list<array{title: string, department: string, pipeline: string, status: string, openings: int, resume: bool, scoring: bool, experience: int|null, skills: list<string>, preferred?: list<string>, questions: list<string>, applicants: int, offsets: list<int|string>}>
      */
     private const POSTINGS = [
         [
@@ -89,6 +89,7 @@ class RecruitmentSeeder extends Seeder
             'scoring' => true,
             'experience' => 3,
             'skills' => ['PHP', 'Laravel', 'React', 'PostgreSQL'],
+            'preferred' => ['TypeScript', 'Docker'],
             'questions' => [],
             'applicants' => 7,
             'offsets' => [0, 0, 1, 1, 2, 3, 'lost'],
@@ -103,6 +104,7 @@ class RecruitmentSeeder extends Seeder
             'scoring' => true,
             'experience' => 2,
             'skills' => ['Bookkeeping', 'Payroll', 'BIR compliance'],
+            'preferred' => ['QuickBooks'],
             'questions' => ['Are you a licensed CPA?'],
             'applicants' => 5,
             'offsets' => [0, 1, 1, 2, 'lost'],
@@ -265,6 +267,7 @@ class RecruitmentSeeder extends Seeder
             'use_fit_scoring' => $config['scoring'],
             'min_years_experience' => $config['experience'],
             'skills' => $config['skills'] ?: null,
+            'preferred_skills' => ($config['preferred'] ?? []) ?: null,
             // Only a published posting is given a closing date; a draft has not
             // been committed to a date yet.
             'closing_date' => $config['status'] === 'open' ? now()->addWeeks(6)->toDateString() : null,

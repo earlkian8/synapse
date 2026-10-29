@@ -666,8 +666,9 @@ erDiagram
         smallint openings
         string status "draft|open|closed|filled"
         date closing_date
-        smallint min_years_experience
-        json skills
+        decimal min_years_experience
+        json skills "must-haves"
+        json preferred_skills "nice-to-haves"
         boolean requires_resume
         boolean use_fit_scoring
         bigint posted_by FK "users"
@@ -686,11 +687,14 @@ erDiagram
         string phone
         string headline
         string current_location
-        smallint years_experience
+        decimal years_experience
         string linkedin_url
         string portfolio_url
         string source "website|referral|linkedin|agency|walk_in|other"
         string resume
+        text resume_text "read for the fit score"
+        string resume_read_status "pending|read|unreadable"
+        text documents_text
         text notes
     }
     APPLICANT_DOCUMENT {
@@ -699,6 +703,8 @@ erDiagram
         string title
         string type "cover_letter|certificate|transcript|portfolio|government_id|other"
         string file
+        text extracted_text
+        string read_status "pending|read|unreadable|skipped"
         bigint uploaded_by FK "users"
     }
     JOB_APPLICATION {

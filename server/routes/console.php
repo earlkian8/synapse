@@ -11,6 +11,10 @@ Artisan::command('inspire', function () {
 // Close job postings whose deadline has passed (recruitment due dates).
 Schedule::command('recruitment:close-expired')->dailyAt('00:05');
 
+// Read the résumés and documents still waiting (ADR 0097): files on record from
+// before the ATS read them, and any read that never finished after its upload.
+Schedule::command('recruitment:read-files')->hourly()->withoutOverlapping();
+
 // The end-of-day job (ADR 0041): hourly, because midnight is a different moment
 // in every organisation's zone and a night shift is only over the morning after.
 // Records the days nobody punched, handles forgotten clock-outs by policy, and

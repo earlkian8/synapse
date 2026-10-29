@@ -31,6 +31,7 @@ class ApplicantResource extends JsonResource
             'years_experience' => $this->years_experience,
             'source' => $this->source,
             'resume_url' => $this->resumeUrl(),
+            'resume_read_status' => $this->resume_read_status,
             'notes' => $this->notes,
             'documents' => ApplicantDocumentResource::collection($this->whenLoaded('documents')),
             'applications_count' => $this->whenCounted('applications'),

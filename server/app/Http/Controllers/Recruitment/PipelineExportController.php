@@ -29,7 +29,7 @@ class PipelineExportController extends Controller
 
         $columns = [
             'Candidate', 'Email', 'Phone', 'Headline', 'Experience (yrs)', 'Source',
-            'Stage', 'Fit', 'Fit band', 'Rating', 'Recommendation', 'Applied', 'Age (days)',
+            'Stage', 'Fit', 'Fit band', 'Skills shown', 'Skills missing', 'Rating', 'Recommendation', 'Applied', 'Age (days)',
         ];
 
         return response()->stream(function () use ($jobPosting, $scorer, $columns) {
@@ -50,6 +50,7 @@ class PipelineExportController extends Controller
 
                         $fit = $jobPosting->use_fit_scoring ? $scorer->score($application, $jobPosting) : null;
                         $recommendation = $fit ? $scorer->recommendation($application, $fit) : null;
+                        $skills = collect($fit['breakdown'] ?? [])->firstWhere('key', 'skills')['skills'] ?? [];
 
                         fputcsv($handle, [
                             $applicant?->full_name,
@@ -61,6 +62,8 @@ class PipelineExportController extends Controller
                             $application->pipelineStage->name,
                             $fit['value'] ?? null,
                             $fit['band'] ?? null,
+                            $this->skillNames($skills, shown: true),
+                            $this->skillNames($skills, shown: false),
                             $application->rating,
                             $recommendation['label'] ?? null,
                             $application->applied_at?->toDateString(),
@@ -71,5 +74,28 @@ class PipelineExportController extends Controller
 
             fclose($handle);
         }, 200, $headers);
+    }
+
+    /**
+     * The posting's skills a candidate shows (fully, or partly with what
+     * stood in: "Vue (related: React)"), or the ones they don't.
+     *
+     * @param  list<array{skill: string, status: string, via: string|null, credit: float}>  $skills
+     */
+    private function skillNames(array $skills, bool $shown): ?string
+    {
+        $names = [];
+
+        foreach ($skills as $skill) {
+            if (($skill['credit'] > 0) !== $shown) {
+                continue;
+            }
+
+            $names[] = $shown && $skill['credit'] < 1
+                ? "{$skill['skill']} (related: {$skill['via']})"
+                : $skill['skill'];
+        }
+
+        return $names === [] ? null : implode('; ', $names);
     }
 }

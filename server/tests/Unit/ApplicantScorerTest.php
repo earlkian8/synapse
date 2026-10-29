@@ -182,3 +182,60 @@ test('a posting that does not require a résumé does not penalise a candidate f
     expect($documents['points'])->toBe(6)
         ->and($documents['detail'])->toBe('No résumé required');
 });
+
+test('skills are matched by meaning against the résumé, not by substring (ADR 0097)', function () {
+    $posting = new JobPosting(['skills' => ['JavaScript', 'Java']]);
+    $application = makeApplication(
+        stageName: 'Applied',
+        applicant: ['headline' => 'Front-end developer', 'resume' => 'r.pdf'],
+        posting: $posting,
+    );
+    $application->applicant->forceFill(['resume_text' => 'TypeScript and React, four years', 'resume_read_status' => 'read']);
+
+    $skills = collect((new ApplicantScorer)->score($application, $posting)['breakdown'])->firstWhere('key', 'skills');
+    $byName = collect($skills['skills'])->keyBy('skill');
+
+    expect($byName['JavaScript']['status'])->toBe('implied')
+        ->and($byName['JavaScript']['via'])->toBe('TypeScript')
+        ->and($byName['Java']['credit'])->toBeLessThan(1.0)
+        ->and($skills['resume'])->toBe('read')
+        ->and($skills['detail'])->toBe('1/2 skills matched');
+});
+
+test('a must-have counts twice a nice-to-have', function () {
+    $posting = new JobPosting(['skills' => ['Docker'], 'preferred_skills' => ['AWS', 'docker']]);
+    $points = function (string $headline) use ($posting): int {
+        $application = makeApplication(stageName: 'Applied', applicant: ['headline' => $headline], posting: $posting);
+
+        return collect((new ApplicantScorer)->score($application, $posting)['breakdown'])->firstWhere('key', 'skills')['points'];
+    };
+
+    // A nice-to-have repeating a must-have is dropped: Docker (2) + AWS (1).
+    expect($points('Docker'))->toBe(13)
+        ->and($points('AWS'))->toBe(7)
+        ->and($points('Docker and AWS'))->toBe(20);
+});
+
+test('experience left blank is read from the résumé’s dates, and said to be an estimate', function () {
+    $posting = new JobPosting(['min_years_experience' => 3]);
+    $application = makeApplication(stageName: 'Applied', applicant: ['years_experience' => null, 'resume' => 'r.pdf'], posting: $posting);
+    $application->applicant->forceFill(['resume_text' => "EXPERIENCE\nAccountant, ABC Corp, 2015 - 2021"]);
+
+    $experience = collect((new ApplicantScorer)->score($application, $posting)['breakdown'])->firstWhere('key', 'experience');
+
+    expect($experience['estimated'])->toBeTrue()
+        ->and($experience['years'])->toBe(6.0)
+        ->and($experience['points'])->toBe($experience['max'])
+        ->and($experience['detail'])->toBe('≈6 yrs from résumé (needs 3)');
+});
+
+test('a stated figure is never second-guessed by the résumé', function () {
+    $posting = new JobPosting(['min_years_experience' => 3]);
+    $application = makeApplication(stageName: 'Applied', applicant: ['years_experience' => 1, 'resume' => 'r.pdf'], posting: $posting);
+    $application->applicant->forceFill(['resume_text' => 'Accountant, 2010 - 2021']);
+
+    $experience = collect((new ApplicantScorer)->score($application, $posting)['breakdown'])->firstWhere('key', 'experience');
+
+    expect($experience['estimated'])->toBeFalse()
+        ->and($experience['detail'])->toBe('1 yr (needs 3)');
+});

@@ -35,8 +35,12 @@ class StoreJobPostingRequest extends FormRequest
             // Optional, position-aware screening criteria that shape the ranking.
             // Half years are a real answer ("1.5 years"), so one decimal place.
             'min_years_experience' => ['nullable', 'numeric', 'decimal:0,1', 'min:0', 'max:50'],
+            // Must-haves, and the nice-to-haves that count half as much
+            // (ADR 0097). Matched by meaning, so each is listed once.
             'skills' => ['nullable', 'array', 'max:20'],
-            'skills.*' => ['string', 'max:40'],
+            'skills.*' => ['string', 'max:60'],
+            'preferred_skills' => ['nullable', 'array', 'max:20'],
+            'preferred_skills.*' => ['string', 'max:60'],
             'requires_resume' => ['boolean'],
             'use_fit_scoring' => ['boolean'],
             // Free-form yes/no screening questions — the generic complement to

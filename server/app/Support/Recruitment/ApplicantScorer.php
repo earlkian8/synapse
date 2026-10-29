@@ -2,9 +2,11 @@
 
 namespace App\Support\Recruitment;
 
+use App\Models\Applicant;
 use App\Models\JobApplication;
 use App\Models\JobPosting;
-use Illuminate\Support\Str;
+use App\Support\Recruitment\Skills\CandidateEvidence;
+use App\Support\Recruitment\Skills\SkillMatcher;
 
 /**
  * The single source of truth for the recruitment **fit score** and the decision
@@ -17,6 +19,12 @@ use Illuminate\Support\Str;
  * blank, the relevant components simply don't apply and the score is normalised
  * over the components that do — so ranking works the moment a candidate applies
  * and grows sharper as recruiters rate, interview, and set criteria.
+ *
+ * Skills are matched by meaning, against the résumé as well as the profile
+ * ({@see SkillMatcher}, ADR 0097): TypeScript shows JavaScript, "Java" is not
+ * found in "JavaScript", and a must-have counts twice a nice-to-have. A
+ * candidate who left their experience blank is credited with what their
+ * résumé's dates show ({@see ResumeExperience}).
  */
 class ApplicantScorer
 {
@@ -32,13 +40,30 @@ class ApplicantScorer
     /** Years of experience that earn full marks when a posting sets no minimum. */
     private const EXPERIENCE_RUNWAY = 8;
 
+    /** A must-have skill counts twice a nice-to-have. */
+    private const TIER_WEIGHTS = ['must' => 2, 'nice' => 1];
+
+    private readonly SkillMatcher $matcher;
+
+    private readonly ResumeExperience $resumeExperience;
+
+    public function __construct(?SkillMatcher $matcher = null, ?ResumeExperience $resumeExperience = null)
+    {
+        $this->matcher = $matcher ?? SkillMatcher::make();
+        $this->resumeExperience = $resumeExperience ?? new ResumeExperience;
+    }
+
     /**
      * Score a single application against its posting's criteria.
+     *
+     * The `skills` component also lists how each skill was shown (`skills`) and
+     * whether the résumé could be read (`resume`); the `experience` component
+     * says when its years were `estimated` from the résumé.
      *
      * @return array{
      *     value: int,
      *     band: string,
-     *     breakdown: list<array{key: string, label: string, points: int, max: int, detail: string}>
+     *     breakdown: list<array<string, mixed>>
      * }
      */
     public function score(JobApplication $application, ?JobPosting $posting = null): array
@@ -64,6 +89,20 @@ class ApplicantScorer
             'band' => $this->band($value),
             'breakdown' => array_values($components),
         ];
+    }
+
+    /**
+     * The score without each skill's reading — what a list of many candidates
+     * needs; the candidate's own view fetches the full score.
+     *
+     * @param  array{value: int, band: string, breakdown: list<array<string, mixed>>}  $score
+     * @return array{value: int, band: string, breakdown: list<array<string, mixed>>}
+     */
+    public static function withoutEvidence(array $score): array
+    {
+        $score['breakdown'] = array_map(fn (array $item): array => array_diff_key($item, ['skills' => true]), $score['breakdown']);
+
+        return $score;
     }
 
     /**
@@ -138,12 +177,20 @@ class ApplicantScorer
     }
 
     /**
-     * @return array{key: string, label: string, points: int, max: int, detail: string}|null
+     * @return array<string, mixed>|null
      */
     private function experience(JobApplication $application, ?JobPosting $posting): ?array
     {
         $required = $posting?->min_years_experience;
         $years = $application->applicant?->years_experience;
+        $estimated = false;
+
+        // Left blank: what the résumé's dates show, if it shows anything (ADR 0097).
+        if ($years === null && filled($application->applicant?->resume_text)) {
+            $estimate = $this->resumeExperience->estimate($application->applicant->resume_text);
+            $years = $estimate['years'] ?? null;
+            $estimated = $estimate !== null;
+        }
 
         // Neither a requirement nor a stated value — nothing to assess.
         if ($required === null && $years === null) {
@@ -155,48 +202,119 @@ class ApplicantScorer
 
         // Half years count (ADR 0091): 1.5 of a required 2 is three quarters.
         $years = (float) $years;
-        $plural = fn (float $value): string => $value.' yr'.($value === 1.0 ? '' : 's');
+        $plural = fn (float $value): string => ($estimated ? '≈' : '').$value.' yr'.($value === 1.0 ? '' : 's').($estimated ? ' from résumé' : '');
 
         if ($required !== null && $required > 0) {
             $ratio = min($years / $required, 1);
             $detail = $plural($years)." (needs {$required})";
         } else {
             $ratio = min($years / self::EXPERIENCE_RUNWAY, 1);
-            $detail = $years > 0 ? $plural($years).' experience' : 'No experience listed';
+            $detail = $years > 0 ? $plural($years).($estimated ? '' : ' experience') : 'No experience listed';
         }
 
-        return $this->component('experience', 'Experience', (int) round($ratio * $max), $max, $detail);
+        return [
+            ...$this->component('experience', 'Experience', (int) round($ratio * $max), $max, $detail),
+            'years' => $years,
+            'estimated' => $estimated,
+        ];
     }
 
     /**
-     * @return array{key: string, label: string, points: int, max: int, detail: string}|null
+     * Must-haves and nice-to-haves matched by meaning (ADR 0097): each earns
+     * its credit (1 shown or proven, less when only something related is), a
+     * must-have weighing twice a nice-to-have.
+     *
+     * @return array<string, mixed>|null
      */
     private function skills(JobApplication $application, ?JobPosting $posting): ?array
     {
-        $required = array_values(array_filter(array_map('trim', $posting?->skills ?? [])));
+        $must = self::skillList($posting?->skills);
+        $nice = array_values(array_udiff(self::skillList($posting?->preferred_skills), $must, 'strcasecmp'));
 
-        if ($required === []) {
+        if ($must === [] && $nice === []) {
             return null;
         }
 
-        $haystack = Str::lower(implode(' ', array_filter([
-            $application->applicant?->headline,
-            $application->applicant?->notes,
-            $application->cover_note,
-        ])));
+        $matches = $this->matcher->match($must, $nice, CandidateEvidence::forApplication($application));
 
-        $matched = 0;
-        foreach ($required as $skill) {
-            if ($skill !== '' && str_contains($haystack, Str::lower($skill))) {
-                $matched++;
+        $earned = 0.0;
+        $possible = 0;
+
+        foreach ($matches as $match) {
+            $earned += $match['credit'] * self::TIER_WEIGHTS[$match['tier']];
+            $possible += self::TIER_WEIGHTS[$match['tier']];
+        }
+
+        $max = self::WEIGHTS['skills'];
+
+        return [
+            ...$this->component('skills', 'Skill match', (int) round($earned / $possible * $max), $max, $this->skillDetail($matches)),
+            'skills' => $matches,
+            'resume' => $this->resumeState($application->applicant),
+        ];
+    }
+
+    /**
+     * A posting's skill list, trimmed and without repeats.
+     *
+     * @return list<string>
+     */
+    public static function skillList(mixed $skills): array
+    {
+        $list = [];
+
+        foreach (is_array($skills) ? $skills : [] as $skill) {
+            $skill = trim((string) $skill);
+
+            if ($skill !== '') {
+                $list[mb_strtolower($skill)] ??= $skill;
             }
         }
 
-        $total = count($required);
-        $max = self::WEIGHTS['skills'];
+        return array_values($list);
+    }
 
-        return $this->component('skills', 'Skill match', (int) round($matched / $total * $max), $max,
-            "{$matched}/{$total} skills matched");
+    /**
+     * "3/4 skills matched", or with nice-to-haves "3/4 must-haves · 1/2
+     * nice-to-haves"; partly-shown skills are counted after a comma.
+     *
+     * @param  list<array{tier: string, credit: float}>  $matches
+     */
+    private function skillDetail(array $matches): string
+    {
+        $tally = function (string $tier) use ($matches): array {
+            $ofTier = array_filter($matches, fn (array $match): bool => $match['tier'] === $tier);
+
+            return [
+                count(array_filter($ofTier, fn (array $match): bool => $match['credit'] >= 1)),
+                count($ofTier),
+            ];
+        };
+
+        [$mustShown, $mustTotal] = $tally('must');
+        [$niceShown, $niceTotal] = $tally('nice');
+        $partly = count(array_filter($matches, fn (array $match): bool => $match['credit'] > 0 && $match['credit'] < 1));
+
+        $detail = match (true) {
+            $niceTotal === 0 => "{$mustShown}/{$mustTotal} skills matched",
+            $mustTotal === 0 => "{$niceShown}/{$niceTotal} nice-to-haves",
+            default => "{$mustShown}/{$mustTotal} must-haves · {$niceShown}/{$niceTotal} nice-to-haves",
+        };
+
+        return $detail.($partly > 0 ? ", {$partly} related" : '');
+    }
+
+    /**
+     * Whether the skills could be read from a résumé: `read`, `pending`,
+     * `unreadable` (a scan without OCR, an unusual format), or `none`.
+     */
+    private function resumeState(?Applicant $applicant): string
+    {
+        if (blank($applicant?->resume)) {
+            return 'none';
+        }
+
+        return $applicant->resume_read_status ?? Applicant::READ_PENDING;
     }
 
     /**

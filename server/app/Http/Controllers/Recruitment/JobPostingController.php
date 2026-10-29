@@ -134,7 +134,7 @@ class JobPostingController extends Controller
 
         $applications->each(function (JobApplication $application) use ($scorer, $posting): void {
             $score = $scorer->score($application, $posting);
-            $application->fit = $score;
+            $application->fit = ApplicantScorer::withoutEvidence($score);
             $application->recommendation = $scorer->recommendation($application, $score);
 
             // The interviews were loaded only to feed the scorer; drop the

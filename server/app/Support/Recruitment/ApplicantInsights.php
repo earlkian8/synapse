@@ -20,8 +20,9 @@ use Throwable;
  * candidate in what they actually submitted.
  *
  * Privacy: government-ID documents are never sent to the model. Only file types
- * the model can read natively (PDF, images) are attached; office documents are
- * named in the digest but not uploaded.
+ * the model can read natively (PDF, images) are attached; a Word résumé is
+ * given as the text already read from it for the fit score (ADR 0097).
+ * Supporting office documents are named in the digest but not uploaded.
  *
  * Cost-disciplined like {@see ReportInsights}: one model
  * call per request, a bounded amount of attached data, strict-JSON out, and
@@ -43,6 +44,9 @@ class ApplicantInsights
 
     /** Cap on total attached bytes, so one request stays inside the inline limit. */
     private const MAX_ATTACHED_BYTES = 15 * 1024 * 1024;
+
+    /** The most of a Word résumé's text put in the digest — a long résumé's worth. */
+    private const RESUME_TEXT_CHARS = 6000;
 
     public function __construct(private readonly GeminiClient $gemini) {}
 
@@ -160,7 +164,10 @@ class ApplicantInsights
             $lines[] = 'REQUIRED MIN EXPERIENCE: '.$posting->min_years_experience.' years';
         }
         if (! empty($posting?->skills)) {
-            $lines[] = 'REQUIRED SKILLS: '.implode(', ', $posting->skills);
+            $lines[] = 'REQUIRED SKILLS: '.$this->trim(implode(', ', $posting->skills), 800);
+        }
+        if (! empty($posting?->preferred_skills)) {
+            $lines[] = 'NICE-TO-HAVE SKILLS: '.$this->trim(implode(', ', $posting->preferred_skills), 800);
         }
         if (filled($posting?->requirements)) {
             $lines[] = 'ROLE REQUIREMENTS: '.$this->trim($posting->requirements, 800);
@@ -203,6 +210,22 @@ class ApplicantInsights
             $lines[] = "  - {$item['label']}: {$item['points']}/{$item['max']} ({$item['detail']})";
         }
 
+        // How each skill was shown, so the model checks the reading rather
+        // than redoing it ("JavaScript: shown by TypeScript in the résumé").
+        $skills = collect($fit['breakdown'] ?? [])->firstWhere('key', 'skills')['skills'] ?? [];
+        if ($skills !== []) {
+            $lines[] = 'SKILL EVIDENCE (matched by meaning; check it against the documents):';
+            foreach ($skills as $skill) {
+                $lines[] = '  - '.$this->trim($skill['skill'], 60).($skill['tier'] === 'nice' ? ' (nice to have)' : '').': '.$this->evidence($skill);
+            }
+        }
+
+        $resumeText = $this->resumeText($application, $readNames);
+        if ($resumeText !== null) {
+            $lines[] = '';
+            $lines[] = 'RÉSUMÉ TEXT (read from a Word file that cannot be attached): '.$resumeText;
+        }
+
         $interviews = $application->relationLoaded('interviews') ? $application->interviews : collect();
         if ($interviews->isNotEmpty()) {
             $lines[] = '';
@@ -219,6 +242,43 @@ class ApplicantInsights
             : 'ATTACHED DOCUMENTS (read these): '.implode(', ', $readNames);
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * One skill's reading, in words: "shown by TypeScript (résumé)".
+     *
+     * @param  array{status: string, via: string|null, source: string|null}  $skill
+     */
+    private function evidence(array $skill): string
+    {
+        $via = $this->trim($skill['via'] ?? null, 80);
+        $where = filled($skill['source'] ?? null) ? " ({$skill['source']})" : '';
+
+        return match ($skill['status']) {
+            'found' => 'found'.($via !== '' ? " as “{$via}”" : '').$where,
+            'implied' => "shown by {$via}{$where}",
+            'parts' => "shown by its parts, {$via}{$where}",
+            'spelling' => "found, spelled “{$via}”{$where}",
+            'related' => "not found; related: {$via}{$where}",
+            default => 'not found',
+        };
+    }
+
+    /**
+     * The text read from a résumé the model can't be sent as a file (a Word
+     * document), or null when the file itself is attached or nothing was read.
+     *
+     * @param  list<string>  $readNames
+     */
+    private function resumeText(JobApplication $application, array $readNames): ?string
+    {
+        $applicant = $application->applicant;
+
+        if (in_array('Résumé', $readNames, true) || blank($applicant?->resume_text)) {
+            return null;
+        }
+
+        return UntrustedText::clean($applicant->resume_text, self::RESUME_TEXT_CHARS);
     }
 
     /**

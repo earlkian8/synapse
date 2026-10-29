@@ -53,7 +53,10 @@ export type ManagedPosting = {
     description: string | null;
     requirements: string | null;
     min_years_experience: number | null;
+    /** Must-haves (ADR 0097). */
     skills: string[];
+    /** Nice-to-haves: each counts half as much as a must-have. */
+    preferred_skills: string[];
     requires_resume: boolean;
     use_fit_scoring: boolean;
     employment_type: EmploymentType;
@@ -112,6 +115,8 @@ export type Applicant = {
     years_experience: number | null;
     source: ApplicantSource;
     resume_url: string | null;
+    /** Whether the résumé's text could be read for the fit score (ADR 0097). */
+    resume_read_status?: ResumeReadStatus | null;
     notes: string | null;
     documents?: ApplicantDocument[];
     applications_count?: number;
@@ -147,6 +152,58 @@ export type FitBreakdownItem = {
     points: number;
     max: number;
     detail: string;
+    /** The `skills` item: how each of the posting's skills was shown. */
+    skills?: SkillEvidence[];
+    /** The `skills` item: whether the résumé could be read for them. */
+    resume?: ResumeReadStatus | 'none';
+    /** The `experience` item: the years it judged. */
+    years?: number;
+    /** The `experience` item: its years were read from the résumé's dates. */
+    estimated?: boolean;
+};
+
+/** How far reading a résumé's text got (ADR 0097). */
+export type ResumeReadStatus = 'pending' | 'read' | 'unreadable';
+
+/**
+ * How a candidate shows one skill: by name (`found`), through a skill that
+ * proves it (`implied`: TypeScript for JavaScript), through all its parts,
+ * spelled one letter off, partly through something related, or not at all.
+ */
+export type SkillMatchStatus =
+    'found' | 'implied' | 'parts' | 'spelling' | 'related' | 'missing';
+
+export type SkillEvidence = {
+    /** The skill as the posting names it. */
+    skill: string;
+    tier: 'must' | 'nice';
+    status: SkillMatchStatus;
+    /** What stood for it: the alias, the proving or related skill, the slip. */
+    via: string | null;
+    /** Where it was found: résumé, headline, cover note, documents, notes. */
+    source: string | null;
+    /** 1 when shown or proven; part of 1 when only related. */
+    credit: number;
+    /** Whether the skill catalogue knows it (otherwise it is matched by its words). */
+    recognised: boolean;
+};
+
+/** One skill the ATS knows, as the posting form describes it. */
+export type CatalogueSkill = {
+    name: string;
+    aliases: string[];
+    proven_by: string[];
+    proven_by_count: number;
+    related: string[];
+};
+
+/** The skill catalogue (`GET /recruitment/skills`). */
+export type SkillCatalogue = {
+    skills: CatalogueSkill[];
+    /** Words before a skill that don't change which skill it is ("advanced"). */
+    qualifiers: string[];
+    /** Words after a skill that don't change it ("development", "skills"). */
+    generic: string[];
 };
 
 /** The automatic fit score the ApplicantScorer assigns to an application. */

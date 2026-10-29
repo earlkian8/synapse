@@ -37,6 +37,7 @@ class JobPosting extends Model
         'requirements',
         'min_years_experience',
         'skills',
+        'preferred_skills',
         'requires_resume',
         'use_fit_scoring',
         'employment_type',
@@ -63,7 +64,9 @@ class JobPosting extends Model
             'salary_max' => 'decimal:2',
             'show_salary' => 'boolean',
             'asks_expected_salary' => 'boolean',
+            // Must-haves and nice-to-haves (ADR 0097).
             'skills' => 'array',
+            'preferred_skills' => 'array',
             'requires_resume' => 'boolean',
             'use_fit_scoring' => 'boolean',
             'closing_date' => 'date',

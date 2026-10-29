@@ -102,7 +102,7 @@ class JobApplicationController extends Controller
     {
         $application->load([
             'applicant.documents',
-            'jobPosting:id,title,description,requirements,min_years_experience,skills,requires_resume',
+            'jobPosting:id,title,description,requirements,min_years_experience,skills,preferred_skills,requires_resume',
             'interviews' => fn ($query) => $query->latest('scheduled_at'),
         ]);
 

@@ -1,5 +1,5 @@
 import { recruitmentRoutes } from './routes';
-import type { ApplicantInsightResult } from './types';
+import type { ApplicantInsightResult, SkillCatalogue } from './types';
 
 /** Read Laravel's XSRF cookie so the plain fetch passes CSRF verification. */
 function xsrfToken(): string {
@@ -55,4 +55,21 @@ export async function fetchApplicantInsights(
     }
 
     return data.insights;
+}
+
+/**
+ * The skills the ATS knows, for the posting form. Null when it can't be
+ * fetched — the form then simply works without suggestions.
+ */
+export async function fetchSkillCatalogue(): Promise<SkillCatalogue | null> {
+    try {
+        const response = await fetch(recruitmentRoutes.skills, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+
+        return response.ok ? ((await response.json()) as SkillCatalogue) : null;
+    } catch {
+        return null;
+    }
 }

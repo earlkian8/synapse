@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\ReadApplicantFiles;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Support\Files\Uploads;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,21 @@ class ApplicantDocument extends Model
 {
     use BelongsToOrganization;
 
+    /** Waiting to be read (ADR 0097). */
+    public const READ_PENDING = 'pending';
+
+    /** Read, and its text kept. */
+    public const READ_DONE = 'read';
+
+    /** Holds no text that could be read. */
+    public const READ_UNREADABLE = 'unreadable';
+
+    /** Deliberately never read. */
+    public const READ_SKIPPED = 'skipped';
+
+    /** Types never read: a government ID is kept as the picture it is. */
+    public const UNREAD_TYPES = ['government_id'];
+
     protected $fillable = [
         'organization_id',
         'applicant_id',
@@ -24,6 +40,30 @@ class ApplicantDocument extends Model
         'file',
         'uploaded_by',
     ];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = ['extracted_text'];
+
+    /**
+     * A new document is read once the response has gone, unless it is a
+     * government ID (ADR 0097).
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (ApplicantDocument $document): void {
+            $document->read_status = in_array($document->type, self::UNREAD_TYPES, true)
+                ? self::READ_SKIPPED
+                : self::READ_PENDING;
+        });
+
+        static::created(function (ApplicantDocument $document): void {
+            if ($document->read_status === self::READ_PENDING) {
+                ReadApplicantFiles::dispatchAfterResponse($document->organization_id, $document->applicant_id);
+            }
+        });
+    }
 
     /**
      * @return BelongsTo<Applicant, $this>

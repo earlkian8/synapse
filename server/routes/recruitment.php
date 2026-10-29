@@ -9,6 +9,7 @@ use App\Http\Controllers\Recruitment\JobPostingStatusController;
 use App\Http\Controllers\Recruitment\MyInterviewsController;
 use App\Http\Controllers\Recruitment\PipelineExportController;
 use App\Http\Controllers\Recruitment\RecruitmentExportController;
+use App\Http\Controllers\Recruitment\SkillCatalogueController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,6 +27,9 @@ Route::middleware(['auth', 'verified'])
         Route::get('/', [JobPostingController::class, 'index'])->name('index');
         Route::get('export', RecruitmentExportController::class)->middleware('can:recruitment.export')->name('export');
         Route::post('/', [JobPostingController::class, 'store'])->middleware('can:recruitment.create')->name('store');
+
+        // The skills the ATS knows (ADR 0097), for the posting form.
+        Route::get('skills', SkillCatalogueController::class)->middleware('can:recruitment.view')->name('skills');
 
         // Candidate pool.
         Route::post('applicants', [ApplicantController::class, 'store'])->middleware('can:recruitment.create')->name('applicants.store');

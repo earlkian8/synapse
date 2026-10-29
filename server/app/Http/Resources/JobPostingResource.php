@@ -25,6 +25,7 @@ class JobPostingResource extends JsonResource
             'requirements' => $this->requirements,
             'min_years_experience' => $this->min_years_experience,
             'skills' => $this->skills ?? [],
+            'preferred_skills' => $this->preferred_skills ?? [],
             'requires_resume' => $this->requires_resume,
             'use_fit_scoring' => $this->use_fit_scoring,
             'employment_type' => $this->employment_type,

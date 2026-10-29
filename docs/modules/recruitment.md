@@ -5,7 +5,9 @@ pipeline, schedule interviews, and **hire** — which creates an employee. The *
 in [ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md); how pipelines
 became tenant-defined data is [ADR 0029](../decisions/0029-configurable-recruitment-pipelines.md);
 a posting's pay and place, and interviewing without the board, are
-[ADR 0091](../decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md).
+[ADR 0091](../decisions/0091-postings-say-what-they-pay-and-anyone-assigned-can-interview.md);
+reading résumés and matching skills by meaning is
+[ADR 0097](../decisions/0097-the-ats-reads-the-resume-and-matches-skills-by-meaning.md).
 This is the *how*. Everything is tenant-scoped (ADR 0005).
 
 Recruitment is deliberately **generic** — a SaaS HR ERP is used by every department, not
@@ -99,16 +101,17 @@ with a transparent breakdown and the **recommended next step** for HR. Controlle
 it rather than re-deriving the formula.
 
 - **Components** (max points, normalised over whatever applies): recruiter rating (30),
-  experience vs the posting's minimum (25), required-skill keyword match (20), interview
+  experience vs the posting's minimum (25), skill match (20), interview
   outcome (15), document completeness (10). When a posting sets no minimum experience or
   no skills, those components simply don't apply and the score normalises over the rest —
   so ranking works the moment a candidate applies and sharpens as recruiters rate,
   interview, and set criteria. Bands: `strong`/`promising`/`fair`/`weak`.
-- **Position-aware criteria.** A posting carries optional `min_years_experience`, a
-  `skills` keyword list (skills are matched against the candidate's headline, notes and
-  cover letter), and free-form **screening questions** answered yes/no on the
-  application — the generic complement for anything experience/skills don't cover
-  ("Valid driver's license?", "Available for night shift?").
+- **Position-aware criteria.** A posting carries optional `min_years_experience`,
+  **must-have** `skills` and **nice-to-have** `preferred_skills` (matched by meaning
+  against the résumé and profile; see below), and free-form **screening questions**
+  answered yes/no on the application — the generic complement for anything
+  experience/skills don't cover ("Valid driver's license?", "Available for night
+  shift?").
   A posting can turn off automatic ranking entirely (`use_fit_scoring`); when off, no
   fit badge or recommendation is shown and candidates sort by applied date.
 - **Recommendation.** Derived from the candidate's stage **kind + position in the
@@ -121,6 +124,50 @@ it rather than re-deriving the formula.
   from the posting's real pipeline, interview history, and the candidate's **other
   applications across postings**.
 
+## Reading résumés & matching skills
+
+The [ADR 0097](../decisions/0097-the-ats-reads-the-resume-and-matches-skills-by-meaning.md)
+fixes the usual ATS failures: a candidate who wrote "TypeScript" is no longer missed for
+"JavaScript", "Java" is no longer found in "JavaScript", and the résumé itself is read.
+
+- **Reading files.** `App\Support\Files\DocumentText` reads a PDF (`pdftotext`), a
+  scanned PDF or a photo (`pdftoppm` + `tesseract` OCR), a .docx (its XML) and a .doc
+  (`antiword`/`catdoc`, or the text runs it stores). The text goes on the candidate:
+  `resume_text` with `resume_read_status` (`pending` · `read` · `unreadable`), each
+  document's `extracted_text`, and all the documents together as `documents_text`.
+  Government IDs are never read (`skipped`). The columns are hidden from JSON.
+- **When.** The `Applicant` and `ApplicantDocument` models mark a new or changed file
+  `pending` and dispatch `App\Jobs\ReadApplicantFiles` **after the response**, so every
+  way in is covered: careers page, recruiter forms, assistant. The hourly
+  **`recruitment:read-files`** reads what is still waiting, in batches of 100
+  (`--again` re-reads everything).
+- **Matching** (`App\Support\Recruitment\Skills`):
+  - `catalogue.php` holds about 400 skills with their aliases, the skills each one
+    proves (`implies`: TypeScript → JavaScript, Laravel → PHP), the parts some are made
+    of (Full-stack, MERN, Microsoft Office), spellings that only count when written a
+    certain way (`cased` "Excel", `listed` "R", "Go"), and families of related skills
+    with partial credit.
+  - `Words` folds every text the same way.
+  - `SkillText` matches whole words only.
+  - `CandidateEvidence` searches résumé → headline → cover note → documents → notes.
+  - `SkillMatcher` gives each skill a status, best first: `found`, `implied` (full
+    credit), `parts`, `spelling`, `related` (partial: JavaScript for TypeScript 0.4,
+    Vue for React 0.5), then `missing`. A skill the catalogue doesn't know is matched by
+    its words in any order and form. HR may write "React or Vue".
+- **Weighting.** A must-have counts twice a nice-to-have. Nothing knocks a candidate out.
+- **Experience.** With `years_experience` blank, `App\Support\Recruitment\ResumeExperience`
+  adds up the résumé's job date ranges (overlaps once, education left out), or takes the
+  candidate's own "7+ years of experience". It is shown as an estimate ("≈6 yrs from
+  résumé").
+- **Explained.** The fit breakdown's `skills` item lists each skill's tier, status,
+  `via`, `source` and credit, plus `resume` (read / pending / unreadable / none). The
+  candidate modal shows it ("JavaScript — shown by TypeScript · résumé"). The pipeline
+  export has *Skills shown* / *Skills missing*. The assistant's `candidate_profile`
+  names the missing must-haves.
+- **The posting form** suggests catalogue skills while HR types
+  (`GET /recruitment/skills`, `recruitment.view`) and marks the ones it recognises, with
+  what else counts for each in the tooltip.
+
 ## AI candidate insights
 
 On top of the deterministic fit score, HR can ask an LLM to **read a specific
@@ -129,8 +176,10 @@ candidate** and return decision support grounded in their actual documents.
 `ReportInsights`) compiles a digest — the candidate's profile, the role and its
 criteria, the rule-based fit breakdown, ratings and interview history — **and
 attaches the real files** (résumé + supporting documents) to Gemini so the model
-reads them. `gemini-2.5-flash` ingests PDFs and images natively, so no parser
-dependency is needed; office files are named in the digest but not uploaded.
+reads them. `gemini-2.5-flash` ingests PDFs and images natively. A Word résumé can't be
+attached, so its text, already read for the fit score, goes in the digest. Other office
+files are named but not uploaded. The digest also lists each skill's reading for the
+model to check.
 
 - **Privacy.** Government-ID documents are **never** sent to the model, and only
   model-readable types (PDF, PNG/JPG/WebP) are attached, bounded by a total size
@@ -294,7 +343,8 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   Its **place** is a `work_arrangement` (`onsite` · `hybrid` · `remote`) and an optional
   `work_location_id`. `JobPosting::money()` is the one way pay is written out.
 - An **applicant** is a standalone candidate (not a user or employee); the pool is
-  reusable across postings.
+  reusable across postings. It keeps the text read from its résumé and documents
+  (`resume_text`, `resume_read_status`, `documents_text`), for matching only.
 - An **application** is one applicant on one posting (`unique(posting, applicant)`),
   carrying a `recruitment_pipeline_stage_id` (its stage in the posting's own pipeline), a
   `rating`, `screening_answers`, an `expected_salary` with its `expected_salary_period`
@@ -320,9 +370,13 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   resources `JobPostingResource`, `ApplicantResource`, `JobApplicationResource`,
   `InterviewResource`, `RecruitmentPipelineResource`; `JobPostingsIndexQuery` +
   `RecruitmentStatistics`; **`App\Support\Recruitment\ApplicantScorer`** for fit scoring +
-  recommendations; **`App\Support\Recruitment\ApplicantInsights`** for the LLM candidate
+  recommendations; **`App\Support\Recruitment\Skills\*`** and
+  **`App\Support\Recruitment\ResumeExperience`** for the skill and experience readings it
+  uses; **`App\Support\Files\DocumentText`** + **`App\Jobs\ReadApplicantFiles`** for
+  reading files; **`App\Support\Recruitment\ApplicantInsights`** for the LLM candidate
   read (reuses `App\Support\Ai\GeminiClient`); **`App\Console\Commands\CloseExpiredPostings`**
-  (scheduled daily).
+  (scheduled daily) and **`ReadApplicantFilesCommand`** (`recruitment:read-files`, hourly);
+  **`SkillCatalogueController`** (`GET /recruitment/skills`).
 - **Shared with the assistant** (one implementation, two callers): stage transitions
   live on the models — `RecruitmentPipeline::entryStage()` / `wonStage()` /
   `defaultLostStage()` / `nextOpenStageAfter()` / `isLastOpenStage()` /
@@ -387,7 +441,7 @@ the shared table kit (`components/data-table/`). The components are:
     and the table), and the card's own one-click **Advance** button.
 - **Shared pieces:**
   - the **fit score** badge and meter (`fit-score.tsx`, hidden when a posting turns
-    ranking off);
+    ranking off), with each skill's reading under the skill match;
   - the **posting deadline** countdown (`posting-deadline.tsx`);
   - a `kind`-driven stage badge (open/won/lost colour, with the stage's own name as the
     label), and rating stars.
@@ -401,9 +455,11 @@ the shared table kit (`components/data-table/`). The components are:
 - **Posting form:**
   - a **pipeline picker**;
   - **"Require a résumé"** and **"Rank candidates automatically"** toggles;
-  - a *Screening criteria* section: minimum experience, a skills tag input, and a
-    chevron-reorderable **screening-questions** builder (the same click-based pattern
-    as Onboarding's checklist);
+  - a *Screening criteria* section: minimum experience, **must-have** and
+    **nice-to-have** skills (`skills-input.tsx`, with suggestions and recognised-skill
+    marks from `use-skill-catalogue.ts`), and a chevron-reorderable
+    **screening-questions** builder (the same click-based pattern as Onboarding's
+    checklist);
   - a closing date, required when the posting is open.
 
 Pages are `pages/recruitment/index.tsx` and `pages/recruitment/pipeline.tsx`. The
@@ -497,7 +553,18 @@ recruitment data at all, which is what makes the module's empty state — the
 - `tests/Unit/ApplicantScorerTest.php` — the fit score + recommendation, driven by stage
   **kind + position** against an in-memory standard pipeline (DB-free): strong fit in a
   mid-pipeline stage → advance, brand-new → nothing yet, weak fit in the last open stage
-  → reject, failed interview → reject.
+  → reject, failed interview → reject; skills by meaning, must-have weighting, and
+  experience estimated from the résumé.
+- `tests/Unit/Recruitment/` — `SkillMatcherTest` (TypeScript → JavaScript, whole words,
+  cased and listed names, families, parts, slips, other words, "or", Philippine terms),
+  `SkillCatalogueTest` (no shared alias, no loop, resolution) and
+  `ResumeExperienceTest`.
+- `tests/Feature/Recruitment/ResumeReadingTest.php` — a résumé sent on the careers page
+  is read and counted, the text never reaches the browser, a new résumé resets the
+  reading, the job skips government IDs, `recruitment:read-files`, the catalogue
+  endpoint, nice-to-haves on postings and in the assistant, the export columns.
+- `tests/Feature/Recruitment/DocumentTextTest.php` — Word, PDF, OCR, old .doc, bad files,
+  cleaning (the PDF and OCR cases are skipped where poppler or tesseract is missing).
 - `tests/Feature/Recruitment/ApplicantInsightsTest.php` — the AI-insights endpoint with
   Gemini faked: it generates + persists the read and **excludes the government ID** from
   the documents sent, and degrades gracefully when the key is unconfigured.

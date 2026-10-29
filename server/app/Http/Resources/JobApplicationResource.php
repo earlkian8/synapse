@@ -54,6 +54,8 @@ class JobApplicationResource extends JsonResource
                 'years_experience' => $this->applicant->years_experience,
                 'source' => $this->applicant->source,
                 'resume_url' => $this->applicant->resumeUrl(),
+                // Whether the résumé's text could be read for the fit score (ADR 0097).
+                'resume_read_status' => $this->applicant->resume_read_status,
                 'notes' => $this->applicant->notes,
                 'documents' => $this->applicant->relationLoaded('documents')
                     ? ApplicantDocumentResource::collection($this->applicant->documents)

@@ -5,9 +5,8 @@ import {
     ChevronUp,
     Plus,
     Trash2,
-    X,
 } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo } from 'react';
 import { FormField } from '@/components/form-field';
 import { FormSelect } from '@/components/form-select';
 import InputError from '@/components/input-error';
@@ -31,6 +30,7 @@ import {
     SALARY_PERIOD_OPTIONS,
     WORK_ARRANGEMENT_OPTIONS,
 } from '../constants';
+import { useSkillCatalogue } from '../hooks/use-skill-catalogue';
 import { recruitmentRoutes } from '../routes';
 import type {
     EmploymentType,
@@ -40,6 +40,7 @@ import type {
     SalaryPeriod,
     WorkArrangement,
 } from '../types';
+import { SkillsInput } from './skills-input';
 
 type ScreeningQuestionDraft = { label: string };
 
@@ -131,6 +132,7 @@ function FormBody({
         closing_date: posting?.closing_date ?? '',
         min_years_experience: str(posting?.min_years_experience),
         skills: posting?.skills ?? [],
+        preferred_skills: posting?.preferred_skills ?? [],
         requires_resume: posting?.requires_resume ?? true,
         asks_expected_salary: posting?.asks_expected_salary ?? true,
         use_fit_scoring: posting?.use_fit_scoring ?? true,
@@ -141,6 +143,7 @@ function FormBody({
         requirements: posting?.requirements ?? '',
     });
 
+    const catalogue = useSkillCatalogue();
     const closingRequired = data.status === 'open';
     const hasPay = data.salary_min !== '' || data.salary_max !== '';
 
@@ -226,6 +229,9 @@ function FormBody({
             );
             cleaned.openings = Number(payload.openings) || 1;
             cleaned.skills = payload.skills
+                .map((skill) => skill.trim())
+                .filter((skill) => skill.length > 0);
+            cleaned.preferred_skills = payload.preferred_skills
                 .map((skill) => skill.trim())
                 .filter((skill) => skill.length > 0);
             cleaned.screening_questions = payload.screening_questions
@@ -456,13 +462,35 @@ function FormBody({
                             />
                         </FormField>
                         <FormField
-                            label="Skills"
+                            label="Must-have skills"
                             error={errors['skills'] ?? errors['skills.0']}
-                            hint="Press Enter or a comma after each."
+                            hint="Press Enter or a comma after each. Other names count too, and skills that prove one: TypeScript shows JavaScript."
                         >
                             <SkillsInput
                                 value={data.skills}
                                 onChange={(skills) => setData('skills', skills)}
+                                catalogue={catalogue}
+                                exclude={data.preferred_skills}
+                                placeholder="e.g. React, SQL, Bookkeeping"
+                            />
+                        </FormField>
+                        <FormField
+                            label="Nice-to-have skills"
+                            error={
+                                errors['preferred_skills'] ??
+                                errors['preferred_skills.0']
+                            }
+                            hint="Each counts half as much as a must-have."
+                            className="sm:col-start-2"
+                        >
+                            <SkillsInput
+                                value={data.preferred_skills}
+                                onChange={(skills) =>
+                                    setData('preferred_skills', skills)
+                                }
+                                catalogue={catalogue}
+                                exclude={data.skills}
+                                placeholder="e.g. Docker, QuickBooks"
                             />
                         </FormField>
                     </div>
@@ -808,81 +836,5 @@ function Section({
             </h3>
             {children}
         </section>
-    );
-}
-
-/**
- * A lightweight tag input for the posting's required skills. Enter or comma
- * commits the current token; Backspace on an empty field removes the last chip.
- */
-function SkillsInput({
-    value,
-    onChange,
-    ...props
-}: {
-    value: string[];
-    onChange: (skills: string[]) => void;
-    id?: string;
-    'aria-describedby'?: string;
-}) {
-    const [draft, setDraft] = useState('');
-
-    const add = (raw: string) => {
-        const skill = raw.trim().replace(/,$/, '').trim();
-
-        if (
-            skill &&
-            !value.some((s) => s.toLowerCase() === skill.toLowerCase())
-        ) {
-            onChange([...value, skill]);
-        }
-
-        setDraft('');
-    };
-
-    const remove = (index: number) =>
-        onChange(value.filter((_, i) => i !== index));
-
-    return (
-        <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
-            {value.map((skill, index) => (
-                <span
-                    key={`${skill}-${index}`}
-                    className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium"
-                >
-                    {skill}
-                    <button
-                        type="button"
-                        onClick={() => remove(index)}
-                        className="rounded-sm text-muted-foreground hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                        aria-label={`Remove ${skill}`}
-                    >
-                        <X className="size-3" />
-                    </button>
-                </span>
-            ))}
-            <input
-                {...props}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        add(draft);
-                    } else if (
-                        e.key === 'Backspace' &&
-                        draft === '' &&
-                        value.length > 0
-                    ) {
-                        remove(value.length - 1);
-                    }
-                }}
-                onBlur={() => draft && add(draft)}
-                placeholder={
-                    value.length === 0 ? 'e.g. React, SQL, Laravel' : ''
-                }
-                className="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-        </div>
     );
 }

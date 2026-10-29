@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\ReadApplicantFiles;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Support\Files\Uploads;
 use Database\Factories\ApplicantFactory;
@@ -15,6 +16,15 @@ class Applicant extends Model
 {
     /** @use HasFactory<ApplicantFactory> */
     use BelongsToOrganization, HasFactory;
+
+    /** The résumé is waiting to be read (ADR 0097). */
+    public const READ_PENDING = 'pending';
+
+    /** The résumé was read and its text kept. */
+    public const READ_DONE = 'read';
+
+    /** The résumé holds no text that could be read (or its type can't be). */
+    public const READ_UNREADABLE = 'unreadable';
 
     protected $fillable = [
         'organization_id',
@@ -44,6 +54,42 @@ class Applicant extends Model
      * @var list<string>
      */
     protected $appends = ['full_name'];
+
+    /**
+     * The text read out of the candidate's files is for matching only; it never
+     * rides along when a model is turned into JSON.
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['resume_text', 'documents_text'];
+
+    /** Set while saving when a new résumé arrived, so it is read once saved. */
+    private bool $resumeArrived = false;
+
+    /**
+     * A new résumé forgets what was read from the old one and is read once the
+     * response has gone, however it arrived (ADR 0097); a removed résumé
+     * leaves nothing behind.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Applicant $applicant): void {
+            if (! $applicant->isDirty('resume')) {
+                return;
+            }
+
+            $applicant->resume_text = null;
+            $applicant->resume_read_status = $applicant->resume === null ? null : self::READ_PENDING;
+            $applicant->resumeArrived = $applicant->resume !== null;
+        });
+
+        static::saved(function (Applicant $applicant): void {
+            if ($applicant->resumeArrived) {
+                $applicant->resumeArrived = false;
+                ReadApplicantFiles::dispatchAfterResponse($applicant->organization_id, $applicant->id);
+            }
+        });
+    }
 
     // ── Relationships ────────────────────────────────────────────────────────
 

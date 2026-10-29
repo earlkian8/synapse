@@ -76,8 +76,11 @@ RUN uv python install ${PYTHON_VERSION} \
 # ---------------------------------------------------------------------------
 FROM php-base
 
+# poppler-utils and tesseract read candidates' résumés for the ATS (ADR 0097):
+# pdftotext for PDFs, pdftoppm + tesseract (English) for scans and photos.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nginx supervisor curl \
+        poppler-utils tesseract-ocr tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 

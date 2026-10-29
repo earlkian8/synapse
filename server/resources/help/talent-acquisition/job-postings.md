@@ -15,7 +15,10 @@ Choose **New posting**. The form has five parts.
     - **Pay range**: the lowest and highest pay, and whether it is **per month**, **per year**, **per day** or **per hour**. Fill in both for a range, only the first for "from ₱…", or only the second for "up to ₱…". Leave both empty if you'd rather not say.
     - **Show the pay on the careers page**: on by default. Turn it off to keep the range for your own reference.
     - **Work arrangement**: **On-site**, **Hybrid** or **Remote**, and the site the role is **Based at** (one of your [work locations](/help/company-setup/work-locations)). Remote roles have no site.
-3. **About the role**: the **Description** and **Requirements** applicants will read, the minimum **Experience** in years (half years such as 1.5 are fine), and the **Skills** you're looking for.
+3. **About the role**: the **Description** and **Requirements** applicants will read, the minimum **Experience** in years (half years such as 1.5 are fine), and the skills you're looking for:
+    - **Must-have skills** and **Nice-to-have skills**. A nice-to-have counts half as much as a must-have.
+    - Name each skill once. Other names count too ("JS" for JavaScript), and so do skills that prove it: TypeScript shows JavaScript, Laravel shows PHP. A skill SYNAPSE recognises gets a check mark, and its tooltip says what else counts for it. Others are matched by their words, in any order.
+    - Write "React or Vue" to accept either.
 4. **Applications**:
     - The **Hiring pipeline** it runs on. New postings start on your default pipeline; see [Recruitment pipelines](/help/company-setup/recruitment-pipelines).
     - **Ask for a résumé**: on by default. Turn it off for roles where a CV isn't how people apply.

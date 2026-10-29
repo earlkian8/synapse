@@ -285,6 +285,7 @@ export default function RecruitmentPipeline() {
                                 )}
                             </span>
                             {(posting.skills.length > 0 ||
+                                posting.preferred_skills.length > 0 ||
                                 posting.min_years_experience != null) && (
                                 <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                     {posting.min_years_experience != null && (
@@ -295,7 +296,17 @@ export default function RecruitmentPipeline() {
                                     {posting.skills.map((skill) => (
                                         <span
                                             key={skill}
+                                            title="Must-have"
                                             className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+                                        >
+                                            {skill}
+                                        </span>
+                                    ))}
+                                    {posting.preferred_skills.map((skill) => (
+                                        <span
+                                            key={`nice-${skill}`}
+                                            title="Nice to have"
+                                            className="rounded-md border border-dashed border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
                                         >
                                             {skill}
                                         </span>

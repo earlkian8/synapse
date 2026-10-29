@@ -42,6 +42,7 @@ import { recruitmentRoutes } from '../routes';
 import type {
     Application,
     ApplicationDetail,
+    Fit,
     InterviewerRef,
     InterviewMode,
     PipelineStage,
@@ -390,16 +391,10 @@ export function ApplicationDetailDialog({
                                     />
                                     <Row
                                         label="Experience"
-                                        value={
-                                            applicant.years_experience == null
-                                                ? '—'
-                                                : `${applicant.years_experience} ${
-                                                      applicant.years_experience ===
-                                                      1
-                                                          ? 'year'
-                                                          : 'years'
-                                                  }`
-                                        }
+                                        value={experienceLabel(
+                                            applicant.years_experience,
+                                            current.fit,
+                                        )}
                                     />
                                     <Row
                                         label="Source"
@@ -879,4 +874,25 @@ function Row({ label, value }: { label: string; value: string }) {
             <span className="text-right font-medium">{value}</span>
         </div>
     );
+}
+
+/**
+ * The candidate's experience as they stated it, or — left blank — as their
+ * résumé's dates show it (ADR 0097), marked as an estimate.
+ */
+function experienceLabel(stated: number | null, fit: Fit | null | undefined) {
+    const years = (value: number) =>
+        `${value} ${value === 1 ? 'year' : 'years'}`;
+
+    if (stated != null) {
+        return years(stated);
+    }
+
+    const estimate = fit?.breakdown.find(
+        (item) => item.key === 'experience' && item.estimated,
+    );
+
+    return estimate?.years != null
+        ? `≈${years(estimate.years)} (from résumé)`
+        : '—';
 }

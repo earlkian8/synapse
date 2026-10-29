@@ -345,7 +345,8 @@ class RecruitmentModule extends Module implements ContributesContext
                         'description' => ['type' => 'STRING'],
                         'requirements' => ['type' => 'STRING'],
                         'min_years_experience' => ['type' => 'NUMBER', 'description' => 'Screening criterion: minimum years of experience; half years allowed (1.5).'],
-                        'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Screening criterion: required skill keywords.'],
+                        'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Screening criterion: must-have skills. Matched by meaning (other names, and skills that prove them: TypeScript proves JavaScript), so name each skill once.'],
+                        'preferred_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Nice-to-have skills; each counts half as much as a must-have.'],
                         'salary_min' => ['type' => 'NUMBER', 'description' => 'Least the role pays, in pesos.'],
                         'salary_max' => ['type' => 'NUMBER', 'description' => 'Most the role pays, in pesos.'],
                         'salary_period' => ['type' => 'STRING', 'enum' => JobPosting::SALARY_PERIODS, 'description' => 'What the pay is quoted per. Defaults to monthly.'],
@@ -370,7 +371,8 @@ class RecruitmentModule extends Module implements ContributesContext
                         'description' => ['type' => 'STRING'],
                         'requirements' => ['type' => 'STRING'],
                         'min_years_experience' => ['type' => 'NUMBER'],
-                        'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                        'skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Must-have skills.'],
+                        'preferred_skills' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING'], 'description' => 'Nice-to-have skills.'],
                         'salary_min' => ['type' => 'NUMBER'],
                         'salary_max' => ['type' => 'NUMBER'],
                         'salary_period' => ['type' => 'STRING', 'enum' => JobPosting::SALARY_PERIODS],
@@ -722,6 +724,7 @@ class RecruitmentModule extends Module implements ContributesContext
             'requirements' => $args['requirements'] ?? null,
             'min_years_experience' => isset($args['min_years_experience']) ? (float) $args['min_years_experience'] : null,
             'skills' => $this->skills($args['skills'] ?? null),
+            'preferred_skills' => $this->skills($args['preferred_skills'] ?? null),
             'employment_type' => $args['employment_type'] ?? 'probationary',
             'openings' => (int) ($args['openings'] ?? 1) ?: 1,
             'salary_min' => isset($args['salary_min']) ? (float) $args['salary_min'] : null,
@@ -782,6 +785,7 @@ class RecruitmentModule extends Module implements ContributesContext
             'salary_period' => $args['salary_period'] ?? $posting->salary_period,
             'work_arrangement' => $args['work_arrangement'] ?? $posting->work_arrangement,
             'skills' => array_key_exists('skills', $args) ? $this->skills($args['skills']) : $posting->skills,
+            'preferred_skills' => array_key_exists('preferred_skills', $args) ? $this->skills($args['preferred_skills']) : $posting->preferred_skills,
             'employment_type' => $args['employment_type'] ?? $posting->employment_type,
             'openings' => isset($args['openings']) ? (int) $args['openings'] : $posting->openings,
             'status' => $this->normaliseStatus($args['status'] ?? null) ?? $posting->status,
@@ -1745,6 +1749,7 @@ class RecruitmentModule extends Module implements ContributesContext
         $meta = [
             "Fit {$score['value']}/100 · {$score['band']}",
             $this->rankLabel($application),
+            $this->skillsLabel($score),
             $application->rating ? "Rated {$application->rating}/5" : 'Not yet rated',
             $interviews->isNotEmpty() ? $interviews->count().' interview'.($interviews->count() === 1 ? '' : 's').' · '.$verdict : 'No interviews yet',
             'Next: '.$recommendation['label'],
@@ -1937,6 +1942,28 @@ class RecruitmentModule extends Module implements ContributesContext
         }
 
         return $this->scorer->score($application, $application->jobPosting);
+    }
+
+    /**
+     * The skills reading in one line: "Skills 3/4 skills matched · missing
+     * Docker, AWS" (ADR 0097).
+     *
+     * @param  array{breakdown: list<array<string, mixed>>}  $score
+     */
+    private function skillsLabel(array $score): ?string
+    {
+        $component = collect($score['breakdown'])->firstWhere('key', 'skills');
+
+        if ($component === null) {
+            return null;
+        }
+
+        $missing = collect($component['skills'] ?? [])
+            ->filter(fn (array $skill): bool => $skill['tier'] === 'must' && $skill['credit'] <= 0)
+            ->pluck('skill');
+
+        return 'Skills '.$component['detail']
+            .($missing->isEmpty() ? '' : ' · missing '.$missing->take(3)->implode(', ').($missing->count() > 3 ? ' +'.($missing->count() - 3) : ''));
     }
 
     /**

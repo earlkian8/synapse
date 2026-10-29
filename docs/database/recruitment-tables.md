@@ -65,6 +65,8 @@ those two don't cover.
 | `work_arrangement` | string(10) | Default `onsite`; onsite / hybrid / remote. |
 | `work_location_id` | FK → work_locations, nullable | The site the role is based at. `nullOnDelete`. |
 | `min_years_experience` | decimal(4,1), nullable | Fit-scoring criterion, e.g. 1.5. |
+| `skills` | json, nullable | The **must-have** skills, as HR typed them. Matched by meaning against the résumé and profile (ADR 0097). |
+| `preferred_skills` | json, nullable | The **nice-to-have** skills; each weighs half a must-have in the fit score (ADR 0097). |
 | `requires_resume` | boolean | Default `true`. When `false`, the public application form makes the résumé optional. |
 | `asks_expected_salary` | boolean | Default `true`. When `false`, applicants aren't asked their expected pay. |
 | `use_fit_scoring` | boolean | Default `true`. When `false`, the pipeline skips the automatic fit score/ranking; candidates sort by applied date instead. |
@@ -88,6 +90,9 @@ The standalone candidate pool (not users or employees).
 | `years_experience` | decimal(4,1), nullable | 0–60, one decimal place (ADR 0091). |
 | `source` | string | website / referral / linkedin / agency / walk_in / other. |
 | `resume` | string, nullable | The **primary CV**, stored on the private `uploads` disk; copied into the 201 file at hire. |
+| `resume_text` | text, nullable | The words read out of the résumé (PDF, Word, or a scan by OCR), at most 60,000 characters, for skill matching (ADR 0097). Hidden from JSON; never sent to the browser. |
+| `resume_read_status` | string(12), nullable | `pending` (waiting to be read), `read`, `unreadable`; null without a résumé. Reset to `pending` whenever the résumé changes. |
+| `documents_text` | text, nullable | The read text of the supporting documents together (government IDs never included), so scoring never loads them. |
 | `notes` | text, nullable | |
 
 ## `applicant_documents`
@@ -102,6 +107,8 @@ certificate, transcript, portfolio, government ID, …). Mirrors `employee_docum
 | `title` | string | Original file name. |
 | `type` | string | cover_letter / certificate / transcript / portfolio / government_id / other. |
 | `file` | string | Stored on the private `uploads` disk (ADR 0087). |
+| `extracted_text` | text, nullable | The words read out of the file (ADR 0097). Hidden from JSON. |
+| `read_status` | string(12), nullable | `pending`, `read`, `unreadable`, or `skipped` — a government ID, which is never read. |
 | `uploaded_by` | FK → users, nullable | The recruiter; **null** for public submissions. `nullOnDelete`. |
 | timestamps | | |
 

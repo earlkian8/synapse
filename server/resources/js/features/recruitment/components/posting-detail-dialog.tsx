@@ -161,12 +161,23 @@ export function PostingDetailDialog({
                                 />
                             )}
                         </dl>
-                        {posting.skills.length > 0 && (
+                        {(posting.skills.length > 0 ||
+                            posting.preferred_skills.length > 0) && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
                                 {posting.skills.map((skill) => (
                                     <span
                                         key={skill}
+                                        title="Must-have"
                                         className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                    >
+                                        {skill}
+                                    </span>
+                                ))}
+                                {posting.preferred_skills.map((skill) => (
+                                    <span
+                                        key={`nice-${skill}`}
+                                        title="Nice to have"
+                                        className="rounded-md border border-dashed border-border px-2 py-0.5 text-xs font-medium text-muted-foreground"
                                     >
                                         {skill}
                                     </span>

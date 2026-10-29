@@ -48,6 +48,7 @@ use App\Support\Ai\GeminiClient;
 use App\Support\Attendance\AttendanceInputs;
 use App\Support\Ml\MlClient;
 use App\Support\PermissionRegistry;
+use App\Support\Recruitment\Skills\SkillCatalogue;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
@@ -75,6 +76,9 @@ class AppServiceProvider extends ServiceProvider
         // The files of the conversation being handled — bound per request
         // (ADR 0068), so it must never outlive one.
         $this->app->scoped(ConversationAttachments::class);
+
+        // The ATS's skill catalogue (ADR 0097): indexed once, read-only.
+        $this->app->singleton(SkillCatalogue::class, fn (): SkillCatalogue => SkillCatalogue::shared());
 
         // The Gemini client backing the agentic assistant.
         $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
