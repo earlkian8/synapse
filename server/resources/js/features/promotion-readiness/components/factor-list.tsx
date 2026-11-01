@@ -5,8 +5,8 @@ import type { ReadinessFactor } from '../types';
 
 /**
  * The factors behind a readiness score: how many readiness points each recorded
- * input moves it, compared with a typical record (green pushes toward promotion,
- * red pulls away). Bar widths are normalised to the strongest factor shown.
+ * input moves it, compared with a typical record (teal pushes toward promotion,
+ * rose pulls away — a pair that stays apart for colour-blind readers). Bar widths are normalised to the strongest factor shown.
  */
 export function FactorList({
     factors,
@@ -39,7 +39,7 @@ export function FactorList({
                         <div className="flex items-center justify-between gap-2 text-sm">
                             <span className="flex items-center gap-1.5 truncate">
                                 {up ? (
-                                    <ArrowUpRight className="size-3.5 shrink-0 text-emerald-500" />
+                                    <ArrowUpRight className="size-3.5 shrink-0 text-teal-600" />
                                 ) : (
                                     <ArrowDownRight className="size-3.5 shrink-0 text-rose-500" />
                                 )}
@@ -61,7 +61,7 @@ export function FactorList({
                             <div
                                 className={cn(
                                     'h-full rounded-full',
-                                    up ? 'bg-emerald-500' : 'bg-rose-500',
+                                    up ? 'bg-teal-600' : 'bg-rose-500',
                                 )}
                                 style={{ width }}
                             />

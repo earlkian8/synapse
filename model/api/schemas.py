@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 FeatureValue = float | int | str | bool | None
@@ -27,11 +29,50 @@ class PredictRequest(BaseModel):
     variant: Variant | None = None
 
 
+class Evidence(BaseModel):
+    """What the data a model learned from shows for an answer (attrition): the share
+    of people in the employee's band who left, and in the typical band."""
+
+    rate: float
+    people: int
+    typical_rate: float | None = None
+    typical_people: int | None = None
+    overall_rate: float | None = None
+    # Whether the data on its own points the way the model's contribution does; None
+    # when the two bands leave at about the same rate.
+    consistent: bool | None = None
+
+
 class Factor(BaseModel):
     feature: str
     label: str
+    # Exact Shapley contribution against the typical record (synapse_ml.explain), so
+    # the typical record's score plus every factor is the score.
     impact: float  # promotion: readiness points; attrition: probability
     direction: str  # "up" | "down"
+    # The employee's recorded value and the typical record's, in the ERP's units.
+    value: FeatureValue = None
+    typical: FeatureValue = None
+    # Attrition: the survey band each falls in, and the data behind the reason.
+    band: str | None = None
+    typical_band: str | None = None
+    evidence: Evidence | None = None
+
+
+class OutlookPoint(BaseModel):
+    rating: float
+    score: float
+
+
+class Outlook(BaseModel):
+    """Promotion: readiness after the next appraisal, by the rating it gives."""
+
+    points: list[OutlookPoint]
+    # The lowest next rating that reaches each tier (None: no rating on the scale does).
+    medium_from: float | None = None
+    high_from: float | None = None
+    # Readiness if the next appraisal repeats the latest one.
+    same_again: float | None = None
 
 
 class Interval(BaseModel):
@@ -51,11 +92,17 @@ class Result(BaseModel):
     # Which history the result rests on (promotion: "latest_appraisal" | "two_appraisals").
     basis: str | None = None
     factors: list[Factor] | None = None
+    # The score of a typical record with the same history; it plus every factor's
+    # impact (in score points) is this score.
+    baseline: float | None = None
+    outlook: Outlook | None = None
     # Regressors: the range the actual value is expected in, the band the point
     # forecast names, and the chance the actual lands in that band.
     interval: Interval | None = None
     band: str | None = None
     confidence: float | None = None
+    # The chance the next rating lands in each band (they sum to 1).
+    chances: dict[str, float] | None = None
     # Anything done to this instance's inputs (e.g. a value held at the trained range).
     warnings: list[str] = Field(default_factory=list)
 
@@ -66,6 +113,9 @@ class PredictResponse(BaseModel):
     results: list[Result]
     # About the request as a whole — e.g. inputs the model does not read.
     warnings: list[str] = Field(default_factory=list)
+    # What every result is read against: the typical record, tier cuts, and for
+    # attrition the leave rates of the data the model learned from.
+    reference: dict[str, Any] | None = None
 
 
 class ModelInfo(BaseModel):

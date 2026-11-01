@@ -28,6 +28,7 @@ import {
     viewRun,
 } from '@/features/promotion-readiness/api';
 import { EmployeeDetailDialog } from '@/features/promotion-readiness/components/employee-detail-dialog';
+import { ReadinessOverview } from '@/features/promotion-readiness/components/readiness-overview';
 import { ReadinessStatsCards } from '@/features/promotion-readiness/components/readiness-stats';
 import { ServiceBanner } from '@/features/promotion-readiness/components/service-banner';
 import { TierBadge } from '@/features/promotion-readiness/components/tier-badge';
@@ -36,6 +37,7 @@ import {
     formatScore,
     tierTone,
 } from '@/features/promotion-readiness/constants';
+import { strongestReason } from '@/features/promotion-readiness/explain';
 import type {
     PromotionReadinessPageProps,
     ReadinessScore,
@@ -150,6 +152,8 @@ export default function PromotionReadiness() {
                 ) : (
                     <>
                         <ReadinessStatsCards run={run} />
+
+                        <ReadinessOverview run={run} onOpen={setDetail} />
 
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -268,12 +272,13 @@ export default function PromotionReadiness() {
                 )}
             </div>
 
-            <EmployeeDetailDialog
-                score={detail}
-                scoredBy={run?.scored_by ?? 'general'}
-                baseRate={run?.base_rate ?? null}
-                onOpenChange={(open) => !open && setDetail(null)}
-            />
+            {run && (
+                <EmployeeDetailDialog
+                    score={detail}
+                    run={run}
+                    onOpenChange={(open) => !open && setDetail(null)}
+                />
+            )}
         </>
     );
 }
@@ -287,7 +292,8 @@ function ReadinessRow({
     score: ReadinessScore;
     onOpen: () => void;
 }) {
-    const topFactor = score.factors.find((f) => f.direction === 'up');
+    // The strongest reason, with its points when the run breaks scores down.
+    const reason = strongestReason(score);
 
     return (
         <li>
@@ -316,7 +322,7 @@ function ReadinessRow({
                         {score.basis === 'latest_appraisal'
                             ? ' · one appraisal so far'
                             : ''}
-                        {topFactor ? ` · ${topFactor.label} ↑` : ''}
+                        {reason ? ` · ${reason}` : ''}
                     </p>
                 </div>
                 <div className="flex w-12 flex-col items-end">

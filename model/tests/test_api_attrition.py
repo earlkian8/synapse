@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from api.main import app
 from api.main import registry as service_registry
-from api.registry import OCCLUSION_FLOOR, _baseline
+from api.registry import FACTOR_FLOOR, _baseline
 from synapse_ml.attrition import features, survey
 from synapse_ml.paths import ARTIFACTS_DIR
 
@@ -197,7 +197,7 @@ def test_factors_carry_labels_and_a_direction(client):
         assert factor["feature"] in features.FEATURES
         assert factor["label"] == features.FEATURE_LABELS[factor["feature"]]
         assert factor["direction"] == ("up" if factor["impact"] >= 0 else "down")
-        assert abs(factor["impact"]) >= OCCLUSION_FLOOR
+        assert abs(factor["impact"]) >= FACTOR_FLOOR
 
 
 def test_a_typical_employee_has_no_drivers(client):

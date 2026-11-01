@@ -25,6 +25,8 @@ class PromotionReadinessScoreResource extends JsonResource
             'basis' => $this->basis,
             // Readiness points each recorded input moves the score, strongest first.
             'factors' => $this->factors ?? [],
+            // Why (ADR 0098): the typical record's score the factors add up from, and readiness after the next appraisal.
+            'explanation' => $this->explanation,
             'features' => $this->features ?? [],
             'history' => $this->history ?? [],
             'warnings' => $this->warnings ?? [],

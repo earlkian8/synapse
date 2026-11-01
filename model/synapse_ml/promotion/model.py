@@ -19,7 +19,11 @@ probability into what HR reads:
   much history a record has;
 - ``tier`` — by lift over the reference promotion rate (see ``TIER_LIFT``);
 - ``factors`` — for each input, how many score points it moves the result compared
-  with a typical value (occlusion), so only recorded facts are ever a reason.
+  with a typical record (exact Shapley values, :mod:`synapse_ml.explain`), so only
+  recorded facts are ever a reason and the typical record's score (``baseline``)
+  plus every factor is the score;
+- ``outlook`` — readiness after the next appraisal, for every rating it could give:
+  the one thing an employee and their manager can work towards.
 """
 
 from __future__ import annotations
@@ -40,6 +44,7 @@ from sklearn.preprocessing import StandardScaler
 from ..appraisal import inputs as contract_inputs
 from ..appraisal.inputs import fitted_ranges
 from ..appraisal.patterns import PatternRouter
+from ..explain import shapley
 from . import features
 
 SEED = 42
@@ -47,6 +52,11 @@ CHOSEN = "Logistic Regression (calibrated)"
 
 # Explanations: a factor must move the score by at least this many points.
 FACTOR_FLOOR = 1.0
+
+# The outlook: next ratings read on a half-point grid (for where each tier starts),
+# and drawn every OUTLOOK_STEP points.
+OUTLOOK_GRID = 0.5
+OUTLOOK_STEP = 2.5
 
 
 class MonotoneQuadraticPlatt:
@@ -222,10 +232,11 @@ class PromotionReadinessModel:
         read = [contract_inputs.read(record, self.inputs) for record in records]
         rows = [values for values, _ in read]
         probabilities = self.probabilities(rows)
-        factors = self._factors(rows, probabilities)
+        explained = self._explain(rows, probabilities)
+        outlooks = self._outlooks(rows, probabilities)
 
         results = []
-        for (values, notes), p, why in zip(read, probabilities, factors, strict=True):
+        for (values, notes), p, (baseline, why), outlook in zip(read, probabilities, explained, outlooks, strict=True):
             if p is None:
                 results.append(_insufficient([c for c in features.REQUIRED if c not in values], notes))
                 continue
@@ -238,47 +249,97 @@ class PromotionReadinessModel:
                     "tier": self.tier(p),
                     "basis": features.BASIS[pattern],
                     "factors": why,
+                    "baseline": baseline,
+                    "outlook": outlook,
                     "warnings": notes,
                 }
             )
         return results
 
-    def _factors(self, rows, probabilities) -> list[list[dict[str, Any]] | None]:
-        """Occlusion in score points: how much each recorded input moves this score
-        compared with the reference's typical value for it."""
-        base = [None if p is None else self.percentile.at(p) for p in probabilities]
-        effects: list[dict[str, float]] = [{} for _ in rows]
-        for name in self.features:
-            swapped = [
-                {**row, name: self.typical[name]} if (b is not None and name in row) else None
-                for row, b in zip(rows, base, strict=True)
-            ]
-            present = [i for i, row in enumerate(swapped) if row is not None]
-            if not present:
-                continue
-            typical_p = self.probabilities([swapped[i] for i in present])
-            for i, q in zip(present, typical_p, strict=True):
-                effects[i][name] = base[i] - self.percentile.at(q)
+    def _scores(self, rows: Sequence[Mapping[str, float]]) -> np.ndarray:
+        """Readiness scores (0–100) for rows that each carry every required input."""
+        return self.percentile(np.asarray(self.probabilities(rows), dtype=float))
 
-        out: list[list[dict[str, Any]] | None] = []
-        for b, row_effects in zip(base, effects, strict=True):
-            if b is None:
-                out.append(None)
-                continue
-            ranked = sorted(row_effects.items(), key=lambda kv: abs(kv[1]), reverse=True)
-            out.append(
+    def _explain(self, rows, probabilities) -> list[tuple[float | None, list[dict[str, Any]] | None]]:
+        """Exact Shapley values in score points: how much each recorded input moves this
+        score compared with a typical record that has the same history. The typical
+        record's score comes with them; together they add up to the score."""
+        scored = [i for i, p in enumerate(probabilities) if p is not None]
+        explained = shapley(
+            [rows[i] for i in scored],
+            [[name for name in self.features if name in rows[i]] for i in scored],
+            self.typical,
+            self._scores,
+        )
+
+        out: list[tuple[float | None, list[dict[str, Any]] | None]] = [(None, None)] * len(rows)
+        for i, (baseline, contributions) in zip(scored, explained, strict=True):
+            ranked = sorted(contributions.items(), key=lambda kv: abs(kv[1]), reverse=True)
+            out[i] = (
+                round(baseline, 1),
                 [
                     {
                         "feature": name,
                         "label": features.LABELS[name],
                         "impact": round(effect, 1),
                         "direction": "up" if effect >= 0 else "down",
+                        "value": round(float(rows[i][name]), 2),
+                        "typical": round(float(self.typical[name]), 2),
                     }
                     for name, effect in ranked
                     if abs(effect) >= FACTOR_FLOOR
-                ]
+                ],
             )
         return out
+
+    def _outlooks(self, rows, probabilities) -> list[dict[str, Any] | None]:
+        """Readiness after the next appraisal, by the rating it gives: that rating
+        becomes the latest, and its change on today's latest the change — so the
+        record is read by the two-appraisal model, as it will be then. Ratings and
+        changes are held to the ranges the model reads."""
+        specs = {spec.name: spec for spec in self.inputs}
+        latest_spec, change_spec = specs["rating_latest"], specs["rating_change"]
+        grid = np.round(np.arange(latest_spec.low, latest_spec.high + OUTLOOK_GRID / 2, OUTLOOK_GRID), 2)
+        every = max(1, round(OUTLOOK_STEP / OUTLOOK_GRID))
+
+        scored = [i for i, p in enumerate(probabilities) if p is not None]
+        out: list[dict[str, Any] | None] = [None] * len(rows)
+        if not scored:
+            return out
+
+        def record(rating: float, latest: float) -> dict[str, float]:
+            change = float(np.clip(rating - latest, change_spec.low, change_spec.high))
+            return {"rating_latest": float(rating), "rating_change": change}
+
+        batch = [record(r, rows[i]["rating_latest"]) for i in scored for r in grid]
+        batch += [record(rows[i]["rating_latest"], rows[i]["rating_latest"]) for i in scored]
+        p = np.asarray(self.probabilities(batch), dtype=float)
+        curves = p[: len(scored) * len(grid)].reshape(len(scored), len(grid))
+        same = p[len(scored) * len(grid) :]
+
+        for k, i in enumerate(scored):
+            scores = self.percentile(curves[k])
+
+            def first(threshold: float, k: int = k) -> float | None:
+                reached = np.flatnonzero(curves[k] >= threshold)
+                return float(grid[reached[0]]) if len(reached) else None
+
+            out[i] = {
+                "points": [{"rating": float(grid[j]), "score": round(float(scores[j]), 1)} for j in range(0, len(grid), every)],
+                "medium_from": first(self.tiers["medium"]),
+                "high_from": first(self.tiers["high"]),
+                "same_again": round(self.percentile.at(same[k]), 1),
+            }
+        return out
+
+    def reference(self) -> dict[str, Any]:
+        """What every score is read against: the typical record, the promotion rate the
+        tiers are multiples of, and where each tier starts on the score scale."""
+        return {
+            "base_rate": round(self.base_rate, 4),
+            "typical": {name: round(float(v), 2) for name, v in self.typical.items()},
+            "tier_scores": {tier: round(self.percentile.at(p), 1) for tier, p in self.tiers.items()},
+        }
 
     def contract(self) -> dict[str, Any]:
         """The serving contract, written next to the model as ``feature_contract.json``."""
@@ -311,5 +372,7 @@ def _insufficient(missing: list[str], notes: list[str]) -> dict[str, Any]:
         "tier": None,
         "basis": None,
         "factors": None,
+        "baseline": None,
+        "outlook": None,
         "warnings": notes,
     }

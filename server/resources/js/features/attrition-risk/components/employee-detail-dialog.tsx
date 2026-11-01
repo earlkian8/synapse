@@ -6,6 +6,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { ContributionLedger } from '@/features/prediction-insights/components/contribution-ledger';
+import { WorkforcePosition } from '@/features/prediction-insights/components/workforce-position';
+import { focusDialogItself } from '@/features/prediction-insights/lib';
 import { cn } from '@/lib/utils';
 import {
     confidenceLabel,
@@ -16,21 +19,34 @@ import {
     scoreTone,
     TIER_DESCRIPTIONS,
 } from '../constants';
-import type { RiskScore } from '../types';
+import { ledgerSteps, riskSummary, riskThresholds } from '../explain';
+import type { RiskRun, RiskScore } from '../types';
 import { FactorList } from './factor-list';
 import { RiskBadge } from './risk-badge';
+import { SurveyEvidence } from './survey-evidence';
 
-/** A drill-down on one employee's attrition risk: score, confidence, and why. */
+/**
+ * A drill-down on one employee's attrition risk: the score and where it sits in the
+ * run, why — as a walk from a typical employee's score, reason by reason — what the
+ * survey shows for those reasons, and the record it was read from.
+ */
 export function EmployeeDetailDialog({
     score,
+    run,
     onOpenChange,
 }: {
     score: RiskScore | null;
+    run: RiskRun;
     onOpenChange: (open: boolean) => void;
 }) {
+    const thresholds = riskThresholds(run);
+
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent
+                className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+                onOpenAutoFocus={focusDialogItself}
+            >
                 {score && score.employee && (
                     <>
                         <DialogHeader>
@@ -60,13 +76,13 @@ export function EmployeeDetailDialog({
                             </DialogDescription>
                         </DialogHeader>
 
-                        {/* Risk headline */}
-                        <div className="flex flex-col gap-2 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
+                        {/* Risk headline, and where it sits in the run */}
+                        <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
                             <div className="flex items-end justify-between">
                                 <div className="flex items-baseline gap-1.5">
                                     <span
                                         className={cn(
-                                            'text-4xl font-semibold tracking-tight tabular-nums',
+                                            'text-4xl font-semibold tracking-tight',
                                             scoreTone(score.score),
                                         )}
                                     >
@@ -90,56 +106,109 @@ export function EmployeeDetailDialog({
                             <p className="text-xs text-muted-foreground">
                                 {TIER_DESCRIPTIONS[score.tier]}
                             </p>
+                            <WorkforcePosition
+                                scores={run.scores.map((s) => s.score)}
+                                value={score.score}
+                                name={score.employee.full_name}
+                                noun="risk"
+                                thresholds={thresholds}
+                            />
                         </div>
 
-                        {/* Confidence */}
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-sidebar-border/60 bg-card/40 px-4 py-3 dark:border-sidebar-border">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-medium">
-                                    {confidenceLabel(score.confidence)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {formatConfidence(score.confidence)} of the
-                                    inputs come from this employee's own
-                                    records; the rest were estimated
-                                </span>
-                            </div>
-                            <div className="flex w-24 flex-col gap-1">
-                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                                    <div
-                                        className="h-full rounded-full bg-[#0ABFBF]"
-                                        style={{
-                                            width: `${Math.round(score.confidence * 100)}%`,
-                                        }}
-                                    />
+                        {/* Why */}
+                        {score.explanation ? (
+                            <section className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <h3 className="text-sm font-semibold">
+                                        Why {formatScore(score.score)}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {riskSummary(score)}
+                                    </p>
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* What moved it */}
-                        {score.factors.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                    What moves this score
-                                </h3>
-                                <FactorList factors={score.factors} />
-                            </div>
+                                <ContributionLedger
+                                    label={`How ${score.employee.full_name}'s risk adds up from a typical employee's`}
+                                    start={{
+                                        label: 'A typical employee',
+                                        detail: 'Every input at its usual value',
+                                        value: score.explanation.baseline,
+                                    }}
+                                    steps={ledgerSteps(score)}
+                                    end={{
+                                        label: score.employee.full_name,
+                                        value: score.score,
+                                        fill: scoreBarTone(score.score),
+                                    }}
+                                    guides={thresholds}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Each reason is the risk points that input
+                                    adds to or takes from a typical employee’s
+                                    score, shared fairly where inputs work
+                                    together, so they add up to this score.
+                                </p>
+                            </section>
+                        ) : (
+                            score.factors.length > 0 && (
+                                <section className="flex flex-col gap-2">
+                                    <h3 className="text-sm font-semibold">
+                                        What moves this score
+                                    </h3>
+                                    <FactorList factors={score.factors} />
+                                    <p className="text-xs text-muted-foreground">
+                                        This run is from before scores were
+                                        broken down into points. Run a new
+                                        assessment to see the full breakdown.
+                                    </p>
+                                </section>
+                            )
                         )}
 
-                        {/* What it is based on */}
-                        <div className="flex flex-col gap-2">
-                            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                What this is based on
-                            </h3>
+                        {/* What the data shows */}
+                        {run.reference?.evidence && (
+                            <section className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <h3 className="text-sm font-semibold">
+                                        What the data shows
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {run.reference.evidence.source ===
+                                        'survey'
+                                            ? `How often people left at each answer, among the ${run.reference.evidence.people} people surveyed that the model learned from (${Math.round((run.reference.evidence.overall_rate ?? 0) * 100)}% left overall).`
+                                            : `How often people left at each value, among the ${run.reference.evidence.people} people in your own records that your model learned from.`}
+                                    </p>
+                                </div>
+                                <SurveyEvidence
+                                    factors={score.factors.filter(
+                                        (f) => f.impact > 0,
+                                    )}
+                                    evidence={run.reference.evidence}
+                                />
+                            </section>
+                        )}
+
+                        {/* Their record */}
+                        <section className="flex flex-col gap-2">
+                            <div className="flex items-end justify-between gap-3">
+                                <h3 className="text-sm font-semibold">
+                                    What it was read from
+                                </h3>
+                                <span className="text-xs text-muted-foreground">
+                                    {confidenceLabel(score.confidence)} ·{' '}
+                                    {formatConfidence(score.confidence)} of the
+                                    inputs on record
+                                </span>
+                            </div>
                             <FeatureGrid features={score.features} />
                             <p className="mt-1 text-xs text-muted-foreground">
                                 A risk score is a prompt for a conversation, not
                                 a verdict. It reflects patterns among people who
                                 did and did not resign — it cannot see why this
                                 person might, and no demographic or protected
-                                attribute is used.
+                                attribute is used. An input not on record is
+                                read as typical, so it never counts as a reason.
                             </p>
-                        </div>
+                        </section>
                     </>
                 )}
             </DialogContent>
@@ -147,13 +216,16 @@ export function EmployeeDetailDialog({
     );
 }
 
+/** Recorded and sent, but not read by the model (its leave rate is flat across bands). */
+const NOT_READ = new Set(['overtime_hours_90d']);
+
 function FeatureGrid({
     features,
 }: {
     features: Record<string, number | string>;
 }) {
     return (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {INPUT_FIELDS.map((field) => {
                 const value = features[field.key];
                 const recorded = value !== undefined && value !== null;
@@ -175,6 +247,11 @@ function FeatureGrid({
                         >
                             {recorded ? field.format(value) : 'Not on record'}
                         </dd>
+                        {NOT_READ.has(field.key) && (
+                            <span className="text-[10px] text-muted-foreground">
+                                Not used by the model
+                            </span>
+                        )}
                     </div>
                 );
             })}

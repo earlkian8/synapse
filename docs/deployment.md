@@ -72,7 +72,9 @@ image copies the reference models from it. So the image must be built from a wor
 tree where the notebooks have been run, not from a fresh clone. That means a CI or
 App Platform build from the repository alone would fail at
 `COPY model/artifacts`. Build locally and push the image to a registry, then deploy
-the image.
+the image. Check that `model/artifacts/attrition/evidence.json` is there too (`python -m
+synapse_ml.attrition.evidence` writes it): without it, attrition reasons still come with
+their points but not with the survey's leave rates.
 
 ### What the entrypoint does
 

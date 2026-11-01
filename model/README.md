@@ -86,6 +86,13 @@ Every notebook opens a logged run first (`run = sm.start_run("<model>")`), which
 - `artifacts/<model>/` — `<model>_model.joblib` (the fitted scikit-learn `Pipeline`,
   preprocessing included), `metrics.json`, and the evaluation plots. The attrition model
   also writes `feature_contract.json`: its inputs, units, band edges and tiers.
+- `artifacts/attrition/evidence.json` — the survey's leave rate at every answer, as
+  aggregates only, which the service attaches to each attrition reason. Write it with
+  `python -m synapse_ml.attrition.evidence` (from `model/`) whenever the survey changes.
+
+Every score the service returns is explained by exact Shapley values against a typical
+record (`synapse_ml/explain.py`; ADR 0098): the typical record's score (`baseline`) plus
+every factor is the score.
 
 Library versions, data shapes, CV scores and artifact paths are all logged, so the full
 story of a run survives a dead kernel or cleared outputs.

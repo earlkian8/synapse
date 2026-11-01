@@ -34,6 +34,9 @@ class PromotionReadinessRunResource extends JsonResource
             'average_score' => $this->average_score === null ? null : (float) $this->average_score,
             // Employees the model declined — no completed appraisal — and why.
             'unassessed' => UnassessedEmployees::resolve($this->unassessed),
+            // What every score is read against (ADR 0098): the typical record and
+            // where each tier starts on the score scale.
+            'reference' => $this->reference,
             'generated_by' => $this->whenLoaded('generator', fn () => $this->generator
                 ? trim("{$this->generator->first_name} {$this->generator->last_name}")
                 : null),

@@ -26,10 +26,15 @@ schema. The model and the way records reach it are specified by
   completed, a **Not forecast** list (employees with no completed appraisal before the
   period, each with the reason), then the **ranked roster** — every forecast employee by
   predicted rating, with their band, the likely range and the movement vs. their last
-  appraisal. Search by employee, filter by band, and pick a past run from the history
+  appraisal. Above the roster, a **workforce overview** ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): where next ratings
+  are expected (stacked by band) and forecasts by department, each with a table view.
+  Search by employee, filter by band, and pick a past run from the history
   selector. HR can **run a new forecast** or **delete** a historical one. Selecting an
   employee opens a **detail dialog**: the predicted rating and the range four in five
-  next ratings land in, the band and the chance it is right, a **trajectory chart**
+  next ratings land in, the band and the **chance of every band**, where the forecast
+  sits among the others, *why* (the latest appraisal placed on the model's own curve of
+  expected next ratings, with the range four in five land in and the no-change line), a
+  **trajectory chart**
   (completed appraisals → the forecast point with its range, and the actual result once
   there is one), and the appraisal the forecast rests on.
 

@@ -28,6 +28,7 @@ point in time, with a summary. Addressed by hashid in URLs (`?run=…`).
 | `high_count` / `medium_count` / `low_count` | unsigned int | Tier tallies (High risk / At watch / Stable). |
 | `average_score` | decimal(5,2), nullable | Mean risk (0–100) across the run. |
 | `average_confidence` | decimal(4,3), nullable | Mean confidence (0–1) across the run. |
+| `reference` | json, nullable | What every score in the run is read against: `{baseline, typical, tiers, evidence}` — a typical employee's score, the typical value and band of each input, where the tiers start, and the leave rates by band of the data the model learned from (`{source, people, left, overall_rate, features}`). Null on runs from before [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md). |
 | `note` | text, nullable | Reserved for failure detail. |
 | timestamps | | |
 
@@ -47,7 +48,8 @@ One employee's result within a run.
 | `score` | decimal(5,2) | Presentation risk score (0–100 = probability × 100). |
 | `tier` | string | `low \| medium \| high` (cut at 0.33 / 0.66). Indexed. |
 | `confidence` | decimal(4,3) | Share of the model's 8 inputs grounded in the employee's own record (0–1). |
-| `factors` | json, nullable | Up to six `[{feature, label, impact, direction}]` — each input's what-if-typical effect on the probability. |
+| `factors` | json, nullable | `[{feature, label, impact, direction, value, typical, band, typical_band, evidence}]` — each recorded input's exact Shapley contribution to the probability against a typical employee (2 points or more), with the employee's value and band, the typical ones, and the survey's leave rates for both (`evidence`). Runs from before [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md) hold what-if-typical effects and only the first four keys. |
+| `explanation` | json, nullable | `{baseline}` — a typical employee's score (0–100), which the factors add up from. Null on older runs. |
 | `features` | json, nullable | Snapshot of the feature vector sent to the model (exact ERP values), for audit. |
 | timestamps | | |
 

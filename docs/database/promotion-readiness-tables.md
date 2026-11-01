@@ -23,6 +23,7 @@ in time, with a summary. Addressed by hashid in URLs (`?run=…`).
 | `high_count` / `medium_count` / `low_count` | unsigned int | Tier tallies. |
 | `average_score` | decimal(5,2), nullable | Mean readiness (0–100) across the run. |
 | `unassessed` | json, nullable | `[{employee_id, reason}]` — active employees the model declined: `no_appraisal` or `appraisal_in_progress` (only drafts). [ADR 0045](../decisions/0045-performance-and-promotion-models-that-can-be-relied-on.md). |
+| `reference` | json, nullable | `{base_rate, typical, tier_scores}` — the promotion rate the tiers are multiples of, the typical record, and where Medium and High start on the score scale. Null on runs from before [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md). |
 | `note` | text, nullable | Reserved for failure detail. |
 | timestamps | | |
 
@@ -42,7 +43,8 @@ One employee's result within a run.
 | `score` | decimal(5,2) | Readiness (0–100): where that probability sits among the reference workforce (mid-rank percentile). |
 | `tier` | string | `low \| medium \| high` — by lift over the reference's 10 % promotion rate (high ≥ 2×, medium ≥ 1×). Indexed. |
 | `basis` | string, nullable | `two_appraisals \| latest_appraisal` — how much history the score rests on. |
-| `factors` | json, nullable | `[{feature, label, impact, direction}]` — readiness points each recorded input moves the score against a typical record. |
+| `factors` | json, nullable | `[{feature, label, impact, direction, value, typical}]` — readiness points each recorded input moves the score against a typical record (exact Shapley values from [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md) on), with the employee's and the typical value. |
+| `explanation` | json, nullable | `{baseline, outlook}` — a typical record's score with the same history (the factors add up from it), and readiness after the next appraisal: `{points: [{rating, score}], medium_from, high_from, same_again}`. Null on older runs. |
 | `features` | json, nullable | Snapshot of the inputs sent to the model (`rating_latest`, `rating_change`), for audit. |
 | `history` | json, nullable | The completed appraisals behind them `[{label, rating}]` (attainment, oldest first). |
 | `warnings` | json, nullable | Notes about any input held at the model's trained range. |

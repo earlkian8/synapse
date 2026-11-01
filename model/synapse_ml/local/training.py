@@ -43,6 +43,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 
 from ..appraisal.inputs import number
+from ..attrition import evidence as attrition_evidence
 from ..attrition import features as attrition_features
 from ..attrition import model as attrition_model
 from ..performance import features as performance_features
@@ -111,6 +112,9 @@ class Outcome:
     comparison: dict[str, Any]
     fitted: Any = None
     counts: dict[str, int] = field(default_factory=dict)
+    # Attrition: leave rates by band in the organisation's own records — what the
+    # local model's reasons are read against (synapse_ml.attrition.evidence).
+    evidence: dict[str, Any] | None = None
 
 
 # ---- the examples ---------------------------------------------------------------------
@@ -344,7 +348,8 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
     except (ValueError, np.linalg.LinAlgError) as exc:
         log.warning("'%s' local model could not be fitted on every example: %s", model, exc)
         return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
-    return Outcome("passed", findings, comparison, fitted, counts=have)
+    evidence = attrition_evidence.profile(ex.X, ex.y, source="own_records") if model == "attrition" else None
+    return Outcome("passed", findings, comparison, fitted, counts=have, evidence=evidence)
 
 
 def _words(c: Mapping[str, Any]) -> dict[str, Any]:

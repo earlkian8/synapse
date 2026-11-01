@@ -33,6 +33,7 @@ class AttritionRiskRun extends Model
         'low_count',
         'average_score',
         'average_confidence',
+        'reference',
         'note',
     ];
 
@@ -45,6 +46,7 @@ class AttritionRiskRun extends Model
             'low_count' => 'integer',
             'average_score' => 'decimal:2',
             'average_confidence' => 'decimal:3',
+            'reference' => 'array',
         ];
     }
 

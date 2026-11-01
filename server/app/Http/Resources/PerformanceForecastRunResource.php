@@ -31,6 +31,9 @@ class PerformanceForecastRunResource extends JsonResource
             'average_confidence' => $this->average_confidence === null ? null : (float) $this->average_confidence,
             // Employees with no completed appraisal before the target period, and why.
             'unassessed' => UnassessedEmployees::resolve($this->unassessed),
+            // What every forecast is read against (ADR 0098): how the model reads a
+            // latest appraisal across its range.
+            'reference' => $this->reference,
             'generated_by' => $this->whenLoaded('generator', fn () => $this->generator
                 ? trim("{$this->generator->first_name} {$this->generator->last_name}")
                 : null),

@@ -127,6 +127,7 @@ class PerformanceForecaster
                     'features' => $snapshots[$employee->id] ?: null,
                     'history' => $window->trajectory() ?: null,
                     'warnings' => ($result['warnings'] ?? []) ?: null,
+                    'explanation' => PredictionExplanation::forScore('performance', $result),
                 ];
             }
 
@@ -145,6 +146,7 @@ class PerformanceForecaster
                 'average_rating' => $scored > 0 ? round($ratingSum / $scored, 2) : null,
                 'average_confidence' => $scored > 0 ? round($confidenceSum / $scored, 3) : null,
                 'unassessed' => $unassessed ?: null,
+                'reference' => PredictionExplanation::forRun($response),
             ]);
 
             $run->forecasts()->createMany($rows);

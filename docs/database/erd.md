@@ -1363,6 +1363,7 @@ erDiagram
         int low_count
         decimal average_score
         json unassessed "who the model declined"
+        json reference "what scores are read against"
         text note
     }
     PROMOTION_READINESS_SCORE {
@@ -1374,6 +1375,7 @@ erDiagram
         string tier "low|medium|high"
         string basis "two_appraisals|latest_appraisal"
         json factors
+        json explanation "baseline, next-appraisal outlook"
         json features
         json history
         json warnings
@@ -1392,6 +1394,7 @@ erDiagram
         decimal average_rating
         decimal average_confidence
         json unassessed
+        json reference "the model's rating curve"
         text note
     }
     PERFORMANCE_FORECAST {
@@ -1406,6 +1409,7 @@ erDiagram
         json features
         json history
         json warnings
+        json explanation "chance of each band"
     }
     ATTRITION_RISK_RUN {
         bigint id PK
@@ -1419,6 +1423,7 @@ erDiagram
         int low_count
         decimal average_score
         decimal average_confidence
+        json reference "typical employee, survey evidence"
         text note
     }
     ATTRITION_RISK_SCORE {
@@ -1430,6 +1435,7 @@ erDiagram
         string tier "low|medium|high"
         decimal confidence "how much of the record was real"
         json factors
+        json explanation "typical employee's score"
         json features
     }
     LOCAL_MODEL {

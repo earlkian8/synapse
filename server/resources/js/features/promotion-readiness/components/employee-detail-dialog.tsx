@@ -7,6 +7,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { ContributionLedger } from '@/features/prediction-insights/components/contribution-ledger';
+import { WorkforcePosition } from '@/features/prediction-insights/components/workforce-position';
+import { focusDialogItself } from '@/features/prediction-insights/lib';
 import { cn } from '@/lib/utils';
 import {
     BASIS_LABELS,
@@ -16,36 +19,51 @@ import {
     formatProbability,
     formatScore,
     REFERENCE_PROMOTION_RATE,
+    TIER_LABELS,
     TIER_DESCRIPTIONS,
     tierBarTone,
     tierTone,
 } from '../constants';
-import type { ReadinessScore } from '../types';
+import {
+    ledgerSteps,
+    readinessSummary,
+    readinessThresholds,
+    tierOfScore,
+    typicalRecord,
+} from '../explain';
+import type { ReadinessRun, ReadinessScore } from '../types';
 import { FactorList } from './factor-list';
+import { NextAppraisalChart } from './next-appraisal-chart';
 import { TierBadge } from './tier-badge';
 
 /**
- * A drill-down on one employee's readiness: what the score means, how much record
- * it rests on, what moves it, and the appraisals it was built from.
+ * A drill-down on one employee's readiness: what the score means and where it sits
+ * in the run, how much record it rests on, why — as a walk from a typical record's
+ * score — what the next appraisal would do, and the appraisals it was built from.
  */
 export function EmployeeDetailDialog({
     score,
-    scoredBy,
-    baseRate,
+    run,
     onOpenChange,
 }: {
     score: ReadinessScore | null;
-    /** Whose model scored the run — it decides whose "average" the odds are against. */
-    scoredBy: 'own' | 'general';
-    baseRate: number | null;
+    run: ReadinessRun;
     onOpenChange: (open: boolean) => void;
 }) {
-    const own = scoredBy === 'own' && baseRate !== null;
-    const average = own ? baseRate : REFERENCE_PROMOTION_RATE;
+    // Whose model scored the run decides whose "average" the odds are against.
+    const own = run.scored_by === 'own' && run.base_rate !== null;
+    const average =
+        own && run.base_rate !== null
+            ? run.base_rate
+            : REFERENCE_PROMOTION_RATE;
+    const thresholds = readinessThresholds(run);
 
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent
+                className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+                onOpenAutoFocus={focusDialogItself}
+            >
                 {score && score.employee && (
                     <>
                         <DialogHeader>
@@ -76,12 +94,12 @@ export function EmployeeDetailDialog({
                         </DialogHeader>
 
                         {/* Score headline */}
-                        <div className="flex flex-col gap-2 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
+                        <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
                             <div className="flex items-end justify-between">
                                 <div className="flex items-baseline gap-1.5">
                                     <span
                                         className={cn(
-                                            'text-4xl font-semibold tracking-tight tabular-nums',
+                                            'text-4xl font-semibold tracking-tight',
                                             tierTone(score.tier),
                                         )}
                                     >
@@ -123,6 +141,13 @@ export function EmployeeDetailDialog({
                                     : 'the whole reference workforce'}
                                 .
                             </p>
+                            <WorkforcePosition
+                                scores={run.scores.map((s) => s.score)}
+                                value={score.score}
+                                name={score.employee.full_name}
+                                noun="readiness"
+                                thresholds={thresholds}
+                            />
                         </div>
 
                         {/* What it rests on */}
@@ -150,24 +175,97 @@ export function EmployeeDetailDialog({
                             </div>
                         )}
 
-                        {/* What moves it */}
-                        {score.factors.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                    What moves this score
-                                </h3>
-                                <FactorList factors={score.factors} />
+                        {/* Why */}
+                        {score.explanation ? (
+                            <section className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <h3 className="text-sm font-semibold">
+                                        Why {formatScore(score.score)}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {readinessSummary(score)}
+                                    </p>
+                                </div>
+                                <ContributionLedger
+                                    label={`How ${score.employee.full_name}'s readiness adds up from a typical record's`}
+                                    start={{
+                                        label: 'A typical record',
+                                        detail: typicalRecord(score, run),
+                                        value: score.explanation.baseline,
+                                    }}
+                                    steps={ledgerSteps(score)}
+                                    end={{
+                                        label: score.employee.full_name,
+                                        value: score.score,
+                                        fill: tierBarTone(score.tier),
+                                    }}
+                                    guides={thresholds}
+                                />
                                 <p className="text-xs text-muted-foreground">
-                                    Readiness points each input adds or takes
-                                    away, compared with a typical record.
+                                    Readiness points each input adds to or takes
+                                    from a typical record with the same history,
+                                    shared fairly where the inputs work
+                                    together, so they add up to this score.
                                 </p>
-                            </div>
+                            </section>
+                        ) : (
+                            score.factors.length > 0 && (
+                                <section className="flex flex-col gap-2">
+                                    <h3 className="text-sm font-semibold">
+                                        What moves this score
+                                    </h3>
+                                    <FactorList factors={score.factors} />
+                                    <p className="text-xs text-muted-foreground">
+                                        Readiness points each input adds or
+                                        takes away, compared with a typical
+                                        record. Run a new assessment for the
+                                        full breakdown.
+                                    </p>
+                                </section>
+                            )
                         )}
+
+                        {/* What the next appraisal would do */}
+                        {score.explanation?.outlook &&
+                            score.features.rating_latest !== undefined && (
+                                <section className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <h3 className="text-sm font-semibold">
+                                            After the next appraisal
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {outlookSummary(
+                                                score.explanation.outlook,
+                                                score.features.rating_latest,
+                                                score.score,
+                                                (v) => tierOfScore(run, v),
+                                            )}
+                                        </p>
+                                    </div>
+                                    <NextAppraisalChart
+                                        outlook={score.explanation.outlook}
+                                        latest={score.features.rating_latest}
+                                        tierScores={
+                                            run.reference?.tier_scores ?? null
+                                        }
+                                        tierOf={(v) => tierOfScore(run, v)}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        The next rating becomes the latest, and
+                                        its change on today’s{' '}
+                                        {score.features.rating_latest.toFixed(
+                                            1,
+                                        )}
+                                        % becomes the change — read by the model
+                                        exactly as it will be then.
+                                    </p>
+                                </section>
+                            )}
 
                         {/* What it is based on */}
                         <div className="flex flex-col gap-2">
-                            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                What this is based on
+                            <h3 className="text-sm font-semibold">
+                                What it was read from
                             </h3>
                             <AppraisalGrid score={score} />
                             {score.warnings.length > 0 && (
@@ -202,6 +300,43 @@ export function EmployeeDetailDialog({
             </DialogContent>
         </Dialog>
     );
+}
+
+/** What the outlook says, in words: what a repeat gives, and where tiers start. */
+function outlookSummary(
+    outlook: NonNullable<NonNullable<ReadinessScore['explanation']>['outlook']>,
+    latest: number,
+    current: number,
+    tierOf: (score: number) => ReturnType<typeof tierOfScore>,
+): string {
+    const parts: string[] = [];
+
+    if (outlook.high_from !== null) {
+        parts.push(
+            `A next appraisal of ${outlook.high_from}% or more reaches High.`,
+        );
+    } else {
+        parts.push('No single appraisal reaches High from here.');
+    }
+
+    if (
+        outlook.medium_from !== null &&
+        outlook.medium_from !== outlook.high_from
+    ) {
+        parts.push(`Medium starts at ${outlook.medium_from}%.`);
+    }
+
+    if (outlook.same_again !== null) {
+        const tier = tierOf(outlook.same_again);
+        const repeat = `The same ${latest.toFixed(1)}% again would give ${Math.round(outlook.same_again)}${tier ? ` (${TIER_LABELS[tier]})` : ''}`;
+        parts.push(
+            outlook.same_again < current - 1
+                ? `${repeat}: with no improvement to read, readiness falls, because the change on the previous appraisal is what the model weighs most.`
+                : `${repeat}.`,
+        );
+    }
+
+    return parts.join(' ');
 }
 
 function AppraisalGrid({ score }: { score: ReadinessScore }) {

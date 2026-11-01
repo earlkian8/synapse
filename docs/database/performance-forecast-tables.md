@@ -28,6 +28,7 @@ hashid in URLs (`?run=…`).
 | `average_rating` | decimal(5,2), nullable | Mean predicted rating (0–100) across the run. |
 | `average_confidence` | decimal(4,3), nullable | Mean confidence (0–1) across the run — the average chance each forecast's band is right. |
 | `unassessed` | json, nullable | `[{employee_id, reason}]` — active employees the model declined: `no_appraisal`, `appraisal_in_progress` (only drafts) or `none_before_period` (only appraised in the period being forecast). [ADR 0045](../decisions/0045-performance-and-promotion-models-that-can-be-relied-on.md). |
+| `reference` | json, nullable | `{curve, bands, coverage}` — how the model reads a latest appraisal across its range (`[{rating, forecast, low, high}]` every 2.5 points), where the bands start, and the range's coverage. Null on runs from before [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md). |
 | `note` | text, nullable | Reserved for failure detail. |
 | timestamps | | |
 
@@ -50,6 +51,7 @@ One employee's result within a run.
 | `features` | json, nullable | Snapshot of the feature vector sent to the model, for audit (protected attributes never included). |
 | `history` | json, nullable | The completed appraisals the forecast could read `[{label, rating}]` (attainment 0–100, oldest→newest), powering the trajectory chart. |
 | `warnings` | json, nullable | Notes about any input held at the model's trained range. |
+| `explanation` | json, nullable | `{chances: {below, on_track, exceeds}}` — the chance the next rating lands in each band. Null on older runs. |
 | timestamps | | |
 
 **Indexes:** unique `(performance_forecast_run_id, employee_id)` — one forecast per

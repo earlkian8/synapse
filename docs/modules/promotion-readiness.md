@@ -19,18 +19,25 @@ The model and the way records reach it are specified by
 ## Surfaces
 
 - **`/analytics/promotion-readiness`** — the overview: headline metric cards
-  (assessed, promotion-ready, developing, average readiness), then a **Not assessed**
+  (assessed, promotion-ready, developing, average readiness), a **workforce overview**
+  ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): *how readiness is spread* (stacked by tier, with where Medium and High
+  start), *the appraisal map* (everyone by latest appraisal and its change, coloured by
+  tier, with the typical record marked; a dot opens that person) and *readiness by
+  department*, each with a table view; then a **Not assessed**
   list — the active employees the model declined, each with the reason (no appraisal on
   record, or one still in draft) and what would include them — then the **ranked
   roster**: every assessed employee by readiness score, with their tier, whether the
-  score rests on one appraisal or two, and their strongest positive factor. Search by
+  score rests on one appraisal or two, and their strongest reason in points. Search by
   employee, filter by tier, and pick a past run from the history selector. HR can **run
   a new assessment** or **delete** a historical one. Selecting an employee opens a
   **detail dialog**: the score and tier, what the probability means ("12 % of people
   with this record were promoted within a year — 1.2× the average"), the **basis** (one
-  appraisal or two, and what that means), the factors in readiness points, and the
-  appraisals it was built from — latest, previous and the change — with any note about
-  a value held at the model's trained range.
+  appraisal or two, and what that means), where the score sits among the others in the
+  run, *why* (a ledger from a typical record's score through each input's readiness
+  points to this score), *after the next appraisal* (readiness at every rating the next
+  appraisal could give, where Medium and High start, and what repeating the latest
+  rating would give), and the appraisals it was built from — latest, previous and the
+  change — with any note about a value held at the model's trained range.
 
 ## How an assessment works
 
@@ -124,7 +131,12 @@ nobody is promoted at any level; with ten points or more a quarter to a half are
   appraisal the change is unknown, and the score averages over every change it could be.
   It sharpens after the next cycle; the page says so on every such score.
 - **Factors** — how many readiness points each recorded input moves the score against a
-  typical record (occlusion); effects under one point are not offered as reasons.
+  typical record with the same history: exact Shapley values, so the typical record's
+  score (`baseline`) plus every factor is the score; effects under one point are not
+  offered as reasons ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)).
+- **Outlook** — readiness after the next appraisal for every rating from 40 to 100: the
+  next rating becomes the latest and its change on today's latest the change, read by the
+  two-appraisal model as it will be then.
 
 Guaranteed and tested: a better latest rating or a larger improvement never lowers
 readiness; rescoring is identical; no score is ever produced for a record the model

@@ -26,6 +26,7 @@ import {
 } from '@/features/attrition-risk/api';
 import { EmployeeDetailDialog } from '@/features/attrition-risk/components/employee-detail-dialog';
 import { RiskBadge } from '@/features/attrition-risk/components/risk-badge';
+import { RiskOverview } from '@/features/attrition-risk/components/risk-overview';
 import { RiskStatsCards } from '@/features/attrition-risk/components/risk-stats';
 import { ServiceBanner } from '@/features/attrition-risk/components/service-banner';
 import {
@@ -34,6 +35,7 @@ import {
     formatScore,
     scoreTone,
 } from '@/features/attrition-risk/constants';
+import { strongestReason } from '@/features/attrition-risk/explain';
 import type {
     AttritionRiskPageProps,
     RiskScore,
@@ -151,6 +153,8 @@ export default function AttritionRisk() {
                     <>
                         <RiskStatsCards run={run} />
 
+                        <RiskOverview run={run} />
+
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span>
@@ -263,10 +267,13 @@ export default function AttritionRisk() {
                 )}
             </div>
 
-            <EmployeeDetailDialog
-                score={detail}
-                onOpenChange={(open) => !open && setDetail(null)}
-            />
+            {run && (
+                <EmployeeDetailDialog
+                    score={detail}
+                    run={run}
+                    onOpenChange={(open) => !open && setDetail(null)}
+                />
+            )}
         </>
     );
 }
@@ -280,11 +287,11 @@ function RiskRow({
     score: RiskScore;
     onOpen: () => void;
 }) {
-    // The strongest thing pushing this person's risk up, when the model can say.
-    const topFactor = score.factors.find((f) => f.direction === 'up');
-    const subtitle = topFactor
-        ? `${topFactor.label} ↑`
-        : `${formatConfidence(score.confidence)} confidence`;
+    // The strongest thing pushing this person's risk up, with its points when the
+    // run breaks scores down (ADR 0098).
+    const subtitle =
+        strongestReason(score) ??
+        `${formatConfidence(score.confidence)} confidence`;
 
     return (
         <li>

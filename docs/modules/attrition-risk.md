@@ -17,14 +17,22 @@ design and [attrition-risk tables](../database/attrition-risk-tables.md) for the
 ## Surfaces
 
 - **`/analytics/attrition`** — headline cards (assessed, high risk, at watch, average
-  risk), a cohort **risk-distribution bar**, and the **ranked roster** — every active
-  employee by risk score, with their tier and the strongest thing pushing their risk up.
-  Search, filter by tier, and pick a past run from the history selector. HR can **run a
-  new assessment** or **delete** a historical one. Selecting an employee opens a **detail
-  dialog**: the score, the tier, the confidence, *what moves this score* (each input's
-  effect, rose raising risk, emerald lowering it), and *what it is based on* — every one
-  of the eight inputs with the employee's recorded value, or "Not on record" where it was
-  estimated.
+  risk), a **workforce overview** ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): *how risk is spread* (scores stacked by
+  tier, with the tier lines and a typical employee's score), *what drives risk* (for each
+  input, how many people it raises or lowers risk for by two points or more, with the
+  average points), and *risk by department*; each chart switches to a table of its
+  numbers. Then the **ranked roster**: every active employee by risk score, with their
+  tier and the strongest reason pushing their risk up, in points. Search, filter by tier,
+  and pick a past run from the history selector. HR can **run a new assessment** or
+  **delete** a historical one. Selecting an employee opens a **breakdown**: the score,
+  the tier and where it sits among the others in the run; *why*: a sentence, then a
+  ledger that walks from a typical employee's score through each reason's points (the
+  employee's value against the typical one) to this score; *what the data shows*: for
+  the top reasons, the leave rate at every answer in the survey the model learned from,
+  with this employee's answer picked out and a note where the survey alone points the
+  other way; and *what it was read from*: every input with the recorded value, "Not on
+  record" where it was estimated, and overtime marked as not used by the model. Runs from
+  before ADR 0098 show the older factor list.
 
 ## How an assessment works
 
@@ -79,8 +87,13 @@ survey data lives in the git-ignored `model/data/` (see `model/data/README.md`).
   looks much more like people who left than people who stayed. Tiers cut at 33 / 66. On
   held-out survey rows, 24% of "Stable" had left against 36–38% of "At watch" and "High
   risk".
-- **Factors** are what-if-typical deltas: how much the score would move if that one
-  input were the typical value. Effects under two points are not shown.
+- **Factors** are exact Shapley values against a typical employee (the medians and modes
+  the pipeline's imputers learned): a typical employee's score plus every factor is the
+  score, an input not on record is never a reason, and effects under two points are
+  shown together as "smaller effects". Each carries the survey's leave rates for the
+  employee's band and the typical one (`model/artifacts/attrition/evidence.json`, written
+  by `python -m synapse_ml.attrition.evidence`; an organisation's own model stores its
+  records' table). See [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md).
 
 ## Where these scores come from (model graduation)
 

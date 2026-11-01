@@ -11,7 +11,9 @@ of artifact are served:
 * **pipelines** (attrition) — a fitted scikit-learn ``Pipeline``. Callers send
   whatever features they have; a full-width frame is built in the pipeline's column
   order and its own imputers fill the rest. Explanations are logit contributions for
-  a linear model and what-if-typical deltas for any other classifier.
+  a linear model and exact Shapley values against the typical record
+  (:mod:`synapse_ml.explain`) for any other classifier, each read against the leave
+  rates of the data the model learned from (:mod:`synapse_ml.attrition.evidence`).
 
 Beside these **reference** models, an organisation that has graduated a surface has
 its own model of the same class, fitted on its records (``synapse_ml.local``). It is
@@ -29,7 +31,10 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from synapse_ml.attrition import evidence as attrition_evidence
 from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
+from synapse_ml.attrition.features import TIER_CUTS
+from synapse_ml.explain import shapley
 from synapse_ml.local import store as local_store
 from synapse_ml.paths import ARTIFACTS_DIR
 
@@ -49,10 +54,11 @@ TIER_BINS = ((0.33, "low"), (0.66, "medium"), (1.01, "high"))
 # imputes a constant, which would otherwise show up as spurious "drivers").
 PROTECTED_FEATURES = {"gender", "marital_status", "age", "education_level", "city_tier"}
 
-# Occlusion effects smaller than this (two risk points) are not offered as a reason.
+# Contributions smaller than this (two risk points) are not offered as a reason.
 # On the attrition model real drivers move a score by 10–35 points; below ~2 the
-# effect is the model's own noise and reads as contradiction, not insight.
-OCCLUSION_FLOOR = 0.02
+# effect is the model's own noise and reads as contradiction, not insight. (They are
+# still part of the score: the page shows them together as "smaller effects".)
+FACTOR_FLOOR = 0.02
 
 FEATURE_LABELS = dict(ATTRITION_FEATURE_LABELS)
 
@@ -89,6 +95,9 @@ class LoadedModel:
     served: Any = None
     # The organisation whose records it was fitted on; None for the reference model.
     tenant: str | None = None
+    # Leave rates by band in the data it learned from (attrition; see
+    # synapse_ml.attrition.evidence) — what each reason is read against.
+    evidence: dict[str, Any] | None = None
 
     @property
     def version(self) -> str | None:
@@ -130,6 +139,12 @@ def _loaded(name: str, artifact: Any, metrics: dict[str, Any], tenant: str | Non
         )
 
     prep = artifact.named_steps["prep"]
+    # An organisation's model carries its own records' table; the reference reads the
+    # survey's, written beside it.
+    if tenant is not None:
+        evidence = metrics.get("evidence")
+    else:
+        evidence = attrition_evidence.load() if name == "attrition" else None
     return LoadedModel(
         name=name,
         kind=_SPECS[name],
@@ -139,6 +154,7 @@ def _loaded(name: str, artifact: Any, metrics: dict[str, Any], tenant: str | Non
         features=list(prep.feature_names_in_),
         metrics=metrics,
         tenant=tenant,
+        evidence=evidence,
     )
 
 
@@ -177,7 +193,7 @@ class Registry:
             return model.served.assess(feature_dicts)
 
         probabilities, scores = self.score(model, feature_dicts)
-        factor_sets = self.contributions(model, feature_dicts)
+        explained = self.explain(model, feature_dicts)
         return [
             {
                 "status": "scored",
@@ -185,9 +201,29 @@ class Registry:
                 "score": score,
                 "tier": tier_for(proba) if proba is not None else None,
                 "factors": factors or None,
+                "baseline": baseline,
             }
-            for proba, score, factors in zip(probabilities, scores, factor_sets, strict=True)
+            for proba, score, (baseline, factors) in zip(probabilities, scores, explained, strict=True)
         ]
+
+    def reference(self, model: LoadedModel) -> dict[str, Any] | None:
+        """What every score in a response is read against: for a served model, its own
+        account; for the attrition pipeline, the typical employee, the tier cuts and
+        the leave rates of the data it learned from."""
+        if model.served is not None:
+            return model.served.reference() if hasattr(model.served, "reference") else None
+        if model.kind != "classifier":
+            return None
+        typical = {f: v for f, v in _baseline(model).items() if not _is_protected(f)}
+        baseline = float(model.pipeline.predict_proba(model.frame([typical]))[:, 1][0])
+        return {
+            "baseline": round(baseline * 100, 1),
+            "typical": {
+                f: {"value": _plain(v), "band": attrition_evidence.band_label(f, _plain(v))} for f, v in typical.items()
+            },
+            "tiers": {"medium_from": TIER_CUTS["low_below"] * 100, "high_from": TIER_CUTS["medium_below"] * 100},
+            "evidence": model.evidence,
+        }
 
     def unknown_inputs(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[str]:
         """Input names the callers sent that the model does not read."""
@@ -211,16 +247,21 @@ class Registry:
         pred = model.pipeline.predict(df)
         return [None] * len(pred), [round(float(v), 1) for v in pred]
 
-    def contributions(self, model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
-        """Per-instance explanations: logit contributions for a linear model, what-if-
-        typical deltas for any other classifier, None for the regressor."""
+    def explain(self, model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[tuple[float | None, list[dict[str, Any]] | None]]:
+        """Per instance, the typical record's score (0–100; None when the explanation is
+        not additive) and the factors: logit contributions for a linear model, exact
+        Shapley values for any other classifier, nothing for the regressor."""
         # The final estimator, whatever its step is named ("clf" / "reg").
         estimator = model.pipeline.steps[-1][1]
         if hasattr(estimator, "coef_"):
-            return _linear_contributions(model, estimator, feature_dicts, top)
+            return [(None, f) for f in _linear_contributions(model, estimator, feature_dicts, top)]
         if model.kind == "classifier":
-            return _occlusion(model, feature_dicts, top)
-        return [None] * len(feature_dicts)
+            return _shapley_factors(model, feature_dicts)
+        return [(None, None)] * len(feature_dicts)
+
+    def contributions(self, model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int = 6) -> list[list[dict[str, Any]] | None]:
+        """Per-instance factors only (see :meth:`explain`)."""
+        return [factors for _, factors in self.explain(model, feature_dicts, top)]
 
 
 def _factor(feature: str, impact: float) -> dict[str, Any]:
@@ -254,31 +295,55 @@ def _linear_contributions(
     return results
 
 
-def _occlusion(model: LoadedModel, feature_dicts: list[dict[str, Any]], top: int) -> list[list[dict[str, Any]]]:
-    """Model-agnostic explanation for a non-linear classifier.
+def _shapley_factors(model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[tuple[float, list[dict[str, Any]]]]:
+    """Model-agnostic explanation for a non-linear classifier, in risk points.
 
-    For each input, the change in probability if that one input were *typical* (the
-    median / mode the pipeline's own imputers learned) instead of this employee's
-    value: positive means the employee's value pushes the probability up. An input
-    the caller did not send is imputed to exactly that typical value, so it can
-    never appear as a driver — only recorded facts are ever offered as a reason.
+    Each recorded input's exact Shapley value against the typical employee (the
+    medians / modes the pipeline's own imputers learned): the typical employee's score
+    plus every contribution is this employee's score. An input the caller did not send
+    is imputed to exactly that typical value, so it can never appear as a reason —
+    only recorded facts are. Each reason carries the employee's value and band, the
+    typical one, and what the training data shows for both.
     """
-    baseline = _baseline(model)
+    typical = _baseline(model)
     df = model.frame(feature_dicts)
-    base = model.pipeline.predict_proba(df)[:, 1]
+    rows = df.to_dict("records")
+    explained = [
+        [f for f in model.features if f in typical and not _is_protected(f) and _recorded(row.get(f))] for row in rows
+    ]
 
-    explained = [f for f in model.features if f in baseline and not _is_protected(f)]
-    deltas = np.zeros((len(df), len(explained)))
-    for j, feature in enumerate(explained):
-        typical = df.copy()
-        typical[feature] = baseline[feature]
-        deltas[:, j] = base - model.pipeline.predict_proba(typical)[:, 1]
+    def predict(batch: list[dict[str, Any]]) -> np.ndarray:
+        return model.pipeline.predict_proba(model.frame(batch))[:, 1] * 100
 
     results = []
-    for row in deltas:
-        ranked = sorted(range(len(explained)), key=lambda j: abs(row[j]), reverse=True)
-        results.append([_factor(explained[j], row[j]) for j in ranked[:top] if abs(row[j]) >= OCCLUSION_FLOOR])
+    for row, (baseline, contributions) in zip(rows, shapley(rows, explained, typical, predict), strict=True):
+        ranked = sorted(contributions.items(), key=lambda kv: abs(kv[1]), reverse=True)
+        factors = []
+        for feature, points in ranked:
+            if abs(points) < FACTOR_FLOOR * 100:
+                continue
+            value, usual = _plain(row[feature]), _plain(typical[feature])
+            factors.append(
+                {
+                    **_factor(feature, points / 100),
+                    "value": value,
+                    "typical": usual,
+                    "band": attrition_evidence.band_label(feature, value),
+                    "typical_band": attrition_evidence.band_label(feature, usual),
+                    "evidence": attrition_evidence.describe(model.evidence, feature, value, usual, points),
+                }
+            )
+        results.append((round(baseline, 1), factors))
     return results
+
+
+def _recorded(value: Any) -> bool:
+    return value is not None and not (isinstance(value, float) and np.isnan(value))
+
+
+def _plain(value: Any) -> Any:
+    """A NumPy scalar as the Python value JSON carries."""
+    return value.item() if isinstance(value, np.generic) else value
 
 
 def _baseline(model: LoadedModel) -> dict[str, Any]:

@@ -124,6 +124,7 @@ class AttritionRiskAssessor
                     'tier' => $tier,
                     'confidence' => $confidence,
                     'factors' => $result['factors'] ?? null,
+                    'explanation' => PredictionExplanation::forScore('attrition', $result),
                     'features' => $features ?: null,
                 ];
             }
@@ -141,6 +142,7 @@ class AttritionRiskAssessor
                 'low_count' => $tiers['low'],
                 'average_score' => $scored > 0 ? round($scoreSum / $scored, 2) : null,
                 'average_confidence' => $scored > 0 ? round($confidenceSum / $scored, 3) : null,
+                'reference' => PredictionExplanation::forRun($response),
             ]);
 
             $run->scores()->createMany($rows);

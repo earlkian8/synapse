@@ -15,6 +15,34 @@ export type ReadinessFactor = {
      */
     impact: number;
     direction: 'up' | 'down';
+    /** The employee's value and the typical record's (runs from ADR 0098 on). */
+    value?: number;
+    typical?: number;
+};
+
+/** Readiness after the next appraisal, by the rating it gives. */
+export type ReadinessOutlook = {
+    points: { rating: number; score: number }[];
+    /** The lowest next rating that reaches each tier (null: none on the scale does). */
+    medium_from: number | null;
+    high_from: number | null;
+    /** Readiness if the next appraisal repeats the latest one. */
+    same_again: number | null;
+};
+
+/** Why a score is what it is (ADR 0098). */
+export type ReadinessExplanation = {
+    /** A typical record's score with the same history; the factors add up from it. */
+    baseline: number;
+    outlook?: ReadinessOutlook | null;
+};
+
+/** What a run's scores are read against (ADR 0098). */
+export type ReadinessReference = {
+    base_rate: number;
+    typical: { rating_latest: number; rating_change: number };
+    /** Where each tier begins on the score scale. */
+    tier_scores: { medium: number; high: number };
 };
 
 /** A completed appraisal the score rests on (attainment, 0–100). */
@@ -42,6 +70,8 @@ export type ReadinessScore = {
     tier: ReadinessTier;
     basis: ReadinessBasis | null;
     factors: ReadinessFactor[];
+    /** Null on runs from before explanations. */
+    explanation: ReadinessExplanation | null;
     /** The inputs sent to the model. */
     features: { rating_latest?: number; rating_change?: number };
     /** The completed appraisals behind them, oldest first. */
@@ -69,6 +99,8 @@ export type ReadinessRun = {
     average_score: number | null;
     /** Active employees the model declined — no completed appraisal — and why. */
     unassessed: UnassessedEmployee[];
+    /** Null on runs from before explanations. */
+    reference: ReadinessReference | null;
     generated_by?: string | null;
     created_at: string | null;
     scores: ReadinessScore[];

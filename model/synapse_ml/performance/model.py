@@ -17,7 +17,9 @@ distribution come:
 - ``interval`` — the range four in five next ratings fall in (``COVERAGE``), with a
   finite-sample guarantee on the reference;
 - ``confidence`` — the chance the next rating lands in the band the forecast names.
-  Near a band edge it is honestly about a coin flip.
+  Near a band edge it is honestly about a coin flip;
+- ``chances`` — the same for every band, so a forecast of "on track" can say how
+  much of the rest of its weight is above and how much below.
 """
 
 from __future__ import annotations
@@ -41,6 +43,9 @@ SEED = 42
 CHOSEN = "Gradient Boosting (monotone)"
 
 SCALE = (0.0, 100.0)
+
+# The reference curve: a forecast every this many points of the latest appraisal.
+CURVE_STEP = 2.5
 
 
 def gradient_boosting(seed: int = SEED, min_samples_leaf: int = 200, early_stopping: bool = True) -> HistGradientBoostingRegressor:
@@ -254,6 +259,7 @@ class PerformanceForecastModel:
                     "high": float(np.clip(high, *SCALE)),
                     "band": features.BANDS[band][0],
                     "confidence": float(np.mean(landed == band)),
+                    "chances": {name: float(np.mean(landed == k)) for k, (name, _) in enumerate(features.BANDS)},
                 }
             )
         return out
@@ -282,6 +288,7 @@ class PerformanceForecastModel:
                         "interval": None,
                         "band": None,
                         "confidence": None,
+                        "chances": None,
                         "warnings": notes,
                     }
                 )
@@ -298,10 +305,27 @@ class PerformanceForecastModel:
                     "interval": {"low": round(f["low"], 1), "high": round(f["high"], 1), "coverage": features.COVERAGE},
                     "band": f["band"],
                     "confidence": round(f["confidence"], 3),
+                    "chances": {name: round(share, 3) for name, share in f["chances"].items()},
                     "warnings": notes,
                 }
             )
         return results
+
+    def reference(self) -> dict[str, Any]:
+        """How the model reads a latest appraisal, across the range it reads: the
+        forecast and the range four in five next ratings land in, every
+        ``CURVE_STEP`` points — what any one forecast sits on."""
+        spec = self.inputs[0]
+        ratings = np.arange(math.ceil(spec.low / CURVE_STEP) * CURVE_STEP, spec.high + CURVE_STEP / 2, CURVE_STEP)
+        curve = [
+            {"rating": float(r), "forecast": round(f["point"], 1), "low": round(f["low"], 1), "high": round(f["high"], 1)}
+            for r, f in zip(ratings, self.forecasts(ratings), strict=True)
+        ]
+        return {
+            "curve": curve,
+            "bands": {name: below for name, below in features.BANDS if math.isfinite(below)},
+            "coverage": features.COVERAGE,
+        }
 
     def contract(self) -> dict[str, Any]:
         return {

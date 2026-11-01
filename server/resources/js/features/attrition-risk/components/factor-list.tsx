@@ -7,7 +7,7 @@ import type { RiskFactor } from '../types';
  * What moved a risk score: each input's signed contribution, as a bar normalised
  * to the strongest one shown. The palette is inverted versus Promotion Readiness —
  * a factor pushing risk up is the bad direction here, so it is rose, and one
- * pulling it down is emerald.
+ * pulling it down is teal (a pair that stays apart for colour-blind readers).
  */
 export function FactorList({
     factors,
@@ -34,7 +34,7 @@ export function FactorList({
                                 {up ? (
                                     <ArrowUpRight className="size-3.5 shrink-0 text-rose-500" />
                                 ) : (
-                                    <ArrowDownRight className="size-3.5 shrink-0 text-emerald-500" />
+                                    <ArrowDownRight className="size-3.5 shrink-0 text-teal-600" />
                                 )}
                                 <span className="truncate">{factor.label}</span>
                             </span>
@@ -43,7 +43,7 @@ export function FactorList({
                                     'shrink-0 text-xs font-medium',
                                     up
                                         ? 'text-rose-600 dark:text-rose-400'
-                                        : 'text-emerald-600 dark:text-emerald-400',
+                                        : 'text-teal-700 dark:text-teal-400',
                                 )}
                             >
                                 {up ? 'Raises risk' : 'Lowers risk'}
@@ -53,7 +53,9 @@ export function FactorList({
                             <div
                                 className={cn(
                                     'h-full rounded-full',
-                                    up ? 'bg-rose-500' : 'bg-emerald-500',
+                                    up
+                                        ? 'bg-rose-600 dark:bg-rose-500'
+                                        : 'bg-teal-600',
                                 )}
                                 style={{ width }}
                             />

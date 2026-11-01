@@ -126,7 +126,13 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
 
     declined = sum(result.status != "scored" for result in results)
     log.info("scored %d instance(s) with '%s' (%d declined)", len(results) - declined, model_name, declined)
-    return PredictResponse(model=model_name, model_version=model.version, results=results, warnings=warnings)
+    return PredictResponse(
+        model=model_name,
+        model_version=model.version,
+        results=results,
+        warnings=warnings,
+        reference=registry.reference(model),
+    )
 
 
 @app.post("/train/{model_name}", response_model=TrainResponse)
@@ -158,7 +164,7 @@ def train(model_name: str, request: TrainRequest) -> TrainResponse:
             model_name,
             outcome.fitted,
             {"algorithm": reference.metrics.get("algorithm"), "comparison": outcome.comparison,
-             "counts": outcome.counts, "findings": outcome.findings},
+             "counts": outcome.counts, "findings": outcome.findings, "evidence": outcome.evidence},
         )
     log.info("trained '%s' for %s: %s (%s)", model_name, request.tenant, outcome.verdict, outcome.comparison)
     return TrainResponse(

@@ -23,6 +23,8 @@ class AttritionRiskScoreResource extends JsonResource
             'tier' => $this->tier,
             'confidence' => (float) $this->confidence,
             'factors' => $this->factors ?? [],
+            // Why (ADR 0098): the typical record's score the factors add up from.
+            'explanation' => $this->explanation,
             'features' => $this->features ?? [],
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [

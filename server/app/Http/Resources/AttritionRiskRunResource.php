@@ -28,6 +28,9 @@ class AttritionRiskRunResource extends JsonResource
             'low_count' => (int) $this->low_count,
             'average_score' => $this->average_score === null ? null : (float) $this->average_score,
             'average_confidence' => $this->average_confidence === null ? null : (float) $this->average_confidence,
+            // What every score is read against (ADR 0098): the typical employee, the
+            // tier cuts, and the leave rates of the data the model learned from.
+            'reference' => $this->reference,
             'generated_by' => $this->whenLoaded('generator', fn () => $this->generator
                 ? trim("{$this->generator->first_name} {$this->generator->last_name}")
                 : null),

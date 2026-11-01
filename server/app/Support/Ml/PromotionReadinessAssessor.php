@@ -110,6 +110,7 @@ class PromotionReadinessAssessor
                     'tier' => $tier,
                     'basis' => $result['basis'] ?? null,
                     'factors' => $result['factors'] ?? null,
+                    'explanation' => PredictionExplanation::forScore('promotion', $result),
                     'features' => $snapshots[$employee->id] ?: null,
                     'history' => $history->trajectory(2) ?: null,
                     'warnings' => ($result['warnings'] ?? []) ?: null,
@@ -129,6 +130,7 @@ class PromotionReadinessAssessor
                 'low_count' => $tiers['low'],
                 'average_score' => $scored > 0 ? round($scoreSum / $scored, 2) : null,
                 'unassessed' => $unassessed ?: null,
+                'reference' => PredictionExplanation::forRun($response),
             ]);
 
             $run->scores()->createMany($rows);

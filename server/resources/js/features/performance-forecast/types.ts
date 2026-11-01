@@ -34,7 +34,17 @@ export type ForecastScore = {
     features: { rating_latest?: number };
     /** Notes about any input held at the model's trained range. */
     warnings: string[];
+    /** The chance the next rating lands in each band (null on runs before ADR 0098). */
+    explanation: { chances: Record<ForecastBand, number> } | null;
     employee: ForecastEmployee | null;
+};
+
+/** How the model reads a latest appraisal across its range (ADR 0098). */
+export type ForecastReference = {
+    curve: { rating: number; forecast: number; low: number; high: number }[];
+    /** Where each band ends: below < 60 ≤ on track < 80 ≤ exceeds. */
+    bands: { below: number; on_track: number };
+    coverage: number;
 };
 
 /**
@@ -75,6 +85,8 @@ export type ForecastRun = {
     average_confidence: number | null;
     /** Active employees with no completed appraisal before the period, and why. */
     unassessed: UnassessedEmployee[];
+    /** Null on runs from before explanations. */
+    reference: ForecastReference | null;
     generated_by?: string | null;
     target_period?: ForecastTargetPeriod | null;
     created_at: string | null;

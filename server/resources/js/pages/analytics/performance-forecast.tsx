@@ -30,6 +30,7 @@ import {
 } from '@/features/performance-forecast/api';
 import { BandBadge } from '@/features/performance-forecast/components/band-badge';
 import { EmployeeDetailDialog } from '@/features/performance-forecast/components/employee-detail-dialog';
+import { ForecastOverview } from '@/features/performance-forecast/components/forecast-overview';
 import { ForecastStatsCards } from '@/features/performance-forecast/components/forecast-stats';
 import { ServiceBanner } from '@/features/performance-forecast/components/service-banner';
 import { TrackRecordCard } from '@/features/performance-forecast/components/track-record';
@@ -153,6 +154,8 @@ export default function PerformanceForecast() {
                 ) : (
                     <>
                         <ForecastStatsCards run={run} />
+
+                        <ForecastOverview run={run} />
 
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -289,17 +292,20 @@ export default function PerformanceForecast() {
                 )}
             </div>
 
-            <EmployeeDetailDialog
-                score={detail}
-                actual={
-                    detail?.employee
-                        ? (track_record?.actuals[detail.employee.id] ?? null)
-                        : null
-                }
-                periodName={run?.target_period?.name ?? null}
-                scoredBy={run?.scored_by ?? 'general'}
-                onOpenChange={(open) => !open && setDetail(null)}
-            />
+            {run && (
+                <EmployeeDetailDialog
+                    score={detail}
+                    run={run}
+                    actual={
+                        detail?.employee
+                            ? (track_record?.actuals[detail.employee.id] ??
+                              null)
+                            : null
+                    }
+                    periodName={run.target_period?.name ?? null}
+                    onOpenChange={(open) => !open && setDetail(null)}
+                />
+            )}
         </>
     );
 }

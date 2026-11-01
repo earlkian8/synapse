@@ -148,7 +148,8 @@ class AttritionRiskModule extends PredictiveModule
         return [
             'Risk '.PredictionWording::score((float) $score->score).'/100 — '.(PredictionWording::RISK_TIERS[$score->tier] ?? $score->tier).': '.(PredictionWording::RISK_MEANING[$score->tier] ?? ''),
             'Confidence '.PredictionWording::percent((float) $score->confidence).' — '.$recorded->count().' of '.count(AttritionRiskAssessor::KEY_FEATURES).' inputs on record',
-            $factors === [] ? 'The model did not attribute this score to its inputs' : 'What moves it: '.collect($factors)->map(fn (array $f): string => $f['label'].($f['direction'] === 'up' ? ' raises it' : ' lowers it'))->implode('; '),
+            $factors === [] ? 'The model did not attribute this score to its inputs' : 'What moves it: '.collect($factors)->map(fn (array $f): string => $f['label'].($f['direction'] === 'up' ? ' raises it' : ' lowers it').($f['points'] !== null ? ' ('.($f['direction'] === 'up' ? '+' : '−').PredictionWording::number($f['points']).' points)' : ''))->implode('; '),
+            isset($score->explanation['baseline']) ? 'A typical employee scores '.PredictionWording::score((float) $score->explanation['baseline']).'/100; each factor\'s points are measured from there' : null,
             $payMoved || array_key_exists('monthly_salary', $features) ? 'Pay is also one of its inputs; it is not discussed here.' : null,
             'Based on: '.(collect($features)->map(fn (mixed $value, string $key): ?string => PredictionWording::attritionInput($key, $value))->filter()->implode('; ') ?: 'nothing on record'),
             $missing->isNotEmpty() ? 'Not on record (estimated): '.$missing->implode(', ') : null,
@@ -170,7 +171,10 @@ class AttritionRiskModule extends PredictiveModule
     /**
      * What moved a score, strongest first, without pay.
      *
-     * @return list<array{label: string, direction: string}>
+     * Points (on the 0–100 risk scale) only for runs whose factors add up from a typical
+     * employee (ADR 0098); an older run's what-if effects are named without them.
+     *
+     * @return list<array{label: string, direction: string, points: ?float}>
      */
     private function factors(AttritionRiskScore $score): array
     {
@@ -181,6 +185,7 @@ class AttritionRiskModule extends PredictiveModule
             ->map(fn (array $f): array => [
                 'label' => PredictionWording::attritionFactor((string) ($f['feature'] ?? '')) ?? $this->label($f['label'] ?? null),
                 'direction' => ($f['direction'] ?? 'up') === 'down' ? 'down' : 'up',
+                'points' => isset($score->explanation['baseline']) ? round(abs((float) ($f['impact'] ?? 0)) * 100, 1) : null,
             ])
             ->values()
             ->all();

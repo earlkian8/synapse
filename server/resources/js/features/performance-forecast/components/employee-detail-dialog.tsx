@@ -7,6 +7,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WorkforcePosition } from '@/features/prediction-insights/components/workforce-position';
+import { focusDialogItself } from '@/features/prediction-insights/lib';
 import { cn } from '@/lib/utils';
 import {
     BAND_PHRASES,
@@ -17,30 +19,35 @@ import {
     ratingBarTone,
     ratingTone,
 } from '../constants';
-import type { ForecastScore } from '../types';
+import { bandThresholds, forecastSummary } from '../explain';
+import type { ForecastRun, ForecastScore } from '../types';
 import { BandBadge } from './band-badge';
+import { BandChances } from './band-chances';
+import { RatingCurve } from './rating-curve';
 import { TrajectoryChart } from './trajectory-chart';
 
 /**
  * A drill-down on one employee's forecast: the rating, the range it is likely to
- * land in, the chance its band is right, the trajectory behind it, and — once the
- * period is appraised — how it turned out.
+ * land in, the chance of every band, why — the latest appraisal on the model's own
+ * curve — the trajectory behind it, and once the period is appraised how it turned
+ * out.
  */
 export function EmployeeDetailDialog({
     score,
+    run,
     actual,
     periodName,
-    scoredBy,
     onOpenChange,
 }: {
     score: ForecastScore | null;
+    run: ForecastRun;
     /** The completed appraisal for the forecast period, when there is one. */
     actual: number | null;
     periodName: string | null;
-    /** Whose model made the forecast: the organisation's own, or the general one. */
-    scoredBy: 'own' | 'general';
     onOpenChange: (open: boolean) => void;
 }) {
+    // Whose model made the forecast: the organisation's own, or the general one.
+    const scoredBy = run.scored_by;
     const range =
         score && score.predicted_low !== null && score.predicted_high !== null
             ? { low: score.predicted_low, high: score.predicted_high }
@@ -49,7 +56,10 @@ export function EmployeeDetailDialog({
 
     return (
         <Dialog open={score !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent
+                className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+                onOpenAutoFocus={focusDialogItself}
+            >
                 {score && score.employee && (
                     <>
                         <DialogHeader>
@@ -80,12 +90,12 @@ export function EmployeeDetailDialog({
                         </DialogHeader>
 
                         {/* Rating headline */}
-                        <div className="flex flex-col gap-2 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
+                        <div className="flex flex-col gap-3 rounded-xl border border-sidebar-border/70 bg-card/60 p-4 dark:border-sidebar-border">
                             <div className="flex items-end justify-between">
                                 <div className="flex items-baseline gap-1.5">
                                     <span
                                         className={cn(
-                                            'text-4xl font-semibold tracking-tight tabular-nums',
+                                            'text-4xl font-semibold tracking-tight',
                                             ratingTone(score.predicted_rating),
                                         )}
                                     >
@@ -130,7 +140,45 @@ export function EmployeeDetailDialog({
                                     ? `, and four in five land within ${formatRange(range.low, range.high)}.`
                                     : '.'}
                             </p>
+                            {score.explanation && (
+                                <BandChances
+                                    chances={score.explanation.chances}
+                                    band={score.band}
+                                />
+                            )}
+                            <WorkforcePosition
+                                scores={run.forecasts.map(
+                                    (f) => f.predicted_rating,
+                                )}
+                                value={score.predicted_rating}
+                                name={score.employee.full_name}
+                                noun="forecast"
+                                thresholds={bandThresholds(run)}
+                            />
                         </div>
+
+                        {/* Why */}
+                        {run.reference &&
+                            score.features.rating_latest !== undefined && (
+                                <section className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <h3 className="text-sm font-semibold">
+                                            Why{' '}
+                                            {formatRating(
+                                                score.predicted_rating,
+                                            )}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {forecastSummary(score, scoredBy)}
+                                        </p>
+                                    </div>
+                                    <RatingCurve
+                                        reference={run.reference}
+                                        latest={score.features.rating_latest}
+                                        forecast={score.predicted_rating}
+                                    />
+                                </section>
+                            )}
 
                         {/* How it turned out */}
                         {actual !== null && (
@@ -159,7 +207,7 @@ export function EmployeeDetailDialog({
 
                         {/* Trajectory */}
                         <div className="flex flex-col gap-1">
-                            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                            <h3 className="text-sm font-semibold">
                                 Rating trajectory
                             </h3>
                             <TrajectoryChart
@@ -172,8 +220,8 @@ export function EmployeeDetailDialog({
 
                         {/* What it is based on */}
                         <div className="flex flex-col gap-2">
-                            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                What this is based on
+                            <h3 className="text-sm font-semibold">
+                                What it was read from
                             </h3>
                             <div className="flex flex-col gap-0.5 rounded-lg border border-sidebar-border/60 bg-card/40 px-3 py-2 dark:border-sidebar-border">
                                 <span className="text-[11px] text-muted-foreground">
