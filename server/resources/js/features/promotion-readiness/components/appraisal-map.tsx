@@ -30,10 +30,13 @@ export function AppraisalMap({
     scores,
     reference,
     onOpen,
+    highlight,
 }: {
     scores: ReadinessScore[];
     reference: ReadinessReference | null;
     onOpen: (score: ReadinessScore) => void;
+    /** One person to pick out; everyone else steps back. */
+    highlight?: number;
 }) {
     const two = scores.filter((s) => s.features.rating_change !== undefined);
     const one = scores.filter((s) => s.features.rating_change === undefined);
@@ -49,6 +52,7 @@ export function AppraisalMap({
     const stripY = H + STRIP / 2;
     const yTicks = [yLo, yLo / 2, 0, yHi / 2, yHi];
 
+    const picked = (s: ReadinessScore) => highlight === s.id;
     const dot = (s: ReadinessScore, cx: number, cy: number) => (
         <Tooltip key={s.id}>
             <TooltipTrigger asChild>
@@ -69,8 +73,14 @@ export function AppraisalMap({
                     <circle
                         cx={cx}
                         cy={cy}
-                        r={4.5}
-                        className={cn(FILL[s.tier], 'stroke-card')}
+                        r={picked(s) ? 7 : 4.5}
+                        className={cn(
+                            picked(s) ? 'fill-[#0ABFBF]' : FILL[s.tier],
+                            'stroke-card',
+                            highlight !== undefined &&
+                                !picked(s) &&
+                                'opacity-45',
+                        )}
                         strokeWidth={2}
                     />
                 </g>
@@ -173,13 +183,15 @@ export function AppraisalMap({
                     </g>
                 )}
 
-                {two.map((s) =>
-                    dot(
-                        s,
-                        x(s.features.rating_latest ?? 40),
-                        y(s.features.rating_change ?? 0),
-                    ),
-                )}
+                {[...two]
+                    .sort((a, b) => Number(picked(a)) - Number(picked(b)))
+                    .map((s) =>
+                        dot(
+                            s,
+                            x(s.features.rating_latest ?? 40),
+                            y(s.features.rating_change ?? 0),
+                        ),
+                    )}
 
                 {one.length > 0 && (
                     <g>
@@ -199,13 +211,28 @@ export function AppraisalMap({
                         >
                             1 only
                         </text>
-                        {one.map((s) =>
-                            dot(s, x(s.features.rating_latest ?? 40), stripY),
-                        )}
+                        {[...one]
+                            .sort(
+                                (a, b) => Number(picked(a)) - Number(picked(b)),
+                            )
+                            .map((s) =>
+                                dot(
+                                    s,
+                                    x(s.features.rating_latest ?? 40),
+                                    stripY,
+                                ),
+                            )}
                     </g>
                 )}
             </svg>
             <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {highlight !== undefined && (
+                    <span className="flex items-center gap-1.5">
+                        <span className="size-3 rounded-full bg-[#0ABFBF]" />
+                        {scores.find((s) => s.id === highlight)?.employee
+                            ?.full_name ?? 'This person'}
+                    </span>
+                )}
                 {[...READINESS_GROUPS].reverse().map((g) => (
                     <span key={g.key} className="flex items-center gap-1.5">
                         <span className={cn('size-2.5 rounded-full', g.fill)} />

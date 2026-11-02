@@ -7,9 +7,11 @@ namespace App\Support\Ml;
  * the score. One place, so the three assessors keep the same shape:
  *
  *  - per score (`explanation`): `baseline` — the score of a typical record, which the
- *    score's factors add up from (attrition, promotion); `outlook` — readiness after
- *    the next appraisal, by the rating it gives (promotion); `chances` — the chance
- *    of every band (performance);
+ *    score's factors add up from (attrition, promotion); `scenarios` — the score the
+ *    model gives the same record with a change HR can make: a promotion, regular
+ *    employment, a raise into the next pay band (attrition, ADR 0099); `outlook` —
+ *    readiness after the next appraisal, by the rating it gives (promotion);
+ *    `chances` — the chance of every band (performance);
  *  - per run (`reference`): what every score in it is read against — the typical
  *    record, where each tier starts, the model's rating curve (performance) and the
  *    leave rates of the data the model learned from (attrition).
@@ -21,7 +23,7 @@ final class PredictionExplanation
 {
     /** The explanation keys each model's results carry. */
     private const KEYS = [
-        'attrition' => ['baseline'],
+        'attrition' => ['baseline', 'scenarios'],
         'promotion' => ['baseline', 'outlook'],
         'performance' => ['chances'],
     ];

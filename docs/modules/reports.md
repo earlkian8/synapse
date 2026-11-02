@@ -22,7 +22,8 @@ the totals, the charts, the CSV export *and* the LLM digest, so they can never d
 | Piece | File | Role |
 | --- | --- | --- |
 | `Report` (interface) | `app/Support/Reports/Report.php` | The contract, incl. `charts()`. |
-| `BuildsReport` (trait) | `app/Support/Reports/Concerns/BuildsReport.php` | Filter scaffolding + `donut()` / `bars()` chart helpers. |
+| `BuildsReport` (trait) | `app/Support/Reports/Concerns/BuildsReport.php` | Filter scaffolding + `donut()` / `bars()` / `averagesBy()` chart helpers. |
+| `ReadsPredictionRun` (trait) | `app/Support/Reports/Concerns/ReadsPredictionRun.php` | The predictive reports' latest completed run, filters and person columns. |
 | `ReportRegistry` | `app/Support/Reports/ReportRegistry.php` | Catalogue; filters to the viewer's permissions. |
 | `MlSignals` | `app/Support/Reports/MlSignals.php` | Decision signals from the **persisted** ML runs. |
 | `ReportInsights` | `app/Support/Reports/ReportInsights.php` | The LLM decision-support generator. |
@@ -33,7 +34,15 @@ the totals, the charts, the CSV export *and* the LLM digest, so they can never d
 
 Employee Masterlist · Headcount Summary · Workforce Movement (Workforce) · Attendance
 Summary (Attendance) · Leave Ledger (Leave) · Recruitment Pipeline (Recruitment) ·
-Audit Trail (System). Each is gated on an existing module `*.view` permission.
+Attrition Risk · Promotion Readiness · Performance Forecast (Analytics) · Audit Trail
+(System). Each is gated on an existing module `*.view` permission.
+
+The three **Analytics** reports are the workforce summary the predictive pages used to
+draw ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)). Each reads its surface's latest completed run: everyone in it with
+their tier and the strongest reason (attrition, readiness) or the likely range and the
+chance of the band (forecast), filtered by department, tier or band and a search.
+Charts: the split by tier or band, the average by department, and, for attrition, the
+inputs that raise risk for the most people. Pay is never a column.
 
 ## Decision support
 

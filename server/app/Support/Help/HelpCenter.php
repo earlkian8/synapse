@@ -447,7 +447,7 @@ final class HelpCenter
         'reports' => [
             'category' => 'analytics', 'title' => 'Reports',
             'summary' => 'Run a ready-made report, filter it, export it, and ask for an AI read of what it shows.',
-            'any' => ['employees.view', 'attendance.view', 'leave.view', 'recruitment.view', 'activity-logs.view'],
+            'any' => ['employees.view', 'attendance.view', 'leave.view', 'recruitment.view', 'activity-logs.view', 'analytics.attrition.view', 'analytics.promotion.view', 'analytics.performance.view'],
             'keywords' => ['report', 'export', 'csv', 'masterlist', 'headcount', 'turnover', 'chart', 'analysis', 'statistics'],
             'screens' => ['/reports'],
             'related' => ['attrition-risk', 'activity-logs'],

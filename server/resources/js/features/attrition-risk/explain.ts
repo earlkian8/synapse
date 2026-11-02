@@ -1,10 +1,5 @@
 import type { LedgerStep } from '@/features/prediction-insights/components/contribution-ledger';
-import type { DriverRow } from '@/features/prediction-insights/components/driver-chart';
-import {
-    formatPoints,
-    joinWords,
-    tallyBy,
-} from '@/features/prediction-insights/lib';
+import { formatPoints, joinWords } from '@/features/prediction-insights/lib';
 import type { ChartGroup } from '@/features/prediction-insights/lib';
 import { INPUT_FIELDS, TIER_LABELS } from './constants';
 import type { RiskFactor, RiskRun, RiskScore, RiskTier } from './types';
@@ -85,8 +80,15 @@ export function factorDetail(factor: RiskFactor): string | undefined {
     return typical ? `${own} · typical ${typical}` : own;
 }
 
-/** A reason in a sentence: what about the employee's record it is. */
-function phrase(factor: RiskFactor): string {
+/**
+ * A reason in a sentence: what about the employee's record it is. Someone never
+ * promoted has their whole tenure counted as the wait (the survey's own
+ * substitution), so that wait is worded as time here without a promotion.
+ */
+export function reasonPhrase(
+    factor: RiskFactor,
+    features: Record<string, number | string> = {},
+): string {
     const value = factor.value;
 
     if (value === undefined) {
@@ -97,7 +99,9 @@ function phrase(factor: RiskFactor): string {
         case 'tenure_years':
             return `a tenure of ${formatInput('tenure_years', value)}`;
         case 'years_since_promotion':
-            return `${formatInput('years_since_promotion', value)} since the last promotion`;
+            return neverPromoted(features)
+                ? `${formatInput('years_since_promotion', value)} here without a promotion`
+                : `${formatInput('years_since_promotion', value)} since the last promotion`;
         case 'ever_promoted':
             return Number(value) > 0
                 ? 'having been promoted here before'
@@ -117,6 +121,16 @@ function phrase(factor: RiskFactor): string {
         default:
             return inputLabel(factor).toLowerCase();
     }
+}
+
+/** Whether the record says this person was never promoted here. */
+export function neverPromoted(
+    features: Record<string, number | string>,
+): boolean {
+    return (
+        features.ever_promoted !== undefined &&
+        Number(features.ever_promoted) === 0
+    );
 }
 
 /** The reasons as ledger rows, strongest first (a push up is bad news here). */
@@ -143,7 +157,7 @@ export function riskSummary(score: RiskScore): string | null {
     const up = score.factors.filter((f) => f.impact > 0).slice(0, 2);
     const down = score.factors.find((f) => f.impact < 0);
     const named = (f: RiskFactor) =>
-        `${phrase(f)} (${formatPoints(factorPoints(f))})`;
+        `${reasonPhrase(f, score.features)} (${formatPoints(factorPoints(f))})`;
 
     let sentence = `${Math.round(score.score)} against ${baseline} for a typical employee`;
 
@@ -174,58 +188,4 @@ export function strongestReason(score: RiskScore): string | null {
     return score.explanation
         ? `${inputLabel(top)} ${formatPoints(factorPoints(top))}`
         : `${inputLabel(top)} ↑`;
-}
-
-/** Across a run: for each input, how many people it pushes up and down. */
-export function driverRows(scores: RiskScore[]): DriverRow[] {
-    const rows = new Map<
-        string,
-        DriverRow & { upSum: number; downSum: number }
-    >();
-
-    for (const score of scores) {
-        for (const factor of score.factors) {
-            const row = rows.get(factor.feature) ?? {
-                key: factor.feature,
-                label: inputLabel(factor),
-                up: 0,
-                down: 0,
-                upPoints: 0,
-                downPoints: 0,
-                upSum: 0,
-                downSum: 0,
-            };
-            const points = factorPoints(factor);
-
-            if (points >= 0) {
-                row.up += 1;
-                row.upSum += points;
-            } else {
-                row.down += 1;
-                row.downSum += points;
-            }
-
-            rows.set(factor.feature, row);
-        }
-    }
-
-    return [...rows.values()]
-        .map(({ upSum, downSum, ...row }) => ({
-            ...row,
-            upPoints: row.up > 0 ? upSum / row.up : 0,
-            downPoints: row.down > 0 ? downSum / row.down : 0,
-        }))
-        .sort((a, b) => b.up + b.down - (a.up + a.down));
-}
-
-/** Risk by department, highest average first. */
-export function departmentRows(scores: RiskScore[]) {
-    return tallyBy(
-        scores.map((s) => ({
-            group: s.employee?.department ?? null,
-            key: s.tier,
-            score: s.score,
-        })),
-        ['high', 'medium', 'low'] as const,
-    );
 }

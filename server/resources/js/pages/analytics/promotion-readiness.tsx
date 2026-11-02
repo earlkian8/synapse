@@ -1,5 +1,6 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     ChevronRight,
     History,
     Medal,
@@ -23,12 +24,15 @@ import { GraduationPanel } from '@/features/model-graduation/components/graduati
 import { ScoredBy } from '@/features/model-graduation/components/scored-by';
 import { UnassessedList } from '@/features/model-graduation/components/unassessed-list';
 import {
+    forgetPersonInUrl,
+    personFromUrl,
+} from '@/features/prediction-insights/lib';
+import {
     deleteRun,
     runAssessment,
     viewRun,
 } from '@/features/promotion-readiness/api';
 import { EmployeeDetailDialog } from '@/features/promotion-readiness/components/employee-detail-dialog';
-import { ReadinessOverview } from '@/features/promotion-readiness/components/readiness-overview';
 import { ReadinessStatsCards } from '@/features/promotion-readiness/components/readiness-stats';
 import { ServiceBanner } from '@/features/promotion-readiness/components/service-banner';
 import { TierBadge } from '@/features/promotion-readiness/components/tier-badge';
@@ -60,7 +64,10 @@ export default function PromotionReadiness() {
     const [deleting, setDeleting] = useState(false);
     const [search, setSearch] = useState('');
     const [tierFilter, setTierFilter] = useState<ReadinessTier | 'all'>('all');
-    const [detail, setDetail] = useState<ReadinessScore | null>(null);
+    // A link from another predictive screen can open one person (ADR 0099).
+    const [detail, setDetail] = useState<ReadinessScore | null>(() =>
+        personFromUrl(run?.scores),
+    );
 
     const filtered = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -153,8 +160,6 @@ export default function PromotionReadiness() {
                     <>
                         <ReadinessStatsCards run={run} />
 
-                        <ReadinessOverview run={run} onOpen={setDetail} />
-
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span>
@@ -168,6 +173,13 @@ export default function PromotionReadiness() {
                                 />
                             </span>
                             <div className="flex items-center gap-2">
+                                <Link
+                                    href="/reports?report=promotion-readiness"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                    <BarChart3 className="size-3.5" />
+                                    Workforce summary
+                                </Link>
                                 {runs.length > 1 && (
                                     <div className="flex items-center gap-1.5">
                                         <History className="size-3.5" />
@@ -276,7 +288,13 @@ export default function PromotionReadiness() {
                 <EmployeeDetailDialog
                     score={detail}
                     run={run}
-                    onOpenChange={(open) => !open && setDetail(null)}
+                    onSelect={setDetail}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setDetail(null);
+                            forgetPersonInUrl();
+                        }
+                    }}
                 />
             )}
         </>

@@ -19,12 +19,16 @@ The tiles count who was forecast, how many are expected to **exceed**, the avera
 | **On track** | 60 to under 80  |
 | **Exceeds**  | 80 and over     |
 
-Click someone to see:
+For the whole workforce, choose **Workforce summary**. It opens the **Performance Forecast** report, which you can filter, print and export.
 
-- the **forecast result** and the **range** that four in five next results land in;
-- the **band**, and the **chance it is right** — near a band's edge, honestly, that's close to a coin flip;
-- a **trajectory chart** of their completed appraisals leading to the forecast — and, once their next appraisal is done, the actual result beside it;
-- the appraisal the forecast rests on.
+## One person's breakdown
+
+Click someone to open their breakdown. It has four tabs:
+
+- **Summary** — the **forecast result**, the **range** four in five next results land in, the **band** and the **chance of every band** (near a band's edge, that's close to a coin flip); a read of what to do before the cycle, taking their promotion readiness and flight risk into account; suggested next steps; their other predictions; and how they compare with everyone, their department and their position.
+- **Reasons** — how the model reads their latest appraisal, and that appraisal section by section.
+- **Track record** — their earlier forecasts against what each cycle actually gave, and a **trajectory chart** of their completed appraisals leading to the forecast.
+- **Record** — attendance, employment, leave, training and awards, as far as your role lets you see them.
 
 ## How it did
 

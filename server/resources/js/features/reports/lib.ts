@@ -3,6 +3,7 @@ import {
     CalendarCheck,
     ClipboardList,
     ScrollText,
+    Sparkles,
     Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -15,6 +16,23 @@ import type { ReportColumn } from './types';
  */
 export function badgeTone(value: string): string {
     const v = value.toLowerCase();
+
+    // The predictive reports' tiers and bands, matched whole: "High" is good news
+    // for readiness and "High risk" is bad news for attrition.
+    const exact: Record<string, 'green' | 'amber' | 'red' | 'slate'> = {
+        'high risk': 'red',
+        'at watch': 'amber',
+        stable: 'green',
+        high: 'green',
+        medium: 'amber',
+        low: 'slate',
+        exceeds: 'green',
+        'below target': 'amber',
+    };
+
+    if (exact[v] === 'slate') {
+        return 'bg-slate-500/10 text-slate-600 ring-slate-500/20 dark:text-slate-300';
+    }
 
     const green = [
         'active',
@@ -46,15 +64,15 @@ export function badgeTone(value: string): string {
         'deleted',
     ];
 
-    if (green.some((t) => v.includes(t))) {
+    if (exact[v] === 'green' || green.some((t) => v.includes(t))) {
         return 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-400';
     }
 
-    if (red.some((t) => v.includes(t))) {
+    if (exact[v] === 'red' || red.some((t) => v.includes(t))) {
         return 'bg-rose-500/10 text-rose-700 ring-rose-500/20 dark:text-rose-400';
     }
 
-    if (amber.some((t) => v.includes(t))) {
+    if (exact[v] === 'amber' || amber.some((t) => v.includes(t))) {
         return 'bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400';
     }
 
@@ -108,6 +126,8 @@ export function groupIcon(group: string): LucideIcon {
             return BarChart3;
         case 'System':
             return ScrollText;
+        case 'Analytics':
+            return Sparkles;
         default:
             return BarChart3;
     }

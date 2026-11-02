@@ -75,6 +75,16 @@ class Outlook(BaseModel):
     same_again: float | None = None
 
 
+class Scenario(BaseModel):
+    """Attrition: the score the model gives the same record with one change HR can
+    make ("promotion", "regular", "pay_band") or all of them ("together")."""
+
+    key: str
+    # The inputs the scenario overrides, and their new values.
+    changes: dict[str, Any]
+    score: float
+
+
 class Interval(BaseModel):
     low: float
     high: float
@@ -96,6 +106,7 @@ class Result(BaseModel):
     # impact (in score points) is this score.
     baseline: float | None = None
     outlook: Outlook | None = None
+    scenarios: list[Scenario] | None = None
     # Regressors: the range the actual value is expected in, the band the point
     # forecast names, and the chance the actual lands in that band.
     interval: Interval | None = None

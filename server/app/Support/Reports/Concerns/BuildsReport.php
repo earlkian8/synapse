@@ -180,4 +180,27 @@ trait BuildsReport
 
         return $this->bars($title, $bars);
     }
+
+    /**
+     * A bar chart of each group's average `$value` across the rows, highest first —
+     * e.g. average risk by department. Rows without a numeric value are skipped.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    protected function averagesBy(string $title, Collection $rows, string $group, string $value): array
+    {
+        $bars = $rows
+            ->filter(fn (array $row): bool => is_numeric($row[$value] ?? null))
+            ->groupBy($group)
+            ->map(fn (Collection $members, string $label): array => [
+                'label' => $label,
+                'value' => round((float) $members->avg($value), 1),
+            ])
+            ->sortByDesc('value')
+            ->values()
+            ->all();
+
+        return $this->bars($title, $bars);
+    }
 }

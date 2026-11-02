@@ -90,7 +90,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // session or a bad request must answer JSON (401, 422), not a redirect
         // to an HTML page it cannot read.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*', 'search', 'kiosk/*', 'attendance/kiosks/pins', 'attendance/kiosks/*/pairing-code')
+            fn (Request $request) => $request->is('api/*', 'search', 'kiosk/*', 'attendance/kiosks/pins', 'attendance/kiosks/*/pairing-code', 'analytics/*/people/*')
                 || ($request->is('help/reports') && $request->isMethod('POST')),
         );
     })->create();

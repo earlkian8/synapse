@@ -266,7 +266,7 @@ final class SystemGuide
             'keywords' => ['promotion', 'readiness', 'succession', 'promotable', 'career'],
         ],
         'reports' => [
-            'title' => 'Reports', 'menu' => 'Analytics & AI', 'path' => '/reports', 'any' => ['employees.view', 'attendance.view', 'leave.view', 'recruitment.view', 'activity-logs.view'],
+            'title' => 'Reports', 'menu' => 'Analytics & AI', 'path' => '/reports', 'any' => ['employees.view', 'attendance.view', 'leave.view', 'recruitment.view', 'activity-logs.view', 'analytics.attrition.view', 'analytics.promotion.view', 'analytics.performance.view'],
             'about' => 'Ready-made reports with filters, charts, AI analysis and export — each one only if you may see its data.',
             'tasks' => ['Run a report with filters', 'Export it', 'Read the AI analysis'],
             'assistant' => 'Run any report you may run and analyse its figures.',

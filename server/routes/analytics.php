@@ -5,6 +5,7 @@ use App\Http\Controllers\Analytics\AttritionRiskRunController;
 use App\Http\Controllers\Analytics\ModelGraduationController;
 use App\Http\Controllers\Analytics\PerformanceForecastController;
 use App\Http\Controllers\Analytics\PerformanceForecastRunController;
+use App\Http\Controllers\Analytics\PredictionContextController;
 use App\Http\Controllers\Analytics\PromotionReadinessController;
 use App\Http\Controllers\Analytics\PromotionReadinessRunController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,10 @@ use Illuminate\Support\Facades\Route;
 | switches the surface to a model that passed, and `DELETE graduation` switches it
 | back to the general model. Each needs the surface's `*.manage` permission. See
 | docs/decisions/0046-model-graduation-trains-on-the-organisations-own-records.md.
+|
+| `people/{employee}` answers each surface's breakdown dialog with what to weigh
+| beside one person's prediction — their trend, their other predictions and their
+| record (ADR 0099). It needs the surface's `*.view` permission.
 */
 Route::middleware(['auth', 'verified'])
     ->prefix('analytics')
@@ -41,6 +46,7 @@ Route::middleware(['auth', 'verified'])
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'attrition')->name('revert');
                 });
 
+                Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.attrition.view')->defaults('surface', 'attrition')->name('people.show');
                 Route::delete('{run}', [AttritionRiskRunController::class, 'destroy'])->middleware('can:analytics.attrition.manage')->name('destroy');
             });
 
@@ -57,6 +63,7 @@ Route::middleware(['auth', 'verified'])
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'promotion')->name('revert');
                 });
 
+                Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.promotion.view')->defaults('surface', 'promotion')->name('people.show');
                 Route::delete('{run}', [PromotionReadinessRunController::class, 'destroy'])->middleware('can:analytics.promotion.manage')->name('destroy');
             });
 
@@ -73,6 +80,7 @@ Route::middleware(['auth', 'verified'])
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'performance')->name('revert');
                 });
 
+                Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.performance.view')->defaults('surface', 'performance')->name('people.show');
                 Route::delete('{run}', [PerformanceForecastRunController::class, 'destroy'])->middleware('can:analytics.performance.manage')->name('destroy');
             });
     });

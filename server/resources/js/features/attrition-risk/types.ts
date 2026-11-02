@@ -36,8 +36,23 @@ export type RiskFactor = {
     evidence?: RiskEvidence | null;
 };
 
+/**
+ * The score the model gives the same record with one change HR can make (ADR 0099):
+ * a promotion now, regular employment, a raise into the next pay band, or all of
+ * them together.
+ */
+export type RiskScenario = {
+    key: 'promotion' | 'regular' | 'pay_band' | 'together';
+    changes: Record<string, number | string>;
+    score: number;
+};
+
 /** Why a score is what it is: the typical employee's score its factors add up from. */
-export type RiskExplanation = { baseline: number };
+export type RiskExplanation = {
+    baseline: number;
+    /** Runs from ADR 0099 on. */
+    scenarios?: RiskScenario[] | null;
+};
 
 /** One band of an input: how many people gave that answer, and how many left. */
 export type EvidenceBand = {

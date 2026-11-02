@@ -165,6 +165,67 @@ def test_the_attrition_reference_states_the_typical_employee_and_the_survey(clie
         assert set(reference["evidence"]["features"]) == set(ATTRITION_FEATURES)
 
 
+# ---- attrition: what the model would score with a change HR can make ---------------------
+
+
+PROBATIONER = {
+    "employment_type": "probationary",
+    "tenure_years": 0.5,
+    "monthly_salary": 14_000.0,
+    "ever_promoted": 0,
+    "years_since_promotion": 0.5,
+    "absences_90d": 0,
+    "lates_90d": 3,
+}
+
+
+@needs_attrition
+def test_each_scenario_is_the_model_s_own_score_for_the_changed_record():
+    model = service_registry.get("attrition")
+    [scenarios] = service_registry.scenarios(model, [PROBATIONER])
+
+    assert [s["key"] for s in scenarios] == ["promotion", "regular", "pay_band", "together"]
+    for scenario in scenarios:
+        _, [direct] = service_registry.score(model, [{**PROBATIONER, **scenario["changes"]}])
+        assert scenario["score"] == pytest.approx(direct)
+
+    by_key = {s["key"]: s["changes"] for s in scenarios}
+    assert by_key["promotion"] == {"years_since_promotion": 0.0, "ever_promoted": 1}
+    assert by_key["regular"] == {"employment_type": "regular"}
+    # The lowest figure of the next band the model reads pay in (₱15k–25k).
+    assert by_key["pay_band"] == {"monthly_salary": 15_000.0}
+    assert by_key["together"] == {**by_key["promotion"], **by_key["regular"], **by_key["pay_band"]}
+
+
+@needs_attrition
+def test_only_changes_that_apply_to_the_record_are_scored():
+    model = service_registry.get("attrition")
+    settled = {"employment_type": "regular", "monthly_salary": 75_000.0, "years_since_promotion": 2.0, "ever_promoted": 1}
+    part_timer = {"employment_type": "part_time"}
+
+    [settled_scenarios, part_timer_scenarios, nothing_recorded] = service_registry.scenarios(
+        model, [settled, part_timer, {}]
+    )
+
+    # Already regular, already in the top pay band: only a promotion is left, so
+    # there is no "together" either.
+    assert [s["key"] for s in settled_scenarios] == ["promotion"]
+    # Part-time is an arrangement, not a step to regular; nothing else is recorded.
+    assert part_timer_scenarios == []
+    # A scenario never rests on an imputed value.
+    assert nothing_recorded == []
+
+
+@needs_attrition
+def test_the_service_returns_the_scenarios_with_each_result(client):
+    response = client.post("/predict/attrition", json={"instances": [{"ref": "1", "features": PROBATIONER}, {"ref": "2", "features": {}}]})
+    [probationer, empty] = response.json()["results"]
+
+    assert {s["key"] for s in probationer["scenarios"]} == {"promotion", "regular", "pay_band", "together"}
+    assert all(0 <= s["score"] <= 100 for s in probationer["scenarios"])
+    assert empty["scenarios"] is None
+
+
 # ---- promotion: additive reasons and the next appraisal ----------------------------------
 
 

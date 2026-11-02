@@ -1,5 +1,5 @@
 import type { LedgerStep } from '@/features/prediction-insights/components/contribution-ledger';
-import { formatPoints, tallyBy } from '@/features/prediction-insights/lib';
+import { formatPoints } from '@/features/prediction-insights/lib';
 import type { ChartGroup } from '@/features/prediction-insights/lib';
 import { formatChange, TIER_LABELS } from './constants';
 import type {
@@ -109,9 +109,12 @@ function phrase(factor: ReadinessFactor): string {
     if (factor.feature === 'rating_change') {
         const points = Math.abs(factor.value).toFixed(1);
 
+        // "an 8.5-point", "an 11-point", "a 9-point".
+        const article = /^(8|1[18](\.|$))/.test(points) ? 'an' : 'a';
+
         return factor.value >= 0
-            ? `a ${points}-point improvement on the previous appraisal`
-            : `a ${points}-point drop from the previous appraisal`;
+            ? `${article} ${points}-point improvement on the previous appraisal`
+            : `${article} ${points}-point drop from the previous appraisal`;
     }
 
     return `a latest appraisal of ${factor.value.toFixed(1)}%`;
@@ -158,16 +161,4 @@ export function strongestReason(score: ReadinessScore): string | null {
     return score.explanation
         ? `${top.label} ${formatPoints(top.impact)}`
         : `${top.label} ${top.direction === 'up' ? '↑' : '↓'}`;
-}
-
-/** Readiness by department, highest average first. */
-export function departmentRows(scores: ReadinessScore[]) {
-    return tallyBy(
-        scores.map((s) => ({
-            group: s.employee?.department ?? null,
-            key: s.tier,
-            score: s.score,
-        })),
-        ['high', 'medium', 'low'] as const,
-    );
 }

@@ -11,7 +11,7 @@ If the prediction service is unavailable, you'll see a message to try again shor
 
 ## Reading the page
 
-The tiles count who was assessed, how many are **High risk** and **At watch**, and the average risk. A bar shows how your workforce divides across the three tiers. Below it, the **ranked roster** lists every active employee by risk score, with their tier and the strongest thing pushing their risk up. Search, or filter by tier.
+The tiles count who was assessed, how many are **High risk** and **At watch**, and the average risk. Below them, the **ranked roster** lists every active employee by risk score, with their tier and the strongest thing pushing their risk up. Search, or filter by tier.
 
 | Tier          | Score          |
 | ------------- | -------------- |
@@ -19,7 +19,16 @@ The tiles count who was assessed, how many are **High risk** and **At watch**, a
 | **At watch**  | 33 to under 66 |
 | **High risk** | 66 and over    |
 
-Click someone to see their score, tier and **confidence**, **what moves this score** — each factor's effect, raising or lowering their risk — and **what it is based on**: every input, with their recorded value, or _Not on record_ where it had to be estimated.
+For the whole workforce — how risk is spread, what raises it for the most people, and risk by department — choose **Workforce summary**. It opens the **Attrition Risk** report, which you can filter, print and export.
+
+## One person's breakdown
+
+Click someone to open their breakdown. It has four tabs:
+
+- **Summary** — their score and how it moved since the last assessment; a plain read of how urgent it is, taking their performance forecast and promotion readiness into account; **suggested next steps**, each with the reason behind it and, for a stay conversation, questions worth asking; their other predictions; and how they compare with everyone, their department and their position.
+- **Reasons** — how their score adds up from a typical employee's, reason by reason, what the survey data shows for each, and every input with its recorded value, or _Not on record_ where it had to be estimated.
+- **What would lower it** — the score the model would give with a promotion now, regular employment or a raise into the next pay band. Some changes don't lower it, and the page says so. These show what the model weighs, not what will happen.
+- **Record** — their risk in every assessment, attendance by month, appraisals, leave, training and awards. You only see the parts your role lets you open elsewhere.
 
 ## What it looks at
 

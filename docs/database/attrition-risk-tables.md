@@ -49,7 +49,7 @@ One employee's result within a run.
 | `tier` | string | `low \| medium \| high` (cut at 0.33 / 0.66). Indexed. |
 | `confidence` | decimal(4,3) | Share of the model's 8 inputs grounded in the employee's own record (0–1). |
 | `factors` | json, nullable | `[{feature, label, impact, direction, value, typical, band, typical_band, evidence}]` — each recorded input's exact Shapley contribution to the probability against a typical employee (2 points or more), with the employee's value and band, the typical ones, and the survey's leave rates for both (`evidence`). Runs from before [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md) hold what-if-typical effects and only the first four keys. |
-| `explanation` | json, nullable | `{baseline}` — a typical employee's score (0–100), which the factors add up from. Null on older runs. |
+| `explanation` | json, nullable | `{baseline, scenarios}` — a typical employee's score (0–100), which the factors add up from; and `scenarios` (ADR 0099): `[{key, changes, score}]`, the model's score for this record with a promotion now (`promotion`), regular employment (`regular`), a raise into the next pay band (`pay_band`), or all that apply (`together`). Null on older runs; `scenarios` absent on runs before ADR 0099. |
 | `features` | json, nullable | Snapshot of the feature vector sent to the model (exact ERP values), for audit. |
 | timestamps | | |
 

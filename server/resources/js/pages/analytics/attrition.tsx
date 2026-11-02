@@ -1,5 +1,6 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     ChevronRight,
     History,
     Search,
@@ -26,7 +27,6 @@ import {
 } from '@/features/attrition-risk/api';
 import { EmployeeDetailDialog } from '@/features/attrition-risk/components/employee-detail-dialog';
 import { RiskBadge } from '@/features/attrition-risk/components/risk-badge';
-import { RiskOverview } from '@/features/attrition-risk/components/risk-overview';
 import { RiskStatsCards } from '@/features/attrition-risk/components/risk-stats';
 import { ServiceBanner } from '@/features/attrition-risk/components/service-banner';
 import {
@@ -43,6 +43,10 @@ import type {
 } from '@/features/attrition-risk/types';
 import { GraduationPanel } from '@/features/model-graduation/components/graduation-panel';
 import { ScoredBy } from '@/features/model-graduation/components/scored-by';
+import {
+    forgetPersonInUrl,
+    personFromUrl,
+} from '@/features/prediction-insights/lib';
 import { cn } from '@/lib/utils';
 
 const TIER_FILTERS: { value: RiskTier | 'all'; label: string }[] = [
@@ -60,7 +64,10 @@ export default function AttritionRisk() {
     const [deleting, setDeleting] = useState(false);
     const [search, setSearch] = useState('');
     const [tierFilter, setTierFilter] = useState<RiskTier | 'all'>('all');
-    const [detail, setDetail] = useState<RiskScore | null>(null);
+    // A link from another predictive screen can open one person (ADR 0099).
+    const [detail, setDetail] = useState<RiskScore | null>(() =>
+        personFromUrl(run?.scores),
+    );
 
     const filtered = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -153,8 +160,6 @@ export default function AttritionRisk() {
                     <>
                         <RiskStatsCards run={run} />
 
-                        <RiskOverview run={run} />
-
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span>
@@ -168,6 +173,13 @@ export default function AttritionRisk() {
                                 />
                             </span>
                             <div className="flex items-center gap-2">
+                                <Link
+                                    href="/reports?report=attrition-risk"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                    <BarChart3 className="size-3.5" />
+                                    Workforce summary
+                                </Link>
                                 {runs.length > 1 && (
                                     <div className="flex items-center gap-1.5">
                                         <History className="size-3.5" />
@@ -271,7 +283,12 @@ export default function AttritionRisk() {
                 <EmployeeDetailDialog
                     score={detail}
                     run={run}
-                    onOpenChange={(open) => !open && setDetail(null)}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setDetail(null);
+                            forgetPersonInUrl();
+                        }
+                    }}
                 />
             )}
         </>

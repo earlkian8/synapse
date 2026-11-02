@@ -4,10 +4,13 @@ namespace App\Support\Reports;
 
 use App\Models\User;
 use App\Support\Reports\Reports\AttendanceSummaryReport;
+use App\Support\Reports\Reports\AttritionRiskReport;
 use App\Support\Reports\Reports\AuditTrailReport;
 use App\Support\Reports\Reports\EmployeeMasterlistReport;
 use App\Support\Reports\Reports\HeadcountSummaryReport;
 use App\Support\Reports\Reports\LeaveLedgerReport;
+use App\Support\Reports\Reports\PerformanceForecastReport;
+use App\Support\Reports\Reports\PromotionReadinessReport;
 use App\Support\Reports\Reports\RecruitmentPipelineReport;
 use App\Support\Reports\Reports\WorkforceMovementReport;
 use Illuminate\Support\Collection;
@@ -31,6 +34,9 @@ class ReportRegistry
         AttendanceSummaryReport::class,
         LeaveLedgerReport::class,
         RecruitmentPipelineReport::class,
+        AttritionRiskReport::class,
+        PromotionReadinessReport::class,
+        PerformanceForecastReport::class,
         AuditTrailReport::class,
     ];
 

@@ -22,12 +22,15 @@ export function NextAppraisalChart({
     latest,
     tierScores,
     tierOf,
+    likely,
 }: {
     outlook: ReadinessOutlook;
     /** Today's latest appraisal (attainment, %). */
     latest: number;
     tierScores: { medium: number; high: number } | null;
     tierOf: (score: number) => ReadinessTier | null;
+    /** The performance forecast for the next appraisal, drawn as its likely range. */
+    likely?: { forecast: number; low: number; high: number } | null;
 }) {
     const points = outlook.points;
     const lo = points[0]?.rating ?? 40;
@@ -184,6 +187,39 @@ export function NextAppraisalChart({
                 >
                     Next appraisal
                 </text>
+
+                {/* Where the performance forecast expects the next appraisal. */}
+                {likely && (
+                    <g aria-hidden>
+                        <rect
+                            x={x(Math.max(lo, likely.low))}
+                            width={Math.max(
+                                2,
+                                x(Math.min(hi, likely.high)) -
+                                    x(Math.max(lo, likely.low)),
+                            )}
+                            y={PAD.top}
+                            height={IH}
+                            className="fill-foreground/[0.06]"
+                        />
+                        <line
+                            x1={x(likely.forecast)}
+                            x2={x(likely.forecast)}
+                            y1={PAD.top}
+                            y2={PAD.top + IH}
+                            className="stroke-foreground/45"
+                            strokeDasharray="3 3"
+                            strokeWidth={1}
+                        />
+                        <text
+                            x={x(likely.forecast) + 4}
+                            y={PAD.top + 10}
+                            className="fill-muted-foreground text-[10px]"
+                        >
+                            Forecast {Math.round(likely.forecast)}%
+                        </text>
+                    </g>
+                )}
 
                 {/* Today's latest rating: "the same again". */}
                 <line

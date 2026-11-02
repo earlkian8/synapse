@@ -93,6 +93,9 @@ Every notebook opens a logged run first (`run = sm.start_run("<model>")`), which
 Every score the service returns is explained by exact Shapley values against a typical
 record (`synapse_ml/explain.py`; ADR 0098): the typical record's score (`baseline`) plus
 every factor is the score.
+Each attrition result also carries `scenarios` (ADR 0099): the score of the same record
+with a promotion now, regular employment, a raise into the next pay band, and all that
+apply together — one more batched `predict`, only on inputs the caller recorded.
 
 Library versions, data shapes, CV scores and artifact paths are all logged, so the full
 story of a run survives a dead kernel or cleared outputs.

@@ -19,25 +19,34 @@ The model and the way records reach it are specified by
 ## Surfaces
 
 - **`/analytics/promotion-readiness`** — the overview: headline metric cards
-  (assessed, promotion-ready, developing, average readiness), a **workforce overview**
-  ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): *how readiness is spread* (stacked by tier, with where Medium and High
-  start), *the appraisal map* (everyone by latest appraisal and its change, coloured by
-  tier, with the typical record marked; a dot opens that person) and *readiness by
-  department*, each with a table view; then a **Not assessed**
+  (assessed, promotion-ready, developing, average readiness); the workforce view is the
+  **Promotion Readiness report** in [Reports](./reports.md), linked as "Workforce
+  summary" ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)); then a **Not assessed**
   list — the active employees the model declined, each with the reason (no appraisal on
   record, or one still in draft) and what would include them — then the **ranked
   roster**: every assessed employee by readiness score, with their tier, whether the
   score rests on one appraisal or two, and their strongest reason in points. Search by
   employee, filter by tier, and pick a past run from the history selector. HR can **run
-  a new assessment** or **delete** a historical one. Selecting an employee opens a
-  **detail dialog**: the score and tier, what the probability means ("12 % of people
-  with this record were promoted within a year — 1.2× the average"), the **basis** (one
-  appraisal or two, and what that means), where the score sits among the others in the
-  run, *why* (a ledger from a typical record's score through each input's readiness
-  points to this score), *after the next appraisal* (readiness at every rating the next
-  appraisal could give, where Medium and High start, and what repeating the latest
-  rating would give), and the appraisals it was built from — latest, previous and the
-  change — with any note about a value held at the model's trained range.
+  a new assessment** or **delete** a historical one. `?person=<employee id>` opens that
+  person's breakdown.
+- **The breakdown** is a decision brief in four tabs ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)):
+  - *Summary*: the score and its move since the previous run, what the probability
+    means ("12 % of people with this record were promoted within a year — 1.2× the
+    average"); a **verdict** (Ready to put forward / Developing / Not yet) that reads
+    readiness beside flight risk and the forecast, including the rough chance the
+    forecast gives of reaching the next tier; **next steps** (put them forward, move
+    quickly when flight risk is high, a goal for the next appraisal, the weakest
+    appraisal section to develop, revisit after a second appraisal); their other
+    predictions; and how they compare with the run, their department and position.
+  - *Reasons*: the **basis** (one appraisal or two), the ledger from a typical record's
+    score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)), the **appraisal map** with this person picked out (a dot opens
+    another person), and the appraisals it was built from, with any note about a value
+    held at the model's trained range.
+  - *Next appraisal*: readiness at every rating the next appraisal could give, where
+    Medium and High start, what repeating the latest rating would give, and the
+    performance forecast's likely range drawn on it.
+  - *Record*: their readiness in every run, appraisals by section, and the rest of the
+    record the viewer may see.
 
 ## How an assessment works
 

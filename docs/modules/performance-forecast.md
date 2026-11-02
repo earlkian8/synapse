@@ -26,17 +26,26 @@ schema. The model and the way records reach it are specified by
   completed, a **Not forecast** list (employees with no completed appraisal before the
   period, each with the reason), then the **ranked roster** — every forecast employee by
   predicted rating, with their band, the likely range and the movement vs. their last
-  appraisal. Above the roster, a **workforce overview** ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): where next ratings
-  are expected (stacked by band) and forecasts by department, each with a table view.
+  appraisal. The workforce view is the **Performance Forecast report** in
+  [Reports](./reports.md), linked as "Workforce summary" ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)).
   Search by employee, filter by band, and pick a past run from the history
-  selector. HR can **run a new forecast** or **delete** a historical one. Selecting an
-  employee opens a **detail dialog**: the predicted rating and the range four in five
-  next ratings land in, the band and the **chance of every band**, where the forecast
-  sits among the others, *why* (the latest appraisal placed on the model's own curve of
-  expected next ratings, with the range four in five land in and the no-change line), a
-  **trajectory chart**
-  (completed appraisals → the forecast point with its range, and the actual result once
-  there is one), and the appraisal the forecast rests on.
+  selector. HR can **run a new forecast** or **delete** a historical one.
+  `?person=<employee id>` opens that person's breakdown.
+- **The breakdown** is a decision brief in four tabs ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)):
+  - *Summary*: the predicted rating, the range four in five next ratings land in, the
+    band and the **chance of every band**, the actual result once there is one; a
+    **verdict** (Plan support now / On track / Expected to exceed) that names an edge the
+    rating could tip over, reads it beside readiness and flight risk, and notes when a
+    forecast pulls toward the middle; **next steps** for the cycle (goals, coaching on the
+    weakest appraisal section, a mid-cycle check-in, stretch work); their other
+    predictions; and how they compare with the run, their department and position.
+  - *Reasons*: the latest appraisal placed on the model's own curve of expected next
+    ratings ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)), that appraisal by section, and what the forecast was read from.
+  - *Track record*: this person's earlier forecasts with their ranges against what each
+    period actually gave, and the **trajectory chart** (completed appraisals → the
+    forecast with its range).
+  - *Record*: attendance, employment, leave, training and awards, as far as the viewer
+    may see them.
 
 ## How a forecast works
 

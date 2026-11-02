@@ -64,7 +64,9 @@ function fakeExplainedServices(bool $explained = true): void
                     'value' => 7, 'typical' => 1.5, 'band' => '6–10 days', 'typical_band' => '1–2 days',
                     'evidence' => ['rate' => 0.5333, 'people' => 15, 'typical_rate' => 0.2581, 'typical_people' => 62, 'overall_rate' => 0.2764, 'consistent' => true],
                 ]],
-                ...($explained ? ['baseline' => 22.1] : []),
+                ...($explained ? ['baseline' => 22.1, 'scenarios' => [
+                    ['key' => 'promotion', 'changes' => ['years_since_promotion' => 0.0, 'ever_promoted' => 1], 'score' => 49.0],
+                ]] : []),
             ])->all(),
             ...($explained ? ['reference' => explainedAttritionReference()] : []),
         ]),
@@ -118,7 +120,9 @@ test('an attrition run keeps each score’s typical-employee baseline and what t
 
     $run = AttritionRiskRun::sole();
     $score = AttritionRiskScore::sole();
-    expect($score->explanation)->toBe(['baseline' => 22.1])
+    expect($score->explanation['baseline'])->toBe(22.1)
+        // What the model would score with a promotion now (ADR 0099).
+        ->and($score->explanation['scenarios'][0])->toBe(['key' => 'promotion', 'changes' => ['years_since_promotion' => 0, 'ever_promoted' => 1], 'score' => 49])
         ->and($score->factors[0]['evidence']['rate'])->toBe(0.5333)
         ->and($run->reference['evidence']['people'])->toBe(199);
 
@@ -128,6 +132,7 @@ test('an attrition run keeps each score’s typical-employee baseline and what t
             ->where('run.reference.tiers.high_from', 66)
             ->where('run.reference.evidence.features.absences_90d.1.band', '6–10 days')
             ->where('run.scores.0.explanation.baseline', 22.1)
+            ->where('run.scores.0.explanation.scenarios.0.score', 49)
             ->where('run.scores.0.factors.0.band', '6–10 days')
             ->where('run.scores.0.factors.0.typical_band', '1–2 days')
             ->where('run.scores.0.factors.0.evidence.consistent', true));
@@ -187,6 +192,7 @@ test('a forecast keeps the chance of every band, and its run the model’s ratin
 
 test('the explanation keeps only what each model explains with', function () {
     expect(PredictionExplanation::forScore('attrition', ['baseline' => 20.5, 'outlook' => ['x' => 1], 'score' => 40]))->toBe(['baseline' => 20.5])
+        ->and(PredictionExplanation::forScore('attrition', ['baseline' => 20.5, 'scenarios' => [['key' => 'regular', 'changes' => [], 'score' => 18]]]))->toHaveKey('scenarios')
         ->and(PredictionExplanation::forScore('promotion', ['baseline' => null, 'outlook' => null]))->toBeNull()
         ->and(PredictionExplanation::forScore('performance', ['chances' => 'not a map']))->toBeNull()
         ->and(PredictionExplanation::forRun(['reference' => []]))->toBeNull()

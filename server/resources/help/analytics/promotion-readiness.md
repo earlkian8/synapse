@@ -27,7 +27,16 @@ The score (0–100) places the person among a reference workforce. The tier — 
 | **Medium** | At least the average                          |
 | **Low**    | Below the average                             |
 
-Click someone to read it in plain words, for example "12% of people with this record were promoted within a year — 1.2× the average", along with what each appraisal fact added or took away and the appraisals it was built from.
+For the whole workforce, choose **Workforce summary**. It opens the **Promotion Readiness** report, which you can filter, print and export.
+
+## One person's breakdown
+
+Click someone to open their breakdown. It has four tabs:
+
+- **Summary** — their score in plain words, for example "12% of people with this record were promoted within a year — 1.2× the average"; a read of what to do, taking their flight risk and performance forecast into account; suggested next steps, such as the result their next appraisal needs or the appraisal section to develop; their other predictions; and how they compare with everyone, their department and their position.
+- **Reasons** — what each appraisal fact added or took away, where they sit on the appraisal map among everyone assessed, and the appraisals it was built from.
+- **Next appraisal** — their readiness for every result the next appraisal could give, with the range their performance forecast expects.
+- **Record** — their readiness in every assessment, appraisals by section, and the rest of their record your role lets you see.
 
 ## How much to trust it
 

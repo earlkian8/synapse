@@ -14,6 +14,9 @@ of artifact are served:
   a linear model and exact Shapley values against the typical record
   (:mod:`synapse_ml.explain`) for any other classifier, each read against the leave
   rates of the data the model learned from (:mod:`synapse_ml.attrition.evidence`).
+  Each attrition result also carries ``scenarios``: the score of the same record
+  with a change HR can make (a promotion, regular employment, a raise into the next
+  pay band), so the page can say what the model would weigh differently.
 
 Beside these **reference** models, an organisation that has graduated a surface has
 its own model of the same class, fitted on its records (``synapse_ml.local``). It is
@@ -32,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from synapse_ml.attrition import evidence as attrition_evidence
+from synapse_ml.attrition.features import BAND_EDGES
 from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
 from synapse_ml.attrition.features import TIER_CUTS
 from synapse_ml.explain import shapley
@@ -194,6 +198,7 @@ class Registry:
 
         probabilities, scores = self.score(model, feature_dicts)
         explained = self.explain(model, feature_dicts)
+        scenarios = self.scenarios(model, feature_dicts)
         return [
             {
                 "status": "scored",
@@ -202,9 +207,48 @@ class Registry:
                 "tier": tier_for(proba) if proba is not None else None,
                 "factors": factors or None,
                 "baseline": baseline,
+                "scenarios": what_if or None,
             }
-            for proba, score, (baseline, factors) in zip(probabilities, scores, explained, strict=True)
+            for proba, score, (baseline, factors), what_if in zip(
+                probabilities, scores, explained, scenarios, strict=True
+            )
         ]
+
+    def scenarios(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+        """Per instance, the attrition score the model gives the same record with one
+        change HR can make — a promotion now, regular employment, a raise into the next
+        pay band — and with all of them together. One batched ``predict`` for a run.
+
+        Only changes that apply to the record are scored (a regular employee is not
+        offered regular employment), and only on inputs the caller recorded, so a
+        scenario never rests on an imputed value. Each scenario is what the model
+        weighs, not a promise of what would happen: the page says so.
+        """
+        if model.name != "attrition" or model.kind != "classifier" or model.served is not None:
+            return [[] for _ in feature_dicts]
+
+        batch: list[dict[str, Any]] = []
+        plans: list[list[tuple[str, dict[str, Any]]]] = []
+        for feats in feature_dicts:
+            plan = [(key, changes) for key, changes in _levers(model, feats) if changes]
+            if len(plan) >= 2:
+                plan.append(("together", {k: v for _, changes in plan for k, v in changes.items()}))
+            plans.append(plan)
+            batch.extend({**feats, **changes} for _, changes in plan)
+
+        _, scores = self.score(model, batch) if batch else ([], [])
+
+        out: list[list[dict[str, Any]]] = []
+        cursor = 0
+        for plan in plans:
+            out.append(
+                [
+                    {"key": key, "changes": changes, "score": scores[cursor + i]}
+                    for i, (key, changes) in enumerate(plan)
+                ]
+            )
+            cursor += len(plan)
+        return out
 
     def reference(self, model: LoadedModel) -> dict[str, Any] | None:
         """What every score in a response is read against: for a served model, its own
@@ -335,6 +379,43 @@ def _shapley_factors(model: LoadedModel, feature_dicts: list[dict[str, Any]]) ->
             )
         results.append((round(baseline, 1), factors))
     return results
+
+
+# Employment types that can be moved to regular employment. Part-time is a working
+# arrangement, not a step on the way to regular, so it is not offered the change.
+_REGULARISABLE = {"probationary", "contractual"}
+
+
+def _levers(model: LoadedModel, feats: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """The changes HR could make to one record, as input overrides (empty: not
+    applicable). Every lever needs the inputs it changes to be recorded."""
+    known = set(model.features)
+
+    def has(*names: str) -> bool:
+        return all(name in known and _recorded(feats.get(name)) for name in names)
+
+    levers: list[tuple[str, dict[str, Any]]] = []
+
+    # A promotion now: promoted here, and no wait since.
+    if has("years_since_promotion") and not (
+        float(feats["years_since_promotion"]) == 0 and float(feats.get("ever_promoted") or 0) > 0
+    ):
+        changes: dict[str, Any] = {"years_since_promotion": 0.0}
+        if "ever_promoted" in known:
+            changes["ever_promoted"] = 1
+        levers.append(("promotion", changes))
+
+    if has("employment_type") and str(feats["employment_type"]) in _REGULARISABLE:
+        levers.append(("regular", {"employment_type": "regular"}))
+
+    # A raise into the next band the model reads pay in (no lever from the top band).
+    if has("monthly_salary"):
+        edges = BAND_EDGES.get("monthly_salary", [])
+        above = [edge for edge in edges if edge > float(feats["monthly_salary"])]
+        if above:
+            levers.append(("pay_band", {"monthly_salary": float(above[0])}))
+
+    return levers
 
 
 def _recorded(value: Any) -> bool:

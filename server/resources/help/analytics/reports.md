@@ -12,6 +12,9 @@ You see the reports your role allows — each needs the permission to view the m
 | **Attendance Summary**   | Attendance for a period, person by person                |
 | **Leave Ledger**         | Leave requested, taken and remaining                     |
 | **Recruitment Pipeline** | Postings and where their candidates are                  |
+| **Attrition Risk**       | The latest attrition assessment, highest risk first      |
+| **Promotion Readiness**  | The latest readiness assessment, most ready first        |
+| **Performance Forecast** | The latest forecast, with each likely range              |
 | **Audit Trail**          | Who did what, and when                                   |
 
 ## Running a report

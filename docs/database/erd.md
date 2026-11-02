@@ -1435,7 +1435,7 @@ erDiagram
         string tier "low|medium|high"
         decimal confidence "how much of the record was real"
         json factors
-        json explanation "typical employee's score"
+        json explanation "typical employee's score, what-if scenarios"
         json features
     }
     LOCAL_MODEL {

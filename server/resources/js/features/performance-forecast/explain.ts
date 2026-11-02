@@ -1,4 +1,3 @@
-import { tallyBy } from '@/features/prediction-insights/lib';
 import type { ChartGroup } from '@/features/prediction-insights/lib';
 import { BAND_LABELS } from './constants';
 import type { ForecastBand, ForecastRun, ForecastScore } from './types';
@@ -66,16 +65,4 @@ export function forecastSummary(
             : '';
 
     return `The latest appraisal was ${latest.toFixed(1)}%. ${where.charAt(0).toUpperCase()}${where.slice(1)}, a rating like that was followed by ${Math.round(score.predicted_rating)} on average — ${move}.${range}`;
-}
-
-/** Forecasts by department, highest average first. */
-export function departmentRows(forecasts: ForecastScore[]) {
-    return tallyBy(
-        forecasts.map((f) => ({
-            group: f.employee?.department ?? null,
-            key: f.band,
-            score: f.predicted_rating,
-        })),
-        ['exceeds', 'on_track', 'below'] as const,
-    );
 }

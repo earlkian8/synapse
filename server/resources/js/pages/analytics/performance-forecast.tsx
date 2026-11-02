@@ -1,5 +1,6 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     CalendarRange,
     ChevronRight,
     History,
@@ -30,7 +31,6 @@ import {
 } from '@/features/performance-forecast/api';
 import { BandBadge } from '@/features/performance-forecast/components/band-badge';
 import { EmployeeDetailDialog } from '@/features/performance-forecast/components/employee-detail-dialog';
-import { ForecastOverview } from '@/features/performance-forecast/components/forecast-overview';
 import { ForecastStatsCards } from '@/features/performance-forecast/components/forecast-stats';
 import { ServiceBanner } from '@/features/performance-forecast/components/service-banner';
 import { TrackRecordCard } from '@/features/performance-forecast/components/track-record';
@@ -45,6 +45,10 @@ import type {
     ForecastScore,
     PerformanceForecastPageProps,
 } from '@/features/performance-forecast/types';
+import {
+    forgetPersonInUrl,
+    personFromUrl,
+} from '@/features/prediction-insights/lib';
 import { cn } from '@/lib/utils';
 
 const BAND_FILTERS: { value: ForecastBand | 'all'; label: string }[] = [
@@ -62,7 +66,10 @@ export default function PerformanceForecast() {
     const [deleting, setDeleting] = useState(false);
     const [search, setSearch] = useState('');
     const [bandFilter, setBandFilter] = useState<ForecastBand | 'all'>('all');
-    const [detail, setDetail] = useState<ForecastScore | null>(null);
+    // A link from another predictive screen can open one person (ADR 0099).
+    const [detail, setDetail] = useState<ForecastScore | null>(() =>
+        personFromUrl(run?.forecasts),
+    );
 
     const filtered = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -155,8 +162,6 @@ export default function PerformanceForecast() {
                     <>
                         <ForecastStatsCards run={run} />
 
-                        <ForecastOverview run={run} />
-
                         {/* Run meta + history */}
                         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -181,6 +186,13 @@ export default function PerformanceForecast() {
                                 )}
                             </span>
                             <div className="flex items-center gap-2">
+                                <Link
+                                    href="/reports?report=performance-forecast"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                    <BarChart3 className="size-3.5" />
+                                    Workforce summary
+                                </Link>
                                 {runs.length > 1 && (
                                     <div className="flex items-center gap-1.5">
                                         <History className="size-3.5" />
@@ -303,7 +315,12 @@ export default function PerformanceForecast() {
                             : null
                     }
                     periodName={run.target_period?.name ?? null}
-                    onOpenChange={(open) => !open && setDetail(null)}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setDetail(null);
+                            forgetPersonInUrl();
+                        }
+                    }}
                 />
             )}
         </>

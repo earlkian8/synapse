@@ -17,22 +17,38 @@ design and [attrition-risk tables](../database/attrition-risk-tables.md) for the
 ## Surfaces
 
 - **`/analytics/attrition`** — headline cards (assessed, high risk, at watch, average
-  risk), a **workforce overview** ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)): *how risk is spread* (scores stacked by
-  tier, with the tier lines and a typical employee's score), *what drives risk* (for each
-  input, how many people it raises or lowers risk for by two points or more, with the
-  average points), and *risk by department*; each chart switches to a table of its
-  numbers. Then the **ranked roster**: every active employee by risk score, with their
+  risk), then the **ranked roster**: every active employee by risk score, with their
   tier and the strongest reason pushing their risk up, in points. Search, filter by tier,
   and pick a past run from the history selector. HR can **run a new assessment** or
-  **delete** a historical one. Selecting an employee opens a **breakdown**: the score,
-  the tier and where it sits among the others in the run; *why*: a sentence, then a
-  ledger that walks from a typical employee's score through each reason's points (the
-  employee's value against the typical one) to this score; *what the data shows*: for
-  the top reasons, the leave rate at every answer in the survey the model learned from,
-  with this employee's answer picked out and a note where the survey alone points the
-  other way; and *what it was read from*: every input with the recorded value, "Not on
-  record" where it was estimated, and overtime marked as not used by the model. Runs from
-  before ADR 0098 show the older factor list.
+  **delete** a historical one. The workforce view (how risk is spread, what raises it
+  for the most people, risk by department) is the **Attrition Risk report** in
+  [Reports](./reports.md), linked from the page as "Workforce summary" ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)).
+  `?person=<employee id>` opens that person's breakdown, which is how the other
+  predictive screens link to it.
+- **The breakdown** is a decision brief in four tabs ([ADR 0099](../decisions/0099-each-breakdown-is-a-decision-brief.md)):
+  - *Summary*: the score and its move since the person's previous run; a **verdict**
+    (Act now / Check in soon / No action needed, or Exit in progress when an offboarding
+    case is open) that reads the risk beside their forecast and readiness ("Likely to
+    leave, and a strong performer: a loss the team would feel"), with notes on the
+    strongest reason, inputs not on record and an old run; **suggested next steps**, each
+    naming the reason on record behind it, with a stay conversation and questions built
+    from the person's own reasons; **their other predictions** (readiness and forecast,
+    each opening the person there); and how they **compare with** everyone in the run,
+    their department and their position.
+  - *Reasons*: a sentence, then a ledger that walks from a typical employee's score
+    through each reason's points to this score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)); *what the data shows*: the
+    leave rate at every answer in the survey the model learned from, with this
+    employee's answer picked out and a note where the survey alone points the other way;
+    and *what it was read from*: every input, "Not on record" where it was estimated, and
+    overtime marked as not used by the model. Runs from before ADR 0098 show the older
+    factor list.
+  - *What would lower it*: the model's score with a promotion now, regular employment
+    (probationary and contract staff), a raise into the next pay band, and all of them
+    together, sorted by how much each lowers risk; a change that would raise it is shown
+    as such. Then what the model cannot see, to ask about.
+  - *Record*: their risk in every run, attendance by month, appraisals by section,
+    employment and promotions, leave, training and awards, each only for a viewer who
+    may open that module.
 
 ## How an assessment works
 
