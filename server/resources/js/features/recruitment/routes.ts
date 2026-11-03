@@ -8,6 +8,10 @@ export const recruitmentRoutes = {
     export: '/recruitment/export',
     /** The skills the ATS knows (ADR 0097). */
     skills: '/recruitment/skills',
+    /** What ESCO knows of a skill, a typed prefix or a title (ADR 0100). */
+    skillsLookup: '/recruitment/skills/lookup',
+    skillsSuggest: '/recruitment/skills/suggest',
+    skillsRole: '/recruitment/skills/role',
     // Postings are addressed by their obfuscated hashid (see App\Support\Hashid).
     show: (hashid: string) => `/recruitment/${hashid}`,
     pipelineExport: (hashid: string) => `/recruitment/${hashid}/export`,

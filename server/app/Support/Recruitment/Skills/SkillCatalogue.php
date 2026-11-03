@@ -26,6 +26,9 @@ final class SkillCatalogue
     /** @var array<string, string> stemmed spelling → skill key */
     private array $stemLookup = [];
 
+    /** @var array<string, string> a spelling's stems in alphabetical order → skill key, for names of two or more words */
+    private array $wordSetLookup = [];
+
     /** @var array<string, list<string>> skill key → keys of the skills that prove it, nearest first */
     private array $provers = [];
 
@@ -65,6 +68,10 @@ final class SkillCatalogue
 
             foreach ($skill->spellings as $spelling) {
                 $this->stemLookup[implode(' ', array_map(Words::stem(...), $spelling['tokens']))] ??= $skill->key;
+
+                if (count($spelling['tokens']) >= 2) {
+                    $this->wordSetLookup[self::wordSet($spelling['tokens'])] ??= $skill->key;
+                }
             }
         }
 
@@ -121,6 +128,28 @@ final class SkillCatalogue
         }
 
         return null;
+    }
+
+    /**
+     * The skill this is one of the names of, or null: the name itself, or —
+     * for two or more words — the same words in another order and form
+     * ("operate forklift" is Forklift operation). Unlike {@see resolve()}
+     * nothing around the name is dropped ("Accounting software" is not
+     * Accounting) and one word is never loosened, so another taxonomy's labels
+     * can be laid onto the catalogue without stretching (ADR 0100).
+     */
+    public function named(string $text): ?Skill
+    {
+        $tokens = Words::tokens($text);
+
+        if ($tokens === []) {
+            return null;
+        }
+
+        $key = $this->lookup[implode('', $tokens)]
+            ?? (count($tokens) >= 2 ? ($this->wordSetLookup[self::wordSet($tokens)] ?? null) : null);
+
+        return $key === null ? null : $this->skills[$key];
     }
 
     /**
@@ -203,6 +232,19 @@ final class SkillCatalogue
         usort($skills, fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
 
         return ['skills' => $skills, 'qualifiers' => Words::QUALIFIERS, 'generic' => Words::GENERIC];
+    }
+
+    /**
+     * Words compared in any order and form: their stems, sorted.
+     *
+     * @param  list<string>  $tokens
+     */
+    private static function wordSet(array $tokens): string
+    {
+        $stems = array_map(Words::stem(...), $tokens);
+        sort($stems);
+
+        return implode(' ', $stems);
     }
 
     /**

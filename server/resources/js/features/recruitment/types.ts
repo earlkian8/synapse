@@ -184,9 +184,14 @@ export type SkillEvidence = {
     source: string | null;
     /** 1 when shown or proven; part of 1 when only related. */
     credit: number;
-    /** Whether the skill catalogue knows it (otherwise it is matched by its words). */
+    /** Whether the skill catalogue or ESCO knows it (otherwise it is matched by its words). */
     recognised: boolean;
+    /** The ESCO skill it was read as, for a skill the catalogue doesn't know (ADR 0100). */
+    taxonomy?: SkillTaxonomyRef | null;
 };
+
+/** An ESCO skill a reading used. */
+export type SkillTaxonomyRef = { source: 'esco'; label: string; uri: string };
 
 /** One skill the ATS knows, as the posting form describes it. */
 export type CatalogueSkill = {
@@ -195,6 +200,53 @@ export type CatalogueSkill = {
     proven_by: string[];
     proven_by_count: number;
     related: string[];
+};
+
+/**
+ * How the ATS will read one skill a posting asks for (`GET
+ * /recruitment/skills/lookup`, ADR 0100): the catalogue's, ESCO's, or by its
+ * words (`source` null).
+ */
+export type SkillReading = {
+    term: string;
+    source: 'catalogue' | 'esco' | null;
+    esco: {
+        label: string;
+        uri: string;
+        /** The skill on ESCO's own portal. */
+        url: string;
+        description: string | null;
+        /** The catalogue skill ESCO's is, when it is one. */
+        same: string | null;
+        also: string[];
+        proven_by: string[];
+        related: string[];
+    } | null;
+};
+
+/** An ESCO skill offered while HR types (`GET /recruitment/skills/suggest`). */
+export type EscoSuggestion = {
+    label: string;
+    /** The other label that matched what was typed ("bookkeeping" for accounting). */
+    also: string | null;
+    /** The catalogue skill it is, when it is one. */
+    catalogue: string | null;
+};
+
+/** A skill ESCO lists for a role; `catalogue` when the catalogue knows it by that name. */
+export type RoleSkill = { name: string; catalogue: boolean };
+
+/** What ESCO lists for a job title (`GET /recruitment/skills/role`). */
+export type RoleSkills = {
+    occupation: {
+        label: string;
+        uri: string;
+        url: string;
+        /** Whether the title names it, or it is only ESCO's closest. */
+        exact: boolean;
+    };
+    essential: RoleSkill[];
+    optional: RoleSkill[];
 };
 
 /** The skill catalogue (`GET /recruitment/skills`). */

@@ -40,21 +40,13 @@ final class Skill
         $guarded = array_map('strtolower', [...($entry['cased'] ?? []), ...($entry['listed'] ?? [])]);
 
         foreach ([$entry['name'], ...($entry['aliases'] ?? [])] as $text) {
-            $tokens = Words::tokens($text);
+            $spelling = self::spelling($text);
 
-            if ($tokens === [] || in_array(implode(' ', $tokens), $guarded, true)) {
+            if ($spelling === null || in_array(implode(' ', $spelling['tokens']), $guarded, true)) {
                 continue;
             }
 
-            $joined = implode('', $tokens);
-
-            // A slip of one letter is forgiven only where it can't make another
-            // word: long names, and names written with inner capitals
-            // ("PostgreSQL"). "welding" is one letter from "wedding".
-            $fuzzy = count($tokens) === 1
-                && (strlen($joined) >= 10 || (strlen($joined) >= 6 && preg_match('/[a-z][A-Z]/', $text) === 1));
-
-            $spellings[$joined] ??= ['text' => $text, 'tokens' => $tokens, 'joined' => $joined, 'fuzzy' => $fuzzy];
+            $spellings[$spelling['joined']] ??= $spelling;
         }
 
         return new self(
@@ -67,6 +59,31 @@ final class Skill
             parts: array_values($entry['parts'] ?? []),
             umbrella: (bool) ($entry['umbrella'] ?? false),
         );
+    }
+
+    /**
+     * One way of writing a skill, folded for matching; null when it has no
+     * words.
+     *
+     * @return array{text: string, tokens: list<string>, joined: string, fuzzy: bool}|null
+     */
+    public static function spelling(string $text): ?array
+    {
+        $tokens = Words::tokens($text);
+
+        if ($tokens === []) {
+            return null;
+        }
+
+        $joined = implode('', $tokens);
+
+        // A slip of one letter is forgiven only where it can't make another
+        // word: long names, and names written with inner capitals
+        // ("PostgreSQL"). "welding" is one letter from "wedding".
+        $fuzzy = count($tokens) === 1
+            && (strlen($joined) >= 10 || (strlen($joined) >= 6 && preg_match('/[a-z][A-Z]/', $text) === 1));
+
+        return ['text' => $text, 'tokens' => $tokens, 'joined' => $joined, 'fuzzy' => $fuzzy];
     }
 
     /**

@@ -47,6 +47,8 @@ SYNAPSE reads the résumé itself (PDF, Word, or a scan or photo), not only the 
 
 A **related** skill earns part of the credit: JavaScript when you asked for TypeScript, Vue when you asked for React. A must-have counts twice a nice-to-have, and a missing skill lowers the score but never hides anyone.
 
+For a skill SYNAPSE doesn't know, it also uses what **ESCO**, the European Commission's public list of skills, says about it: its other names, the more specific skills that prove it, and the broader ones that earn part of the credit. Such a skill is tagged _ESCO_ on the profile. ESCO only ever adds to what a candidate shows, never takes away. Only the posting's skills and title are ever sent to ESCO, never anything about a candidate.
+
 Whole words only: "Java" is not found in "JavaScript", and "excel at" is not Excel. Under the skill match, the profile lists each skill and how it was shown, for example "JavaScript — shown by TypeScript · résumé". It also says when a résumé couldn't be read.
 
 If a candidate left their years of experience blank, the dates of the jobs on their résumé are added up instead. These years are shown as an estimate, for example "≈6 yrs from résumé".

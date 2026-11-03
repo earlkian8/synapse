@@ -10,6 +10,7 @@ use App\Http\Controllers\Recruitment\MyInterviewsController;
 use App\Http\Controllers\Recruitment\PipelineExportController;
 use App\Http\Controllers\Recruitment\RecruitmentExportController;
 use App\Http\Controllers\Recruitment\SkillCatalogueController;
+use App\Http\Controllers\Recruitment\SkillTaxonomyController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +31,14 @@ Route::middleware(['auth', 'verified'])
 
         // The skills the ATS knows (ADR 0097), for the posting form.
         Route::get('skills', SkillCatalogueController::class)->middleware('can:recruitment.view')->name('skills');
+
+        // What the posting form learns from ESCO (ADR 0100); the request
+        // allows only those who can write a posting.
+        Route::middleware('throttle:skill-taxonomy')->group(function () {
+            Route::get('skills/lookup', [SkillTaxonomyController::class, 'lookup'])->name('skills.lookup');
+            Route::get('skills/suggest', [SkillTaxonomyController::class, 'suggest'])->name('skills.suggest');
+            Route::get('skills/role', [SkillTaxonomyController::class, 'role'])->name('skills.role');
+        });
 
         // Candidate pool.
         Route::post('applicants', [ApplicantController::class, 'store'])->middleware('can:recruitment.create')->name('applicants.store');

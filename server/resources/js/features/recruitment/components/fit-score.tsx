@@ -186,6 +186,14 @@ function SkillEvidenceRow({ skill }: { skill: SkillEvidence }) {
                     {' — '}
                     {explainSkill(skill)}
                 </span>
+                {skill.taxonomy && (
+                    <span
+                        title={`Read as ESCO’s “${skill.taxonomy.label}”: the skill catalogue doesn’t know it.`}
+                        className="ml-1.5 inline-block rounded bg-sky-500/10 px-1 align-[1px] text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                    >
+                        ESCO
+                    </span>
+                )}
             </span>
         </li>
     );

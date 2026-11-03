@@ -15,6 +15,10 @@ Schedule::command('recruitment:close-expired')->dailyAt('00:05');
 // before the ATS read them, and any read that never finished after its upload.
 Schedule::command('recruitment:read-files')->hourly()->withoutOverlapping();
 
+// Ask ESCO about the posting skills the catalogue doesn't know (ADR 0100): those
+// whose lookup failed while ESCO was unreachable, and answers old enough to refresh.
+Schedule::command('recruitment:esco-lookup')->dailyAt('02:40')->withoutOverlapping();
+
 // The end-of-day job (ADR 0041): hourly, because midnight is a different moment
 // in every organisation's zone and a night shift is only over the morning after.
 // Records the days nobody punched, handles forgotten clock-outs by policy, and

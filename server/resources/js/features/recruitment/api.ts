@@ -1,5 +1,11 @@
 import { recruitmentRoutes } from './routes';
-import type { ApplicantInsightResult, SkillCatalogue } from './types';
+import type {
+    ApplicantInsightResult,
+    EscoSuggestion,
+    RoleSkills,
+    SkillCatalogue,
+    SkillReading,
+} from './types';
 
 /** Read Laravel's XSRF cookie so the plain fetch passes CSRF verification. */
 function xsrfToken(): string {
@@ -72,4 +78,61 @@ export async function fetchSkillCatalogue(): Promise<SkillCatalogue | null> {
     } catch {
         return null;
     }
+}
+
+/**
+ * GET one of the ESCO endpoints (ADR 0100). Null on any failure — a refused
+ * request, a rate limit, ESCO being away — so the form carries on with the
+ * catalogue alone.
+ */
+async function getSkillTaxonomy<T>(
+    url: string,
+    q: string,
+    signal?: AbortSignal,
+): Promise<T | null> {
+    try {
+        const response = await fetch(
+            `${url}?${new URLSearchParams({ q }).toString()}`,
+            {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+                signal,
+            },
+        );
+
+        return response.ok ? ((await response.json()) as T) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** How the ATS will read a skill the catalogue doesn't know. */
+export function fetchSkillReading(term: string): Promise<SkillReading | null> {
+    return getSkillTaxonomy<SkillReading>(recruitmentRoutes.skillsLookup, term);
+}
+
+/** ESCO skills that start with what is typed. */
+export async function fetchEscoSuggestions(
+    text: string,
+    signal?: AbortSignal,
+): Promise<EscoSuggestion[]> {
+    const data = await getSkillTaxonomy<{ suggestions: EscoSuggestion[] }>(
+        recruitmentRoutes.skillsSuggest,
+        text,
+        signal,
+    );
+
+    return data?.suggestions ?? [];
+}
+
+/** The skills ESCO lists for a job title, or null when it has none. */
+export async function fetchRoleSkills(
+    title: string,
+): Promise<RoleSkills | null> {
+    const data = await getSkillTaxonomy<{ role: RoleSkills | null }>(
+        recruitmentRoutes.skillsRole,
+        title,
+    );
+
+    return data?.role ?? null;
 }

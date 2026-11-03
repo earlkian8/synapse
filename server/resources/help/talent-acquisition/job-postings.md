@@ -17,7 +17,10 @@ Choose **New posting**. The form has five parts.
     - **Work arrangement**: **On-site**, **Hybrid** or **Remote**, and the site the role is **Based at** (one of your [work locations](/help/company-setup/work-locations)). Remote roles have no site.
 3. **About the role**: the **Description** and **Requirements** applicants will read, the minimum **Experience** in years (half years such as 1.5 are fine), and the skills you're looking for:
     - **Must-have skills** and **Nice-to-have skills**. A nice-to-have counts half as much as a must-have.
-    - Name each skill once. Other names count too ("JS" for JavaScript), and so do skills that prove it: TypeScript shows JavaScript, Laravel shows PHP. A skill SYNAPSE recognises gets a check mark, and its tooltip says what else counts for it. Others are matched by their words, in any order.
+    - Name each skill once. Other names count too ("JS" for JavaScript), and so do skills that prove it: TypeScript shows JavaScript, Laravel shows PHP. A skill SYNAPSE recognises gets a check mark, and its tooltip says what else counts for it.
+    - A skill SYNAPSE doesn't know is looked up in **ESCO**, the European Commission's public list of skills. If ESCO knows it, the skill gets a globe mark, and its tooltip shows ESCO's name for it and what else counts: "Venepuncture" is also shown by "phlebotomy" or "drawing blood samples". Otherwise it is matched by its words, in any order.
+    - While you type, ESCO's skills are suggested after SYNAPSE's own.
+    - Once the posting has a title, **Suggest the skills ESCO lists** offers the essential and optional skills ESCO lists for that role. Click one to add it, as a must-have or a nice-to-have. Nothing is added unless you click it.
     - Write "React or Vue" to accept either.
 4. **Applications**:
     - The **Hiring pipeline** it runs on. New postings start on your default pipeline; see [Recruitment pipelines](/help/company-setup/recruitment-pipelines).

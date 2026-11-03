@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Jobs\LookUpSkillsInEsco;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasHashid;
+use App\Support\Recruitment\Skills\Esco\EscoSkills;
 use Database\Factories\JobPostingFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -71,6 +73,18 @@ class JobPosting extends Model
             'use_fit_scoring' => 'boolean',
             'closing_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Skills the catalogue doesn't know are looked up in ESCO (ADR 0100),
+        // after the response, whichever way the posting was saved.
+        static::created(fn (JobPosting $posting) => $posting->lookUpUnknownSkills());
+        static::updated(function (JobPosting $posting): void {
+            if ($posting->wasChanged(['skills', 'preferred_skills'])) {
+                $posting->lookUpUnknownSkills();
+            }
+        });
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
@@ -171,6 +185,26 @@ class JobPosting extends Model
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Ask ESCO, once the response has gone, about the skills the catalogue
+     * doesn't know (ADR 0100). Nothing is dispatched when ESCO is off or every
+     * skill is the catalogue's.
+     */
+    public function lookUpUnknownSkills(): void
+    {
+        $esco = app(EscoSkills::class);
+
+        if (! $esco->enabled()) {
+            return;
+        }
+
+        $unknown = $esco->unknownTerms([...($this->skills ?? []), ...($this->preferred_skills ?? [])]);
+
+        if ($unknown !== []) {
+            LookUpSkillsInEsco::dispatchAfterResponse($unknown);
+        }
+    }
 
     /**
      * Replace the posting's screening questions wholesale — the form always sends

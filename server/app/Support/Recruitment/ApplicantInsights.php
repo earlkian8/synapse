@@ -245,14 +245,16 @@ class ApplicantInsights
     }
 
     /**
-     * One skill's reading, in words: "shown by TypeScript (résumé)".
+     * One skill's reading, in words: "shown by TypeScript (résumé)", and the
+     * ESCO skill it was read as, when it was (ADR 0100).
      *
-     * @param  array{status: string, via: string|null, source: string|null}  $skill
+     * @param  array{status: string, via: string|null, source: string|null, taxonomy?: array{label: string}|null}  $skill
      */
     private function evidence(array $skill): string
     {
         $via = $this->trim($skill['via'] ?? null, 80);
         $where = filled($skill['source'] ?? null) ? " ({$skill['source']})" : '';
+        $esco = filled($skill['taxonomy']['label'] ?? null) ? ' [read as ESCO’s “'.$this->trim($skill['taxonomy']['label'], 80).'”]' : '';
 
         return match ($skill['status']) {
             'found' => 'found'.($via !== '' ? " as “{$via}”" : '').$where,
@@ -261,7 +263,7 @@ class ApplicantInsights
             'spelling' => "found, spelled “{$via}”{$where}",
             'related' => "not found; related: {$via}{$where}",
             default => 'not found',
-        };
+        }.$esco;
     }
 
     /**

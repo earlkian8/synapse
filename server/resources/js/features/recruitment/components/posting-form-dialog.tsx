@@ -40,6 +40,7 @@ import type {
     SalaryPeriod,
     WorkArrangement,
 } from '../types';
+import { RoleSkillSuggestions } from './role-skill-suggestions';
 import { SkillsInput } from './skills-input';
 
 type ScreeningQuestionDraft = { label: string };
@@ -493,6 +494,22 @@ function FormBody({
                                 placeholder="e.g. Docker, QuickBooks"
                             />
                         </FormField>
+                        <div className="sm:col-start-2">
+                            <RoleSkillSuggestions
+                                title={data.title}
+                                must={data.skills}
+                                nice={data.preferred_skills}
+                                onAddMust={(skill) =>
+                                    setData('skills', [...data.skills, skill])
+                                }
+                                onAddNice={(skill) =>
+                                    setData('preferred_skills', [
+                                        ...data.preferred_skills,
+                                        skill,
+                                    ])
+                                }
+                            />
+                        </div>
                     </div>
                 </Section>
 

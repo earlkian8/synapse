@@ -54,6 +54,22 @@ return [
     ],
 
     /*
+    | ESCO, the European Commission's public taxonomy of skills and occupations
+    | (ADR 0100). The ATS asks it about the skills its own catalogue doesn't
+    | know, and the posting form asks it for suggestions. Free and keyless.
+    | Only a posting's skills, a job title or what HR types is ever sent —
+    | never anything about a candidate. Off = the catalogue alone, as before.
+    */
+    'esco' => [
+        'enabled' => (bool) env('ESCO_ENABLED', true),
+        'url' => env('ESCO_API_URL', 'https://ec.europa.eu/esco/api'),
+        'language' => env('ESCO_LANGUAGE', 'en'),
+        // Empty = ESCO's latest release; or pin one, e.g. "v1.2.0".
+        'version' => env('ESCO_VERSION') ?: null,
+        'timeout' => (int) env('ESCO_TIMEOUT', 6),
+    ],
+
+    /*
     | Synapse ML inference service (FastAPI) — serves the trained promotion /
     | performance models. Called server-side only; the URL points at
     | the local FastAPI process (see model/api). When it is unreachable the

@@ -29,6 +29,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- ESCO (ADR 0100): never called from tests; a test that needs it turns it on and fakes it. -->
+        <env name="ESCO_ENABLED" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

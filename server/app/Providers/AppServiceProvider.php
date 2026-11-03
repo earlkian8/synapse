@@ -48,7 +48,13 @@ use App\Support\Ai\GeminiClient;
 use App\Support\Attendance\AttendanceInputs;
 use App\Support\Ml\MlClient;
 use App\Support\PermissionRegistry;
+use App\Support\Recruitment\Skills\Esco\EscoClient;
+use App\Support\Recruitment\Skills\Esco\EscoSkills;
+use App\Support\Recruitment\Skills\Esco\EscoTaxonomy;
+use App\Support\Recruitment\Skills\NoTaxonomy;
 use App\Support\Recruitment\Skills\SkillCatalogue;
+use App\Support\Recruitment\Skills\SkillMatcher;
+use App\Support\Recruitment\Skills\SkillTaxonomy;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Login;
@@ -79,6 +85,31 @@ class AppServiceProvider extends ServiceProvider
 
         // The ATS's skill catalogue (ADR 0097): indexed once, read-only.
         $this->app->singleton(SkillCatalogue::class, fn (): SkillCatalogue => SkillCatalogue::shared());
+
+        // ESCO (ADR 0100), for the skills the catalogue doesn't know. The fit
+        // score reads what was learned from the database (a fresh reader per
+        // scorer, so nothing outlives a request); EscoSkills asks ESCO itself.
+        // Turned off, the catalogue works alone.
+        $this->app->singleton(EscoClient::class, fn (): EscoClient => new EscoClient(
+            baseUrl: (string) config('services.esco.url'),
+            language: (string) config('services.esco.language', 'en'),
+            version: config('services.esco.version'),
+            timeout: (int) config('services.esco.timeout', 6),
+        ));
+        $this->app->bind(EscoSkills::class, fn ($app): EscoSkills => new EscoSkills(
+            $app->make(EscoClient::class),
+            $app->make(SkillCatalogue::class),
+            enabled: (bool) config('services.esco.enabled'),
+        ));
+        $this->app->bind(SkillTaxonomy::class, fn ($app): SkillTaxonomy => config('services.esco.enabled')
+            ? new EscoTaxonomy($app->make(SkillCatalogue::class))
+            : new NoTaxonomy);
+        // Bound, so a class that asks for an optional matcher (ApplicantScorer)
+        // is given this one rather than its default, which has no taxonomy.
+        $this->app->bind(SkillMatcher::class, fn ($app): SkillMatcher => new SkillMatcher(
+            $app->make(SkillCatalogue::class),
+            $app->make(SkillTaxonomy::class),
+        ));
 
         // The Gemini client backing the agentic assistant.
         $this->app->singleton(GeminiClient::class, fn (): GeminiClient => new GeminiClient(
@@ -208,6 +239,14 @@ class AppServiceProvider extends ServiceProvider
 
         // Pairing codes are eight characters for fifteen minutes: safe only while
         // guessing them is slow.
+        // The posting form asks ESCO (ADR 0100) as HR types a skill or asks for a
+        // role's skills. It debounces, so typing stays well under this; the cap
+        // keeps one account from leaning on a free public service through us.
+        RateLimiter::for('skill-taxonomy', fn (Request $request) => [
+            Limit::perMinute(40)->by('skill-taxonomy:'.$request->user()?->id),
+            Limit::perDay(800)->by('skill-taxonomy-day:'.$request->user()?->id),
+        ]);
+
         RateLimiter::for('kiosk-pairing', fn (Request $request) => Limit::perMinute(10)
             ->by('kiosk-pairing:'.$request->ip()));
     }
