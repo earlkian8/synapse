@@ -146,7 +146,40 @@ One applicant on one posting, moving through the pipeline.
 | `result` | string | pending / passed / failed. |
 | `feedback` | text, nullable | |
 
+## `esco_skills`
+
+The ESCO skills the ATS has learned for the skills its catalogue doesn't know
+(ADR 0100). Public reference data, the same for every workspace: **no
+`organization_id`**.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `uri` | string, unique | ESCO's URI (`http://data.europa.eu/esco/skill/…`). Kept by upsert, so two lookups that land on the same skill can't both insert it. |
+| `label` | string | ESCO's preferred label ("perform venepuncture procedures"). |
+| `alt_labels` | json, nullable | ESCO's other labels, at most 40. |
+| `description` | text, nullable | ESCO's description, cut to 1,000 characters. |
+| `skill_type` | string(20), nullable | `skill` or `knowledge`. |
+| `broader` | json, nullable | `[{uri, label}]`, the skills just broader (a head start for partial credit). |
+| `narrower` | json, nullable | `[{uri, label}]`, the skills just narrower (they prove it). |
+
+## `esco_skill_terms`
+
+Each skill a posting asked for that the catalogue doesn't know, folded as `Words::fold`
+folds it, and what ESCO said (ADR 0100). **No `organization_id`**: the term is a
+skill's name, never who asked for it.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `term` | string(120), unique | "venepuncture". |
+| `esco_skill_id` | FK → esco_skills, nullable | The skill it names when `matched`. `nullOnDelete`. |
+| `status` | string(10) | `matched`, `none` (ESCO has no skill by that name), `failed` (ESCO couldn't be reached). An outage never turns `matched` into `failed`. |
+| `attempts` | smallint, default 0 | Failed lookups in a row. After three, asked at most daily. |
+| `looked_up_at` | timestamp, nullable | When ESCO was last asked. `matched` is asked again after 180 days, `none` after 30. |
+
 ## Per-tenant uniqueness
 
-`(organization_id)` scopes every table; the application uniqueness above is therefore
-effectively unique within a tenant (posting and applicant both already belong to one).
+`(organization_id)` scopes every table but the two ESCO tables, which hold public
+reference data; the application uniqueness above is therefore effectively unique within
+a tenant (posting and applicant both already belong to one).

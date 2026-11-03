@@ -8,7 +8,8 @@
 > up to `2026_10_11_040000_add_tour_versions_and_runs` on 2026-10-12; §13's admin
 portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13; §6's
 > kiosk tables from `2026_10_15_020000_create_attendance_kiosks` on 2026-10-15; §14's
-> problem reports from `2026_10_21_000000_create_problem_reports_tables` on 2026-10-21). It
+> problem reports from `2026_10_21_000000_create_problem_reports_tables` on 2026-10-21;
+> §4's ESCO tables from `2026_11_03_000000_learn_skills_from_esco` on 2026-11-03). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -625,8 +626,9 @@ erDiagram
 
 An applicant tracking system over configurable pipelines, with a hire → employee
 bridge. See [recruitment tables](./recruitment-tables.md),
-[ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md) and
-[ADR 0029](../decisions/0029-configurable-recruitment-pipelines.md).
+[ADR 0006](../decisions/0006-recruitment-ats-and-hire-bridge.md),
+[ADR 0029](../decisions/0029-configurable-recruitment-pipelines.md) and, for the ESCO
+tables, [ADR 0100](../decisions/0100-the-ats-learns-the-skills-its-catalogue-doesnt-know-from-esco.md).
 
 ```mermaid
 erDiagram
@@ -641,6 +643,7 @@ erDiagram
     RECRUITMENT_PIPELINE_STAGE ||--o{ JOB_APPLICATION : "holds (restrict)"
     JOB_APPLICATION ||--o{ INTERVIEW : schedules
     JOB_APPLICATION |o--o| EMPLOYEE : "hired as"
+    ESCO_SKILL |o--o{ ESCO_SKILL_TERM : "named by (set null)"
 
     RECRUITMENT_PIPELINE {
         bigint id PK
@@ -733,11 +736,34 @@ erDiagram
         string result "pending|passed|failed"
         text feedback
     }
+    ESCO_SKILL {
+        bigint id PK
+        string uri UK
+        string label
+        json alt_labels
+        text description
+        string skill_type "skill|knowledge"
+        json broader "[{uri, label}]"
+        json narrower "[{uri, label}]"
+    }
+    ESCO_SKILL_TERM {
+        bigint id PK
+        string term UK "folded skill name"
+        bigint esco_skill_id FK
+        string status "matched|none|failed"
+        smallint attempts
+        datetime looked_up_at
+    }
 ```
 
 > `job_applications` is unique on `(job_posting_id, applicant_id)`: a candidate
 > applies to a posting once. Hired or rejected is the **kind** of the stage the
 > application sits in (`won` / `lost`), not a separate status column.
+>
+> `esco_skills` and `esco_skill_terms` have **no `organization_id`**. They are public
+> reference data learned from ESCO, the same for every workspace, and a term is a
+> skill's name, not who asked for it. A posting's skills are matched to terms by
+> folded text, not by a foreign key.
 
 ---
 

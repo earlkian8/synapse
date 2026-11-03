@@ -168,6 +168,49 @@ fixes the usual ATS failures: a candidate who wrote "TypeScript" is no longer mi
   (`GET /recruitment/skills`, `recruitment.view`) and marks the ones it recognises, with
   what else counts for each in the tooltip.
 
+### Skills the catalogue doesn't know: ESCO
+
+[ADR 0100](../decisions/0100-the-ats-learns-the-skills-its-catalogue-doesnt-know-from-esco.md)
+asks ESCO, the European Commission's free skills taxonomy, about the long tail beneath
+the catalogue ("Venepuncture", "Tower crane operation").
+
+- **The catalogue first.** A skill it knows is never sent to ESCO. Only each "or"
+  alternative the catalogue can't resolve is asked about.
+- **Asked ahead of time** by `App\Support\Recruitment\Skills\Esco\EscoSkills`:
+  after a posting is created or its skills change (`App\Jobs\LookUpSkillsInEsco`,
+  after the response), daily by **`recruitment:esco-lookup`** (02:40, at most 200,
+  `--again` for all), and from the posting form. Answers live in `esco_skills` and
+  `esco_skill_terms` (reference data with no workspace). They are trusted for 180 days
+  (`none` for 30). An outage keeps what was matched.
+- **Scored from the database.** `EscoTaxonomy` (the `SkillTaxonomy` binding) reads a
+  posting's terms in one query. ESCO is never called while a score is worked out.
+  `NoTaxonomy` is the catalogue alone.
+- **Only answers that name the skill.** `EscoLabels` accepts the same words, the same
+  words without a parenthesis or light verb ("Venepuncture" for *perform venepuncture
+  procedures*), or the same two or more words in any order and form ("Forklift
+  operation" for *operate forklift*), compared in American spelling
+  (`BritishSpelling`). "MS Excel" is never *pursue excellence…*.
+- **Laid onto the catalogue.** `TaxonomySkill::fromEsco()`: an ESCO skill whose label
+  is a catalogue name *is* that skill (`SkillCatalogue::named()`). Otherwise its labels
+  are its names (a one-word name only if distinctive), a catalogue skill another label
+  names proves it (Phlebotomy proves Venepuncture), a narrower skill proves it, and a
+  broader one earns 0.4.
+- **Only ever adds.** The skill is also matched by its own words, and the better
+  reading wins. Its reading carries `recognised: true` and `taxonomy` (`source`,
+  `label`, `uri`). The candidate modal tags it *ESCO*.
+- **The posting form** (`SkillTaxonomyController`; anyone who can create or edit
+  postings; throttled `skill-taxonomy`, 40/min and 800/day):
+  - `GET /recruitment/skills/lookup?q=`: how a chip will be read. ESCO-recognised chips
+    get a globe mark and a tooltip.
+  - `GET /recruitment/skills/suggest?q=`: ESCO skills that start with what is typed,
+    when the catalogue has fewer than three of its own.
+  - `GET /recruitment/skills/role?q=`: ESCO's occupation for the title, with essential
+    skills to add as must-haves and optional ones as nice-to-haves, asked only when HR
+    presses the button.
+- **Sent:** skill names, typed prefixes and titles only, never anything about a
+  candidate. `ESCO_ENABLED=false` turns it off, and `ESCO_API_URL`, `ESCO_VERSION`,
+  `ESCO_LANGUAGE` and `ESCO_TIMEOUT` configure it.
+
 ## AI candidate insights
 
 On top of the deterministic fit score, HR can ask an LLM to **read a specific
@@ -375,8 +418,12 @@ the [schema doc](../database/recruitment-tables.md). Highlights:
   uses; **`App\Support\Files\DocumentText`** + **`App\Jobs\ReadApplicantFiles`** for
   reading files; **`App\Support\Recruitment\ApplicantInsights`** for the LLM candidate
   read (reuses `App\Support\Ai\GeminiClient`); **`App\Console\Commands\CloseExpiredPostings`**
-  (scheduled daily) and **`ReadApplicantFilesCommand`** (`recruitment:read-files`, hourly);
-  **`SkillCatalogueController`** (`GET /recruitment/skills`).
+  (scheduled daily), **`ReadApplicantFilesCommand`** (`recruitment:read-files`, hourly)
+  and **`LookUpSkillsInEscoCommand`** (`recruitment:esco-lookup`, daily);
+  **`SkillCatalogueController`** (`GET /recruitment/skills`) and
+  **`SkillTaxonomyController`** (`GET /recruitment/skills/lookup|suggest|role`, ESCO);
+  **`App\Support\Recruitment\Skills\Esco\*`** + **`App\Jobs\LookUpSkillsInEsco`** for
+  what is learned from ESCO.
 - **Shared with the assistant** (one implementation, two callers): stage transitions
   live on the models — `RecruitmentPipeline::entryStage()` / `wonStage()` /
   `defaultLostStage()` / `nextOpenStageAfter()` / `isLastOpenStage()` /
@@ -557,8 +604,16 @@ recruitment data at all, which is what makes the module's empty state — the
   experience estimated from the résumé.
 - `tests/Unit/Recruitment/` — `SkillMatcherTest` (TypeScript → JavaScript, whole words,
   cased and listed names, families, parts, slips, other words, "or", Philippine terms),
-  `SkillCatalogueTest` (no shared alias, no loop, resolution) and
-  `ResumeExperienceTest`.
+  `SkillCatalogueTest` (no shared alias, no loop, resolution),
+  `ResumeExperienceTest`, `EscoLabelsTest` (which of ESCO's answers names the skill;
+  "MS Excel" refused; reading ESCO's JSON) and `SkillTaxonomyMatchTest` (catalogue
+  bridging, narrower proof, broader head start, one-word guard, ESCO only adds, a
+  catalogue skill never asked about).
+- `tests/Feature/Recruitment/EscoSkillsTest.php` — with ESCO faked: a posting's unknown
+  skill looked up once after saving and scored from the database, a loose answer
+  refused and remembered, an outage keeping what was known, what a posting dispatches,
+  `recruitment:esco-lookup` across workspaces, the three form endpoints, who may ask,
+  validation and the rate limit.
 - `tests/Feature/Recruitment/ResumeReadingTest.php` — a résumé sent on the careers page
   is read and counted, the text never reaches the browser, a new résumé resets the
   reading, the job skips government IDs, `recruitment:read-files`, the catalogue
