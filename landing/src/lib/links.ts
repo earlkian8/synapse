@@ -3,7 +3,7 @@
  * (see .env.example) so a staging build can point at a staging ERP.
  */
 const erpOrigin = (
-    import.meta.env.VITE_ERP_URL ?? 'https://synapse-lzsdm.ondigitalocean.app'
+    import.meta.env.VITE_ERP_URL ?? 'https://erp.synapsehr.app'
 ).replace(/\/+$/, '');
 
 export const links = {
