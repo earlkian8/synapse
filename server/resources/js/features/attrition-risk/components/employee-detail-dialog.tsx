@@ -34,6 +34,7 @@ import {
     riskThresholds,
 } from '../explain';
 import type { RiskRun, RiskScore } from '../types';
+import { BehaviouralIndicators } from './behavioural-indicators';
 import { FactorList } from './factor-list';
 import { RiskBadge } from './risk-badge';
 import { ScenarioList } from './scenario-list';
@@ -191,6 +192,8 @@ function Reasons({ score, run }: { score: RiskScore; run: RiskRun }) {
     const employee = score.employee!;
     const thresholds = riskThresholds(run);
     const evidence = run.reference?.evidence ?? null;
+    const readings = score.explanation?.indicators ?? [];
+    const definitions = run.reference?.indicators ?? [];
 
     return (
         <>
@@ -230,6 +233,23 @@ function Reasons({ score, run }: { score: RiskScore; run: RiskRun }) {
                         <FactorList factors={score.factors} />
                     </BreakdownSection>
                 )
+            )}
+
+            {readings.length > 0 && definitions.length > 0 && (
+                <BreakdownSection
+                    title="Emotional factors"
+                    description="Behaviour that research reads as a sign of how someone feels about their work. They indicate a feeling; they do not measure it — the model never sees how anyone feels."
+                >
+                    <BehaviouralIndicators
+                        readings={readings}
+                        definitions={definitions}
+                        noun={
+                            evidence?.source === 'own_records'
+                                ? 'in your records'
+                                : 'surveyed'
+                        }
+                    />
+                </BreakdownSection>
             )}
 
             {evidence && (
@@ -368,8 +388,16 @@ function Record({
     );
 }
 
-/** Recorded and sent, but not read by the model (its leave rate is flat across bands). */
-const NOT_READ = new Set(['overtime_hours_90d']);
+/**
+ * How the model reads each recorded input, where that is not simply "as it is":
+ * overtime not at all (its leave rate is flat across bands), absences and lateness
+ * together, as withdrawal (ADR 0101).
+ */
+const READ_AS: Record<string, string> = {
+    overtime_hours_90d: 'Not used by the model',
+    absences_90d: 'Read with lateness, as withdrawal',
+    lates_90d: 'Read with absences, as withdrawal',
+};
 
 function FeatureGrid({
     features,
@@ -399,9 +427,9 @@ function FeatureGrid({
                         >
                             {recorded ? field.format(value) : 'Not on record'}
                         </dd>
-                        {NOT_READ.has(field.key) && (
+                        {READ_AS[field.key] && (
                             <span className="text-[10px] text-muted-foreground">
-                                Not used by the model
+                                {READ_AS[field.key]}
                             </span>
                         )}
                     </div>

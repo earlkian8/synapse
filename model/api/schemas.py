@@ -57,6 +57,12 @@ class Factor(BaseModel):
     band: str | None = None
     typical_band: str | None = None
     evidence: Evidence | None = None
+    # Attrition: what kind of fact it is ("structural", "compensation", "career",
+    # "emotional"), and for an indicator built from several inputs (withdrawal, whose
+    # value is its level) the recorded inputs and the typical record's.
+    group: str | None = None
+    components: dict[str, FeatureValue] | None = None
+    typical_components: dict[str, FeatureValue] | None = None
 
 
 class OutlookPoint(BaseModel):
@@ -85,6 +91,31 @@ class Scenario(BaseModel):
     score: float
 
 
+class IndicatorEvidence(BaseModel):
+    """The share who left at an indicator's level in the data the model learned from."""
+
+    rate: float
+    people: int
+    overall_rate: float | None = None
+
+
+class IndicatorReading(BaseModel):
+    """Attrition: one behavioural indicator of an emotional state, read from the record
+    (synapse_ml.attrition.indicators) — e.g. withdrawal, from absences and lateness."""
+
+    key: str
+    # Its level in words, and its place among the levels (0 = least).
+    level: str
+    rank: int
+    # How the score reads it: "direct" (one of its inputs), "inputs" (through the
+    # inputs it is built from) or "none".
+    read: str
+    # The risk points the score gives it — its inputs' Shapley values; None when unread.
+    points: float | None = None
+    inputs: dict[str, FeatureValue]
+    evidence: IndicatorEvidence | None = None
+
+
 class Interval(BaseModel):
     low: float
     high: float
@@ -107,6 +138,7 @@ class Result(BaseModel):
     baseline: float | None = None
     outlook: Outlook | None = None
     scenarios: list[Scenario] | None = None
+    indicators: list[IndicatorReading] | None = None
     # Regressors: the range the actual value is expected in, the band the point
     # forecast names, and the chance the actual lands in that band.
     interval: Interval | None = None

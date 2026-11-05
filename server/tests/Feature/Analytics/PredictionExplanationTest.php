@@ -222,3 +222,82 @@ test('the assistant gives an explained risk its points from a typical employee �
         ->not->toContain('Monthly salary')
         ->not->toContain('5.1 points');
 });
+
+/**
+ * Behavioural indicators of emotional states (ADR 0101): the model reads absences and
+ * lateness together as withdrawal — one reason — and each result reads the record on
+ * every indicator, stored with the score.
+ */
+function withdrawalResults(Request $request): array
+{
+    return collect($request->data()['instances'])->map(fn (array $i): array => [
+        'ref' => $i['ref'], 'probability' => 0.56, 'score' => 55.9, 'tier' => 'medium',
+        'factors' => [[
+            'feature' => 'withdrawal', 'label' => 'Withdrawal (absences and lateness)', 'impact' => 0.1876, 'direction' => 'up',
+            'group' => 'emotional', 'value' => 'High', 'typical' => 'Low', 'band' => 'High', 'typical_band' => 'Low',
+            'components' => ['absences_90d' => 7, 'lates_90d' => 6], 'typical_components' => ['absences_90d' => 1.5, 'lates_90d' => 1.5],
+            'evidence' => ['rate' => 0.5185, 'people' => 27, 'typical_rate' => 0.2698, 'typical_people' => 63, 'overall_rate' => 0.2764, 'consistent' => true],
+        ]],
+        'baseline' => 37.1,
+        'indicators' => [
+            ['key' => 'withdrawal', 'level' => 'High', 'rank' => 3, 'read' => 'direct', 'points' => 18.8, 'inputs' => ['absences_90d' => 7, 'lates_90d' => 6], 'evidence' => ['rate' => 0.5185, 'people' => 27, 'overall_rate' => 0.2764]],
+            ['key' => 'workload_strain', 'level' => 'High', 'rank' => 2, 'read' => 'none', 'points' => null, 'inputs' => ['overtime_hours_90d' => 40], 'evidence' => ['rate' => 0.3333, 'people' => 12, 'overall_rate' => 0.2764]],
+            ['key' => 'effort_reward', 'level' => 'Imbalanced', 'rank' => 2, 'read' => 'none', 'points' => null, 'inputs' => ['overtime_hours_90d' => 40, 'monthly_salary' => 18500], 'evidence' => null],
+        ],
+    ])->all();
+}
+
+test('an attrition score keeps its behavioural-indicator readings and withdrawal as one reason', function () {
+    actingAsSuperAdmin();
+    Http::fake([
+        '*/predict/attrition' => fn (Request $request) => Http::response([
+            'model' => 'attrition', 'model_version' => 'SVC@test', 'results' => withdrawalResults($request),
+            'reference' => [...explainedAttritionReference(), 'indicators' => [
+                ['key' => 'withdrawal', 'label' => 'Withdrawal', 'indicates' => 'Emotional disengagement', 'theory' => 'Rosse (1988)', 'inputs' => ['absences_90d', 'lates_90d'], 'levels' => ['None', 'Low', 'Moderate', 'High'], 'read' => 'direct', 'not_read' => null],
+            ]],
+        ]),
+    ]);
+    Employee::factory()->create(['employment_status' => 'active']);
+
+    $this->post(route('analytics.attrition.store'));
+
+    $score = AttritionRiskScore::sole();
+    expect($score->factors[0]['feature'])->toBe('withdrawal')
+        ->and($score->factors[0]['components'])->toBe(['absences_90d' => 7, 'lates_90d' => 6])
+        ->and(collect($score->explanation['indicators'])->pluck('key')->all())->toBe(['withdrawal', 'workload_strain', 'effort_reward'])
+        ->and(AttritionRiskRun::sole()->reference['indicators'][0]['indicates'])->toBe('Emotional disengagement');
+
+    $this->get(route('analytics.attrition.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('run.scores.0.factors.0.group', 'emotional')
+            ->where('run.scores.0.explanation.indicators.0.points', 18.8)
+            ->where('run.scores.0.explanation.indicators.1.read', 'none')
+            ->where('run.reference.indicators.0.read', 'direct'));
+});
+
+test('the assistant names withdrawal and states the readings it may — never the pay-derived one', function () {
+    $user = actingAsSuperAdmin();
+    $maria = Employee::factory()->create(['first_name' => 'Maria', 'middle_name' => null, 'last_name' => 'Reyes', 'suffix' => null, 'employment_status' => 'active']);
+    $run = AttritionRiskRun::create(['status' => 'completed', 'employees_scored' => 1, 'high_count' => 0, 'medium_count' => 1, 'low_count' => 0, 'average_score' => 55.9, 'average_confidence' => 1]);
+    $run->scores()->create([
+        'employee_id' => $maria->id, 'probability' => 0.559, 'score' => 55.9, 'tier' => 'medium', 'confidence' => 1,
+        'factors' => [['feature' => 'withdrawal', 'label' => 'Withdrawal (absences and lateness)', 'impact' => 0.1876, 'direction' => 'up']],
+        'explanation' => ['baseline' => 37.1, 'indicators' => [
+            ['key' => 'withdrawal', 'level' => 'High', 'read' => 'direct', 'points' => 18.8],
+            ['key' => 'career_stagnation', 'level' => 'Stalled', 'read' => 'inputs', 'points' => 0.0],
+            ['key' => 'workload_strain', 'level' => 'High', 'read' => 'none', 'points' => null],
+            ['key' => 'effort_reward', 'level' => 'Imbalanced', 'read' => 'none', 'points' => null],
+        ]],
+        'features' => ['absences_90d' => 7, 'lates_90d' => 6, 'overtime_hours_90d' => 40, 'monthly_salary' => 18500],
+    ]);
+
+    $read = app(AttritionRiskModule::class)->run($user, 'get_attrition_risk', ['employee' => 'Maria Reyes']);
+    $meta = implode(' | ', $read->cards[0]['meta']);
+
+    expect($meta)->toContain('What moves it: Withdrawal (absences and lateness) raises it (+18.8 points)')
+        ->toContain('Withdrawal: High (in the score, +18.8 points)')
+        ->toContain('Career stagnation: Stalled (in the score, no effect here)')
+        ->toContain('Workload strain: High (not in the score)')
+        ->not->toContain('Effort')
+        ->not->toContain('Imbalanced');
+});

@@ -87,8 +87,13 @@ def test_the_metrics_record_an_honest_evaluation():
 
     assert metrics["algorithm"] == "SVC"
     assert metrics["n_rows"] == len(survey.load()[0])
-    for key in ("cv_roc_auc", "cv_pr_auc", "nested_cv_roc_auc", "permutation_p_value", "cross_source_roc_auc"):
+    for key in ("cv_roc_auc", "cv_pr_auc", "nested_cv_roc_auc", "permutation_p_value", "cross_source_roc_auc",
+                "unseen_roc_auc", "previous_model", "indicator_ablation"):
         assert key in metrics
+    # Withdrawal is in the model because it beat the previous inputs on splits no choice
+    # was made on, and with every choice made inside the folds.
+    assert metrics["unseen_roc_auc"] > metrics["previous_model"]["unseen_roc_auc"]
+    assert metrics["nested_cv_roc_auc"] > metrics["previous_model"]["nested_cv_roc_auc"]
     # Better than the prior-only baseline, or it should not be served at all.
     assert metrics["cv_roc_auc"] > metrics["comparison"]["Baseline (prior)"]
     # Even with its settings chosen inside each fold, and beyond chance.
@@ -183,21 +188,40 @@ def test_refs_are_echoed_in_order_for_a_batch(client):
 
 def test_factors_explain_only_what_was_recorded(client):
     # Only absences and lates are sent: everything else is imputed to its typical
-    # value, so nothing else can be offered as a reason.
+    # value, so nothing else can be offered as a reason — and the model reads the two
+    # together, as withdrawal, so that is the one reason they make.
     [result] = predict(client, {"absences_90d": 12, "lates_90d": 12})
 
-    features = {f["feature"] for f in result["factors"] or []}
-    assert features <= {"absences_90d", "lates_90d"}
+    assert [f["feature"] for f in result["factors"]] == ["withdrawal"]
+    assert result["factors"][0]["components"] == {"absences_90d": 12, "lates_90d": 12}
 
 
-def test_factors_carry_labels_and_a_direction(client):
+def test_factors_carry_labels_a_direction_and_a_group(client):
     [result] = predict(client, {**ERP_EMPLOYEE, "absences_90d": 12, "lates_90d": 12})
+    players = service_registry.get("attrition").players
 
-    for factor in result["factors"] or []:
-        assert factor["feature"] in features.FEATURES
+    assert result["factors"]
+    for factor in result["factors"]:
+        assert factor["feature"] in players
         assert factor["label"] == features.FEATURE_LABELS[factor["feature"]]
         assert factor["direction"] == ("up" if factor["impact"] >= 0 else "down")
+        assert factor["group"] == features.FEATURE_GROUPS[factor["feature"]]
         assert abs(factor["impact"]) >= FACTOR_FLOOR
+
+
+def test_the_served_model_reads_withdrawal_not_the_two_counts():
+    players = service_registry.get("attrition").players
+
+    assert players["withdrawal"] == ["absences_90d", "lates_90d"]
+    assert "absences_90d" not in players and "lates_90d" not in players
+
+
+def test_more_withdrawal_never_lowers_the_score_of_an_otherwise_typical_employee(client):
+    typical = {k: (v.item() if hasattr(v, "item") else v) for k, v in _baseline(service_registry.get("attrition")).items()}
+    steady, withdrawn = predict(client, {**typical, "absences_90d": 0, "lates_90d": 0},
+                                {**typical, "absences_90d": 12, "lates_90d": 12})
+
+    assert withdrawn["probability"] > steady["probability"]
 
 
 def test_a_typical_employee_has_no_drivers(client):

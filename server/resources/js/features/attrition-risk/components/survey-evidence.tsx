@@ -26,8 +26,11 @@ export function SurveyEvidence({
     factors: RiskFactor[];
     evidence: NonNullable<RiskReference['evidence']>;
 }) {
+    // A behavioural indicator's levels sit beside the inputs' bands (ADR 0101).
+    const bandsOf = (feature: string) =>
+        evidence.features[feature] ?? evidence.indicators?.[feature];
     const shown = factors
-        .filter((f) => f.evidence && f.band && evidence.features[f.feature])
+        .filter((f) => f.evidence && f.band && bandsOf(f.feature))
         .slice(0, 3);
 
     if (shown.length === 0) {
@@ -42,7 +45,7 @@ export function SurveyEvidence({
                 <EvidenceRow
                     key={factor.feature}
                     factor={factor}
-                    bands={evidence.features[factor.feature]}
+                    bands={bandsOf(factor.feature)!}
                     overall={evidence.overall_rate}
                     noun={noun}
                 />

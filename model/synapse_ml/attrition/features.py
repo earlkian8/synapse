@@ -5,6 +5,14 @@ Inputs arrive in the units the ERP records (years, pesos per month, hours, days,
 times). The pipeline bands them with the survey's own edges, so an employee's exact
 figures land in exactly the band they would have ticked on the survey. That is what
 makes a model trained on survey answers servable from live HR data.
+
+Two of the inputs are not read on their own. Absences and late arrivals are combined
+into **withdrawal**, a behavioural indicator of emotional disengagement (``INDICATORS``):
+people who are pulling away from a job tend to show it first in lateness and
+absence, before they quit (the withdrawal progression; Rosse, 1988; Hanisch & Hulin,
+1990, 1991; Berry, Lelchook & Clark, 2012). The pipeline builds it from the same
+bands, so the ERP still sends the raw counts and never computes an indicator itself.
+Notebook §5 compares it with the other indicators the survey can support.
 """
 
 from __future__ import annotations
@@ -45,6 +53,33 @@ FEATURE_LABELS = {
     "absences_90d": "Absences (last 90 days)",
     "lates_90d": "Late arrivals (last 90 days)",
     "employment_type": "Employment type",
+    "withdrawal": "Withdrawal (absences and lateness)",
+}
+
+# Behavioural indicators the pipeline derives from the inputs: indicator -> its inputs.
+# Each is read as one input, so it is also one reason in an explanation. Withdrawal
+# averages the standardised absence and lateness bands with equal weights: the two
+# move together (Spearman 0.63 in the survey), and their most frequent bands are where
+# the share who left climbs (notebook §2). Read on their own, as two inputs, they gave
+# the model about 0.01 less ROC-AUC on unseen splits and in nested CV (notebook §5).
+INDICATORS: dict[str, list[str]] = {"withdrawal": ["absences_90d", "lates_90d"]}
+
+# What kind of fact each reason is, for the screens that group them.
+FEATURE_GROUPS = {
+    "employment_type": "structural",
+    "tenure_years": "structural",
+    "monthly_salary": "compensation",
+    "years_since_promotion": "career",
+    "ever_promoted": "career",
+    "withdrawal": "emotional",
+    "absences_90d": "emotional",
+    "lates_90d": "emotional",
+}
+GROUP_LABELS = {
+    "structural": "Structural",
+    "compensation": "Compensation",
+    "career": "Career",
+    "emotional": "Emotional (behavioural indicator)",
 }
 
 # Recorded by the survey and sent by the ERP, but not a model input. Overtime's leave
@@ -56,7 +91,9 @@ EXCLUDED = {"overtime_hours_90d": "no signal: the share who left is flat across 
 CATEGORICAL_FEATURES = ["employment_type"]
 RECORDED_FEATURES = list(BAND_EDGES) + CATEGORICAL_FEATURES  # every encoded survey answer
 NUMERIC_FEATURES = [f for f in BAND_EDGES if f not in EXCLUDED]
-FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES  # the model's inputs
+FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES  # the model's inputs, as the ERP sends them
+INDICATOR_INPUTS = [f for inputs in INDICATORS.values() for f in inputs]
+DIRECT_FEATURES = [f for f in NUMERIC_FEATURES if f not in INDICATOR_INPUTS]  # numbers read as they are
 
 # Tier cut-points on the probability scale (the inference service applies the same).
 TIER_CUTS = {"low_below": 0.33, "medium_below": 0.66}
@@ -67,16 +104,24 @@ def band_of(feature: str, value: float) -> int:
     return int(np.digitize([value], BAND_EDGES[feature])[0])
 
 
-def preprocessor(scale: bool = False, numeric: list[str] | None = None):
+def preprocessor(scale: bool = False, numeric: list[str] | None = None, indicators: bool = True,
+                 extra: list[str] | None = None):
     """The preprocessing every candidate model shares.
 
     Numeric: impute the median (in the survey only salary is ever missing — "prefer not
     to say"; in an organisation's own records, attendance that was never tracked),
     band each column with its own edges, optionally standardise for linear models.
-    Categorical: one-hot, ignoring values not seen in training. ``numeric`` overrides
-    the numeric inputs (the notebook's ablation puts overtime back). Built from stock
-    scikit-learn/NumPy callables only, so a fitted pipeline unpickles anywhere without
-    importing this package.
+    Indicators (``INDICATORS``): impute and band their inputs the same way, standardise
+    the bands and average them into one column. Categorical: one-hot, ignoring values
+    not seen in training.
+
+    ``numeric`` overrides the numeric inputs (the notebook's ablation puts overtime
+    back); ``indicators=False`` reads every numeric input on its own, as the model did
+    before withdrawal; ``extra`` names already-numeric columns a candidate adds
+    (notebook §5), imputed and passed through. Built from stock scikit-learn/NumPy
+    callables only, so a fitted pipeline unpickles anywhere without importing this
+    package. The branch names (``num``, one per indicator, ``cat``) are part of the
+    serving contract: the inference service reads an indicator's branch as one input.
     """
     from sklearn.compose import ColumnTransformer
     from sklearn.impute import SimpleImputer
@@ -84,30 +129,47 @@ def preprocessor(scale: bool = False, numeric: list[str] | None = None):
     from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
     numeric = NUMERIC_FEATURES if numeric is None else numeric
-    banding = ColumnTransformer(
-        [
-            (name, FunctionTransformer(np.digitize, kw_args={"bins": np.asarray(BAND_EDGES[name])}, feature_names_out="one-to-one"), [i])
-            for i, name in enumerate(numeric)
-        ],
-        verbose_feature_names_out=False,
-    )
+    derived = {name: inputs for name, inputs in INDICATORS.items() if indicators and set(inputs) <= set(numeric)}
+    direct = [f for f in numeric if not any(f in inputs for inputs in derived.values())]
+
+    def banding(names: list[str]):
+        return ColumnTransformer(
+            [
+                (name, FunctionTransformer(np.digitize, kw_args={"bins": np.asarray(BAND_EDGES[name])}, feature_names_out="one-to-one"), [i])
+                for i, name in enumerate(names)
+            ],
+            verbose_feature_names_out=False,
+        )
+
     # ``keep_empty_features``: a column nobody recorded (an organisation that tracks no
     # attendance) stays in place as a constant rather than being dropped, which would
     # shift every column after it out from under its band edges.
-    numeric_steps = [("impute", SimpleImputer(strategy="median", keep_empty_features=True)), ("band", banding)]
+    def impute(strategy: str = "median"):
+        return SimpleImputer(strategy=strategy, keep_empty_features=True)
+
+    numeric_steps = [("impute", impute()), ("band", banding(direct))]
     if scale:
         numeric_steps.append(("scale", StandardScaler()))
+    branches = [("num", Pipeline(numeric_steps), direct)]
 
-    categorical_steps = [
-        ("impute", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
-        ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-    ]
-    return ColumnTransformer(
-        [
-            ("num", Pipeline(numeric_steps), numeric),
-            ("cat", Pipeline(categorical_steps), CATEGORICAL_FEATURES),
+    for name, inputs in derived.items():
+        steps = [
+            ("impute", impute()),
+            ("band", banding(inputs)),
+            ("standardise", StandardScaler()),
+            ("combine", FunctionTransformer(np.mean, kw_args={"axis": 1, "keepdims": True})),
         ]
-    )
+        if scale:
+            steps.append(("scale", StandardScaler()))
+        branches.append((name, Pipeline(steps), inputs))
+
+    if extra:
+        extra_steps = [("impute", impute())] + ([("scale", StandardScaler())] if scale else [])
+        branches.append(("extra", Pipeline(extra_steps), extra))
+
+    categorical_steps = [("impute", impute("most_frequent")), ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]
+    branches.append(("cat", Pipeline(categorical_steps), CATEGORICAL_FEATURES))
+    return ColumnTransformer(branches)
 
 
 def feature_contract(X) -> dict:
@@ -118,6 +180,9 @@ def feature_contract(X) -> dict:
         "categorical": CATEGORICAL_FEATURES,
         "categorical_levels": {col: sorted(X[col].dropna().unique().tolist()) for col in CATEGORICAL_FEATURES},
         "excluded": EXCLUDED,
+        "indicators": {name: {"inputs": inputs, "combined": "mean of the standardised bands, equal weights"}
+                       for name, inputs in INDICATORS.items()},
+        "groups": FEATURE_GROUPS,
         "band_edges": BAND_EDGES,
         "band_labels": BAND_LABELS,
         "labels": FEATURE_LABELS,

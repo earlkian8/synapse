@@ -348,8 +348,21 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
     except (ValueError, np.linalg.LinAlgError) as exc:
         log.warning("'%s' local model could not be fitted on every example: %s", model, exc)
         return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
-    evidence = attrition_evidence.profile(ex.X, ex.y, source="own_records") if model == "attrition" else None
+    evidence = attrition_evidence.profile(_recorded(rows), ex.y, source="own_records") if model == "attrition" else None
     return Outcome("passed", findings, comparison, fitted, counts=have, evidence=evidence)
+
+
+def _recorded(rows: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    """Attrition: every recorded input of every example, overtime included — not a model
+    input, but what workload strain and effort–reward imbalance are read from."""
+    columns = attrition_features.RECORDED_FEATURES
+    frame = pd.DataFrame([{c: dict(row.get("features") or {}).get(c) for c in columns} for row in rows], columns=columns)
+    for column in columns:
+        if column in attrition_features.CATEGORICAL_FEATURES:
+            frame[column] = frame[column].astype(object).where(frame[column].notna(), np.nan)
+        else:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame
 
 
 def _words(c: Mapping[str, Any]) -> dict[str, Any]:

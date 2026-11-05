@@ -16,7 +16,9 @@ use App\Models\Employee;
  *
  * Values are sent in their natural units (years, pesos, hours, days, times). The
  * model's own pipeline bands them exactly as the survey did, so the ERP never
- * needs to know where the survey drew its lines.
+ * needs to know where the survey drew its lines. It also builds the behavioural
+ * indicators itself (ADR 0101): absences and late arrivals are read together as
+ * withdrawal, so the ERP sends the two counts, never an indicator.
  *
  * A value is only sent when it is grounded in a record. In particular, an employee
  * with no attendance tracked over the window gets **no** attendance features — sending

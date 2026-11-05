@@ -22,6 +22,9 @@ import type { RiskFactor, RiskRun, RiskScenario, RiskScore } from './types';
  * what is on record — no model call, and nothing said that the record does not show.
  */
 
+/** Withdrawal's levels, least to most (synapse_ml.attrition.indicators). */
+const WITHDRAWAL_LEVELS = ['None', 'Low', 'Moderate', 'High'] as const;
+
 /** A run older than this is flagged as possibly out of date. */
 const STALE_DAYS = 60;
 
@@ -308,6 +311,29 @@ export function attritionSteps(
                 }
 
                 break;
+
+            case 'withdrawal': {
+                // Less withdrawn than typical and still raising risk is the survey's
+                // own pattern, explained under Reasons — not something to act on.
+                const levels = WITHDRAWAL_LEVELS as readonly string[];
+
+                if (
+                    levels.indexOf(String(value)) >
+                    levels.indexOf(String(typical))
+                ) {
+                    const phrase = reasonPhrase(factor, score.features);
+                    add({
+                        key: 'withdrawal',
+                        title: 'Ask what is behind the absences and late arrivals',
+                        because: `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} adds ${points}. Read together they indicate withdrawal, which often comes before a resignation — a sign to ask about, not a verdict.${evidence}`,
+                    });
+                    prompts.push(
+                        'Is anything making it hard to be at work right now?',
+                    );
+                }
+
+                break;
+            }
 
             case 'absences_90d':
             case 'lates_90d':

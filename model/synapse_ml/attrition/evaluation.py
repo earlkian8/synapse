@@ -20,6 +20,10 @@ from .model import SEED, fit
 
 REPEATS = 10
 FOLDS = 5
+# Seeds no setting or input was ever chosen on: the confirmation every choice must pass.
+# (The choices were made on the REPEATS seeds from SEED; tuned on those alone, a model
+# once read 0.713 there and 0.61 in nested CV.)
+UNSEEN_SEEDS = tuple(range(5000, 5030))
 
 
 def _splits(X, y, groups, folds: int, seed: int):
@@ -35,6 +39,20 @@ def oof_predictions(pipeline, X: pd.DataFrame, y: pd.Series, groups, repeats: in
             fitted = fit(clone(pipeline), X.iloc[train], y.iloc[train])
             out[r, test] = fitted.predict_proba(X.iloc[test])[:, 1]
     return out
+
+
+def per_seed_roc_auc(pipeline, X: pd.DataFrame, y: pd.Series, groups, seeds=UNSEEN_SEEDS,
+                     folds: int = FOLDS) -> np.ndarray:
+    """One out-of-fold ROC-AUC per seed: one reshuffled grouped CV each. Two pipelines
+    scored on the same seeds are compared split for split (``paired``)."""
+    return np.array([roc_auc_score(y, oof_predictions(pipeline, X, y, groups, 1, folds, seed)[0]) for seed in seeds])
+
+
+def paired(after: np.ndarray, before: np.ndarray) -> dict[str, float | int]:
+    """How ``after`` compares with ``before`` on the same splits: the mean difference
+    and on how many of the splits it came out ahead."""
+    diff = np.asarray(after) - np.asarray(before)
+    return {"mean_gain": float(diff.mean()), "ahead": int((diff > 0).sum()), "splits": int(len(diff))}
 
 
 def summarise(oof: np.ndarray, y: pd.Series) -> dict[str, float]:

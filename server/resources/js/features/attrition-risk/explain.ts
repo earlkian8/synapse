@@ -2,9 +2,73 @@ import type { LedgerStep } from '@/features/prediction-insights/components/contr
 import { formatPoints, joinWords } from '@/features/prediction-insights/lib';
 import type { ChartGroup } from '@/features/prediction-insights/lib';
 import { INPUT_FIELDS, TIER_LABELS } from './constants';
-import type { RiskFactor, RiskRun, RiskScore, RiskTier } from './types';
+import type {
+    FactorGroup,
+    RiskFactor,
+    RiskRun,
+    RiskScore,
+    RiskTier,
+} from './types';
 
 const FIELDS = Object.fromEntries(INPUT_FIELDS.map((f) => [f.key, f]));
+
+/**
+ * Reasons that are not inputs: behavioural indicators the model builds from them
+ * (ADR 0101). Withdrawal is absences and lateness read together.
+ */
+const INDICATOR_REASONS: Record<string, string> = {
+    withdrawal: 'Withdrawal',
+};
+
+/** What kind of fact each group of reasons is, as the page names it. */
+export const GROUP_LABELS: Record<FactorGroup, string> = {
+    structural: 'Structural',
+    compensation: 'Compensation',
+    career: 'Career',
+    emotional: 'Emotional indicator',
+};
+
+/** Whether a reason is an indicator built from several inputs (its value is a level). */
+export function isIndicator(factor: Pick<RiskFactor, 'feature'>): boolean {
+    return factor.feature in INDICATOR_REASONS;
+}
+
+/** The inputs an indicator was read from, as the page shows them ("7 days absent, late 6 times"). */
+export function componentsPhrase(
+    components: Record<string, number | string> | null | undefined,
+): string | null {
+    if (!components) {
+        return null;
+    }
+
+    const parts: string[] = [];
+
+    if (components.absences_90d !== undefined) {
+        const days = Math.round(Number(components.absences_90d));
+        parts.push(
+            days === 0
+                ? 'never absent'
+                : `${formatInput('absences_90d', days)} absent`,
+        );
+    }
+
+    if (components.lates_90d !== undefined) {
+        const times = Math.round(Number(components.lates_90d));
+        parts.push(
+            times === 0
+                ? 'never late'
+                : `late ${formatInput('lates_90d', times)}`,
+        );
+    }
+
+    if (components.overtime_hours_90d !== undefined) {
+        parts.push(
+            `${formatInput('overtime_hours_90d', components.overtime_hours_90d)} overtime`,
+        );
+    }
+
+    return parts.length > 0 ? parts.join(', ') : null;
+}
 
 /** The tiers as chart groups, Stable → High risk. */
 export const RISK_GROUPS: readonly ChartGroup<RiskTier>[] = [
@@ -44,7 +108,11 @@ export function riskThresholds(
 export function inputLabel(
     factor: Pick<RiskFactor, 'feature' | 'label'>,
 ): string {
-    return FIELDS[factor.feature]?.label ?? factor.label;
+    return (
+        FIELDS[factor.feature]?.label ??
+        INDICATOR_REASONS[factor.feature] ??
+        factor.label
+    );
 }
 
 /** A recorded value as the page shows it ("8 mos", "₱22,076", "Never"). */
@@ -65,6 +133,20 @@ export function factorPoints(factor: RiskFactor): number {
 export function factorDetail(factor: RiskFactor): string | undefined {
     if (factor.value === undefined) {
         return undefined;
+    }
+
+    if (isIndicator(factor)) {
+        const read = componentsPhrase(factor.components);
+        const level = `${factor.value} ${INDICATOR_REASONS[factor.feature]!.toLowerCase()}`;
+
+        return [
+            read ? `${level}: ${read}` : level,
+            factor.typical !== undefined
+                ? `typical ${String(factor.typical).toLowerCase()}`
+                : null,
+        ]
+            .filter(Boolean)
+            .join(' · ');
     }
 
     const own = formatInput(factor.feature, factor.value);
@@ -118,6 +200,11 @@ export function reasonPhrase(
                 : `${formatInput('lates_90d', value).replace('time', 'late arrival')} in 90 days`;
         case 'employment_type':
             return `${formatInput('employment_type', value).toLowerCase()} employment`;
+        case 'withdrawal': {
+            const read = componentsPhrase(factor.components);
+
+            return `${String(value).toLowerCase()} withdrawal${read ? ` (${read} in 90 days)` : ''}`;
+        }
         default:
             return inputLabel(factor).toLowerCase();
     }
@@ -138,7 +225,12 @@ export function ledgerSteps(score: RiskScore): LedgerStep[] {
     return score.factors.map((factor) => ({
         key: factor.feature,
         label: inputLabel(factor),
-        detail: factorDetail(factor),
+        detail:
+            factor.group === 'emotional'
+                ? [GROUP_LABELS.emotional, factorDetail(factor)]
+                      .filter(Boolean)
+                      .join(' · ')
+                : factorDetail(factor),
         points: factorPoints(factor),
         favourable: factorPoints(factor) < 0,
     }));

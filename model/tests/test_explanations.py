@@ -19,8 +19,9 @@ from fastapi.testclient import TestClient
 from api.main import app
 from api.main import registry as service_registry
 from api.registry import FACTOR_FLOOR, _baseline
-from synapse_ml.attrition import evidence
+from synapse_ml.attrition import evidence, indicators
 from synapse_ml.attrition.features import FEATURES as ATTRITION_FEATURES
+from synapse_ml.attrition.features import INDICATORS
 from synapse_ml.explain import shapley
 from synapse_ml.paths import ARTIFACTS_DIR
 from synapse_ml.performance.model import PerformanceForecastModel
@@ -145,10 +146,50 @@ def test_attrition_reasons_carry_values_bands_and_survey_evidence(client):
     assert abs(result["baseline"] + shown - result["score"]) <= hidden
 
     for factor in result["factors"]:
-        assert factor["value"] == pytest.approx(ERP_EMPLOYEE[factor["feature"]]) or factor["value"] == ERP_EMPLOYEE[factor["feature"]]
+        if factor["feature"] in INDICATORS:  # an indicator's value is its level, from its inputs
+            assert factor["value"] == indicators.level_label(factor["feature"], ERP_EMPLOYEE)
+            assert factor["components"] == {k: ERP_EMPLOYEE[k] for k in INDICATORS[factor["feature"]]}
+        else:
+            assert factor["value"] == pytest.approx(ERP_EMPLOYEE[factor["feature"]]) or factor["value"] == ERP_EMPLOYEE[factor["feature"]]
         assert factor["band"] == evidence.band_label(factor["feature"], factor["value"])
         assert factor["band"] != factor["typical_band"]  # the typical band moves nothing
         assert 0 <= factor["evidence"]["rate"] <= 1 and factor["evidence"]["people"] > 0
+
+
+@needs_attrition
+def test_withdrawal_is_one_reason_with_the_survey_s_rate_at_its_level(client):
+    withdrawn = {**ERP_EMPLOYEE, "absences_90d": 8, "lates_90d": 6}
+    [result] = client.post("/predict/attrition", json={"instances": [{"ref": "1", "features": withdrawn}]}).json()["results"]
+    [reason] = [f for f in result["factors"] if f["feature"] == "withdrawal"]
+
+    assert not {"absences_90d", "lates_90d"} & {f["feature"] for f in result["factors"]}
+    assert reason["value"] == reason["band"] == "High" and reason["direction"] == "up"
+    assert reason["group"] == "emotional"
+    assert reason["components"] == {"absences_90d": 8, "lates_90d": 6}
+    assert reason["evidence"]["people"] > 0
+
+
+@needs_attrition
+def test_each_result_reads_the_behavioural_indicators_it_can(client):
+    record = {**ERP_EMPLOYEE, "overtime_hours_90d": 40}
+    [result] = client.post("/predict/attrition", json={"instances": [{"ref": "1", "features": record}]}).json()["results"]
+    by_key = {r["key"]: r for r in result["indicators"]}
+
+    assert set(by_key) == {"withdrawal", "career_stagnation", "workload_strain", "effort_reward"}
+    assert by_key["withdrawal"]["read"] == "direct"
+    reason = next((f for f in result["factors"] if f["feature"] == "withdrawal"), None)
+    if reason is not None:
+        assert by_key["withdrawal"]["points"] == pytest.approx(reason["impact"] * 100, abs=0.06)
+    assert by_key["career_stagnation"]["read"] == "inputs"
+    # Not read by the score: a reading with no points, and the overtime that places it.
+    assert by_key["workload_strain"]["read"] == "none" and by_key["workload_strain"]["points"] is None
+    assert by_key["workload_strain"]["level"] == "High" and by_key["workload_strain"]["inputs"] == {"overtime_hours_90d": 40}
+
+
+@needs_attrition
+def test_nothing_on_record_reads_no_indicator(client):
+    [result] = client.post("/predict/attrition", json={"instances": [{"ref": "1", "features": {}}]}).json()["results"]
+    assert result["indicators"] is None
 
 
 @needs_attrition
@@ -163,6 +204,9 @@ def test_the_attrition_reference_states_the_typical_employee_and_the_survey(clie
     if reference["evidence"] is not None:  # written by `python -m synapse_ml.attrition.evidence`
         assert reference["evidence"]["source"] == "survey"
         assert set(reference["evidence"]["features"]) == set(ATTRITION_FEATURES)
+        assert set(reference["evidence"]["indicators"]) == {i.key for i in indicators.CATALOGUE}
+    assert [d["key"] for d in reference["indicators"]] == [i.key for i in indicators.CATALOGUE]
+    assert {d["key"]: d["read"] for d in reference["indicators"]}["withdrawal"] == "direct"
 
 
 # ---- attrition: what the model would score with a change HR can make ---------------------

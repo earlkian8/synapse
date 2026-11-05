@@ -9,7 +9,11 @@ namespace App\Support\Ml;
  *  - per score (`explanation`): `baseline` — the score of a typical record, which the
  *    score's factors add up from (attrition, promotion); `scenarios` — the score the
  *    model gives the same record with a change HR can make: a promotion, regular
- *    employment, a raise into the next pay band (attrition, ADR 0099); `outlook` —
+ *    employment, a raise into the next pay band (attrition, ADR 0099); `indicators` —
+ *    the behavioural indicators of emotional states the record reads on (withdrawal,
+ *    career stagnation, workload strain, effort–reward imbalance), each with its level,
+ *    the points the score gives it and the survey's leave rate there (attrition,
+ *    ADR 0101); `outlook` —
  *    readiness after the next appraisal, by the rating it gives (promotion);
  *    `chances` — the chance of every band (performance);
  *  - per run (`reference`): what every score in it is read against — the typical
@@ -23,7 +27,7 @@ final class PredictionExplanation
 {
     /** The explanation keys each model's results carry. */
     private const KEYS = [
-        'attrition' => ['baseline', 'scenarios'],
+        'attrition' => ['baseline', 'scenarios', 'indicators'],
         'promotion' => ['baseline', 'outlook'],
         'performance' => ['chances'],
     ];

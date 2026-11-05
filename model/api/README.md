@@ -85,8 +85,11 @@ rating lands in that band).
   workforce; `tier` is by lift over the 10 % base rate (high ≥ 2×, medium ≥ 1×).
 - `factors` explain each prediction. **Promotion**: readiness points each recorded input
   moves the score against a typical value (effects under one point omitted).
-  **Attrition**: *what-if-typical* probability deltas (an input that was not sent is
-  imputed to exactly the typical value, so it can never appear as a reason). None for
+  **Attrition**: exact Shapley values in risk points against a typical employee (an
+  input that was not sent is imputed to exactly the typical value, so it can never
+  appear as a reason). Absences and lateness are one reason, `withdrawal`, whose
+  `value` is its level and whose `components` are the two counts; every factor names
+  its `group` (`structural`, `compensation`, `career`, `emotional`). None for
   the performance forecast, which has one input. Protected/demographic attributes are
   never inputs and never reasons.
 - `warnings` on a result note any value held at the model's trained range (e.g. a 30 %
@@ -94,6 +97,13 @@ rating lands in that band).
   the model does not read — a sign the caller and the model disagree about the contract.
   Laravel logs them.
 - `score` for attrition is `probability × 100`, tiered at 0.33 / 0.66.
+- `indicators` (attrition, ADR 0101): the behavioural indicators of emotional states the
+  record can be read on — `withdrawal`, `career_stagnation`, `workload_strain`,
+  `effort_reward` — each with its `level`, how the score reads it (`read`: `direct`,
+  `inputs` or `none`), the risk `points` it is responsible for (null when unread), the
+  `inputs` it was read from and the survey's leave rate at that level. The response's
+  `reference.indicators` states each one once: what it reads as, the theory, its levels,
+  and why the score does not read it when it does not.
 
 Scoring with an organisation's own model: add a `variant` naming it. The response's
 `model_version` then reads `local:<version>`. An unknown variant is a **404** — the
@@ -155,8 +165,9 @@ names the employee it belongs to (`group`), so no person lands on both sides of 
 - **Attrition inputs are raw ERP values** (`tenure_years`, `monthly_salary`,
   `years_since_promotion`, `ever_promoted`, `overtime_hours_90d`, `absences_90d`,
   `lates_90d`, `employment_type`). The pipeline bands them with the survey's own edges
+  and builds withdrawal from absences and lateness itself
   (`synapse_ml/attrition/features.py`, also written to
-  `artifacts/attrition/feature_contract.json`), so callers never need to know them.
+  `artifacts/attrition/feature_contract.json`), so callers never need to know either.
 - `/health` lists only the models whose artifact exists. Each Laravel page treats
   "service up but its model missing" as unavailable, so train the notebook before
   expecting the Run button to enable.

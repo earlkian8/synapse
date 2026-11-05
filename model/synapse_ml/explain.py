@@ -17,6 +17,11 @@ Najmi, 2020). Two properties make it the right tool for an HR screen:
 
 The models here read at most seven inputs, so the exact sum over every coalition
 (2^7 = 128 rows per record) is cheap — one batched ``predict`` call for a whole run.
+
+A **player** can stand for several inputs (``groups``): when a model reads two inputs
+only as one derived value — attrition's withdrawal, built from absences and lateness —
+they are revealed together, so the reason is the derived value's and the two are never
+split into halves of a whole that the model never reads apart.
 """
 
 from __future__ import annotations
@@ -42,15 +47,18 @@ def shapley(
     explained: Sequence[Sequence[str]],
     typical: Mapping[str, Any],
     predict: Callable[[list[dict[str, Any]]], Sequence[float]],
+    groups: Mapping[str, Sequence[str]] | None = None,
 ) -> list[tuple[float, dict[str, float]]]:
     """Exact baseline Shapley values for each row.
 
-    ``explained[i]`` names the inputs to attribute for ``rows[i]`` (its recorded
-    ones); every other key is passed through unchanged. ``predict`` maps a list of
-    records to scores on the scale the explanation is read in. Returns, per row, the
-    typical record's score and each explained input's contribution; they sum to the
-    row's own score.
+    ``explained[i]`` names the players to attribute for ``rows[i]`` (its recorded
+    ones); every other key is passed through unchanged. A player is an input, or a name
+    in ``groups`` standing for the inputs it lists, which are set to their typical
+    values together. ``predict`` maps a list of records to scores on the scale the
+    explanation is read in. Returns, per row, the typical record's score and each
+    explained player's contribution; they sum to the row's own score.
     """
+    groups = groups or {}
     batch: list[dict[str, Any]] = []
     starts: list[int] = []
     for row, names in zip(rows, explained, strict=True):
@@ -61,7 +69,8 @@ def shapley(
             hybrid = dict(row)
             for j, name in enumerate(names):
                 if not (mask >> j) & 1:
-                    hybrid[name] = typical[name]
+                    for field in groups.get(name, (name,)):
+                        hybrid[field] = typical[field]
             batch.append(hybrid)
 
     values = np.asarray(predict(batch), dtype=float) if batch else np.array([])

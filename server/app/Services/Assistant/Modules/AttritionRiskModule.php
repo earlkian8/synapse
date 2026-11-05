@@ -151,6 +151,9 @@ class AttritionRiskModule extends PredictiveModule
             $factors === [] ? 'The model did not attribute this score to its inputs' : 'What moves it: '.collect($factors)->map(fn (array $f): string => $f['label'].($f['direction'] === 'up' ? ' raises it' : ' lowers it').($f['points'] !== null ? ' ('.($f['direction'] === 'up' ? '+' : '−').PredictionWording::number($f['points']).' points)' : ''))->implode('; '),
             isset($score->explanation['baseline']) ? 'A typical employee scores '.PredictionWording::score((float) $score->explanation['baseline']).'/100; each factor\'s points are measured from there' : null,
             $payMoved || array_key_exists('monthly_salary', $features) ? 'Pay is also one of its inputs; it is not discussed here.' : null,
+            ($indicators = collect($score->explanation['indicators'] ?? [])->filter(fn (mixed $r): bool => is_array($r))->map(fn (array $r): ?string => PredictionWording::attritionIndicator($r))->filter())->isNotEmpty()
+                ? 'Behavioural indicators (they indicate how someone may feel, they do not measure it): '.$indicators->implode('; ')
+                : null,
             'Based on: '.(collect($features)->map(fn (mixed $value, string $key): ?string => PredictionWording::attritionInput($key, $value))->filter()->implode('; ') ?: 'nothing on record'),
             $missing->isNotEmpty() ? 'Not on record (estimated): '.$missing->implode(', ') : null,
             $previous !== null ? 'Previous assessment: '.PredictionWording::score((float) $previous->score).'/100 ('.(PredictionWording::RISK_TIERS[$previous->tier] ?? $previous->tier).')' : null,

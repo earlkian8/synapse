@@ -34,6 +34,57 @@ export type RiskFactor = {
     band?: string | null;
     typical_band?: string | null;
     evidence?: RiskEvidence | null;
+    /** What kind of fact it is (runs from ADR 0101 on). */
+    group?: FactorGroup | null;
+    /**
+     * For a behavioural indicator built from several inputs (withdrawal: absences and
+     * lateness), whose `value` is its level: the recorded inputs, and the typical ones.
+     */
+    components?: Record<string, number | string> | null;
+    typical_components?: Record<string, number | string> | null;
+};
+
+export type FactorGroup =
+    'structural' | 'compensation' | 'career' | 'emotional';
+
+/**
+ * How the score reads a behavioural indicator (ADR 0101): as one of its inputs
+ * (withdrawal), through the inputs it is built from (career stagnation), or not at all
+ * (workload strain, effort–reward imbalance — tested, and they made it less accurate).
+ */
+export type IndicatorRead = 'direct' | 'inputs' | 'none';
+
+/** One behavioural indicator of an emotional state, read from a person's record. */
+export type RiskIndicatorReading = {
+    key: string;
+    /** Its level in words, and its place among the levels (0 = least). */
+    level: string;
+    rank: number;
+    read: IndicatorRead;
+    /** The risk points the score gives it; null when the score does not read it. */
+    points: number | null;
+    /** The recorded inputs it was read from. */
+    inputs: Record<string, number | string>;
+    /** The share who left at this level in the data the model learned from. */
+    evidence: {
+        rate: number;
+        people: number;
+        overall_rate: number | null;
+    } | null;
+};
+
+/** What an indicator is, stated once per run. */
+export type RiskIndicatorDefinition = {
+    key: string;
+    label: string;
+    /** The emotional state the behaviour is read as. */
+    indicates: string;
+    theory: string;
+    inputs: string[];
+    levels: string[];
+    read: IndicatorRead;
+    /** Why the score does not read it, when it does not. */
+    not_read: string | null;
 };
 
 /**
@@ -52,6 +103,8 @@ export type RiskExplanation = {
     baseline: number;
     /** Runs from ADR 0099 on. */
     scenarios?: RiskScenario[] | null;
+    /** Runs from ADR 0101 on. */
+    indicators?: RiskIndicatorReading[] | null;
 };
 
 /** One band of an input: how many people gave that answer, and how many left. */
@@ -76,7 +129,11 @@ export type RiskReference = {
         left: number;
         overall_rate: number | null;
         features: Record<string, EvidenceBand[]>;
+        /** By behavioural-indicator level (runs from ADR 0101 on). */
+        indicators?: Record<string, EvidenceBand[]>;
     } | null;
+    /** The behavioural indicators (runs from ADR 0101 on). */
+    indicators?: RiskIndicatorDefinition[];
 };
 
 export type RiskEmployee = {

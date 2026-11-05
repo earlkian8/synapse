@@ -16,7 +16,11 @@ of artifact are served:
   rates of the data the model learned from (:mod:`synapse_ml.attrition.evidence`).
   Each attrition result also carries ``scenarios``: the score of the same record
   with a change HR can make (a promotion, regular employment, a raise into the next
-  pay band), so the page can say what the model would weigh differently.
+  pay band), so the page can say what the model would weigh differently — and
+  ``indicators``: the behavioural indicators of emotional states the record can be
+  read on (:mod:`synapse_ml.attrition.indicators`), with the points the score gives
+  each one it reads. An indicator the pipeline derives from several inputs
+  (withdrawal) is one input of the explanation, not several.
 
 Beside these **reference** models, an organisation that has graduated a surface has
 its own model of the same class, fitted on its records (``synapse_ml.local``). It is
@@ -35,9 +39,9 @@ import numpy as np
 import pandas as pd
 
 from synapse_ml.attrition import evidence as attrition_evidence
-from synapse_ml.attrition.features import BAND_EDGES
+from synapse_ml.attrition import indicators as attrition_indicators
+from synapse_ml.attrition.features import BAND_EDGES, FEATURE_GROUPS, TIER_CUTS
 from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
-from synapse_ml.attrition.features import TIER_CUTS
 from synapse_ml.explain import shapley
 from synapse_ml.local import store as local_store
 from synapse_ml.paths import ARTIFACTS_DIR
@@ -102,6 +106,9 @@ class LoadedModel:
     # Leave rates by band in the data it learned from (attrition; see
     # synapse_ml.attrition.evidence) — what each reason is read against.
     evidence: dict[str, Any] | None = None
+    # What an explanation attributes the score to: each input, except where the
+    # pipeline reads several only as one derived value (attrition's withdrawal).
+    players: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def version(self) -> str | None:
@@ -149,16 +156,29 @@ def _loaded(name: str, artifact: Any, metrics: dict[str, Any], tenant: str | Non
         evidence = metrics.get("evidence")
     else:
         evidence = attrition_evidence.load() if name == "attrition" else None
+
+    # Branches by name: "num" (numbers read as they are), "cat" (categories), and any
+    # other — an indicator, whose inputs the explanation reveals together.
+    branches = [(branch, list(columns)) for branch, _, columns in prep.transformers_ if branch != "remainder" and len(columns)]
+    categorical = [c for branch, columns in branches if branch == "cat" for c in columns]
+    players: dict[str, list[str]] = {}
+    for branch, columns in branches:
+        if branch in ("num", "cat"):
+            players.update({column: [column] for column in columns})
+        else:
+            players[branch] = columns
+    features = list(prep.feature_names_in_)
     return LoadedModel(
         name=name,
         kind=_SPECS[name],
         pipeline=artifact,
-        numeric=list(prep.transformers_[0][2]),
-        categorical=list(prep.transformers_[1][2]),
-        features=list(prep.feature_names_in_),
+        numeric=[f for f in features if f not in categorical],
+        categorical=categorical,
+        features=features,
         metrics=metrics,
         tenant=tenant,
         evidence=evidence,
+        players={p: players[p] for p in sorted(players, key=lambda p: features.index(players[p][0]))},
     )
 
 
@@ -197,7 +217,7 @@ class Registry:
             return model.served.assess(feature_dicts)
 
         probabilities, scores = self.score(model, feature_dicts)
-        explained = self.explain(model, feature_dicts)
+        explained = self._explained(model, feature_dicts)
         scenarios = self.scenarios(model, feature_dicts)
         return [
             {
@@ -208,11 +228,20 @@ class Registry:
                 "factors": factors or None,
                 "baseline": baseline,
                 "scenarios": what_if or None,
+                "indicators": readings,
             }
-            for proba, score, (baseline, factors), what_if in zip(
+            for proba, score, (baseline, factors, readings), what_if in zip(
                 probabilities, scores, explained, scenarios, strict=True
             )
         ]
+
+    def _explained(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[tuple[Any, Any, Any]]:
+        """Per instance: the typical record's score, the factors, and — for the
+        attrition pipeline — its behavioural-indicator readings."""
+        estimator = model.pipeline.steps[-1][1]
+        if model.name == "attrition" and model.kind == "classifier" and not hasattr(estimator, "coef_"):
+            return _shapley_factors(model, feature_dicts, with_readings=True)
+        return [(baseline, factors, None) for baseline, factors in self.explain(model, feature_dicts)]
 
     def scenarios(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
         """Per instance, the attrition score the model gives the same record with one
@@ -260,7 +289,7 @@ class Registry:
             return None
         typical = {f: v for f, v in _baseline(model).items() if not _is_protected(f)}
         baseline = float(model.pipeline.predict_proba(model.frame([typical]))[:, 1][0])
-        return {
+        reference = {
             "baseline": round(baseline * 100, 1),
             "typical": {
                 f: {"value": _plain(v), "band": attrition_evidence.band_label(f, _plain(v))} for f, v in typical.items()
@@ -268,6 +297,9 @@ class Registry:
             "tiers": {"medium_from": TIER_CUTS["low_below"] * 100, "high_from": TIER_CUTS["medium_below"] * 100},
             "evidence": model.evidence,
         }
+        if model.name == "attrition":
+            reference["indicators"] = attrition_indicators.definitions(model.players)
+        return reference
 
     def unknown_inputs(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[str]:
         """Input names the callers sent that the model does not read."""
@@ -309,11 +341,13 @@ class Registry:
 
 
 def _factor(feature: str, impact: float) -> dict[str, Any]:
+    raw = feature.split("__", 1)[-1]
     return {
-        "feature": feature.split("__", 1)[-1],
+        "feature": raw,
         "label": _humanize(feature),
         "impact": round(float(impact), 4),
         "direction": "up" if impact >= 0 else "down",
+        "group": FEATURE_GROUPS.get(raw),
     }
 
 
@@ -339,45 +373,75 @@ def _linear_contributions(
     return results
 
 
-def _shapley_factors(model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[tuple[float, list[dict[str, Any]]]]:
+def _shapley_factors(
+    model: LoadedModel, feature_dicts: list[dict[str, Any]], with_readings: bool = False
+) -> list[tuple[float, list[dict[str, Any]]]] | list[tuple[float, list[dict[str, Any]], list[dict[str, Any]]]]:
     """Model-agnostic explanation for a non-linear classifier, in risk points.
 
-    Each recorded input's exact Shapley value against the typical employee (the
+    Each recorded player's exact Shapley value against the typical employee (the
     medians / modes the pipeline's own imputers learned): the typical employee's score
-    plus every contribution is this employee's score. An input the caller did not send
-    is imputed to exactly that typical value, so it can never appear as a reason —
-    only recorded facts are. Each reason carries the employee's value and band, the
-    typical one, and what the training data shows for both.
+    plus every contribution is this employee's score. A player is an input, or an
+    indicator the pipeline builds from several (withdrawal: absences and lateness),
+    whose inputs are revealed together. An input the caller did not send is imputed to
+    exactly that typical value, so it can never appear as a reason — only recorded
+    facts are. Each reason carries the employee's value and band, the typical one, and
+    what the training data shows for both; an indicator's value is its level, with the
+    inputs it was built from.
+
+    ``with_readings`` adds, per record, its behavioural-indicator readings, each with
+    the points of the players it rests on (below the reason floor too: a reading's
+    points are its share of the score, however small).
     """
     typical = _baseline(model)
     df = model.frame(feature_dicts)
     rows = df.to_dict("records")
+    players = {p: inputs for p, inputs in model.players.items() if all(i in typical for i in inputs)}
     explained = [
-        [f for f in model.features if f in typical and not _is_protected(f) and _recorded(row.get(f))] for row in rows
+        [p for p, inputs in players.items() if not _is_protected(p) and any(_recorded(row.get(i)) for i in inputs)]
+        for row in rows
     ]
 
     def predict(batch: list[dict[str, Any]]) -> np.ndarray:
         return model.pipeline.predict_proba(model.frame(batch))[:, 1] * 100
 
     results = []
-    for row, (baseline, contributions) in zip(rows, shapley(rows, explained, typical, predict), strict=True):
+    computed = shapley(rows, explained, typical, predict, groups=players)
+    for row, sent, (baseline, contributions) in zip(rows, feature_dicts, computed, strict=True):
         ranked = sorted(contributions.items(), key=lambda kv: abs(kv[1]), reverse=True)
         factors = []
-        for feature, points in ranked:
+        for player, points in ranked:
             if abs(points) < FACTOR_FLOOR * 100:
                 continue
-            value, usual = _plain(row[feature]), _plain(typical[feature])
+            inputs = players[player]
+            if inputs == [player]:
+                value, usual = _plain(row[player]), _plain(typical[player])
+                detail: dict[str, Any] = {}
+            else:
+                value = attrition_indicators.level_label(player, row)
+                usual = attrition_indicators.level_label(player, typical)
+                detail = {
+                    "components": {i: _plain(row[i]) for i in inputs if _recorded(row.get(i))},
+                    "typical_components": {i: _plain(typical[i]) for i in inputs},
+                }
             factors.append(
                 {
-                    **_factor(feature, points / 100),
+                    **_factor(player, points / 100),
                     "value": value,
                     "typical": usual,
-                    "band": attrition_evidence.band_label(feature, value),
-                    "typical_band": attrition_evidence.band_label(feature, usual),
-                    "evidence": attrition_evidence.describe(model.evidence, feature, value, usual, points),
+                    "band": attrition_evidence.band_label(player, value),
+                    "typical_band": attrition_evidence.band_label(player, usual),
+                    "evidence": attrition_evidence.describe(model.evidence, player, value, usual, points),
+                    **detail,
                 }
             )
-        results.append((round(baseline, 1), factors))
+        if with_readings:
+            # The record as the caller sent it: overtime is not a model input, but it is
+            # what workload strain and effort–reward imbalance are read from.
+            record = {**{k: _number(v) for k, v in sent.items() if k in BAND_EDGES}, **row}
+            readings = attrition_indicators.readings(record, players, contributions, model.evidence) or None
+            results.append((round(baseline, 1), factors, readings))
+        else:
+            results.append((round(baseline, 1), factors))
     return results
 
 
@@ -420,6 +484,11 @@ def _levers(model: LoadedModel, feats: dict[str, Any]) -> list[tuple[str, dict[s
 
 def _recorded(value: Any) -> bool:
     return value is not None and not (isinstance(value, float) and np.isnan(value))
+
+
+def _number(value: Any) -> float:
+    """A sent value as a number, NaN when it is not one (as the model's frame reads it)."""
+    return float(pd.to_numeric(value, errors="coerce")) if value is not None else np.nan
 
 
 def _plain(value: Any) -> Any:

@@ -65,6 +65,24 @@ final class PredictionWording
         'lates_90d' => 'Late arrivals, last 90 days',
     ];
 
+    /**
+     * Reasons that are not inputs: behavioural indicators the model builds from them
+     * (ADR 0101), by the key a factor carries.
+     */
+    private const ATTRITION_INDICATOR_REASONS = [
+        'withdrawal' => 'Withdrawal (absences and lateness)',
+    ];
+
+    /**
+     * The behavioural indicators of emotional states, as the page names them. Effort–reward
+     * imbalance is read from pay, so it is never stated outside the page either.
+     */
+    public const ATTRITION_INDICATORS = [
+        'withdrawal' => 'Withdrawal',
+        'career_stagnation' => 'Career stagnation',
+        'workload_strain' => 'Workload strain',
+    ];
+
     private const EMPLOYMENT_TYPES = ['regular' => 'Regular', 'probationary' => 'Probationary', 'part_time' => 'Part-time', 'contractual' => 'Contractual'];
 
     /**
@@ -94,7 +112,36 @@ final class PredictionWording
      */
     public static function attritionFactor(string $key): ?string
     {
-        return in_array($key, self::WITHHELD_INPUTS, true) ? null : (self::ATTRITION_INPUTS[$key] ?? null);
+        if (in_array($key, self::WITHHELD_INPUTS, true)) {
+            return null;
+        }
+
+        return self::ATTRITION_INPUTS[$key] ?? self::ATTRITION_INDICATOR_REASONS[$key] ?? null;
+    }
+
+    /**
+     * One behavioural-indicator reading as the assistant may state it — "Withdrawal: High
+     * (in the score, +12.4 points)" — or null for one it may not (pay-derived) or does
+     * not know.
+     *
+     * @param  array<string, mixed>  $reading
+     */
+    public static function attritionIndicator(array $reading): ?string
+    {
+        $label = self::ATTRITION_INDICATORS[$reading['key'] ?? ''] ?? null;
+
+        if ($label === null || ! is_string($reading['level'] ?? null)) {
+            return null;
+        }
+
+        $points = isset($reading['points']) && is_numeric($reading['points']) ? (float) $reading['points'] : null;
+        $read = match (true) {
+            ($reading['read'] ?? 'none') === 'none' => 'not in the score',
+            $points === null || abs($points) < 0.05 => 'in the score, no effect here',
+            default => 'in the score, '.($points > 0 ? '+' : '−').self::number(abs($points)).' points',
+        };
+
+        return "{$label}: {$reading['level']} ({$read})";
     }
 
     /**

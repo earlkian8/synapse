@@ -1,7 +1,8 @@
 """
 Generate the Synapse HR-ERP "Predictive Workforce Analytics" notebooks with nbformat.
 
-    notebooks/01_attrition_model.ipynb     — calibrated SVM attrition risk (attrition survey)
+    notebooks/01_attrition_model.ipynb     — calibrated SVM attrition risk with a behavioural
+                                             indicator of emotional disengagement (attrition survey)
     notebooks/02_performance_model.ipynb   — Gradient Boosting forecast with conformal intervals
     notebooks/03_promotion_model.ipynb     — calibrated Logistic Regression promotion readiness
 
@@ -90,7 +91,15 @@ excluded rather than counted as attrition.
 **Algorithm — an RBF support-vector machine**, isotonically calibrated, chosen by the
 comparison in §4: it scores each person by how close their answers sit to those of the people
 who left, which suits a small, banded table whose signal is in non-monotone shapes (new hires
-*and* mid-tenure staff leave most). Overtime is recorded but not an input (§5).
+*and* mid-tenure staff leave most).
+
+**Emotional factors, read from behaviour** — the survey asked nothing about feelings, so §5
+builds theory-backed *behavioural indicators* of emotional states from the answers it has —
+withdrawal (absences + lateness → disengagement), workload strain (overtime → burnout),
+effort–reward imbalance (overtime against pay and promotion), career stagnation and pay
+relative to peers — and keeps only what improves prediction on splits no choice was made on.
+**Withdrawal** earns its place and is a model input; the others are tested and reported.
+Overtime is recorded but not an input.
 
 **Where the logic lives** — this notebook is the narrative. Cleaning is
 `synapse_ml.attrition.survey`, the feature contract `…features`, the models `…model`, the
@@ -118,6 +127,8 @@ rate = float(y.mean())
 log.info("rows=%d · left=%d (%.1f%%) · stayed=%d", len(y), y.sum(), rate * 100, (1 - y).sum())
 log.info("model inputs (%d): %s · recorded, not modelled: %s", len(features.FEATURES),
          ", ".join(features.FEATURES), ", ".join(features.EXCLUDED))
+log.info("read as indicators: %s", {k: " + ".join(v) for k, v in features.INDICATORS.items()})
+log.info("department answers (Q3, free text) → groups:\\n%s", df["department_group"].value_counts().to_string())
 df.head()
 """))
     cells.append(code("""
@@ -158,6 +169,33 @@ for ax, feature in zip(axes.flat, features.RECORDED_FEATURES):
 fig.suptitle("Share who left, by answer band (dashed = overall rate)")
 fig.tight_layout(); run.save_fig(fig, "02_attrition_by_driver"); plt.show()
 """))
+    cells.append(md("""
+**Behavioural indicators, by level.** Absences and lateness move together, which is what lets
+them be read as one behaviour — withdrawal — rather than two unrelated counts. Each indicator's
+levels are defined in `synapse_ml.attrition.indicators`; the share who left at each level is
+what the screens show beside a reading.
+"""))
+    cells.append(code("""
+from synapse_ml.attrition import indicators
+
+absent_band = df["absences_90d"].map(lambda v: features.band_of("absences_90d", v))
+late_band = df["lates_90d"].map(lambda v: features.band_of("lates_90d", v))
+rho = absent_band.corr(late_band, method="spearman")
+log.info("absences vs lateness bands · Spearman %.2f (overtime vs either: %.2f / %.2f)", rho,
+         df["overtime_hours_90d"].corr(df["absences_90d"], method="spearman"),
+         df["overtime_hours_90d"].corr(df["lates_90d"], method="spearman"))
+
+levels = indicators.profile(df[features.RECORDED_FEATURES], y)
+fig, axes = plt.subplots(1, len(levels), figsize=(18, 3.8))
+for ax, (key, bands) in zip(axes, levels.items()):
+    ax.bar(range(len(bands)), [b["rate"] for b in bands], color="#8172b3" if key == "withdrawal" else "#bbbbbb")
+    ax.set_xticks(range(len(bands)), [f"{b['band']}\\n(n={b['people']})" for b in bands], fontsize=8)
+    ax.axhline(rate, color="k", lw=0.8, ls="--"); ax.set_ylim(0, 1)
+    ax.set_title(indicators.BY_KEY[key].label)
+    log.info("left rate by %s level: %s", key, [(b["band"], b["people"], b["rate"]) for b in bands])
+fig.suptitle(f"Share who left, by indicator level (absences vs lateness: Spearman {rho:.2f})")
+fig.tight_layout(); run.save_fig(fig, "02b_indicators_by_level"); plt.show()
+"""))
 
     cells.append(md("""
 ## 3 · Evaluation protocol
@@ -197,25 +235,73 @@ ranking. An isotonic map is increasing by construction, so it can only reshape t
 """))
 
     cells.append(md("""
-## 5 · Why overtime is not an input — an ablation
+## 5 · Emotional factors — behavioural indicators, before and after
 
-Overtime is recorded (§2) and the ERP sends it, but the model reads it only if it helps. The
-same comparison, with overtime put back:
+Each indicator is built **inside every training fold** (its band means, spreads and department
+medians come from the training rows only), added to — or, for withdrawal, substituted for — the
+inputs it is built from, and scored two ways: on the 10 CV splits of §4, where the choices were
+made, and on **30 splits no choice was ever made on** (`evaluation.UNSEEN_SEEDS`), compared
+split for split with the previous model (absences and lateness read separately, C = 1). A gain
+that only shows on the first set is tuning, not signal.
+
+| indicator | built from | reads as | theory |
+|---|---|---|---|
+| withdrawal | absences + lateness, standardised bands averaged | emotional disengagement | withdrawal progression (Rosse, 1988; Hanisch & Hulin, 1990, 1991; Berry et al., 2012) |
+| workload strain | overtime band, standardised | emotional exhaustion | Job Demands–Resources (Bakker & Demerouti, 2007) |
+| effort–reward imbalance | overtime against pay and time since promotion | feeling under-rewarded | Effort–Reward Imbalance (Siegrist, 1996) |
+| career stagnation | share of tenure since the last promotion | career frustration | career plateau; Herzberg's two-factor theory |
+| pay inequity | pay against the department group's median | unfairness against peers | Equity theory (Adams, 1965) |
 """))
     cells.append(code("""
+from sklearn.base import clone
+
+X_all = df[features.RECORDED_FEATURES + ["department_group"]]
 with_overtime = features.NUMERIC_FEATURES + ["overtime_hours_90d"]
-X_all = df[with_overtime + features.CATEGORICAL_FEATURES]
-ablation = {
-    "SVM": (comparison[models.CHOSEN]["roc_auc"],
-            evaluation.summarise(evaluation.oof_predictions(models.svm(numeric=with_overtime), X_all, y, groups), y)["roc_auc"]),
-    "Random Forest": (comparison["Random Forest"]["roc_auc"],
-                      evaluation.summarise(evaluation.oof_predictions(
-                          models.pipeline(models.candidates()["Random Forest"].named_steps["clf"], numeric=with_overtime),
-                          X_all, y, groups), y)["roc_auc"]),
+designs = {
+    "previous model (absences, lateness apart; C=1)": (models.svm(C=1, indicators=False), X),
+    "absences, lateness apart (C=3)": (models.svm(indicators=False), X),
+    "+ withdrawal (served)": (models.svm(), X),
+    "+ withdrawal + workload strain": (models.svm(add=("workload_strain",)), X_all),
+    "+ withdrawal + effort–reward imbalance": (models.svm(add=("effort_reward",)), X_all),
+    "+ withdrawal + career stagnation": (models.svm(add=("career_stagnation",)), X_all),
+    "+ withdrawal + pay inequity": (models.svm(add=("pay_inequity",)), X_all),
+    "+ withdrawal + overtime as it is": (models.svm(numeric=with_overtime), df[with_overtime + features.CATEGORICAL_FEATURES]),
 }
-ablation = pd.DataFrame(ablation, index=["without overtime", "with overtime"]).T.round(3)
-log.info("overtime ablation (ROC-AUC):\\n%s", ablation.to_string())
-ablation
+seen_seeds = [models.SEED + r for r in range(evaluation.REPEATS)]
+per_split = {name: (evaluation.per_seed_roc_auc(pipe, Xd, y, groups, seen_seeds),
+                    evaluation.per_seed_roc_auc(pipe, Xd, y, groups))
+             for name, (pipe, Xd) in designs.items()}
+before = per_split["previous model (absences, lateness apart; C=1)"][1]
+indicator_table = pd.DataFrame({
+    name: {"CV splits (chosen on)": seen.mean(), "unseen splits": unseen.mean(), "unseen sd": unseen.std(),
+           **{f"vs previous: {k}": v for k, v in evaluation.paired(unseen, before).items()}}
+    for name, (seen, unseen) in per_split.items()}).T
+log.info("behavioural indicators, before and after (ROC-AUC):\\n%s", indicator_table.round(3).to_string())
+
+# Not an SVM artefact: the same substitution for the forest.
+forest = models.candidates()["Random Forest"].named_steps["clf"]
+forest_gain = {
+    "absences, lateness apart": evaluation.per_seed_roc_auc(models.pipeline(clone(forest), indicators=False), X, y, groups).mean(),
+    "withdrawal": evaluation.per_seed_roc_auc(models.pipeline(clone(forest)), X, y, groups).mean(),
+}
+log.info("Random Forest on unseen splits · %s", {k: round(v, 3) for k, v in forest_gain.items()})
+indicator_table.round(3)
+"""))
+    cells.append(md("""
+**Reading it.** Withdrawal is the one indicator that earns its place: substituted for absences
+and lateness it lifts the unseen-split ROC-AUC and comes out ahead on most of the 30 splits; the
+forest gains from it too. Workload strain and effort–reward imbalance both rest on overtime,
+whose leave rate is flat (§2), and each one costs accuracy. Career stagnation adds nothing the
+promotion inputs do not already carry — and in this survey people never promoted left *less*
+often than people who were, the opposite of what stagnation predicts. Pay against the
+department group costs accuracy too: the survey's departments belong to many different
+employers and pay was asked in five broad bands, so a "peer median" here is barely one.
+
+The model therefore reads withdrawal; the system still *shows* workload strain, effort–reward
+imbalance and career stagnation as readings, each with the leave rate at its level and the
+reason above — so a reader can see what was tested, not only what was kept. These are
+**behavioural indicators**: they indicate an emotional state, they do not measure it. Direct
+measures (satisfaction, stress or engagement scales) are what a future survey should add.
 """))
 
     cells.append(md("""
@@ -244,7 +330,9 @@ run.save_fig(fig, "04_permutation_test"); plt.show()
 The SVM's settings (C, gamma) and its inputs were chosen by looking at these same rows, so §4
 is a little optimistic. Nested cross-validation re-runs the *whole choice* inside each training
 fold — the settings are picked without ever seeing the rows they are then scored on. Its score
-is the honest floor; the truth for the fixed model lies between it and §4.
+is the honest floor; the truth for the fixed model lies between it and §4. It is run for both
+designs, so the before/after of §5 is also measured with no choice made on the scored rows —
+and once with the design itself left to the inner folds.
 """))
     cells.append(code("""
 import itertools
@@ -253,6 +341,16 @@ nested, nested_choices = evaluation.nested_cv(models.svm, grid, X, y, groups)
 log.info("nested CV · ROC-AUC %.3f ± %.3f per repeat %s", np.mean(nested), np.std(nested), np.round(nested, 3).tolist())
 log.info("nested CV · settings chosen per fold: %s",
          pd.Series([f"C={c['C']} gamma={c['gamma']}" for c in nested_choices]).value_counts().to_dict())
+
+nested_before, _ = evaluation.nested_cv(lambda C, gamma: models.svm(C=C, gamma=gamma, indicators=False), grid, X, y, groups)
+log.info("nested CV · absences and lateness apart: ROC-AUC %.3f ± %.3f", np.mean(nested_before), np.std(nested_before))
+
+both = [{"withdrawal": w, **g} for w in (True, False) for g in grid]
+nested_design, design_choices = evaluation.nested_cv(
+    lambda withdrawal, C, gamma: models.svm(C=C, gamma=gamma, indicators=withdrawal), both, X, y, groups)
+chose_withdrawal = int(sum(c["withdrawal"] for c in design_choices))
+log.info("nested CV · design chosen inside the folds: ROC-AUC %.3f · withdrawal chosen in %d of %d folds",
+         np.mean(nested_design), chose_withdrawal, len(design_choices))
 """))
 
     cells.append(md("""
@@ -339,28 +437,52 @@ assert abs(p_erp - p_answered) < 1e-12, (p_erp, p_answered)
 log.info("ERP parity · exact ERP values score %.4f, the matching survey answers %.4f", p_erp, p_answered)
 """))
     cells.append(code("""
+from synapse_ml.attrition import evidence as attrition_evidence
+
 svm_cv = comparison[models.CHOSEN]
+svm_settings = final.named_steps["clf"].estimator.get_params()
 run.save_model(final, "attrition_model")
 run.save_json(features.feature_contract(X), "feature_contract")
+written = attrition_evidence.write(df, survey.TARGET, run.artifact_dir / "evidence.json")
+log.info("wrote evidence.json · %d people, %d indicator tables", written["people"], len(written["indicators"]))
+served_unseen = per_split["+ withdrawal (served)"][1]
 run.save_metrics({
     "algorithm": "SVC",
+    "settings": {"C": svm_settings["C"], "gamma": svm_settings["gamma"]},
     "calibration": "isotonic, 5 folds averaged; both outcomes weighted equally",
     "evaluation": f"{evaluation.REPEATS}x repeated grouped stratified {evaluation.FOLDS}-fold CV",
+    "inputs": "tenure, time since promotion, ever promoted, pay, employment type; absences and lateness as withdrawal",
+    "indicators": {k: " + ".join(v) for k, v in features.INDICATORS.items()},
     "cv_roc_auc": svm_cv["roc_auc"], "cv_roc_auc_sd": svm_cv["roc_auc_sd"],
     "cv_pr_auc": svm_cv["pr_auc"], "cv_brier": svm_cv["brier"],
+    "unseen_roc_auc": float(served_unseen.mean()), "unseen_roc_auc_sd": float(served_unseen.std()),
     "nested_cv_roc_auc": float(np.mean(nested)), "nested_cv_roc_auc_sd": float(np.std(nested)),
     "permutation_p_value": p_value,
     "cross_source_roc_auc": cross_source,
     "comparison": {name: round(scores["roc_auc"], 4) for name, scores in comparison.items()},
-    "overtime_ablation_roc_auc": ablation.to_dict(orient="index"),
+    "previous_model": {
+        "inputs": "absences and lateness read separately; C=1",
+        "cv_roc_auc": float(per_split["previous model (absences, lateness apart; C=1)"][0].mean()),
+        "unseen_roc_auc": float(before.mean()),
+        "nested_cv_roc_auc": float(np.mean(nested_before)),
+    },
+    "indicator_ablation": {
+        name: {"cv_roc_auc": round(float(seen.mean()), 4), "unseen_roc_auc": round(float(unseen.mean()), 4),
+               **evaluation.paired(unseen, before)}
+        for name, (seen, unseen) in per_split.items()
+    },
+    "nested_design_choice": {"roc_auc": float(np.mean(nested_design)), "withdrawal_chosen": chose_withdrawal,
+                             "folds": len(design_choices)},
+    "random_forest_withdrawal_unseen": {k: round(float(v), 4) for k, v in forest_gain.items()},
     "excluded_features": features.EXCLUDED,
     "positive_rate": rate,
     "n_rows": int(len(y)), "n_left": int(y.sum()),
     "rows_by_source": df["source"].value_counts().to_dict(),
     "dropped": report.dropped,
 })
-run.finish(summary=f"SVM: CV ROC-AUC={svm_cv['roc_auc']:.3f}±{svm_cv['roc_auc_sd']:.3f}, "
-                   f"nested={np.mean(nested):.3f}, PR-AUC={svm_cv['pr_auc']:.3f}, permutation p={p_value:.3f}")
+run.finish(summary=f"SVM + withdrawal: CV ROC-AUC={svm_cv['roc_auc']:.3f}±{svm_cv['roc_auc_sd']:.3f}, "
+                   f"unseen={served_unseen.mean():.3f}, nested={np.mean(nested):.3f} (before {np.mean(nested_before):.3f}), "
+                   f"PR-AUC={svm_cv['pr_auc']:.3f}, permutation p={p_value:.3f}")
 """))
 
     nb.cells = cells

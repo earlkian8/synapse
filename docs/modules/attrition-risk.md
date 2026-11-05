@@ -36,11 +36,17 @@ design and [attrition-risk tables](../database/attrition-risk-tables.md) for the
     each opening the person there); and how they **compare with** everyone in the run,
     their department and their position.
   - *Reasons*: a sentence, then a ledger that walks from a typical employee's score
-    through each reason's points to this score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)); *what the data shows*: the
+    through each reason's points to this score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)); withdrawal is one reason,
+    tagged *Emotional indicator*, with the two counts it was read from; *emotional
+    factors*: the four behavioural indicators of emotional states the record reads on
+    (withdrawal, career stagnation, workload strain, effort–reward imbalance), each with a
+    level meter, what it was read from, whether the score reads it and its points, and
+    the survey's leave rate at that level ([ADR 0101](../decisions/0101-the-attrition-model-reads-withdrawal.md)); *what the data shows*: the
     leave rate at every answer in the survey the model learned from, with this
     employee's answer picked out and a note where the survey alone points the other way;
-    and *what it was read from*: every input, "Not on record" where it was estimated, and
-    overtime marked as not used by the model. Runs from before ADR 0098 show the older
+    and *what it was read from*: every input, "Not on record" where it was estimated,
+    overtime marked as not used by the model, and absences and lateness as read together
+    as withdrawal. Runs from before ADR 0098 show the older
     factor list.
   - *What would lower it*: the model's score with a promotion now, regular employment
     (probationary and contract staff), a raise into the next pay band, and all of them
@@ -69,14 +75,18 @@ attrition risk":
    | `lates_90d` | Attendance days with `late_minutes > 0` |
    | `overtime_hours_90d` | Sum of worked `overtime_minutes` ÷ 60 |
 
-   Values go in their natural units; the model bands them itself. An employee with **no
+   Values go in their natural units; the model bands them itself, and reads absences and
+   late arrivals together as **withdrawal** — the ERP never computes an indicator
+   ([ADR 0101](../decisions/0101-the-attrition-model-reads-withdrawal.md)). An employee with **no
    attendance tracked** in the window gets no attendance inputs (they are imputed, and
    confidence drops to 5/8) rather than zeros that would claim a perfect record. No
    demographic or protected attribute is ever sent.
 3. The batch is scored by the inference service (`MlClient::predict('attrition', …)`).
 4. The result is persisted as an `AttritionRiskRun` header (model version, tier counts,
-   average risk and confidence) with one `AttritionRiskScore` per employee (probability,
-   score, tier, confidence, factors, and the feature snapshot for audit). The run is
+   average risk and confidence, and the `reference` its scores are read against,
+   indicator definitions included) with one `AttritionRiskScore` per employee
+   (probability, score, tier, confidence, factors, `explanation` — baseline, scenarios
+   and indicator readings — and the feature snapshot for audit). The run is
    activity-logged (`attrition-risk`).
 
 If the service is unreachable, or running without the attrition model trained, the
@@ -86,30 +96,41 @@ Nothing about the model itself (algorithm, version, metrics) reaches the browser
 
 ## The model
 
-A **Random Forest** trained on two exports of an attrition survey, merged and cleaned by
-`model/synapse_ml/attrition/survey.py` (155 usable responses: 50 who resigned
-voluntarily, 105 still employed) — see `model/notebooks/01_attrition_model.ipynb`. The
+An **RBF support-vector machine**, isotonically calibrated, trained on the merged export
+of an attrition survey (`model/data/raw/attrition_dataset.csv`), cleaned by
+`model/synapse_ml/attrition/survey.py`: 199 usable responses, 55 who resigned
+voluntarily and 144 still employed. See `model/notebooks/01_attrition_model.ipynb`. The
 survey data lives in the git-ignored `model/data/` (see `model/data/README.md`).
 
-- **How good it is:** cross-validated ROC-AUC **0.63 ± 0.04** (chance is 0.50),
-  PR-AUC 0.45 against a 0.32 base rate; a permutation test puts that at p = 0.03. Real,
-  but modest.
-- **What it leans on:** tenure, salary and time since the last promotion most; then
-  absences and late arrivals.
-- **Its limit:** the two surveys reached different populations, and a model trained on
-  one does not rank the other well. Treat scores as a provisional, population-level
-  prior until the model is retrained on this organisation's own departures.
+- **Its inputs:** employment type, tenure, pay, time since the last promotion and whether
+  there was one, and **withdrawal**: absences and late arrivals over 90 days, read
+  together as a behavioural indicator of emotional disengagement
+  ([ADR 0101](../decisions/0101-the-attrition-model-reads-withdrawal.md)). Overtime is
+  recorded but not an input: its leave rate is flat across its bands.
+- **How good it is:** ROC-AUC **0.715** on 30 splits no choice was made on (chance is
+  0.50; the model before withdrawal scored 0.698), **0.678** in nested cross-validation
+  (before: 0.671), PR-AUC 0.44 against a 0.28 base rate, permutation test p = 0.01. Real,
+  but modest; the survey's ceiling is about 0.67–0.72.
+- **Emotional factors:** four behavioural indicators are read for every person
+  (`synapse_ml/attrition/indicators.py`): withdrawal (in the score), career stagnation
+  (in the score through the promotion inputs), workload strain and effort–reward
+  imbalance (tested, not in the score — both rest on overtime and made it less
+  accurate). Pay against peers was tested and dropped. They indicate a feeling; they do
+  not measure one.
+- **Its limit:** the survey's two sources reached different populations, and a model
+  trained on one does not rank the other well. Treat scores as a provisional,
+  population-level prior until the model is retrained on this organisation's own
+  departures.
 - **Reading the score:** it is *relative*, not a probability — 70 means the profile
-  looks much more like people who left than people who stayed. Tiers cut at 33 / 66. On
-  held-out survey rows, 24% of "Stable" had left against 36–38% of "At watch" and "High
-  risk".
+  looks much more like people who left than people who stayed. Tiers cut at 33 / 66.
 - **Factors** are exact Shapley values against a typical employee (the medians and modes
   the pipeline's imputers learned): a typical employee's score plus every factor is the
   score, an input not on record is never a reason, and effects under two points are
-  shown together as "smaller effects". Each carries the survey's leave rates for the
-  employee's band and the typical one (`model/artifacts/attrition/evidence.json`, written
-  by `python -m synapse_ml.attrition.evidence`; an organisation's own model stores its
-  records' table). See [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md).
+  shown together as "smaller effects". Withdrawal is one factor, with the two counts it
+  was read from. Each factor carries the survey's leave rates for the employee's band or
+  level and the typical one (`model/artifacts/attrition/evidence.json`, written by the
+  notebook beside the model; an organisation's own model stores its records' table). See
+  [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md).
 
 ## Where these scores come from (model graduation)
 
@@ -150,7 +171,8 @@ Reads need `analytics.attrition.view`; everything else `analytics.attrition.mana
 
 - **Reads:** `attrition_risk_summary` (counts by tier, averages, the change since the
   previous assessment), `find_attrition_risks` (by tier, department or name, highest
-  first), `get_attrition_risk` (score and tier, confidence, what moves it, the inputs on
+  first), `get_attrition_risk` (score and tier, confidence, what moves it, the behavioural
+  indicators — never effort–reward imbalance, which is read from pay — the inputs on
   record and those estimated, the previous assessment), `get_attrition_model_status`.
 - **Pay never reaches the model.** `monthly_salary` is not stated, a factor it drove is
   left out, and the card says only that pay is one of the inputs.

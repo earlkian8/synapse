@@ -6,7 +6,7 @@ service that serves them to Laravel. Each task uses a deliberately chosen algori
 
 | Notebook | Algorithm | Task | Target | Dataset (`data/raw/`) |
 |---|---|---|---|---|
-| `01_attrition_model` | **Random Forest** | Attrition-risk scoring | `left` | `attrition-survey-1.csv` + `-2.csv` |
+| `01_attrition_model` | **SVM (RBF)**, isotonically calibrated, with a withdrawal indicator | Attrition-risk scoring | `left` | `attrition_dataset.csv` (merged survey export) |
 | `02_performance_model` | **Gradient Boosting** (monotone) + conformal intervals | Next-appraisal forecast (0–100, with range and band confidence) | next `performance_score` | `employee_promotion_prediction.csv` |
 | `03_promotion_model` | **Logistic Regression** (calibrated, one submodel per history pattern) | Promotion-readiness scoring | `promoted` | `employee_promotion_prediction.csv` |
 
@@ -21,8 +21,10 @@ model/
 │   ├── attrition/        the attrition model
 │   │   ├── survey.py     load, merge and clean the surveys
 │   │   ├── features.py   the feature contract and shared preprocessor
+│   │   ├── indicators.py behavioural indicators of emotional states (withdrawal, …)
+│   │   ├── evidence.py   the survey's leave rates by band and indicator level
 │   │   ├── model.py      the candidate models and the chosen one
-│   │   └── evaluation.py repeated grouped CV, permutation test, importance
+│   │   └── evaluation.py repeated grouped CV, unseen splits, nested CV, permutation test
 │   ├── appraisal/        what the two appraisal models share
 │   │   ├── reference.py  load and validate the reference workforce
 │   │   ├── inputs.py     read a live record against a contract (absent ≠ zero; clip + note)
@@ -86,9 +88,10 @@ Every notebook opens a logged run first (`run = sm.start_run("<model>")`), which
 - `artifacts/<model>/` — `<model>_model.joblib` (the fitted scikit-learn `Pipeline`,
   preprocessing included), `metrics.json`, and the evaluation plots. The attrition model
   also writes `feature_contract.json`: its inputs, units, band edges and tiers.
-- `artifacts/attrition/evidence.json` — the survey's leave rate at every answer, as
-  aggregates only, which the service attaches to each attrition reason. Write it with
-  `python -m synapse_ml.attrition.evidence` (from `model/`) whenever the survey changes.
+- `artifacts/attrition/evidence.json` — the survey's leave rate at every answer and every
+  behavioural-indicator level, as aggregates only, which the service attaches to each
+  attrition reason and reading. The notebook writes it beside the model; on its own,
+  `python -m synapse_ml.attrition.evidence` (from `model/`) rewrites it.
 
 Every score the service returns is explained by exact Shapley values against a typical
 record (`synapse_ml/explain.py`; ADR 0098): the typical record's score (`baseline`) plus
@@ -109,10 +112,23 @@ excluded; double-submissions dropped; every dropped row counted by reason.
 
 Each answer is encoded in the unit the ERP records (years, pesos, hours, days, times) and
 the pipeline bands it back with the survey's own edges, so a live employee's exact figures
-score exactly like the survey answer they correspond to. With only 155 usable rows the
-notebook reports repeated grouped cross-validation, a permutation test and a cross-survey
-check rather than a single split. See
-`../docs/decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md`.
+score exactly like the survey answer they correspond to. The free-text department answer
+is grouped (`department_group`) for audit and for the pay-against-peers test; it is not an
+input.
+
+**Emotional factors, read from behaviour** (ADR 0101). The survey asked nothing about
+feelings, so `synapse_ml/attrition/indicators.py` defines theory-backed behavioural
+indicators from the answers it has: withdrawal (absences + lateness), career stagnation,
+workload strain (overtime) and effort–reward imbalance — plus pay against peers, tested
+only. Notebook §5 adds each one inside every training fold and scores it on 30 splits no
+choice was made on. Only **withdrawal** earned its place: it replaces the two counts as
+one input. The others are reported as readings with the reason the score does not use
+them.
+
+With only 199 usable rows the notebook reports repeated grouped cross-validation, unseen
+splits, nested cross-validation, a permutation test and a cross-survey check rather than
+a single split. See `../docs/decisions/0043-attrition-risk-trained-on-the-attrition-surveys.md`
+and `../docs/decisions/0101-the-attrition-model-reads-withdrawal.md`.
 
 ## The performance and promotion models
 

@@ -17,14 +17,21 @@ from sklearn.svm import SVC
 from sklearn.utils.class_weight import compute_sample_weight
 
 from .features import preprocessor
+from .indicators import CandidateIndicators
 
 SEED = 42
 CHOSEN = "SVM (RBF)"
 
 
-def pipeline(estimator, scale: bool = False, numeric: list[str] | None = None) -> Pipeline:
-    """Shared preprocessing followed by ``estimator``."""
-    return Pipeline([("prep", preprocessor(scale=scale, numeric=numeric)), ("clf", estimator)])
+def pipeline(estimator, scale: bool = False, numeric: list[str] | None = None, indicators: bool = True,
+             add: tuple[str, ...] = ()) -> Pipeline:
+    """Shared preprocessing followed by ``estimator``. ``indicators=False`` reads absences
+    and lateness as two inputs, as the model did before withdrawal; ``add`` puts candidate
+    indicators in front (:class:`.indicators.CandidateIndicators`, notebook §5)."""
+    steps = [("add", CandidateIndicators(add))] if add else []
+    steps += [("prep", preprocessor(scale=scale, numeric=numeric, indicators=indicators, extra=list(add))),
+              ("clf", estimator)]
+    return Pipeline(steps)
 
 
 def fit(model: Pipeline, X, y) -> Pipeline:
@@ -38,8 +45,10 @@ def fit(model: Pipeline, X, y) -> Pipeline:
     return model.fit(X, y, clf__sample_weight=compute_sample_weight("balanced", y))
 
 
-def svm(C: float = 1.0, gamma: float | str = 0.3, numeric: list[str] | None = None) -> Pipeline:
-    """The served model: an RBF support-vector machine on the standardised bands.
+def svm(C: float = 3.0, gamma: float | str = 0.3, numeric: list[str] | None = None, indicators: bool = True,
+        add: tuple[str, ...] = ()) -> Pipeline:
+    """The served model: an RBF support-vector machine on the standardised bands, with
+    absences and lateness read together as withdrawal.
 
     It ranks people by distance to the answer patterns of those who left, which suits a
     small table whose signal is in non-monotone shapes (new hires *and* mid-tenure staff
@@ -47,11 +56,18 @@ def svm(C: float = 1.0, gamma: float | str = 0.3, numeric: list[str] | None = No
     calibrating on a few dozen held-out rows can reshape the scale but never invert the
     ranking, as a sigmoid fitted on that few can. Five calibrated folds are averaged.
     Deterministic: no step draws random numbers.
+
+    ``C = 3`` came with withdrawal: with one input fewer, a tighter margin pays. It was
+    the best setting on the CV splits and held on the 30 splits no choice was made on
+    (notebook §5); nested CV, choosing inside each fold, picks it among its most frequent
+    settings (§7).
     """
     return pipeline(
         CalibratedClassifierCV(SVC(C=C, gamma=gamma), method="isotonic", ensemble=True, cv=5),
         scale=True,
         numeric=numeric,
+        indicators=indicators,
+        add=add,
     )
 
 

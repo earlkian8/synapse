@@ -20,8 +20,13 @@ the single source of truth for every decision made on the way to a tidy dataset:
 * **Encoding.** Each banded answer becomes a representative value in the unit the ERP
   records; :mod:`.features` bands it back inside the pipeline.
 
-The department answer (free text, unmatchable to an ERP department list) and the
-timestamp / reference number are kept for audit but are not model inputs.
+The timestamp and reference number are kept for audit. The department answer is free
+text about many different employers ("production", "City Mayor's Office", "PAF, AFP"),
+so it cannot be matched to an ERP department list and is not a model input; it is kept
+verbatim (``department_reported``) and as one of a few broad groups
+(``department_group``, :func:`department_group`), groups of fewer than
+``MIN_DEPARTMENT_GROUP`` people merged into "other". Notebook §5 uses the groups to test
+pay relative to peers.
 
 Run ``python -m synapse_ml.attrition.survey`` to (re)write the merged dataset.
 """
@@ -29,6 +34,7 @@ Run ``python -m synapse_ml.attrition.survey`` to (re)write the merged dataset.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -139,6 +145,24 @@ LATE_TIMES = {
     "More than 10 times": 12.0,
 }
 
+# Department answers -> broad groups, by keyword, first match wins. Public-sector offices
+# are matched first so "secretary to the mayor's office" or "city accountant" is not read
+# as administration or finance. An answer no pattern matches ("okay", "dc1") is "other".
+DEPARTMENT_GROUPS: list[tuple[str, str]] = [
+    ("public_sector", r"mayor|\bcity\b|dswd|social welfare|veterin|civil servant|gov|health|dental|guidance|custodian"),
+    ("uniformed", r"navy|naval|\bpaf\b|\bafp\b|guard"),
+    ("production", r"production|filling|sorter|bagger|souce|man ?power|\bline\b"),
+    ("sales", r"\bsales?\b|replenish|inventory|display"),
+    ("customer_service", r"customer|\bagent\b|\bbpo\b"),
+    ("it", r"\bit\b|kiosk|technician"),
+    ("finance", r"financ|account|teller|cash"),
+    ("hr_admin", r"human|\bhr\b|resourse|admin|clerk|secretary|benefit|\bstaff\b|general manager"),
+    ("operations", r"operat|back office|service"),
+]
+OTHER_DEPARTMENT = "other"
+# A group with fewer people than this is too small to say anything about; it joins "other".
+MIN_DEPARTMENT_GROUP = 10
+
 # answer column -> (vocabulary, answers that are valid but not in it)
 _VOCABULARIES = {
     "employment_type_answer": (EMPLOYMENT_TYPES, set()),
@@ -230,6 +254,7 @@ def clean(raw: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]:
     audit = df[["source", "reference", "submitted_at", "pattern", "department_answer"]].rename(
         columns={"department_answer": "department_reported"}
     )
+    audit["department_group"] = merge_small_groups(audit["department_reported"].map(department_group))
     target = df["outcome_answer"].map(OUTCOMES).rename(TARGET).astype(int)
     tidy = pd.concat([audit, encode(df), target], axis=1).reset_index(drop=True)
 
@@ -260,6 +285,18 @@ def encode(df: pd.DataFrame) -> pd.DataFrame:
     out["lates_90d"] = df["lates_answer"].map(LATE_TIMES)
     out["employment_type"] = df["employment_type_answer"].map(EMPLOYMENT_TYPES)
     return out[RECORDED_FEATURES]
+
+
+def department_group(answer: str) -> str:
+    """The broad group a free-text department answer belongs to (``DEPARTMENT_GROUPS``)."""
+    text = (answer or "").strip().lower()
+    return next((group for group, pattern in DEPARTMENT_GROUPS if re.search(pattern, text)), OTHER_DEPARTMENT)
+
+
+def merge_small_groups(groups: pd.Series, minimum: int = MIN_DEPARTMENT_GROUP) -> pd.Series:
+    """Fold every group with fewer than ``minimum`` people into "other"."""
+    counts = groups.value_counts()
+    return groups.where(groups.map(counts) >= minimum, OTHER_DEPARTMENT)
 
 
 def load(directory: Path = RAW_DATA_DIR) -> tuple[pd.DataFrame, CleaningReport]:
