@@ -52,6 +52,8 @@ class Organization extends Model
         // a month one person can give with points.
         'kudos_points',
         'kudos_monthly_limit',
+        // Mood check-ins (ADR 0102): whether the company runs them.
+        'check_ins_enabled',
         // Who signs the documents the system generates (ADR 0077).
         'document_signatory_name',
         'document_signatory_title',
@@ -74,6 +76,7 @@ class Organization extends Model
         'timezone' => OrganizationClock::DEFAULT_TIMEZONE,
         'kudos_points' => 10,
         'kudos_monthly_limit' => 5,
+        'check_ins_enabled' => true,
     ];
 
     /**
@@ -96,6 +99,7 @@ class Organization extends Model
             'attendance_closed_through' => 'date',
             'kudos_points' => 'integer',
             'kudos_monthly_limit' => 'integer',
+            'check_ins_enabled' => 'boolean',
         ];
     }
 

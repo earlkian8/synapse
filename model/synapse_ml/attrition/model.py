@@ -24,12 +24,13 @@ CHOSEN = "SVM (RBF)"
 
 
 def pipeline(estimator, scale: bool = False, numeric: list[str] | None = None, indicators: bool = True,
-             add: tuple[str, ...] = ()) -> Pipeline:
+             add: tuple[str, ...] = (), signals: list[str] | None = None) -> Pipeline:
     """Shared preprocessing followed by ``estimator``. ``indicators=False`` reads absences
     and lateness as two inputs, as the model did before withdrawal; ``add`` puts candidate
     indicators in front (:class:`.indicators.CandidateIndicators`, notebook §5)."""
     steps = [("add", CandidateIndicators(add))] if add else []
-    steps += [("prep", preprocessor(scale=scale, numeric=numeric, indicators=indicators, extra=list(add))),
+    steps += [("prep", preprocessor(scale=scale, numeric=numeric, indicators=indicators, extra=list(add),
+                                    signals=signals)),
               ("clf", estimator)]
     return Pipeline(steps)
 
@@ -46,7 +47,7 @@ def fit(model: Pipeline, X, y) -> Pipeline:
 
 
 def svm(C: float = 3.0, gamma: float | str = 0.3, numeric: list[str] | None = None, indicators: bool = True,
-        add: tuple[str, ...] = ()) -> Pipeline:
+        add: tuple[str, ...] = (), signals: list[str] | None = None) -> Pipeline:
     """The served model: an RBF support-vector machine on the standardised bands, with
     absences and lateness read together as withdrawal.
 
@@ -68,6 +69,7 @@ def svm(C: float = 3.0, gamma: float | str = 0.3, numeric: list[str] | None = No
         numeric=numeric,
         indicators=indicators,
         add=add,
+        signals=signals,
     )
 
 

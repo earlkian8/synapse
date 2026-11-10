@@ -158,10 +158,16 @@ A trained model is judged by how often it ranks someone who resigned above someo
 stayed (ROC-AUC), against the general model and a coin flip.
 
 The field list shows **used in every score**: employment type, hire date, salary, time
-since last promotion, and the three 90-day attendance counts. **Recorded, but not
+since last promotion, and the three 90-day attendance counts. **Kept for your own
+model** ([ADR 0102](../decisions/0102-confidential-mood-check-ins-and-what-only-your-records-hold.md)):
+team mood, engagement and thoughts of leaving (the department's latest shown check-in
+result, never the person's answers), time since last recognition, and leave taken over
+the last year. Every score stores them (`AttritionRiskAssessor::SIGNAL_FEATURES`); the
+general model can't read them, and the organisation's own model is fitted with and
+without them and keeps them only when they win in 90% of re-checks. **Recorded, but not
 used**: department, training completions, and departure type (counted against the
 people who left — it is what the organisation's own model learns from). **Not recorded
-anywhere**: engagement, pay against market.
+anywhere**: pay against market.
 
 ## The assistant
 

@@ -1226,7 +1226,7 @@ erDiagram
 
 ---
 
-## 9. Awards & events
+## 9. Awards, events & check-ins
 
 See [awards tables](./awards-tables.md), [events tables](./events-tables.md),
 [ADR 0014](../decisions/0014-awards-and-recognition.md),
@@ -1349,6 +1349,35 @@ erDiagram
         int cost "as charged"
         string status "pending|fulfilled|declined|cancelled"
         bigint handled_by FK "users"
+    }
+```
+
+### Mood check-ins
+
+See [check-ins tables](./check-ins-tables.md) and
+[ADR 0102](../decisions/0102-confidential-mood-check-ins-and-what-only-your-records-hold.md).
+One row per employee per month, confidential: read only by its owner, and by the
+aggregates the results screen shows for groups of five or more. `organizations` gains
+`check_ins_enabled`.
+
+```mermaid
+erDiagram
+    EMPLOYEE ||--o{ CHECK_IN : answers
+    DEPARTMENT |o--o{ CHECK_IN : "worked in, when answered"
+
+    CHECK_IN {
+        bigint id PK
+        bigint employee_id FK
+        bigint department_id FK "nullable"
+        date period "month start, org clock; unique per employee"
+        tinyint mood "1-5"
+        tinyint satisfaction "1-5"
+        tinyint energy "UWES-3, 0-6"
+        tinyint enthusiasm "UWES-3, 0-6"
+        tinyint immersion "UWES-3, 0-6"
+        tinyint leave_thoughts "1-5"
+        text note "encrypted, owner only"
+        timestamp submitted_at
     }
 ```
 

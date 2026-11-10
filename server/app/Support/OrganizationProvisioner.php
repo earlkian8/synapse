@@ -197,6 +197,7 @@ class OrganizationProvisioner
                     'attendance.clock', 'leave.request',
                     'events.respond', 'awards.participate',
                     'training.participate', 'offboarding.resign',
+                    'check-ins.respond',
                     // Interviewing the candidates they are assigned (ADR 0091)
                     'recruitment.interview',
                     // Team visibility
@@ -204,6 +205,8 @@ class OrganizationProvisioner
                     'attendance.view',
                     'onboarding.view', 'offboarding.view',
                     'training.view', 'awards.view', 'events.view',
+                    // Their people's mood, in groups of five or more (ADR 0102)
+                    'check-ins.view',
                     // Supervisory actions
                     'leave.view', 'leave.manage',
                     'performance.view', 'performance.manage',
@@ -233,6 +236,7 @@ class OrganizationProvisioner
                     'training.participate',
                     'offboarding.resign',
                     'recruitment.interview',
+                    'check-ins.respond',
                 ],
             ],
         ];

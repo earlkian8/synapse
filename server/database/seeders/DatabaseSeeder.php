@@ -111,6 +111,9 @@ class DatabaseSeeder extends Seeder
         // Events & Meetings (a spread across the lifecycle + invitees).
         $this->call(EventSeeder::class);
 
+        // Mood check-ins (a year of monthly answers, ADR 0102).
+        $this->call(CheckInSeeder::class);
+
         // Offboarding (exits across the lifecycle + clearance checklists).
         $this->call(OffboardingSeeder::class);
 

@@ -180,3 +180,59 @@ def test_the_store_round_trips_and_keeps_organisations_apart(tmp_path):
 def test_the_store_refuses_paths_it_did_not_make(tmp_path, tenant, version):
     with pytest.raises(store.UnknownLocalModel):
         store.load(tenant, "promotion", version, root=tmp_path)
+
+
+# ---- attrition: the signals only the organisation's records hold (ADR 0102) ---------------
+
+
+def attrition_rows_with_climate(people: int = 600, telling: bool = True, seed: int = 5) -> list[dict]:
+    """As ``attrition_rows``, plus the team mood each person's department showed.
+    ``telling``: people on low-mood teams resign far more; otherwise mood is noise."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for person in range(people):
+        tenure = float(rng.uniform(0, 15))
+        mood = float(rng.uniform(1.5, 4.8))
+        if telling:
+            p = 0.7 if mood < 2.6 else 0.08
+        else:
+            p = 0.75 if tenure < 1 else 0.12
+        rows.append({
+            "group": f"e{person}",
+            "features": {"tenure_years": tenure, "monthly_salary": float(rng.uniform(12_000, 70_000)),
+                         "employment_type": "regular", "ever_promoted": 0, "years_since_promotion": tenure,
+                         "team_mood": round(mood, 2)},
+            "outcome": int(rng.random() < p),
+        })
+    return rows
+
+
+def test_a_signal_the_records_show_matters_is_kept():
+    outcome = training.train("attrition", attrition_rows_with_climate(telling=True), constant(0.5))
+    result = outcome.comparison["signals"]
+
+    assert result["tried"] == ["team_mood"]
+    assert result["kept"] is True and result["with"] > result["without"]
+    assert outcome.verdict == "passed"
+    branches = {name for name, _, columns in outcome.fitted.named_steps["prep"].transformers_ if len(columns)}
+    assert "signals" in branches
+    assert any("keeps them" in f for f in outcome.findings)
+    # Its evidence reads the signal in its own bands.
+    assert {row["band"] for row in outcome.evidence["features"]["team_mood"]} <= set(
+        __import__("synapse_ml.attrition.features", fromlist=["SIGNAL_LABELS"]).SIGNAL_LABELS["team_mood"])
+
+
+def test_a_signal_that_is_only_noise_is_left_out():
+    outcome = training.train("attrition", attrition_rows_with_climate(telling=False), constant(0.5))
+    result = outcome.comparison["signals"]
+
+    assert result["kept"] is False
+    assert any("left them out" in f for f in outcome.findings)
+    if outcome.fitted is not None:
+        branches = {name for name, _, columns in outcome.fitted.named_steps["prep"].transformers_ if len(columns)}
+        assert "signals" not in branches
+
+
+def test_no_signal_on_record_means_nothing_is_tried():
+    outcome = training.train("attrition", attrition_rows(), constant(0.5))
+    assert "signals" not in outcome.comparison

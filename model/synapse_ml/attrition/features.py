@@ -54,6 +54,11 @@ FEATURE_LABELS = {
     "lates_90d": "Late arrivals (last 90 days)",
     "employment_type": "Employment type",
     "withdrawal": "Withdrawal (absences and lateness)",
+    "team_mood": "Team mood (check-ins)",
+    "team_engagement": "Team engagement (check-ins)",
+    "team_leave_thoughts": "Team thinking of leaving (check-ins)",
+    "months_since_recognition": "Time since last recognition",
+    "leave_days_365d": "Leave taken (last 12 months)",
 }
 
 # Behavioural indicators the pipeline derives from the inputs: indicator -> its inputs.
@@ -63,6 +68,33 @@ FEATURE_LABELS = {
 # the share who left climbs (notebook §2). Read on their own, as two inputs, they gave
 # the model about 0.01 less ROC-AUC on unseen splits and in nested CV (notebook §5).
 INDICATORS: dict[str, list[str]] = {"withdrawal": ["absences_90d", "lates_90d"]}
+
+# Recorded by the ERP and stored with every score, but no survey asked them, so the
+# general model cannot read them (ADR 0102). An organisation's own model can
+# (synapse_ml.local): it is fitted with them and keeps them only when they make it
+# more accurate on that organisation's records. Each in the unit the ERP sends:
+#   team_mood            the department's latest shown check-in mood, 1–5
+#   team_engagement      its UWES-3 engagement, 0–6
+#   team_leave_thoughts  the share of it who often or always think of leaving, 0–1
+#   months_since_recognition  since the latest award or kudos (never: the tenure)
+#   leave_days_365d      approved leave taken over the last year
+SIGNALS = ["team_mood", "team_engagement", "team_leave_thoughts", "months_since_recognition", "leave_days_365d"]
+
+# Bands to read a signal's evidence in (an organisation's own records), as BAND_EDGES.
+SIGNAL_EDGES: dict[str, list[float]] = {
+    "team_mood": [2.5, 3.25, 4.0],
+    "team_engagement": [2.0, 3.0, 4.0],
+    "team_leave_thoughts": [0.1, 0.25, 0.4],
+    "months_since_recognition": [6.0, 12.0, 24.0],
+    "leave_days_365d": [0.5, 5.0, 10.0],
+}
+SIGNAL_LABELS: dict[str, list[str]] = {
+    "team_mood": ["low (< 2.5)", "strained (2.5–3.2)", "steady (3.25–3.9)", "good (4+)"],
+    "team_engagement": ["< 2 of 6", "2–2.9", "3–3.9", "4+ of 6"],
+    "team_leave_thoughts": ["< 10%", "10–24%", "25–39%", "40%+"],
+    "months_since_recognition": ["< 6 mos", "6–11 mos", "1–2 yrs", "> 2 yrs"],
+    "leave_days_365d": ["none", "1–4 days", "5–9 days", "10+ days"],
+}
 
 # What kind of fact each reason is, for the screens that group them.
 FEATURE_GROUPS = {
@@ -74,6 +106,11 @@ FEATURE_GROUPS = {
     "withdrawal": "emotional",
     "absences_90d": "emotional",
     "lates_90d": "emotional",
+    "team_mood": "emotional",
+    "team_engagement": "emotional",
+    "team_leave_thoughts": "emotional",
+    "months_since_recognition": "emotional",
+    "leave_days_365d": "emotional",
 }
 GROUP_LABELS = {
     "structural": "Structural",
@@ -105,7 +142,7 @@ def band_of(feature: str, value: float) -> int:
 
 
 def preprocessor(scale: bool = False, numeric: list[str] | None = None, indicators: bool = True,
-                 extra: list[str] | None = None):
+                 extra: list[str] | None = None, signals: list[str] | None = None):
     """The preprocessing every candidate model shares.
 
     Numeric: impute the median (in the survey only salary is ever missing — "prefer not
@@ -118,7 +155,9 @@ def preprocessor(scale: bool = False, numeric: list[str] | None = None, indicato
     ``numeric`` overrides the numeric inputs (the notebook's ablation puts overtime
     back); ``indicators=False`` reads every numeric input on its own, as the model did
     before withdrawal; ``extra`` names already-numeric columns a candidate adds
-    (notebook §5), imputed and passed through. Built from stock scikit-learn/NumPy
+    (notebook §5), imputed and passed through; ``signals`` names the ``SIGNALS`` an
+    organisation's own model reads, imputed and passed through the same way, each
+    one input of its own. Built from stock scikit-learn/NumPy
     callables only, so a fitted pipeline unpickles anywhere without importing this
     package. The branch names (``num``, one per indicator, ``cat``) are part of the
     serving contract: the inference service reads an indicator's branch as one input.
@@ -163,9 +202,10 @@ def preprocessor(scale: bool = False, numeric: list[str] | None = None, indicato
             steps.append(("scale", StandardScaler()))
         branches.append((name, Pipeline(steps), inputs))
 
-    if extra:
-        extra_steps = [("impute", impute())] + ([("scale", StandardScaler())] if scale else [])
-        branches.append(("extra", Pipeline(extra_steps), extra))
+    for branch, columns in (("extra", extra), ("signals", signals)):
+        if columns:
+            steps = [("impute", impute())] + ([("scale", StandardScaler())] if scale else [])
+            branches.append((branch, Pipeline(steps), columns))
 
     categorical_steps = [("impute", impute("most_frequent")), ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]
     branches.append(("cat", Pipeline(categorical_steps), CATEGORICAL_FEATURES))

@@ -2,6 +2,10 @@
 
 The magnifying glass at the top of **Home** — or **Profile** → **Search** — finds the app's screens and **your own** records: your leave, your days ("late in october", "oct 3"), your invitations, your awards and your holidays.
 
+## Check-in
+
+**Services** → **How you're doing** → **Check-in** is your monthly mood check-in: six quick questions, confidential, and your year as twelve faces. While this month's waits, a card on **Home** shows five faces: tap the one that fits and the rest of the questions follow. More: [Mood check-ins](/help/workforce/check-ins).
+
 ## Holidays
 
 **Profile** → **Holidays** lists the holidays you keep over the next year, month by month: the ones the whole company keeps, Holy Week on this year's dates, and your own site's local holidays. A **special working day** is a holiday you still work.

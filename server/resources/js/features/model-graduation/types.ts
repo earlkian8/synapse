@@ -95,7 +95,12 @@ export type LocalModelSummary = {
  * `available` — the system records it, but it is not fed in.
  * `missing`   — nothing in the system produces it.
  */
-export type FieldState = 'supplied' | 'available' | 'missing';
+/**
+ * `learned`: recorded and stored with every score, but only an organisation's own
+ * model can read it — the general one learned from a survey that never asked it
+ * (ADR 0102).
+ */
+export type FieldState = 'supplied' | 'learned' | 'available' | 'missing';
 
 /** How completely one input field is filled in. */
 export type FieldCoverage = {

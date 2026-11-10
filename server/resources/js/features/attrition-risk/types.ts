@@ -85,6 +85,11 @@ export type RiskIndicatorDefinition = {
     read: IndicatorRead;
     /** Why the score does not read it, when it does not. */
     not_read: string | null;
+    /**
+     * Only the organisation's own records hold it (team mood, recognition, rest —
+     * ADR 0102), so only its own model can learn it.
+     */
+    own_records?: boolean;
 };
 
 /**

@@ -13,6 +13,13 @@ on the organisation's examples instead of the reference data, reading exactly th
 inputs the reference model reads — so every page, factor and range renders unchanged,
 and the comparison below is like for like.
 
+**Attrition may learn more than the general model can.** The ERP also sends signals
+no survey asked (``attrition_features.SIGNALS``: team mood from check-ins, time since
+recognition, leave taken — ADR 0102). The local model is fitted with and without them,
+out of fold, and keeps them only when the model with them ranks better in at least
+``MUST_WIN`` of resamples of the people — so a signal is in an organisation's model
+because its own records showed it helps, never because a theory said it should.
+
 **The check is the point.** A model fitted on a few hundred examples still returns
 confident-looking numbers, so it is only offered as a replacement when, on the
 organisation's *own* people, it is
@@ -79,7 +86,8 @@ MINIMUMS: dict[str, dict[str, int]] = {
 COLUMNS = {
     "promotion": [spec.name for spec in promotion_features.INPUTS],
     "performance": [spec.name for spec in performance_features.INPUTS],
-    "attrition": attrition_features.FEATURES,
+    # The general model's inputs, and the signals only an organisation's own can read.
+    "attrition": attrition_features.FEATURES + attrition_features.SIGNALS,
 }
 
 # A function scoring feature dicts with the model in use today: a probability
@@ -183,13 +191,14 @@ def shortfalls(ex: Examples) -> list[str]:
 # ---- fitting and scoring --------------------------------------------------------------
 
 
-def fit(ex_model: str, X: pd.DataFrame, y: pd.Series, groups: np.ndarray) -> Any:
-    """The surface's own model class, fitted on these examples."""
+def fit(ex_model: str, X: pd.DataFrame, y: pd.Series, groups: np.ndarray, signals: list[str] | None = None) -> Any:
+    """The surface's own model class, fitted on these examples (attrition: reading
+    ``signals`` too, when given)."""
     if ex_model == "promotion":
         return PromotionReadinessModel(SEED).fit(X, y, complete=False)
     if ex_model == "performance":
         return PerformanceForecastModel.for_sample(len(X), SEED).fit(X, y, groups=groups)
-    return attrition_model.fit(attrition_model.svm(), X, y)
+    return attrition_model.fit(attrition_model.svm(signals=signals or None), X, y)
 
 
 def predict(ex_model: str, fitted: Any, records: list[dict[str, Any]], X: pd.DataFrame) -> dict[str, np.ndarray]:
@@ -207,7 +216,7 @@ def predict(ex_model: str, fitted: Any, records: list[dict[str, Any]], X: pd.Dat
     }
 
 
-def out_of_fold(ex: Examples) -> dict[str, np.ndarray]:
+def out_of_fold(ex: Examples, signals: list[str] | None = None) -> dict[str, np.ndarray]:
     """Every example scored by a local model fitted without that employee."""
     if ex.model == "performance":
         folds = GroupKFold(FOLDS, shuffle=True, random_state=SEED).split(ex.X, ex.y, ex.groups)
@@ -216,7 +225,7 @@ def out_of_fold(ex: Examples) -> dict[str, np.ndarray]:
 
     out: dict[str, np.ndarray] = {}
     for train, test in folds:
-        fitted = fit(ex.model, ex.X.iloc[train], ex.y.iloc[train], ex.groups[train])
+        fitted = fit(ex.model, ex.X.iloc[train], ex.y.iloc[train], ex.groups[train], signals)
         made = predict(ex.model, fitted, [ex.records[i] for i in test], ex.X.iloc[test])
         for key, values in made.items():
             out.setdefault(key, np.full(len(ex.y), np.nan))[test] = values
@@ -301,6 +310,7 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
 
     try:
         local = out_of_fold(ex)
+        signals, local = _choose_signals(ex, local, comparison) if model == "attrition" else ([], local)
     except (ValueError, np.linalg.LinAlgError) as exc:
         log.warning("'%s' local model could not be fitted out of fold: %s", model, exc)
         return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
@@ -340,11 +350,14 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
                 f"four in five they promise — {'too narrow' if comparison['coverage'] < low else 'too wide'} to trust."
             )
 
+    if "signals" in comparison:
+        findings.append(_signals_finding(comparison["signals"]))
+
     if not passed:
         return Outcome("failed", findings, comparison, counts=have)
 
     try:
-        fitted = fit(model, ex.X, ex.y, ex.groups)
+        fitted = fit(model, ex.X, ex.y, ex.groups, signals)
     except (ValueError, np.linalg.LinAlgError) as exc:
         log.warning("'%s' local model could not be fitted on every example: %s", model, exc)
         return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
@@ -352,10 +365,53 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
     return Outcome("passed", findings, comparison, fitted, counts=have, evidence=evidence)
 
 
+def _choose_signals(ex: Examples, without: dict[str, np.ndarray], comparison: dict[str, Any]) -> tuple[list[str], dict[str, np.ndarray]]:
+    """Attrition: whether the organisation's own signals earn their place. The ones
+    its records hold are tried together, out of fold; they are kept only when the
+    model with them ranks better in at least ``MUST_WIN`` of resamples of the people.
+    Records the outcome in ``comparison["signals"]``."""
+    present = [s for s in attrition_features.SIGNALS if ex.X[s].notna().any()]
+    if not present:
+        return [], without
+
+    with_signals = out_of_fold(ex, present)
+    y = ex.y.to_numpy()
+    share = wins(ex, auc, "higher", with_signals["value"], without["value"])
+    kept = share >= MUST_WIN
+    comparison["signals"] = {
+        "tried": present,
+        "kept": kept,
+        "with": round(auc(y, with_signals["value"]), 4),
+        "without": round(auc(y, without["value"]), 4),
+        "wins": round(share, 3),
+    }
+    return (present, with_signals) if kept else ([], without)
+
+
+SIGNAL_NAMES = {
+    "team_mood": "team mood", "team_engagement": "team engagement", "team_leave_thoughts": "how many on the team think of leaving",
+    "months_since_recognition": "time since recognition", "leave_days_365d": "leave taken",
+}
+
+
+def _signals_finding(result: Mapping[str, Any]) -> str:
+    """What the HR reader is told about the signals the general model can't read."""
+    names = [SIGNAL_NAMES[s] for s in result["tried"]]
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    if result["kept"]:
+        return (f"It also learned from what only your records hold — {listed}: with them it ranked people "
+                f"{result['with']:.0%} of the time against {result['without']:.0%} without, ahead in {result['wins']:.0%} "
+                "of re-checks, so it keeps them.")
+    return (f"It also tried what only your records hold — {listed} — and left them out: with them it ranked people "
+            f"{result['with']:.0%} of the time against {result['without']:.0%} without, ahead in only {result['wins']:.0%} "
+            f"of re-checks ({MUST_WIN:.0%} needed).")
+
+
 def _recorded(rows: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
     """Attrition: every recorded input of every example, overtime included — not a model
-    input, but what workload strain and effort–reward imbalance are read from."""
-    columns = attrition_features.RECORDED_FEATURES
+    input, but what workload strain and effort–reward imbalance are read from — and the
+    organisation's own signals."""
+    columns = attrition_features.RECORDED_FEATURES + attrition_features.SIGNALS
     frame = pd.DataFrame([{c: dict(row.get("features") or {}).get(c) for c in columns} for row in rows], columns=columns)
     for column in columns:
         if column in attrition_features.CATEGORICAL_FEATURES:

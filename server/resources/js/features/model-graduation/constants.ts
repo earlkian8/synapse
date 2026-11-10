@@ -133,18 +133,22 @@ export const GROUP_ORDER: RequirementGroup[] = ['volume', 'quality', 'system'];
  */
 export const FIELD_STATE_ORDER: FieldState[] = [
     'supplied',
+    'learned',
     'available',
     'missing',
 ];
 
 export const FIELD_STATE_LABELS: Record<FieldState, string> = {
     supplied: 'Used in every score',
+    learned: 'Kept for your own model',
     available: 'Recorded, but not used',
     missing: 'Not recorded anywhere',
 };
 
 export const FIELD_STATE_HINTS: Record<FieldState, string> = {
     supplied: 'Read from your records each time the page is run.',
+    learned:
+        'Stored with every score. The general model can’t read these, because the survey it learned from never asked them; your own model learns from them once it graduates, and keeps them only if they make it more accurate.',
     available:
         'The system holds these, and each says why it is left out of the scores.',
     missing: 'No part of the system produces these, so they can’t be used.',
@@ -153,6 +157,8 @@ export const FIELD_STATE_HINTS: Record<FieldState, string> = {
 export const FIELD_STATE_STYLES: Record<FieldState, string> = {
     supplied:
         'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    learned:
+        'border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
     available:
         'border-[#0ABFBF]/30 bg-[#0ABFBF]/10 text-teal-700 dark:text-[#0ABFBF]',
     missing:
@@ -161,12 +167,14 @@ export const FIELD_STATE_STYLES: Record<FieldState, string> = {
 
 export const FIELD_STATE_BARS: Record<FieldState, string> = {
     supplied: 'bg-emerald-500',
+    learned: 'bg-indigo-500',
     available: 'bg-[#0ABFBF]',
     missing: 'bg-muted-foreground/30',
 };
 
 export const FIELD_STATE_TRACKS: Record<FieldState, string> = {
     supplied: 'bg-emerald-500/15',
+    learned: 'bg-indigo-500/15',
     available: 'bg-[#0ABFBF]/15',
     missing: 'bg-muted',
 };

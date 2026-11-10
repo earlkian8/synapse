@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\LocalModel;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\CheckIns\CheckInResults;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -42,9 +43,24 @@ class AttritionRiskAssessor
         'lates_90d',
     ];
 
+    /**
+     * Read from the organisation's own records and stored with every score, but not
+     * inputs of the general model — no survey asked them (ADR 0102). They are what an
+     * organisation's own model can learn from once it graduates, and the readings the
+     * breakdown shows beside the inputs. Not counted in the confidence.
+     */
+    public const SIGNAL_FEATURES = [
+        'team_mood',
+        'team_engagement',
+        'team_leave_thoughts',
+        'months_since_recognition',
+        'leave_days_365d',
+    ];
+
     public function __construct(
         private readonly MlClient $ml,
         private readonly AttritionFeatureMapper $mapper,
+        private readonly CheckInResults $checkIns,
     ) {}
 
     /**
@@ -69,6 +85,12 @@ class AttritionRiskAssessor
                 'attendanceRecords as lates_90d' => fn ($query) => $window($query)->where('late_minutes', '>', 0),
             ])
             ->withSum(['attendanceRecords as overtime_minutes_90d' => $window], 'overtime_minutes')
+            // Signals for the organisation's own model (ADR 0102): the latest
+            // recognition, and the leave taken over the last year.
+            ->withMax('awards as last_award_on', 'awarded_on')
+            ->withMax('kudosReceived as last_kudos_at', 'created_at')
+            ->withSum(['leaveRequests as leave_days_365d' => fn ($query) => $query->where('status', 'approved')
+                ->where('start_date', '>=', today()->subYear()->toDateString())], 'days')
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
@@ -77,12 +99,15 @@ class AttritionRiskAssessor
             throw new MlException('There are no active employees to assess.');
         }
 
-        // Build the inference batch, keeping each employee's feature snapshot.
+        // Build the inference batch, keeping each employee's feature snapshot. The
+        // team climate is each department's latest *shown* check-in result, so no
+        // score carries a figure the results screen would not show (ADR 0102).
+        $climate = $this->checkIns->teamClimate();
         $snapshots = [];
         $instances = [];
 
         foreach ($employees as $employee) {
-            $features = $this->mapper->features($employee);
+            $features = $this->mapper->features($employee, $climate);
             $snapshots[$employee->id] = $features;
             $instances[] = ['ref' => (string) $employee->id, 'features' => $features];
         }

@@ -3,6 +3,7 @@
 namespace App\Support\Ml\Graduation;
 
 use App\Models\Employee;
+use App\Support\CheckIns\CheckInResults;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -32,6 +33,25 @@ class FieldCounts
     {
         return $this->remember("appraised:{$n}", fn (): int => $this->activeEmployees()
             ->has('performanceEvaluations', '>=', $n, 'and', fn (Builder $q) => $q->completed())
+            ->count());
+    }
+
+    /**
+     * Active employees whose department has a check-in result shown in the last
+     * three months — who carries the team-climate signal (ADR 0102).
+     */
+    public function teamClimate(): int
+    {
+        return $this->remember('team_climate', fn (): int => $this->activeEmployees()
+            ->whereIn('department_id', array_keys(app(CheckInResults::class)->teamClimate()))
+            ->count());
+    }
+
+    /** Active employees here a year or more — who a year of leave is read for. */
+    public function yearOrMore(): int
+    {
+        return $this->remember('year_or_more', fn (): int => $this->activeEmployees()
+            ->where('date_hired', '<=', today()->subYear()->toDateString())
             ->count());
     }
 

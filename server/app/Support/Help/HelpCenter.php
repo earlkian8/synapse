@@ -52,7 +52,7 @@ final class HelpCenter
         ],
         'workforce' => [
             'title' => 'Workforce',
-            'description' => 'Employee records, attendance, leave, appraisals, training, recognition and events.',
+            'description' => 'Employee records, attendance, leave, appraisals, training, recognition, events and check-ins.',
             'icon' => 'users',
         ],
         'offboarding' => [
@@ -368,6 +368,22 @@ final class HelpCenter
             'keywords' => ['kudos', 'thank a colleague', 'recognition wall', 'nominate', 'points', 'reward', 'redeem', 'my points'],
             'screens' => ['/awards/wall', '/awards/points', '/awards/my-nominations'],
             'related' => ['awards-and-recognition', 'leave-on-mobile'],
+        ],
+        'check-ins' => [
+            'category' => 'workforce', 'title' => 'Mood check-ins',
+            'summary' => 'Answer six quick questions once a month about how work is going — confidentially — and look back at your months.',
+            'any' => ['check-ins.respond'],
+            'keywords' => ['check-in', 'check ins', 'mood', 'how am i doing', 'pulse', 'wellbeing', 'engagement', 'confidential', 'private note'],
+            'screens' => ['/check-ins/me'],
+            'related' => ['check-in-results', 'more-in-the-app'],
+        ],
+        'check-in-results' => [
+            'category' => 'workforce', 'title' => 'Check-in results',
+            'summary' => 'Read how the company and each department felt this month, follow the year\'s trend, and why small groups stay hidden.',
+            'any' => ['check-ins.view'],
+            'keywords' => ['check-in results', 'mood', 'morale', 'engagement', 'job satisfaction', 'thinking of leaving', 'pulse survey', 'team climate', 'anonymity', 'five or more'],
+            'screens' => ['/check-ins/results'],
+            'related' => ['check-ins', 'attrition-risk'],
         ],
         'events-and-meetings' => [
             'category' => 'workforce', 'title' => 'Events and meetings',

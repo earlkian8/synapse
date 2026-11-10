@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Support\CheckIns\CheckInResults;
 use App\Support\Files\Uploads;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -333,6 +334,28 @@ class Employee extends Model
      *
      * @return HasMany<EmployeeAward, $this>
      */
+    /**
+     * Kudos colleagues sent them (ADR 0071) — one of the recognitions the attrition
+     * model's recognition gap is read from (ADR 0102).
+     *
+     * @return HasMany<Kudos, $this>
+     */
+    public function kudosReceived(): HasMany
+    {
+        return $this->hasMany(Kudos::class, 'to_employee_id');
+    }
+
+    /**
+     * Their monthly check-ins (ADR 0102) — confidential: read only by them, and by
+     * the aggregates in {@see CheckInResults}.
+     *
+     * @return HasMany<CheckIn, $this>
+     */
+    public function checkIns(): HasMany
+    {
+        return $this->hasMany(CheckIn::class);
+    }
+
     public function awards(): HasMany
     {
         return $this->hasMany(EmployeeAward::class);

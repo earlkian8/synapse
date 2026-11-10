@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\WorkLocation;
 use App\Support\Attendance\ShiftResolver;
+use App\Support\CheckIns\CheckInWorkflow;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -90,6 +91,8 @@ class MobileSession
             ? null
             : $user->employee()->first();
 
+        $checkInsOn = (bool) $organization?->check_ins_enabled;
+
         $memberships = $user->memberships()
             ->orderByDesc('organization_user.is_default')
             ->orderBy('organizations.name')
@@ -129,6 +132,9 @@ class MobileSession
             // My events and recognition (ADR 0070, 0071).
             'can_respond_events' => $organization !== null && $user->can('events.respond'),
             'can_recognize' => $organization !== null && $user->can('awards.participate'),
+            // Mood check-ins (ADR 0102): answering one's own, and whether this month's waits.
+            'can_check_in' => $checkInsOn && $user->can('check-ins.respond'),
+            'check_in_due' => $checkInsOn && $user->can('check-ins.respond') && app(CheckInWorkflow::class)->due($employee),
             // Leaving (ADR 0076): their resignation, exit interview and certificate.
             'can_resign' => $organization !== null && $user->can('offboarding.resign'),
             // Training (ADR 0094): their programs, sessions and certificates, and joining.

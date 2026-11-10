@@ -204,7 +204,8 @@ def test_the_attrition_reference_states_the_typical_employee_and_the_survey(clie
     if reference["evidence"] is not None:  # written by `python -m synapse_ml.attrition.evidence`
         assert reference["evidence"]["source"] == "survey"
         assert set(reference["evidence"]["features"]) == set(ATTRITION_FEATURES)
-        assert set(reference["evidence"]["indicators"]) == {i.key for i in indicators.CATALOGUE}
+        # The survey holds what the survey asked: not what only an organisation's records hold.
+        assert set(reference["evidence"]["indicators"]) == {i.key for i in indicators.CATALOGUE if not i.own_records}
     assert [d["key"] for d in reference["indicators"]] == [i.key for i in indicators.CATALOGUE]
     assert {d["key"]: d["read"] for d in reference["indicators"]}["withdrawal"] == "direct"
 
@@ -349,3 +350,24 @@ def test_the_reference_curve_is_monotone_and_holds_its_range(performance):
     assert all(b >= a for a, b in zip(forecasts, forecasts[1:]))
     assert all(point["low"] <= point["forecast"] <= point["high"] for point in curve)
     assert performance.reference()["bands"] == {"below": 60.0, "on_track": 80.0}
+
+
+# ---- attrition: the signals only an organisation's own records hold (ADR 0102) ------------
+
+
+@needs_attrition
+def test_the_general_model_ignores_the_signals_without_a_warning_but_reads_them_as_indicators(client):
+    record = {**ERP_EMPLOYEE, "team_mood": 2.4, "team_engagement": 2.1, "team_leave_thoughts": 0.42,
+              "months_since_recognition": 30, "leave_days_365d": 0}
+    plain, with_signals = client.post("/predict/attrition", json={"instances": [
+        {"ref": "1", "features": ERP_EMPLOYEE}, {"ref": "2", "features": record}]}).json()["results"]
+    body = client.post("/predict/attrition", json={"instances": [{"ref": "2", "features": record}]}).json()
+
+    assert body["warnings"] == []
+    assert with_signals["score"] == plain["score"]  # the general model cannot read them
+    by_key = {r["key"]: r for r in with_signals["indicators"]}
+    assert by_key["team_mood"]["level"] == "Low" and by_key["team_mood"]["read"] == "none"
+    assert by_key["recognition_gap"]["level"] == "Over two years"
+    assert by_key["rest"]["level"] == "None taken" and by_key["rest"]["points"] is None
+    definitions = {d["key"]: d for d in body["reference"]["indicators"]}
+    assert "never asked it" in definitions["team_mood"]["not_read"]

@@ -60,6 +60,9 @@ export type AuthUser = {
   can_resign?: boolean;
   /** Training: their programs, sessions and certificates, and joining (ADR 0094). */
   can_train?: boolean;
+  /** Mood check-ins (ADR 0102): may answer their own, and whether this month's waits. */
+  can_check_in?: boolean;
+  check_in_due?: boolean;
   /** The app's own tour (ADR 0080): still to be offered? */
   tour?: { owed: boolean; version: number } | null;
 };
@@ -651,4 +654,46 @@ export type ProblemReport = {
   updated_at: string | null;
   created_at: string | null;
   attachments: { id: number; name: string; url: string; width: number | null; height: number | null }[];
+};
+
+// ── Mood check-ins (ADR 0102) ───────────────────────────────────────────────
+
+export type CheckInAnswerKey = 'mood' | 'satisfaction' | 'energy' | 'enthusiasm' | 'immersion' | 'leave_thoughts';
+
+export type CheckInAnswers = Record<CheckInAnswerKey, number>;
+
+export type CheckInQuestion = {
+  key: CheckInAnswerKey;
+  prompt: string;
+  group: 'mood' | 'satisfaction' | 'engagement' | 'leaving';
+  min: number;
+  max: number;
+  options: { value: number; label: string; hint: string | null }[];
+};
+
+/** One of the person's own months — only ever served to them. */
+export type MyCheckIn = {
+  id: number;
+  /** The month's first day, YYYY-MM-DD. */
+  period: string;
+  answers: CheckInAnswers;
+  /** UWES-3 engagement, 0–6. */
+  engagement: number;
+  /** For the person alone. */
+  note: string | null;
+  submitted_at: string;
+};
+
+export type CheckInOverview = {
+  enabled: boolean;
+  has_employee: boolean;
+  period: string;
+  period_label: string;
+  days_left: number;
+  current: MyCheckIn | null;
+  /** Newest first, the last twelve months. */
+  history: MyCheckIn[];
+  /** The twelve months, oldest first, ending with this one. */
+  months: string[];
+  questions: CheckInQuestion[];
 };

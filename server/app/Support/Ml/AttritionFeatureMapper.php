@@ -3,6 +3,8 @@
 namespace App\Support\Ml;
 
 use App\Models\Employee;
+use App\Support\CheckIns\CheckInResults;
+use Carbon\CarbonImmutable;
 
 /**
  * Translates an {@see Employee} into the feature vector the attrition model
@@ -37,13 +39,20 @@ class AttritionFeatureMapper
     /** ERP employment types the model knows (the survey's were mapped onto these). */
     private const EMPLOYMENT_TYPES = ['regular', 'probationary', 'part_time', 'contractual'];
 
+    /** Recognition older than this is read as this: the gap says "a long time" either way. */
+    private const RECOGNITION_CAP_MONTHS = 60;
+
     /**
      * Build the feature dict for one employee. Only keys we can ground in real data
      * are returned; the inference service imputes any others.
      *
+     * `$teamClimate` is each department's latest shown check-in result
+     * ({@see CheckInResults::teamClimate()}), keyed by department id.
+     *
+     * @param  array<int, array{mood: float, engagement: float, leave_share: float}>  $teamClimate
      * @return array<string, float|int|string>
      */
-    public function features(Employee $employee): array
+    public function features(Employee $employee, array $teamClimate = []): array
     {
         $features = [];
         $now = now();
@@ -85,6 +94,52 @@ class AttritionFeatureMapper
             $features['overtime_hours_90d'] = round((int) ($employee->overtime_minutes_90d ?? 0) / 60, 2);
         }
 
-        return $features;
+        return $features + $this->signals($employee, $tenure, $teamClimate);
+    }
+
+    /**
+     * What an organisation's own model can learn from but the general one can't, as
+     * no survey asked it (ADR 0102) — each sent only when the record grounds it:
+     *
+     *  - **team climate** — the person's department's latest shown check-in result:
+     *    mood (1–5), engagement (UWES-3, 0–6), and the share who often or always think
+     *    about leaving. A department's figure, never the person's own answers.
+     *  - **months since recognition** — since their latest award or kudos; for
+     *    someone never recognised, their whole tenure (as a wait for a promotion is).
+     *  - **leave days in the last year** — approved leave taken, for people here a
+     *    year or more (a newer hire's year is not a year).
+     *
+     * @param  array<int, array{mood: float, engagement: float, leave_share: float}>  $teamClimate
+     * @return array<string, float>
+     */
+    private function signals(Employee $employee, ?float $tenure, array $teamClimate): array
+    {
+        $signals = [];
+        $attributes = $employee->getAttributes();
+
+        if (($climate = $teamClimate[$employee->department_id] ?? null) !== null) {
+            $signals['team_mood'] = (float) $climate['mood'];
+            $signals['team_engagement'] = (float) $climate['engagement'];
+            $signals['team_leave_thoughts'] = (float) $climate['leave_share'];
+        }
+
+        if (array_key_exists('last_award_on', $attributes) || array_key_exists('last_kudos_at', $attributes)) {
+            $last = collect([$attributes['last_award_on'] ?? null, $attributes['last_kudos_at'] ?? null])
+                ->filter()
+                ->map(fn (string $at): CarbonImmutable => CarbonImmutable::parse($at))
+                ->max();
+
+            $months = $last !== null ? $last->diffInMonths(now()) : ($tenure !== null ? $tenure * 12 : null);
+
+            if ($months !== null) {
+                $signals['months_since_recognition'] = round(min(self::RECOGNITION_CAP_MONTHS, max(0.0, (float) $months)), 1);
+            }
+        }
+
+        if (array_key_exists('leave_days_365d', $attributes) && $tenure !== null && $tenure >= 1) {
+            $signals['leave_days_365d'] = round((float) ($attributes['leave_days_365d'] ?? 0), 1);
+        }
+
+        return $signals;
     }
 }

@@ -17,6 +17,18 @@ effort–reward          overtime against pay and        feeling under-rewarded
 imbalance              promotion
 =====================  ==============================  =====================================
 
+Three more are read from what only an organisation's own records hold (ADR 0102),
+so the general model, which learned from a survey that never asked them, cannot read
+them; an organisation's own model can, once it graduates, and keeps them only when they
+make it more accurate on that organisation's records:
+
+=====================  ==============================  =====================================
+team mood              the department's latest shown   the mood around a person
+                       check-in result
+recognition gap        months since an award or kudos  feeling unrecognised
+rest                   leave taken over the last year  strain from too little rest
+=====================  ==============================  =====================================
+
 Which of them the score reads was decided by the data (notebook §5), not by the theory:
 
 * **withdrawal** is a model input (:data:`.features.INDICATORS`), the equal-weight mean of
@@ -95,6 +107,33 @@ def _workload(record: Mapping[str, Any]) -> int | None:
     return 0 if overtime == 0 else 1 if overtime < _HEAVY_OVERTIME else 2 if overtime == _HEAVY_OVERTIME else 3
 
 
+def _team_mood(record: Mapping[str, Any]) -> int | None:
+    """Good · Steady · Strained · Low, on the department's mean mood (1–5)."""
+    mood = record.get("team_mood")
+    if not _recorded(mood):
+        return None
+    mood = float(mood)
+    return 0 if mood >= 4.0 else 1 if mood >= 3.25 else 2 if mood >= 2.5 else 3
+
+
+def _recognition_gap(record: Mapping[str, Any]) -> int | None:
+    """Recent · Within a year · Over a year · Over two years, since the last award or kudos."""
+    months = record.get("months_since_recognition")
+    if not _recorded(months):
+        return None
+    months = float(months)
+    return 0 if months < 6 else 1 if months < 12 else 2 if months < 24 else 3
+
+
+def _rest(record: Mapping[str, Any]) -> int | None:
+    """Regular · Little · None taken, on approved leave days over the last year."""
+    days = record.get("leave_days_365d")
+    if not _recorded(days):
+        return None
+    days = float(days)
+    return 0 if days >= 5 else 1 if days > 0 else 2
+
+
 def _effort_reward(record: Mapping[str, Any]) -> int | None:
     """Balanced · Some strain · Imbalanced: overtime (effort) against pay under ₱25,000 or
     three years or more without a promotion (reward). Unknown, not "balanced", when
@@ -128,6 +167,8 @@ class Indicator:
     level: Callable[[Mapping[str, Any]], int | None]
     # Why the score does not read it, when it does not (shown with the reading).
     not_read: str | None = None
+    # Only an organisation's own records hold it (ADR 0102): the general model can't read it.
+    own_records: bool = False
 
 
 CATALOGUE: tuple[Indicator, ...] = (
@@ -172,7 +213,46 @@ CATALOGUE: tuple[Indicator, ...] = (
         not_read="It rests on overtime, which carries no signal in the survey; as an input it made the "
         "score less accurate.",
     ),
+    Indicator(
+        key="team_mood",
+        label="Team mood",
+        indicates="The mood around them",
+        theory="Unit-level engagement and satisfaction predict turnover (Harter, Schmidt & Hayes, 2002); "
+        "collective turnover (Heavey, Holwerda & Hausknecht, 2013).",
+        inputs=("team_mood", "team_engagement", "team_leave_thoughts"),
+        levels=("Good", "Steady", "Strained", "Low"),
+        level=_team_mood,
+        own_records=True,
+    ),
+    Indicator(
+        key="recognition_gap",
+        label="Recognition gap",
+        indicates="Feeling unrecognised",
+        theory="Recognition as a motivator (Herzberg's two-factor theory); recognition predicted staying "
+        "the next year (Walk, Zhang & Littlepage, 2019).",
+        inputs=("months_since_recognition",),
+        levels=("Recent", "Within a year", "Over a year", "Over two years"),
+        level=_recognition_gap,
+        own_records=True,
+    ),
+    Indicator(
+        key="rest",
+        label="Rest",
+        indicates="Strain from too little rest",
+        theory="Effort–Recovery model: strain builds when effort is not followed by recovery "
+        "(Meijman & Mulder, 1998).",
+        inputs=("leave_days_365d",),
+        levels=("Regular", "Little", "None taken"),
+        level=_rest,
+        own_records=True,
+    ),
 )
+
+# Why an indicator only an organisation's own records hold is not read, by whose model.
+_NOT_READ_GENERAL = ("Only your organisation's own model can learn this: the survey the general model learned "
+                     "from never asked it. It is kept with every score until your model graduates.")
+_NOT_READ_LOCAL = ("Your own model tried it on your records and left it out, because it did not make the "
+                   "score more accurate.")
 
 BY_KEY = {indicator.key: indicator for indicator in CATALOGUE}
 
@@ -187,15 +267,27 @@ def level_label(key: str, record: Mapping[str, Any]) -> str | None:
 def status(indicator: Indicator, players: Mapping[str, list[str]]) -> str:
     """How a model reads an indicator: ``"direct"`` (one of its inputs), ``"inputs"``
     (through every one of the inputs it is built from) or ``"none"``."""
-    if indicator.key in players:
+    # Direct: the model reads the indicator itself, as one input built from all of its
+    # own (a signal may share an indicator's name, as team_mood does: that is an input).
+    if list(players.get(indicator.key, [])) == list(indicator.inputs) and len(indicator.inputs) > 1:
         return "direct"
     read = {name for inputs in players.values() for name in inputs}
     return "inputs" if set(indicator.inputs) <= read else "none"
 
 
-def definitions(players: Mapping[str, list[str]]) -> list[dict[str, Any]]:
+def not_read(indicator: Indicator, players: Mapping[str, list[str]], local: bool) -> str | None:
+    """Why ``indicator`` is not in this model's score, or None when it is."""
+    if status(indicator, players) != "none":
+        return None
+    if indicator.own_records:
+        return _NOT_READ_LOCAL if local else _NOT_READ_GENERAL
+    return indicator.not_read
+
+
+def definitions(players: Mapping[str, list[str]], local: bool = False) -> list[dict[str, Any]]:
     """Every indicator as a run's reference states it once: what it reads as, the theory,
-    its inputs and levels, and whether this model reads it."""
+    its inputs and levels, and whether this model reads it (``local``: an organisation's
+    own model, whose reasons for leaving one out are its own)."""
     return [
         {
             "key": ind.key,
@@ -205,7 +297,8 @@ def definitions(players: Mapping[str, list[str]]) -> list[dict[str, Any]]:
             "inputs": list(ind.inputs),
             "levels": list(ind.levels),
             "read": status(ind, players),
-            "not_read": ind.not_read if status(ind, players) == "none" else None,
+            "not_read": not_read(ind, players, local),
+            "own_records": ind.own_records,
         }
         for ind in CATALOGUE
     ]

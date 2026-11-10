@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
 use App\Http\Controllers\Api\CalendarFeedController;
+use App\Http\Controllers\Api\CheckInController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\InvitationController;
@@ -165,6 +166,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('training/enrollments/{enrollment}', [TrainingController::class, 'withdraw'])->whereNumber('enrollment')->name('api.training.withdraw');
         Route::post('training/sessions/{session}/calendar-link', [TrainingController::class, 'sessionLink'])->whereNumber('session')->middleware('throttle:30,1')->name('api.training.session-link');
         Route::get('training/certificates/{certificate}', [TrainingController::class, 'certificate'])->whereNumber('certificate')->name('api.training.certificate');
+    });
+
+    // Mood check-ins (ADR 0102): this month's questions, one's own months, and
+    // saving this month's answers. Nobody else's are reachable.
+    Route::middleware('can:check-ins.respond')->group(function () {
+        Route::get('check-ins', [CheckInController::class, 'show'])->name('api.check-ins.show');
+        Route::post('check-ins', [CheckInController::class, 'store'])->middleware('throttle:20,1')->name('api.check-ins.store');
     });
 
     // Leaving (ADRs 0076, 0077): one's own resignation, exit interview and

@@ -10,7 +10,7 @@ import type { AuthUser } from '@/types/api';
 
 import type { GlyphName } from './components/service-glyph';
 
-export type ServiceGroupKey = 'time' | 'calendar' | 'leave' | 'recognition' | 'learning' | 'work';
+export type ServiceGroupKey = 'time' | 'calendar' | 'leave' | 'recognition' | 'learning' | 'wellbeing' | 'work';
 
 export type ServiceGroup = {
   key: ServiceGroupKey;
@@ -23,6 +23,8 @@ export type ServiceGroup = {
  * The groups, in the order the Services tab shows them. One hue per kind of
  * thing, so the grid reads as families rather than a rainbow of one-offs.
  * Learning's jade sits far enough from Time's teal to be told apart in a grid.
+ * How you're doing is the sunny end of the mood scale (ADR 0102), well clear of
+ * Recognition's orange.
  */
 export const SERVICE_GROUPS: ServiceGroup[] = [
   { key: 'time', title: 'Your time', hue: '#0ABFBF' },
@@ -30,6 +32,7 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
   { key: 'leave', title: 'Time off', hue: '#5856D6' },
   { key: 'recognition', title: 'Recognition', hue: '#FF6A3D' },
   { key: 'learning', title: 'Learning', hue: '#2E9D57' },
+  { key: 'wellbeing', title: 'How you’re doing', hue: '#E6A100' },
   { key: 'work', title: 'Your employment', hue: '#5B6B8C' },
 ];
 
@@ -50,6 +53,7 @@ export type ServiceKey =
   | 'training'
   | 'trainingBrowse'
   | 'certificates'
+  | 'checkIn'
   | 'record'
   | 'resignation'
   | 'account'
@@ -233,6 +237,16 @@ export const SERVICES: Service[] = [
     href: { pathname: '/training', params: { tab: 'certificates' } },
     keywords: 'certificates certificate cert certification training expiry expires renew',
     available: trains,
+  },
+  {
+    key: 'checkIn',
+    title: 'Monthly check-in',
+    label: 'Check-in',
+    group: 'wellbeing',
+    glyph: 'mood',
+    href: '/check-in',
+    keywords: 'check-in check in mood how am i doing feelings wellbeing pulse survey engagement happy stress monthly',
+    available: (user) => !!user.can_check_in && hasEmployee(user),
   },
   {
     key: 'record',

@@ -31,7 +31,17 @@ import pandas as pd
 
 from ..paths import ARTIFACTS_DIR
 from . import indicators as behavioural
-from .features import BAND_LABELS, CATEGORICAL_FEATURES, FEATURES, INDICATORS, RECORDED_FEATURES, band_of
+from .features import (
+    BAND_LABELS,
+    CATEGORICAL_FEATURES,
+    FEATURES,
+    INDICATORS,
+    RECORDED_FEATURES,
+    SIGNAL_EDGES,
+    SIGNAL_LABELS,
+    SIGNALS,
+    band_of,
+)
 
 EVIDENCE_FILE = ARTIFACTS_DIR / "attrition" / "evidence.json"
 
@@ -46,6 +56,8 @@ def band_label(feature: str, value: Any) -> str | None:
         return None
     if feature in CATEGORICAL_FEATURES or feature in INDICATORS:  # an indicator's value is its level
         return str(value)
+    if feature in SIGNAL_EDGES:
+        return SIGNAL_LABELS[feature][int(np.digitize([float(value)], SIGNAL_EDGES[feature])[0])]
     return BAND_LABELS[feature][band_of(feature, float(value))]
 
 
@@ -56,14 +68,15 @@ def profile(X: pd.DataFrame, y, source: str) -> dict[str, Any]:
     are: ``"survey"`` (the reference) or ``"own_records"`` (an organisation's)."""
     left = np.asarray(y, dtype=int)
     table: dict[str, list[dict[str, Any]]] = {}
-    for feature in FEATURES:
+    # The signals only an organisation's own records hold (ADR 0102), where they do.
+    for feature in FEATURES + [s for s in SIGNALS if s in X.columns and X[s].notna().any()]:
         if feature not in X.columns:
             continue
         labels = X[feature].map(lambda v, f=feature: band_label(f, v))
         order = (
             sorted(labels.dropna().unique())
             if feature in CATEGORICAL_FEATURES
-            else [b for b in BAND_LABELS[feature] if b in set(labels.dropna())]
+            else [b for b in (SIGNAL_LABELS.get(feature) or BAND_LABELS[feature]) if b in set(labels.dropna())]
         )
         rows = []
         for band in order:

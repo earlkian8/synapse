@@ -23,6 +23,7 @@ import {
     Scale,
     ScrollText,
     ShieldCheck,
+    SmilePlus,
     Target,
     Trash2,
     TrendingDown,
@@ -172,6 +173,15 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: CalendarClock,
                 permissionAny: ['events.view', 'events.respond'],
                 summary: 'Events, rooms and your invitations',
+            },
+            {
+                // One entry for everybody (ADR 0102): HR lands on the team
+                // results, everyone else on their own monthly check-in.
+                title: 'Check-ins',
+                href: '/check-ins',
+                icon: SmilePlus,
+                permissionAny: ['check-ins.view', 'check-ins.respond'],
+                summary: 'Monthly mood check-ins, confidential',
             },
         ],
     },

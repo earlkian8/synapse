@@ -84,6 +84,11 @@ class PermissionRegistry
             'awards.manage' => 'Give, edit & remove recognitions; review nominations & redemptions',
             'awards.participate' => 'Give kudos, nominate colleagues & redeem rewards (self-service)',
         ],
+        'Check-ins' => [
+            'check-ins.view' => 'View team check-in results (groups of five or more only)',
+            'check-ins.manage' => 'Turn monthly check-ins on or off',
+            'check-ins.respond' => 'Answer your own monthly check-in (self-service)',
+        ],
         'Events & Meetings' => [
             'events.view' => 'View events & meetings',
             'events.manage' => 'Schedule events, book rooms, invite attendees & track responses',

@@ -201,5 +201,7 @@ class TrainResponse(BaseModel):
     findings: list[str]
     # The measure it was judged on, for the local model, the reference and knowing
     # nothing, and how often it came out ahead across resamples of the people.
-    comparison: dict[str, float | int | str | None]
+    # (attrition: `signals` — which of the organisation's own signals were tried,
+    # whether they were kept, and how the model did with and without them.)
+    comparison: dict[str, Any]
     counts: dict[str, int]

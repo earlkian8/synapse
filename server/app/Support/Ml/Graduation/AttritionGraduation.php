@@ -104,7 +104,11 @@ class AttritionGraduation implements GraduationSurface
                 $counts[$resigned ? 'resigned' : 'stayed']++;
                 $rows[] = [
                     'group' => (string) $employeeId,
-                    'features' => array_intersect_key((array) $snapshot->features, array_flip(AttritionRiskAssessor::KEY_FEATURES)),
+                    // The general model's inputs and the signals only this
+                    // organisation's own model can learn from (ADR 0102).
+                    'features' => array_intersect_key((array) $snapshot->features, array_flip([
+                        ...AttritionRiskAssessor::KEY_FEATURES, ...AttritionRiskAssessor::SIGNAL_FEATURES,
+                    ])),
                     'outcome' => (int) $resigned,
                 ];
             }
@@ -205,9 +209,16 @@ class AttritionGraduation implements GraduationSurface
             ['key' => 'departure_type', 'label' => 'Departure type', 'source' => 'Offboarding', 'state' => 'available',
                 'covered' => $counts->departedWithReason(), 'total' => $counts->departed(),
                 'note' => 'Counted against the people who left, not headcount. It is what your own model learns from: only resignations count as leaving.'],
-            ['key' => 'engagement', 'label' => 'Engagement and job satisfaction', 'source' => 'Not collected', 'state' => 'missing',
-                'covered' => 0, 'total' => $total,
-                'note' => 'One of the strongest published signs of leaving, and no part of the system runs a survey that would produce it.'],
+            // Kept with every score for the organisation's own model (ADR 0102).
+            ['key' => 'team_climate', 'label' => 'Team mood, engagement and thoughts of leaving', 'source' => 'Check-ins', 'state' => 'learned',
+                'covered' => $counts->teamClimate(), 'total' => $total,
+                'note' => 'The department’s latest monthly check-in result, shown only for five or more answers — never the person’s own answers. Engagement and thoughts of leaving are among the strongest published signs of leaving.'],
+            ['key' => 'recognition', 'label' => 'Time since last recognition', 'source' => 'Awards & Recognition', 'state' => 'learned',
+                'covered' => $counts->hired(), 'total' => $total,
+                'note' => 'Since their latest award or kudos; for someone never recognised, their whole tenure.'],
+            ['key' => 'leave_taken', 'label' => 'Leave taken, last 12 months', 'source' => 'Leave', 'state' => 'learned',
+                'covered' => $counts->yearOrMore(), 'total' => $total,
+                'note' => 'Approved leave days, for people here a year or more. A year with no rest is a sign of strain.'],
             ['key' => 'pay_benchmark', 'label' => 'Pay against market rate', 'source' => 'Not collected', 'state' => 'missing',
                 'covered' => 0, 'total' => $total,
                 'note' => 'Salary is recorded, but nothing compares it with a market benchmark.'],

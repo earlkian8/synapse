@@ -29,6 +29,8 @@ import { eventsApi } from '@/features/events/api';
 import { RESPONSE_COLOR, RESPONSE_LABEL } from '@/features/events/meta';
 import { recognitionApi } from '@/features/recognition/api';
 import { leaveApi } from '@/features/leave/api';
+import { MoodFace } from '@/features/check-ins/components/mood-face';
+import { MOOD_WORDS, monthName } from '@/features/check-ins/meta';
 import { AllServicesTile, ServiceGrid } from '@/features/services/components/service-grid';
 import { useShortcuts } from '@/features/services/shortcuts';
 import { WorkspaceChip, WorkspaceSwitcher } from '@/features/workspaces/workspace-switcher';
@@ -130,6 +132,16 @@ export default function HomeScreen() {
           ) : (
             <Animated.View entering={enter(0)}>
               <TodayCard today={data.today} onOpen={() => router.push('/(tabs)/clock')} />
+            </Animated.View>
+          )}
+
+          {/* This month's check-in, while it waits (ADR 0102): a face starts it with that mood. */}
+          {user?.check_in_due && (
+            <Animated.View entering={enter(1)}>
+              <CheckInPrompt
+                onChoose={(mood) => router.push({ pathname: '/check-in/answer', params: { mood: String(mood) } })}
+                onOpen={() => router.push('/check-in')}
+              />
             </Animated.View>
           )}
 
@@ -485,6 +497,55 @@ function TypeBar({ color }: { color: string }) {
   const { colors, readable } = useTheme();
   return <View style={[styles.typeBar, { backgroundColor: readable(color, colors.card, 3) }]} />;
 }
+
+
+/**
+ * This month's check-in, on Home while it waits (ADR 0102): five faces, one tap
+ * away from answering — the one tapped is the month's mood, and the rest follow.
+ */
+function CheckInPrompt({ onChoose, onOpen }: { onChoose: (mood: number) => void; onOpen: () => void }) {
+  const { colors, spacing } = useTheme();
+  const month = monthName(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
+
+  return (
+    <Card style={{ gap: spacing.md }}>
+      <Touchable onPress={onOpen} accessibilityRole="button" accessibilityLabel="Your monthly check-in" style={checkInStyles.head}>
+        <View style={checkInStyles.flex}>
+          <AppText variant="headline">How’s {month} going?</AppText>
+          <AppText variant="footnote" tone="secondary">
+            Your monthly check-in. Confidential, about a minute.
+          </AppText>
+        </View>
+        <Icon name="chevronRight" size={14} color={colors.textTertiary} />
+      </Touchable>
+      <View style={checkInStyles.faces} accessibilityRole="radiogroup" accessibilityLabel="How you have felt at work this month">
+        {MOOD_WORDS.map((word, i) => (
+          <Touchable
+            key={word}
+            onPress={() => onChoose(i + 1)}
+            haptic="selection"
+            scaleTo={0.88}
+            accessibilityRole="radio"
+            accessibilityLabel={word}
+            style={checkInStyles.face}
+          >
+            <MoodFace mood={i + 1} size={44} label="" />
+            <AppText variant="caption2" tone="secondary">
+              {word}
+            </AppText>
+          </Touchable>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+const checkInStyles = StyleSheet.create({
+  flex: { flex: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  faces: { flexDirection: 'row', justifyContent: 'space-between' },
+  face: { alignItems: 'center', gap: 4, flex: 1, paddingVertical: 4 },
+});
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

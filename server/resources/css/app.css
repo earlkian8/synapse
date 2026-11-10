@@ -106,6 +106,18 @@
     --assistant-ink: #0f2044;
     --assistant-signal: #0abfbf;
     --assistant-signal-text: #08767c;
+    /*
+     * Mood (ADR 0102): "feeling blue" to "sunny", a diverging scale on the blue-amber
+     * axis colour-blind readers keep, with a neutral midpoint. Checked with the
+     * palette validator: adjacent steps ΔE 17 (normal) and 16 (deutan) in light,
+     * 19 / 19 in dark. Marks only: text never wears these.
+     */
+    --mood-1: #2b3ba8;
+    --mood-2: #6a82ea;
+    --mood-3: #d4d2cd;
+    --mood-4: #efa623;
+    --mood-5: #c2550a;
+    --mood-ink: #1b1f3b;
 }
 
 .dark {
@@ -145,6 +157,12 @@
     --assistant-ink: #1c3263;
     --assistant-signal: #0abfbf;
     --assistant-signal-text: #3dd6d6;
+    --mood-1: #6f82f5;
+    --mood-2: #b4c0f8;
+    --mood-3: #6a6863;
+    --mood-4: #f9cc66;
+    --mood-5: #dd6316;
+    --mood-ink: #101223;
 }
 
 @layer base {

@@ -216,6 +216,20 @@ final class SystemGuide
             'assistant' => 'List your invitations and answer one.',
             'keywords' => ['my events', 'invitation', 'rsvp', 'going', 'subscribe', 'calendar feed', 'google calendar', 'outlook'],
         ],
+        'check-in-results' => [
+            'title' => 'Check-in results', 'menu' => 'Workforce › Check-ins', 'path' => '/check-ins/results', 'any' => ['check-ins.view'],
+            'about' => 'How the company and each department felt at work in a month, from the monthly check-ins: mood, job satisfaction, engagement and how many often think about leaving, with the last year\'s trend. Confidential: a group is shown only with five or more answers, smaller ones are pooled, and nobody\'s single answers are ever shown. HR can turn check-ins on or off here.',
+            'tasks' => ['See how a month felt', 'Compare departments', 'Follow mood over the year', 'Turn check-ins on or off'],
+            'assistant' => 'Not in chat: read check-in results on this screen.',
+            'keywords' => ['check-in', 'check ins', 'mood', 'pulse survey', 'engagement', 'job satisfaction', 'morale', 'wellbeing', 'thinking of leaving'],
+        ],
+        'my-check-in' => [
+            'title' => 'My check-in', 'menu' => 'Workforce › Check-ins (also the mobile app)', 'path' => '/check-ins/me', 'any' => ['check-ins.respond'],
+            'about' => 'Once a month, six quick questions about how work is going, and your own months to look back on, with a private note only you can read. Your answers are confidential: no one at the company sees them, only results for groups of five or more. You can change this month\'s answers until the month ends.',
+            'tasks' => ['Answer this month\'s check-in', 'Change this month\'s answers', 'Look back at your months'],
+            'assistant' => 'Not in chat: answer your check-in on this screen or in the app.',
+            'keywords' => ['my check-in', 'mood', 'how am i doing', 'pulse', 'wellbeing', 'feelings', 'monthly survey'],
+        ],
         'offboarding' => [
             'title' => 'Offboarding', 'menu' => 'Offboarding', 'path' => '/offboarding', 'any' => ['offboarding.view'],
             'about' => 'Exits: the reason and last day, a clearance checklist signed off by departments, the exit interview sent to the leaver, and the papers — the clearance form and, once the exit is completed, the Certificate of Employment — as PDFs.',

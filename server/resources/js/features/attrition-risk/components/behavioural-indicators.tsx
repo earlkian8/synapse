@@ -16,6 +16,40 @@ const FEW = 10;
 function readFrom(reading: RiskIndicatorReading): string | null {
     const inputs = reading.inputs;
 
+    // What only the organisation's own records hold (ADR 0102).
+    if (reading.key === 'team_mood' && inputs.team_mood !== undefined) {
+        const parts = [`mood ${Number(inputs.team_mood).toFixed(1)} of 5`];
+
+        if (inputs.team_engagement !== undefined) {
+            parts.push(
+                `engagement ${Number(inputs.team_engagement).toFixed(1)} of 6`,
+            );
+        }
+
+        if (inputs.team_leave_thoughts !== undefined) {
+            parts.push(
+                `${Math.round(Number(inputs.team_leave_thoughts) * 100)}% often think of leaving`,
+            );
+        }
+
+        return `Read from their team's latest check-in results, never their own answers: ${parts.join(', ')}.`;
+    }
+
+    if (
+        reading.key === 'recognition_gap' &&
+        inputs.months_since_recognition !== undefined
+    ) {
+        const months = Number(inputs.months_since_recognition);
+
+        return `Read from awards and kudos: ${months < 1 ? 'recognised this month' : `${Math.round(months)} ${Math.round(months) === 1 ? 'month' : 'months'} since the last one, or since joining if never`}.`;
+    }
+
+    if (reading.key === 'rest' && inputs.leave_days_365d !== undefined) {
+        const days = Number(inputs.leave_days_365d);
+
+        return `Read from leave: ${days === 0 ? 'no leave taken' : `${days} ${days === 1 ? 'day' : 'days'} of leave taken`} in the last 12 months.`;
+    }
+
     if (reading.key === 'career_stagnation') {
         const wait = inputs.years_since_promotion;
 

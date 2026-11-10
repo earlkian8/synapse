@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Role;
 use App\Support\Ml\AttritionFeatureMapper;
+use App\Support\Ml\AttritionRiskAssessor;
 use App\Support\OrganizationProvisioner;
 use App\Support\Reports\MlSignals;
 use App\Support\Tenancy;
@@ -176,10 +177,12 @@ test('the request carries the survey inputs and never a protected attribute', fu
         $instance = $request->data()['instances'][0];
 
         return $instance['ref'] === (string) $employee->id
-            && array_keys($instance['features']) == array_intersect(
-                ['employment_type', 'tenure_years', 'monthly_salary', 'ever_promoted', 'years_since_promotion', 'absences_90d', 'lates_90d', 'overtime_hours_90d'],
-                array_keys($instance['features']),
-            )
+            // The survey's inputs, and the signals only the organisation's own
+            // model can learn from (ADR 0102) — nothing else.
+            && array_diff(array_keys($instance['features']), [
+                ...AttritionRiskAssessor::KEY_FEATURES, ...AttritionRiskAssessor::SIGNAL_FEATURES,
+            ]) === []
+            && array_key_exists('tenure_years', $instance['features'])
             && $instance['features']['monthly_salary'] == 18500
             && ! array_intersect(array_keys($instance['features']), ['gender', 'civil_status', 'birth_date', 'age', 'marital_status']);
     });

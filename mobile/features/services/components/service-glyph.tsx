@@ -38,6 +38,7 @@ export type GlyphName =
   | 'mortarboard'
   | 'books'
   | 'certificate'
+  | 'mood'
   | 'all';
 
 type Ink = { fill: string; deep: string; paper: string; wash: string };
@@ -277,6 +278,21 @@ function Drawing({ name, ink }: { name: GlyphName; ink: Ink }) {
           <Circle cx={23} cy={20.6} r={6.2} fill={paper} />
           <Path d={star(23, 20.6, 4.9, 4.1, 10)} fill={deep} />
           <Path d="M20.9 20.7 L22.4 22.2 L25.2 19.3" stroke={paper} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </>
+      );
+
+    // A check-in (ADR 0102): a face, its features cut out of it, and a ray of sun.
+    case 'mood':
+      return (
+        <>
+          <Path d="M23.2 4.2 L24.4 1.6 M26.9 6.9 L29.6 5.9 M27.6 10.9 L30.3 11.3" {...line} strokeWidth={2} />
+          <Path
+            d="M15 6.5 C22.4 6.5 26.5 11 26.5 17.6 C26.5 24.4 21.8 28.5 15 28.5 C8.2 28.5 3.5 24.4 3.5 17.6 C3.5 11 7.6 6.5 15 6.5 Z"
+            fill={fill}
+          />
+          <Circle cx={10.8} cy={15.6} r={1.8} fill={paper} />
+          <Circle cx={19.2} cy={15.6} r={1.8} fill={paper} />
+          <Path d="M9.6 20.6 Q15 25 20.4 20.6" stroke={paper} strokeWidth={2.2} strokeLinecap="round" fill="none" />
         </>
       );
 

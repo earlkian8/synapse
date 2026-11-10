@@ -1,4 +1,4 @@
-import { CircleSlash, Database, Minus } from 'lucide-react';
+import { CircleSlash, Database, Minus, Sparkles } from 'lucide-react';
 import { Fragment } from 'react';
 import { DataTable, TableCard } from '@/components/data-table';
 import {
@@ -154,9 +154,11 @@ function StateIcon({ state }: { state: FieldState }) {
     const Icon =
         state === 'supplied'
             ? Database
-            : state === 'available'
-              ? Minus
-              : CircleSlash;
+            : state === 'learned'
+              ? Sparkles
+              : state === 'available'
+                ? Minus
+                : CircleSlash;
 
     return <Icon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />;
 }

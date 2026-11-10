@@ -92,7 +92,8 @@ def test_how_a_model_reads_each_indicator_follows_its_inputs():
                "withdrawal": ["absences_90d", "lates_90d"], "employment_type": ["employment_type"]}
     read = {d["key"]: d["read"] for d in indicators.definitions(players)}
 
-    assert read == {"withdrawal": "direct", "career_stagnation": "inputs", "workload_strain": "none", "effort_reward": "none"}
+    assert read == {"withdrawal": "direct", "career_stagnation": "inputs", "workload_strain": "none", "effort_reward": "none",
+                    "team_mood": "none", "recognition_gap": "none", "rest": "none"}
     # A model reading absences and lateness apart still reads withdrawal, through them.
     apart = {**{k: v for k, v in players.items() if k != "withdrawal"}, "absences_90d": ["absences_90d"], "lates_90d": ["lates_90d"]}
     assert indicators.status(indicators.BY_KEY["withdrawal"], apart) == "inputs"
@@ -229,3 +230,51 @@ def test_small_department_groups_join_other(tidy):
     assert (counts.drop(survey.OTHER_DEPARTMENT) >= survey.MIN_DEPARTMENT_GROUP).all()
     merged = survey.merge_small_groups(pd.Series(["sales"] * 10 + ["it"] * 3))
     assert merged.value_counts().to_dict() == {"sales": 10, "other": 3}
+
+
+# ---- what only an organisation's own records hold (ADR 0102) -------------------------------
+
+
+@pytest.mark.parametrize(
+    ("key", "record", "level"),
+    [
+        ("team_mood", {"team_mood": 4.2}, "Good"),
+        ("team_mood", {"team_mood": 3.4}, "Steady"),
+        ("team_mood", {"team_mood": 2.6}, "Strained"),
+        ("team_mood", {"team_mood": 1.9}, "Low"),
+        ("recognition_gap", {"months_since_recognition": 2}, "Recent"),
+        ("recognition_gap", {"months_since_recognition": 11.9}, "Within a year"),
+        ("recognition_gap", {"months_since_recognition": 18}, "Over a year"),
+        ("recognition_gap", {"months_since_recognition": 60}, "Over two years"),
+        ("rest", {"leave_days_365d": 12}, "Regular"),
+        ("rest", {"leave_days_365d": 2}, "Little"),
+        ("rest", {"leave_days_365d": 0}, "None taken"),
+        ("rest", {}, None),
+    ],
+)
+def test_the_own_records_indicators_read_their_signal(key, record, level):
+    assert indicators.level_label(key, record) == level
+
+
+def test_why_an_own_records_indicator_is_unread_depends_on_whose_model_it_is():
+    general = {d["key"]: d for d in indicators.definitions({"tenure_years": ["tenure_years"]})}
+    local = {d["key"]: d for d in indicators.definitions({"tenure_years": ["tenure_years"]}, local=True)}
+    read_by_local = {d["key"]: d for d in indicators.definitions({"team_mood": ["team_mood"], "team_engagement": ["team_engagement"],
+                                                                  "team_leave_thoughts": ["team_leave_thoughts"]}, local=True)}
+
+    assert general["team_mood"]["own_records"] is True
+    assert "survey the general model learned from never asked it" in general["team_mood"]["not_read"]
+    assert "left it out" in local["team_mood"]["not_read"]
+    assert read_by_local["team_mood"]["read"] == "inputs" and read_by_local["team_mood"]["not_read"] is None
+    # The survey-tested ones keep the survey's reason.
+    assert general["workload_strain"]["not_read"] == indicators.BY_KEY["workload_strain"].not_read
+
+
+def test_signals_are_read_one_input_each_beside_withdrawal(tidy):
+    X = tidy[features.FEATURES].assign(team_mood=3.0, months_since_recognition=np.linspace(0, 30, len(tidy)))
+    prep = features.preprocessor(scale=True, signals=["team_mood", "months_since_recognition"]).fit(X)
+    branches = {name: list(columns) for name, _, columns in prep.transformers_ if len(columns)}
+
+    assert branches["signals"] == ["team_mood", "months_since_recognition"]
+    assert branches["withdrawal"] == ["absences_90d", "lates_90d"]
+    assert prep.transform(X).shape[1] == len(features.DIRECT_FEATURES) + 1 + 2 + 4

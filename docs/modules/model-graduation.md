@@ -52,6 +52,9 @@ is waiting to be switched to.
    the findings in plain words. Below that is whether training is unlocked.
 4. **Data used**: one table of every field a score draws on or could, with how many
    active employees' records carry it. It is grouped into *Used in every score*,
+   *Kept for your own model* (attrition: signals the general model can't read, stored
+   with every score for the organisation's own model, which keeps them only if they
+   help — [ADR 0102](../decisions/0102-confidential-mood-check-ins-and-what-only-your-records-hold.md)),
    *Recorded, but not used* (each says why) and *Not recorded anywhere*.
 
 Switching either way asks for a confirmation first.

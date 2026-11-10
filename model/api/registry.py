@@ -40,7 +40,7 @@ import pandas as pd
 
 from synapse_ml.attrition import evidence as attrition_evidence
 from synapse_ml.attrition import indicators as attrition_indicators
-from synapse_ml.attrition.features import BAND_EDGES, FEATURE_GROUPS, TIER_CUTS
+from synapse_ml.attrition.features import BAND_EDGES, FEATURE_GROUPS, INDICATORS, SIGNALS, TIER_CUTS
 from synapse_ml.attrition.features import FEATURE_LABELS as ATTRITION_FEATURE_LABELS
 from synapse_ml.explain import shapley
 from synapse_ml.local import store as local_store
@@ -157,16 +157,17 @@ def _loaded(name: str, artifact: Any, metrics: dict[str, Any], tenant: str | Non
     else:
         evidence = attrition_evidence.load() if name == "attrition" else None
 
-    # Branches by name: "num" (numbers read as they are), "cat" (categories), and any
-    # other — an indicator, whose inputs the explanation reveals together.
+    # Branches by name: an indicator's (withdrawal), whose inputs the explanation
+    # reveals together as one, and every other — numbers read as they are ("num"),
+    # an organisation's signals ("signals"), categories ("cat") — one input each.
     branches = [(branch, list(columns)) for branch, _, columns in prep.transformers_ if branch != "remainder" and len(columns)]
     categorical = [c for branch, columns in branches if branch == "cat" for c in columns]
     players: dict[str, list[str]] = {}
     for branch, columns in branches:
-        if branch in ("num", "cat"):
-            players.update({column: [column] for column in columns})
-        else:
+        if branch in INDICATORS:
             players[branch] = columns
+        else:
+            players.update({column: [column] for column in columns})
     features = list(prep.feature_names_in_)
     return LoadedModel(
         name=name,
@@ -298,12 +299,14 @@ class Registry:
             "evidence": model.evidence,
         }
         if model.name == "attrition":
-            reference["indicators"] = attrition_indicators.definitions(model.players)
+            reference["indicators"] = attrition_indicators.definitions(model.players, local=model.tenant is not None)
         return reference
 
     def unknown_inputs(self, model: LoadedModel, feature_dicts: list[dict[str, Any]]) -> list[str]:
-        """Input names the callers sent that the model does not read."""
-        known = set(model.features)
+        """Input names the callers sent that the model does not read — less the
+        attrition signals (ADR 0102), which the ERP sends on purpose: only an
+        organisation's own model reads them, and every model reads them as readings."""
+        known = set(model.features) | (set(SIGNALS) if model.name == "attrition" else set())
         return sorted({key for feats in feature_dicts for key in feats} - known)
 
     def get(self, name: str) -> LoadedModel:
@@ -437,7 +440,7 @@ def _shapley_factors(
         if with_readings:
             # The record as the caller sent it: overtime is not a model input, but it is
             # what workload strain and effort–reward imbalance are read from.
-            record = {**{k: _number(v) for k, v in sent.items() if k in BAND_EDGES}, **row}
+            record = {**{k: _number(v) for k, v in sent.items() if k in BAND_EDGES or k in SIGNALS}, **row}
             readings = attrition_indicators.readings(record, players, contributions, model.evidence) or None
             results.append((round(baseline, 1), factors, readings))
         else:
