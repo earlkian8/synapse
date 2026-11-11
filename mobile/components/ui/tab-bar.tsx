@@ -77,7 +77,7 @@ export function useTabBarInset(): number {
  * wears a ring when selected, and the pill steps aside. It carries a badge while
  * punches made offline are waiting to be sent (ADR 0040).
  */
-export function TabBar({ state, navigation }: TabBarProps) {
+export function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const { colors, scheme, spacing } = useTheme();
   const insets = useSafeAreaInsets();
   const waiting = useQueuedPunches().length;
@@ -148,10 +148,10 @@ export function TabBar({ state, navigation }: TabBarProps) {
               const showBadge = route.name === 'clock' && waiting > 0;
 
               const onPress = () => {
-                const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
 
                 if (!focused && !event.defaultPrevented) {
-                  navigation.navigate(route.name, route.params);
+                  navigateToTab(route.key);
                 }
               };
 
@@ -159,7 +159,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
                 <Touchable
                   key={route.key}
                   onPress={onPress}
-                  onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+                  onLongPress={() => emitter.emit({ type: 'tabLongPress', target: route.key })}
                   haptic="selection"
                   scaleTo={0.9}
                   accessibilityRole="tab"
