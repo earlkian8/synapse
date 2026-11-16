@@ -17,13 +17,47 @@ The build context is the repository root. Only `server/` and `model/` go in; `do
 
 | Process | Command | Notes |
 | --- | --- | --- |
-| `ml` | `uvicorn api.main:app` on `127.0.0.1:8001` | The inference service ([Promotion Readiness](./modules/promotion-readiness.md), [Performance Forecast](./modules/performance-forecast.md), [Attrition Risk](./modules/attrition-risk.md), [Model graduation](./modules/model-graduation.md)). Bound to loopback, so only Laravel can reach it. `ML_WORKERS` workers (default 1). Starts first. |
-| `php-fpm` | `php-fpm --nodaemonize` | Listens on `127.0.0.1:9000`. |
-| `nginx` | `nginx -g "daemon off;"` | Listens on `$PORT` (default 8080). |
+| `ml` | `uvicorn api.main:app` on `127.0.0.1:8001` | The inference service ([Promotion Readiness](./modules/promotion-readiness.md), [Performance Forecast](./modules/performance-forecast.md), [Attrition Risk](./modules/attrition-risk.md), [Model graduation](./modules/model-graduation.md)). Bound to loopback, so only Laravel can reach it. `ML_WORKERS` workers (default 1). Starts first. Off with `RUN_ML=false`. |
+| `php-fpm` | `php-fpm --nodaemonize` | Listens on `127.0.0.1:9000`. `pm = ondemand`: workers are forked per request and exit after 30 s idle, at most `PHP_FPM_MAX_CHILDREN` (default 6). |
+| `nginx` | `nginx -g "daemon off;"` | Listens on `$PORT` (default 8080). Two worker processes. |
 | `queue` | `php artisan queue:work --tries=3 --max-time=3600` | Off with `RUN_QUEUE=false`. |
-| `scheduler` | `php artisan schedule:work` | Off with `RUN_SCHEDULER=false`. Runs the end-of-day attendance close (hourly), clock-in reminders (every 15 minutes), closing expired job postings (daily) and deleting expired [data export](./modules/data-export.md) archives (hourly). |
+| `scheduler` | `docker/scheduler.sh`: `php artisan schedule:run` started on each minute | Off with `RUN_SCHEDULER=false`. Runs the end-of-day attendance close (hourly), clock-in reminders (every 15 minutes), closing expired job postings (daily) and deleting expired [data export](./modules/data-export.md) archives (hourly). |
 
-`supervisord` runs all five in the foreground and restarts any that exit. Every process
+`supervisord` runs all five in the foreground and restarts any that exit.
+
+### Memory at idle
+
+Measured on 2026-11-16 (local processes, the image's commands), with nobody using the
+app:
+
+| Process | Before | After |
+| --- | --- | --- |
+| `ml` (numpy, pandas, scipy, scikit-learn, the models) | ~178 MB, 37 threads | ~178 MB, 7 threads |
+| `php-fpm` | master + 3–5 idle workers (~40 MB each) | master + at most one worker kept warm by the health check |
+| `scheduler` | `schedule:work`, ~70 MB all day | a shell loop (~1 MB); PHP only while a run lasts |
+| `queue` | ~70 MB | ~70 MB (kept: verification codes are queued mail) |
+| `nginx` | one worker per *host* CPU | two workers |
+
+What was changed and why:
+
+- **PHP-FPM is `ondemand`.** Forking a worker from the master costs well under a
+  millisecond and opcache is shared, so nothing is lost by not keeping idle ones.
+- **The scheduler is a shell loop.** `schedule:work` kept a booted Laravel in memory to
+  start `schedule:run` each minute; the loop starts it the same way without the
+  resident process. Each run starts in the background, so a long one never delays the
+  next.
+- **Thread and allocator limits** (`OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`,
+  `MKL_NUM_THREADS` = 1, `MALLOC_ARENA_MAX` = 2). A container sees the host's CPUs, not
+  the instance's, so numpy started a thread per host CPU and glibc kept arenas to
+  match. Inference here is one small prediction at a time.
+- **nginx runs two workers**, not one per host CPU.
+- **The ML service can be left off** (`RUN_ML=false`) on an instance that doesn't use
+  the predictive screens. It is the largest process; the screens then say the service
+  isn't connected.
+
+App Platform's memory graph also counts the kernel's file cache (the image's files once
+read), which the kernel gives back under pressure; a figure that stays flat without
+users is not a leak. Every process
 logs to the container's stdout or stderr. The queue and the scheduler keep retrying
 while the database is briefly unreachable at boot.
 
@@ -82,7 +116,8 @@ their points but not with the survey's leave rates.
 
 1. Refuses to start without `APP_KEY` (generate one with
    `php artisan key:generate --show`).
-2. Normalises `RUN_QUEUE`, `RUN_SCHEDULER` and `RUN_MIGRATIONS` to `true` or `false`.
+2. Normalises `RUN_QUEUE`, `RUN_SCHEDULER`, `RUN_MIGRATIONS` and `RUN_ML` to `true` or
+   `false`, and defaults `PHP_FPM_MAX_CHILDREN` to 6.
 3. Writes `$PORT` into the nginx config.
 4. Creates the writable `storage/` and `bootstrap/cache` directories, in case they
    arrive on an empty volume, and hands them to `www-data`.
@@ -101,8 +136,11 @@ The image sets these defaults; anything set on the platform overrides them:
 | `LOG_CHANNEL` / `LOG_LEVEL` | `stderr` / `info` |
 | `ML_SERVICE_URL` | `http://127.0.0.1:8001` |
 | `PORT` | `8080` |
-| `RUN_MIGRATIONS` / `RUN_QUEUE` / `RUN_SCHEDULER` | `true` |
+| `RUN_MIGRATIONS` / `RUN_QUEUE` / `RUN_SCHEDULER` / `RUN_ML` | `true` |
 | `ML_WORKERS` | `1` |
+| `PHP_FPM_MAX_CHILDREN` | `6` (for a 1 GB instance; about RAM ÷ 80 MB, less what the other processes use) |
+| `OPENBLAS_NUM_THREADS` / `OMP_NUM_THREADS` / `MKL_NUM_THREADS` | `1` |
+| `MALLOC_ARENA_MAX` | `2` |
 
 Set these yourself (see `server/.env.example` for the full list):
 

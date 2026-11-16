@@ -89,6 +89,7 @@ COPY docker/php-fpm.conf  /usr/local/etc/php-fpm.d/zz-synapse.conf
 COPY docker/nginx.conf    /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/synapse-entrypoint
+COPY --chmod=0755 docker/scheduler.sh /usr/local/bin/synapse-scheduler
 
 COPY --from=python /opt/python /opt/python
 COPY --from=python /opt/ml-venv /opt/ml-venv
@@ -112,9 +113,18 @@ ENV APP_ENV=production \
     RUN_MIGRATIONS=true \
     RUN_QUEUE=true \
     RUN_SCHEDULER=true \
+    RUN_ML=true \
     ML_WORKERS=1 \
+    PHP_FPM_MAX_CHILDREN=6 \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    # The container sees the host's CPUs, not the instance's: without these,
+    # numpy's BLAS starts a thread per host CPU (37 threads for one idle model
+    # service on a 16-CPU host) and glibc keeps up to 8 malloc arenas per CPU.
+    OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    MALLOC_ARENA_MAX=2
 
 WORKDIR /app/server
 EXPOSE 8080

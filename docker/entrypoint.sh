@@ -13,7 +13,7 @@ if [ -z "$APP_KEY" ]; then
 fi
 
 # Normalise the supervisord switches to true/false.
-for var in RUN_QUEUE RUN_SCHEDULER RUN_MIGRATIONS; do
+for var in RUN_QUEUE RUN_SCHEDULER RUN_MIGRATIONS RUN_ML; do
     eval "value=\${$var:-true}"
     case "$value" in
         1|true|TRUE|True|yes|on) export "$var=true" ;;
@@ -21,6 +21,9 @@ for var in RUN_QUEUE RUN_SCHEDULER RUN_MIGRATIONS; do
     esac
 done
 export ML_WORKERS="${ML_WORKERS:-1}"
+# PHP workers the pool may fork at most (php-fpm.conf, pm = ondemand). Six suit
+# a 1 GB instance; raise it with the instance, not past its RAM ÷ ~80 MB.
+export PHP_FPM_MAX_CHILDREN="${PHP_FPM_MAX_CHILDREN:-6}"
 
 sed -i "s/listen \(\[::\]:\)\?[0-9_A-Z]* /listen \1${PORT:-8080} /" /etc/nginx/nginx.conf
 
