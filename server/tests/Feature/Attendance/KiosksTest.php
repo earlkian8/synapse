@@ -628,7 +628,8 @@ test('managing kiosks needs its permission', function () {
 // ── Policies ─────────────────────────────────────────────────────────────────
 
 test('the kiosk is a way to punch again, and a policy with nothing set allows it', function () {
-    expect(AttendancePunch::CAPTURE_SOURCES)->toBe(['web', 'mobile', 'kiosk', 'manual'])
+    // The QR station joined them after (ADR 0103).
+    expect(AttendancePunch::CAPTURE_SOURCES)->toBe(['web', 'mobile', 'qr', 'kiosk', 'manual'])
         ->and(AttendancePolicySettings::fallback()->allowedSources)->toContain('kiosk')
         // Scanners stay gone: a stored scanner reads as nothing.
         ->and(AttendancePolicySettings::fromArray(['capture' => ['allowed_sources' => ['biometric']]])->allowedSources)

@@ -115,6 +115,7 @@ class AttendanceRecordResource extends JsonResource
                     'distance_meters' => $punch->distance_meters,
                     'within_geofence' => $punch->within_geofence,
                     'kiosk' => $punch->relationLoaded('kiosk') ? $punch->kiosk?->name : null,
+                    'qr_station' => $punch->relationLoaded('qrStation') ? $punch->qrStation?->name : null,
                     'offline' => $punch->device_punched_at !== null,
                     'received_at' => $punch->received_at?->toIso8601String(),
                     'clock_skew_seconds' => $punch->clock_skew_seconds,

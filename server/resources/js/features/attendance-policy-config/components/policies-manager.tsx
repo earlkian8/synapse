@@ -105,15 +105,13 @@ export function PoliciesManager({
                 </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-                Which policy applies, most specific first: the one on someone’s
-                schedule assignment, then their schedule’s, their department’s,
-                their primary work location’s, the company default, and
-                otherwise the built-in rules.
-                {!hasDefault &&
-                    policies.length > 0 &&
-                    ' No policy is the company default yet, so anyone not covered by one is judged by the built-in rules.'}
-            </p>
+            <PrecedenceNote
+                warning={
+                    !hasDefault && policies.length > 0
+                        ? 'No policy is the company default yet, so anyone not covered by one is judged by the plain built-in rules.'
+                        : null
+                }
+            />
 
             {policies.length === 0 ? (
                 <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-sidebar-border/70 bg-card/50 px-5 py-8 dark:border-sidebar-border">
@@ -367,5 +365,55 @@ function PolicyRow({
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * Which policy somebody's day is judged by: the first of these that names one.
+ * A real order, so it is written as one.
+ */
+const PRECEDENCE = [
+    'A policy set on their own schedule assignment',
+    'Their work schedule’s policy',
+    'Their department’s policy',
+    'Their main work location’s policy',
+    'The company default',
+];
+
+function PrecedenceNote({ warning }: { warning: string | null }) {
+    return (
+        <details
+            open={warning !== null}
+            className="group rounded-lg border border-border bg-card/60 px-4 py-2.5 text-sm open:pb-3.5"
+        >
+            <summary className="cursor-pointer list-none text-sm font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-1.5">
+                    <span
+                        aria-hidden
+                        className="inline-block text-muted-foreground transition-transform group-open:rotate-90"
+                    >
+                        ›
+                    </span>
+                    Who follows which policy?
+                </span>
+            </summary>
+            <p className="mt-2 text-[0.8125rem] text-muted-foreground">
+                Each person’s day is judged by the first of these that names a
+                policy:
+            </p>
+            <ol className="mt-1.5 list-decimal space-y-0.5 pl-5 text-[0.8125rem]">
+                {PRECEDENCE.map((line) => (
+                    <li key={line}>{line}</li>
+                ))}
+            </ol>
+            <p className="mt-1.5 text-[0.8125rem] text-muted-foreground">
+                With none of these, the plain built-in rules apply.
+            </p>
+            {warning && (
+                <p className="mt-2 text-[0.8125rem] text-amber-700 dark:text-amber-300">
+                    {warning}
+                </p>
+            )}
+        </details>
     );
 }

@@ -18,11 +18,31 @@ this is the *how*. Everything is tenant-scoped (ADR 0005).
   preset it came from, leads with its distinctive rules ("After 8h a day, needs approval ·
   1h unpaid after 5h if none is punched · Night 22:00–06:00") and says where it is named
   (schedules, departments, assignments). Archive, restore, and permanent delete — refused
-  while anything still names the policy.
-- **The editor** (a centred modal) — a new policy starts from a preset chip or from the
-  built-in rules; one made from a preset can be **reset** to it. The settings sit in
-  collapsible groups whose header always says what the group amounts to, so a closed group
-  still reads. Beside them, the **worked example**: a sample day (working, rest day or
+  while anything still names the policy. Above the list, **Who follows which policy?**
+  opens the order below as a numbered list (open by itself while no policy is the
+  company default, with a warning that the built-in rules apply).
+- **The editor** (a wide centred modal), rebuilt 2026-11-16 because the old one, a stack
+  of ten collapsible groups of label-and-control rows, was hard to read at first sight.
+  It reads as a short rulebook now:
+  - **A rail of topics** (a row of tabs on a phone): *About this policy*, *Late
+    arrivals*, *Short days*, *Breaks*, *Overtime & night work*, *Clocking in*,
+    *Fine-tuning*. Each says in a line what it is set to (`topicSummaries()`), and a topic
+    holding a validation error is marked; a failed save opens the first such topic.
+    **Back / Next** in the footer walk them in order.
+  - **About this policy**: name, who it is for, *Make this the company default*, and —
+    for a new policy — **Start from** cards (each preset with its description and
+    leading rules, and *A plain start*: the built-in rules). An existing policy made from
+    a preset offers **Put its rules back**.
+  - **Every setting is a sentence** with its numbers as inline blanks
+    (`components/rule-kit.tsx`): `Rule` (a checkbox and the sentence; off, the sentence
+    stays readable, greyed, and typing in one of its blanks turns it on), `Options` (one
+    of a few ways, each written out, blanks live only in the chosen one), `Statement`,
+    and `DurationBlank` (minutes or hours, the unit chosen to read naturally and
+    switchable; always stored as minutes), `NumberBlank`, `TimeBlank`, `SelectBlank`. A
+    nullable threshold is a `Rule` around its blank and remembers its last value when
+    switched off and on. Ways to clock in are cards with a line on each.
+  - Beside them (under them on a phone, folded as *Try these rules on a sample day*), the
+    **sample day** (formerly the worked example): a sample day (working, rest day or
   holiday; the shift, the clock-in and clock-out, an optional break, the schedule's grace)
   drawn on a strip — the shift, the time on the clock, the break, the night window and
   what ran past the shift — above a ledger of what the day comes out as: status and flags,
@@ -218,8 +238,8 @@ assignment goes with that screen's own permission.
 - **Reads** (`setup.attendance-policies.view`):
   - `find_attendance_policies`;
   - `get_attendance_policy`: a policy, a preset or the built-in rules, group by group
-    in the editor's words (`Support\Attendance\PolicyDescription`, the server's copy
-    of `groupSummaries()`), with where it is named and how many people it judges
+    in words that agree with the editor's (`Support\Attendance\PolicyDescription`, the
+    server's counterpart of `topicSummaries()`), with where it is named and how many people it judges
     today;
   - `get_worked_example`: the editor's worked example (`WorkedExample`), for "what
     happens if someone clocks in at 8:20?". Nothing is written;

@@ -1,41 +1,50 @@
 import {
     AlarmClock,
-    BellRing,
     Coffee,
-    Hourglass,
-    Moon,
-    ScanFace,
-    Scissors,
-    Timer,
+    Fingerprint,
+    SlidersHorizontal,
     TimerOff,
     TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import InputError from '@/components/input-error';
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { formatDuration } from '@/features/attendance/constants';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import {
-    GEOFENCE_OPTIONS,
-    groupSummaries,
-    MISSING_CLOCK_OUT_OPTIONS,
-    OVERTIME_BASIS_OPTIONS,
-    ROUNDING_MODE_OPTIONS,
     ROUNDING_TARGET_OPTIONS,
     ROUNDING_UNITS,
+    SOURCE_DESCRIPTIONS,
     SOURCE_LABELS,
+    topicSummaries,
 } from '../constants';
-import type { PolicySettings, PunchSource } from '../types';
+import type { PolicySettings, PunchSource, RoundingMode } from '../types';
+import {
+    DurationBlank,
+    NumberBlank,
+    Options,
+    Rule,
+    SelectBlank,
+    Statement,
+    TimeBlank,
+} from './rule-kit';
 
 type Group = keyof PolicySettings;
+
+export type RuleTopicKey =
+    'late' | 'short' | 'breaks' | 'overtime' | 'clocking' | 'fine';
+
+/** A topic the editor shows before the rules — the policy's name, say. */
+export type ExtraTopic = {
+    key: string;
+    title: string;
+    icon: LucideIcon;
+    summary: string;
+    intro?: string;
+    hasError?: boolean;
+    content: ReactNode;
+};
 
 type Props = {
     settings: PolicySettings;
@@ -46,833 +55,967 @@ type Props = {
     /** Inertia's flat error bag — keys like `settings.lateness.grace_minutes`. */
     errors?: Record<string, string>;
     sources: PunchSource[];
-    /** The groups open when the editor appears. */
-    defaultOpen?: Group[];
+    /** Topics shown before the rules, in the same rail. */
+    before?: ExtraTopic[];
+    /** The topic on screen, when the caller keeps it (to move on from a footer). */
+    topic?: string;
+    onTopicChange?: (topic: string) => void;
 };
 
 /**
- * The policy's settings, grouped the way HR thinks about a day: when somebody is
- * late, when they are short, how times are rounded, breaks, overtime, night
- * work — then the rules about capturing punches (ADR 0038).
- *
- * Each group is collapsible, and its header always says what the group amounts
- * to, so a closed group is still readable and the editor can open with only the
- * groups that matter to a first look.
+ * Which settings each topic holds — the error keys it owns, so a topic with a
+ * problem in it says so in the rail.
+ */
+const TOPIC_ERRORS: Record<RuleTopicKey, string[]> = {
+    late: ['settings.lateness.'],
+    short: ['settings.undertime.'],
+    breaks: ['settings.breaks.'],
+    overtime: ['settings.overtime.', 'settings.night.'],
+    clocking: [
+        'settings.capture.allowed_sources',
+        'settings.capture.selfie_required',
+        'settings.capture.geofence',
+        'settings.capture.web_ip_allowlist',
+        'settings.reminders.',
+        'settings.missing_clock_out.',
+    ],
+    fine: [
+        'settings.rounding.',
+        'settings.punch_windows.',
+        'settings.capture.offline_window_hours',
+        'settings.capture.max_clock_skew_minutes',
+    ],
+};
+
+export const RULE_TOPICS: {
+    key: RuleTopicKey;
+    title: string;
+    icon: LucideIcon;
+    intro: string;
+}[] = [
+    {
+        key: 'late',
+        title: 'Late arrivals',
+        icon: AlarmClock,
+        intro: 'When someone counts as late, and how much lateness you let go.',
+    },
+    {
+        key: 'short',
+        title: 'Short days',
+        icon: TimerOff,
+        intro: 'When a day comes up short, and when it counts as only half a day or not at all.',
+    },
+    {
+        key: 'breaks',
+        title: 'Breaks',
+        icon: Coffee,
+        intro: 'How break time comes off the hours someone worked.',
+    },
+    {
+        key: 'overtime',
+        title: 'Overtime & night work',
+        icon: TrendingUp,
+        intro: 'Which hours count as overtime or night work. SYNAPSE counts the minutes; your payroll pays them.',
+    },
+    {
+        key: 'clocking',
+        title: 'Clocking in',
+        icon: Fingerprint,
+        intro: 'How and where people may clock in, and what happens when they forget to clock out.',
+    },
+    {
+        key: 'fine',
+        title: 'Fine-tuning',
+        icon: SlidersHorizontal,
+        intro: 'Rarely changed. What these start at suits most companies.',
+    },
+];
+
+/** The first topic, in rail order, with a problem in it — to show after a failed save. */
+export function firstTopicWithError(
+    errors: Record<string, string>,
+    before: ExtraTopic[] = [],
+): string | null {
+    const extra = before.find((topic) => topic.hasError);
+
+    if (extra) {
+        return extra.key;
+    }
+
+    const keys = Object.keys(errors);
+    const topic = RULE_TOPICS.find(({ key }) =>
+        keys.some((error) =>
+            TOPIC_ERRORS[key].some((prefix) => error.startsWith(prefix)),
+        ),
+    );
+
+    return topic?.key ?? null;
+}
+
+/**
+ * An attendance policy's rules (ADR 0038), written the way HR would explain them
+ * to a new hire: a handful of topics in a rail, and in each one the rules as
+ * sentences with the numbers filled in. The rail says what each topic amounts
+ * to, so the whole policy can be read without opening anything.
  */
 export function PolicySections({
     settings: s,
     onChange,
     errors = {},
     sources,
-    defaultOpen = ['lateness', 'overtime'],
+    before = [],
+    topic: controlled,
+    onTopicChange,
 }: Props) {
-    const summaries = groupSummaries(s);
+    const [own, setOwn] = useState<string>(before[0]?.key ?? 'late');
+    const active = controlled ?? own;
+    const choose = (key: string) => {
+        setOwn(key);
+        onTopicChange?.(key);
+    };
+
+    const summaries = topicSummaries(s);
     const error = (group: Group, key: string) =>
         errors[`settings.${group}.${key}`];
-    const groupHasError = (group: Group) =>
-        Object.keys(errors).some((key) => key.startsWith(`settings.${group}.`));
+    const errorKeys = Object.keys(errors);
+    const topicHasError = (key: RuleTopicKey) =>
+        errorKeys.some((error) =>
+            TOPIC_ERRORS[key].some((prefix) => error.startsWith(prefix)),
+        );
 
-    const section = (group: Group, icon: LucideIcon, title: string) => ({
-        group,
-        icon,
-        title,
-        summary: summaries[group],
-        defaultOpen: defaultOpen.includes(group) || groupHasError(group),
-    });
+    const rail = [
+        ...before.map((topic) => ({
+            key: topic.key,
+            title: topic.title,
+            icon: topic.icon,
+            summary: topic.summary,
+            hasError: topic.hasError ?? false,
+        })),
+        ...RULE_TOPICS.map((topic) => ({
+            key: topic.key,
+            title: topic.title,
+            icon: topic.icon,
+            summary: summaries[topic.key],
+            hasError: topicHasError(topic.key),
+        })),
+    ];
+
+    const extra = before.find((topic) => topic.key === active);
+    const rule = RULE_TOPICS.find((topic) => topic.key === active);
+    const heading = extra ?? rule ?? RULE_TOPICS[0];
 
     return (
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border">
-            <Section {...section('lateness', AlarmClock, 'Lateness')}>
-                <ToggleRow
-                    label="Judge arrival times"
-                    hint="Off for teams that keep their own hours — nobody is marked late."
-                    checked={s.lateness.enabled}
-                    onChange={(enabled) => onChange('lateness', { enabled })}
-                />
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-7">
+            <TopicRail items={rail} active={active} onChoose={choose} />
 
-                {s.lateness.enabled && (
-                    <>
-                        <Choice
-                            label="Grace"
-                            value={s.lateness.grace_mode}
-                            options={[
-                                { value: 'per_day', label: 'Each day' },
-                                {
-                                    value: 'monthly_allowance',
-                                    label: 'A monthly allowance',
-                                },
-                            ]}
-                            onChange={(grace_mode) =>
-                                onChange('lateness', { grace_mode })
-                            }
-                        />
+            <section aria-labelledby="policy-topic-title" className="min-w-0">
+                <header className="mb-5">
+                    <h3
+                        id="policy-topic-title"
+                        className="text-[1.0625rem] font-semibold tracking-tight"
+                    >
+                        {heading.title}
+                    </h3>
+                    {heading.intro && (
+                        <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+                            {heading.intro}
+                        </p>
+                    )}
+                </header>
 
-                        {s.lateness.grace_mode === 'per_day' ? (
-                            <OptionalMinutes
-                                label="Minutes forgiven each day"
-                                offLabel="Use each schedule’s own grace"
-                                value={s.lateness.grace_minutes}
-                                fallback={10}
-                                max={240}
-                                onChange={(grace_minutes) =>
-                                    onChange('lateness', { grace_minutes })
-                                }
-                                error={error('lateness', 'grace_minutes')}
-                            />
-                        ) : (
-                            <Minutes
-                                label="Minutes forgiven across the month"
-                                hint="Lateness is taken out of this until it runs out; the day it does is the first that counts."
-                                value={s.lateness.monthly_grace_minutes}
-                                max={1440}
-                                onChange={(monthly_grace_minutes) =>
-                                    onChange('lateness', {
-                                        monthly_grace_minutes,
-                                    })
-                                }
-                                error={error(
-                                    'lateness',
-                                    'monthly_grace_minutes',
-                                )}
+                {extra ? (
+                    extra.content
+                ) : (
+                    <div className="divide-y divide-border/70">
+                        {(rule?.key ?? 'late') === 'late' && (
+                            <LateRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
                             />
                         )}
+                        {rule?.key === 'short' && (
+                            <ShortRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
+                            />
+                        )}
+                        {rule?.key === 'breaks' && (
+                            <BreakRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
+                            />
+                        )}
+                        {rule?.key === 'overtime' && (
+                            <OvertimeRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
+                            />
+                        )}
+                        {rule?.key === 'clocking' && (
+                            <ClockingRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
+                                errors={errors}
+                                sources={sources}
+                            />
+                        )}
+                        {rule?.key === 'fine' && (
+                            <FineRules
+                                s={s}
+                                onChange={onChange}
+                                error={error}
+                            />
+                        )}
+                    </div>
+                )}
+            </section>
+        </div>
+    );
+}
 
-                        <OptionalMinutes
-                            label="A half day when later than"
-                            offLabel="Never a half day for lateness"
-                            value={s.lateness.half_day_after_minutes}
-                            fallback={120}
-                            max={1440}
-                            onChange={(half_day_after_minutes) =>
-                                onChange('lateness', { half_day_after_minutes })
-                            }
-                            error={error('lateness', 'half_day_after_minutes')}
-                        />
-                        <OptionalMinutes
-                            label="Absent when later than"
-                            offLabel="Never absent for lateness"
-                            value={s.lateness.absent_after_minutes}
-                            fallback={240}
-                            max={1440}
-                            onChange={(absent_after_minutes) =>
-                                onChange('lateness', { absent_after_minutes })
-                            }
-                            error={error('lateness', 'absent_after_minutes')}
-                        />
+type RulesProps = {
+    s: PolicySettings;
+    onChange: Props['onChange'];
+    error: (group: Group, key: string) => string | undefined;
+};
+
+// ── Late arrivals ────────────────────────────────────────────────────────────
+
+type GraceChoice = 'daily' | 'schedule' | 'monthly';
+
+function LateRules({ s, onChange, error }: RulesProps) {
+    const late = s.lateness;
+    const grace: GraceChoice =
+        late.grace_mode === 'monthly_allowance'
+            ? 'monthly'
+            : late.grace_minutes === null
+              ? 'schedule'
+              : 'daily';
+    const lastDaily = useRemembered(late.grace_minutes, 10);
+
+    return (
+        <>
+            <Rule
+                checked={late.enabled}
+                onCheckedChange={(enabled) => onChange('lateness', { enabled })}
+                sentence="Mark people late when they clock in after their shift starts."
+                offHint="Nobody is ever marked late. Suits teams that keep their own hours; short days still count."
+            />
+
+            {late.enabled && (
+                <>
+                    <Options<GraceChoice>
+                        question="How much lateness do you let go?"
+                        value={grace}
+                        onChange={(choice) =>
+                            onChange(
+                                'lateness',
+                                choice === 'monthly'
+                                    ? { grace_mode: 'monthly_allowance' }
+                                    : {
+                                          grace_mode: 'per_day',
+                                          grace_minutes:
+                                              choice === 'schedule'
+                                                  ? null
+                                                  : lastDaily,
+                                      },
+                            )
+                        }
+                        error={
+                            error('lateness', 'grace_minutes') ??
+                            error('lateness', 'monthly_grace_minutes')
+                        }
+                        options={[
+                            {
+                                value: 'daily',
+                                label: (chosen) => (
+                                    <>
+                                        The first{' '}
+                                        <DurationBlank
+                                            label="Lateness let go each day"
+                                            units={['min']}
+                                            max={240}
+                                            value={
+                                                late.grace_minutes ?? lastDaily
+                                            }
+                                            muted={!chosen}
+                                            onChange={(grace_minutes) =>
+                                                onChange('lateness', {
+                                                    grace_mode: 'per_day',
+                                                    grace_minutes,
+                                                })
+                                            }
+                                        />{' '}
+                                        each day
+                                    </>
+                                ),
+                                hint: 'Someone 12 minutes late with 10 let go is late by 2.',
+                            },
+                            {
+                                value: 'schedule',
+                                label: 'Whatever grace each work schedule sets',
+                                hint: 'Set on each schedule in Attendance → Schedules.',
+                            },
+                            {
+                                value: 'monthly',
+                                label: (chosen) => (
+                                    <>
+                                        Up to{' '}
+                                        <DurationBlank
+                                            label="Lateness let go each month"
+                                            max={1440}
+                                            value={late.monthly_grace_minutes}
+                                            muted={!chosen}
+                                            onChange={(monthly_grace_minutes) =>
+                                                onChange('lateness', {
+                                                    grace_mode:
+                                                        'monthly_allowance',
+                                                    monthly_grace_minutes,
+                                                })
+                                            }
+                                        />{' '}
+                                        in total each month
+                                    </>
+                                ),
+                                hint: 'Lateness comes out of this until it runs out; from then on every late minute counts.',
+                            },
+                        ]}
+                    />
+
+                    <ThresholdRule
+                        value={late.half_day_after_minutes}
+                        fallback={120}
+                        max={1440}
+                        onChange={(half_day_after_minutes) =>
+                            onChange('lateness', { half_day_after_minutes })
+                        }
+                        error={error('lateness', 'half_day_after_minutes')}
+                        sentence={(blank) => (
+                            <>
+                                Count it as a half day when someone is more than{' '}
+                                {blank} late.
+                            </>
+                        )}
+                        label="Late enough for a half day"
+                    />
+                    <ThresholdRule
+                        value={late.absent_after_minutes}
+                        fallback={240}
+                        max={1440}
+                        onChange={(absent_after_minutes) =>
+                            onChange('lateness', { absent_after_minutes })
+                        }
+                        error={error('lateness', 'absent_after_minutes')}
+                        sentence={(blank) => (
+                            <>
+                                Mark them absent when they are more than {blank}{' '}
+                                late.
+                            </>
+                        )}
+                        label="Late enough to be absent"
+                    />
+                </>
+            )}
+        </>
+    );
+}
+
+// ── Short days ───────────────────────────────────────────────────────────────
+
+function ShortRules({ s, onChange, error }: RulesProps) {
+    const short = s.undertime;
+
+    return (
+        <>
+            <Options
+                question="A day is short when someone…"
+                value={short.basis}
+                onChange={(basis) => onChange('undertime', { basis })}
+                options={[
+                    {
+                        value: 'schedule',
+                        label: 'leaves before their shift ends',
+                        hint: 'Leaving at 4:30 on a shift that ends at 5:00 is 30 minutes short.',
+                    },
+                    {
+                        value: 'hours',
+                        label: 'works fewer hours than the shift asks for, whenever they come and go',
+                        hint: 'Arriving late and staying late to make up the hours is not short.',
+                    },
+                ]}
+            />
+            <ThresholdRule
+                value={short.half_day_below_minutes}
+                fallback={240}
+                max={1440}
+                onChange={(half_day_below_minutes) =>
+                    onChange('undertime', { half_day_below_minutes })
+                }
+                error={error('undertime', 'half_day_below_minutes')}
+                sentence={(blank) => (
+                    <>
+                        Count it as a half day when someone works less than{' '}
+                        {blank}.
                     </>
                 )}
-            </Section>
+                label="Worked too little for a full day"
+            />
+            <ThresholdRule
+                value={short.minimum_minutes_for_present}
+                fallback={60}
+                max={1440}
+                onChange={(minimum_minutes_for_present) =>
+                    onChange('undertime', { minimum_minutes_for_present })
+                }
+                error={error('undertime', 'minimum_minutes_for_present')}
+                sentence={(blank) => (
+                    <>Mark them absent when they work less than {blank}.</>
+                )}
+                offHint="Any time on the clock counts as being there."
+                label="Worked too little to count as present"
+            />
+        </>
+    );
+}
 
-            <Section {...section('undertime', TimerOff, 'Short days')}>
-                <Choice
-                    label="A day is short when"
-                    value={s.undertime.basis}
-                    options={[
-                        {
-                            value: 'schedule',
-                            label: 'They leave before the shift ends',
-                        },
-                        {
-                            value: 'hours',
-                            label: 'The hours fall short',
-                        },
-                    ]}
-                    onChange={(basis) => onChange('undertime', { basis })}
-                />
-                <OptionalMinutes
-                    label="A half day when fewer worked than"
-                    offLabel="Never a half day for a short day"
-                    value={s.undertime.half_day_below_minutes}
-                    fallback={240}
-                    max={1440}
-                    onChange={(half_day_below_minutes) =>
-                        onChange('undertime', { half_day_below_minutes })
-                    }
-                    error={error('undertime', 'half_day_below_minutes')}
-                />
-                <OptionalMinutes
-                    label="Absent when fewer worked than"
-                    offLabel="Any time on the clock counts as present"
-                    value={s.undertime.minimum_minutes_for_present}
-                    fallback={60}
-                    max={1440}
-                    onChange={(minimum_minutes_for_present) =>
-                        onChange('undertime', { minimum_minutes_for_present })
-                    }
-                    error={error('undertime', 'minimum_minutes_for_present')}
-                />
-            </Section>
+// ── Breaks ───────────────────────────────────────────────────────────────────
 
-            <Section {...section('rounding', Scissors, 'Rounding')}>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                    Rounds the times a day is judged by. What was punched is
-                    kept exactly as it was.
-                </p>
-                <Choice
-                    label="Round"
-                    value={s.rounding.mode}
-                    options={ROUNDING_MODE_OPTIONS}
-                    onChange={(mode) => onChange('rounding', { mode })}
-                />
-                {s.rounding.mode !== 'none' && (
+function BreakRules({ s, onChange, error }: RulesProps) {
+    const breaks = s.breaks;
+    const lastDeduct = useRemembered(
+        breaks.auto_deduct_minutes > 0 ? breaks.auto_deduct_minutes : null,
+        60,
+    );
+    const lastPaid = useRemembered(
+        breaks.paid_break_minutes > 0 ? breaks.paid_break_minutes : null,
+        15,
+    );
+    const deducting = breaks.auto_deduct_minutes > 0;
+    const paying = breaks.paid_break_minutes > 0;
+
+    return (
+        <>
+            <Rule
+                checked={deducting}
+                onCheckedChange={(on) =>
+                    onChange('breaks', {
+                        auto_deduct_minutes: on ? lastDeduct : 0,
+                    })
+                }
+                sentence={
                     <>
-                        <Choice
-                            label="To the"
-                            value={String(s.rounding.unit)}
-                            options={ROUNDING_UNITS.map((unit) => ({
-                                value: String(unit),
-                                label: `${unit} min`,
-                            }))}
-                            onChange={(unit) =>
-                                onChange('rounding', {
-                                    unit: Number(
-                                        unit,
-                                    ) as PolicySettings['rounding']['unit'],
+                        When someone doesn’t clock out for a break, take{' '}
+                        <DurationBlank
+                            label="Break taken off"
+                            max={480}
+                            value={
+                                deducting
+                                    ? breaks.auto_deduct_minutes
+                                    : lastDeduct
+                            }
+                            muted={!deducting}
+                            onChange={(auto_deduct_minutes) =>
+                                onChange('breaks', { auto_deduct_minutes })
+                            }
+                        />{' '}
+                        off any day longer than{' '}
+                        <DurationBlank
+                            label="Day long enough for a break"
+                            max={1440}
+                            value={breaks.auto_deduct_after_worked_minutes}
+                            muted={!deducting}
+                            onChange={(auto_deduct_after_worked_minutes) =>
+                                onChange('breaks', {
+                                    auto_deduct_after_worked_minutes,
                                 })
                             }
                         />
-                        <Choice
-                            label="Applied to"
-                            value={s.rounding.apply_to}
-                            options={ROUNDING_TARGET_OPTIONS}
-                            onChange={(apply_to) =>
-                                onChange('rounding', { apply_to })
+                        .
+                    </>
+                }
+                hint="For people who take lunch but never clock out for it."
+                offHint="A lunch nobody clocked out for counts as work."
+                error={
+                    error('breaks', 'auto_deduct_minutes') ??
+                    error('breaks', 'auto_deduct_after_worked_minutes')
+                }
+            />
+            <Rule
+                checked={paying}
+                onCheckedChange={(on) =>
+                    onChange('breaks', {
+                        paid_break_minutes: on ? lastPaid : 0,
+                    })
+                }
+                sentence={
+                    <>
+                        Pay for the first{' '}
+                        <DurationBlank
+                            label="Paid part of a break"
+                            max={480}
+                            value={
+                                paying ? breaks.paid_break_minutes : lastPaid
                             }
-                        />
+                            muted={!paying}
+                            onChange={(paid_break_minutes) =>
+                                onChange('breaks', { paid_break_minutes })
+                            }
+                        />{' '}
+                        of every break someone clocks out for.
+                    </>
+                }
+                hint="That much of each break counts as work; the rest doesn’t."
+                offHint="Breaks people clock out for are unpaid."
+                error={error('breaks', 'paid_break_minutes')}
+            />
+            <ThresholdRule
+                value={breaks.max_break_minutes}
+                fallback={60}
+                max={480}
+                onChange={(max_break_minutes) =>
+                    onChange('breaks', { max_break_minutes })
+                }
+                error={error('breaks', 'max_break_minutes')}
+                sentence={(blank) => (
+                    <>
+                        Treat a break longer than {blank} as leaving early for
+                        the extra time.
                     </>
                 )}
-            </Section>
+                offHint="A break can run as long as it runs."
+                label="Longest break"
+            />
+        </>
+    );
+}
 
-            <Section {...section('breaks', Coffee, 'Breaks')}>
-                <Minutes
-                    label="Unpaid break taken off when none is punched"
-                    hint="0 counts an unpunched lunch as work."
-                    value={s.breaks.auto_deduct_minutes}
-                    max={480}
-                    onChange={(auto_deduct_minutes) =>
-                        onChange('breaks', { auto_deduct_minutes })
-                    }
-                    error={error('breaks', 'auto_deduct_minutes')}
-                />
-                {s.breaks.auto_deduct_minutes > 0 && (
-                    <Minutes
-                        label="…once the day has run at least"
-                        value={s.breaks.auto_deduct_after_worked_minutes}
-                        max={1440}
-                        onChange={(auto_deduct_after_worked_minutes) =>
-                            onChange('breaks', {
-                                auto_deduct_after_worked_minutes,
-                            })
-                        }
-                        error={error(
-                            'breaks',
-                            'auto_deduct_after_worked_minutes',
-                        )}
-                    />
-                )}
-                <Minutes
-                    label="Paid part of a punched break"
-                    value={s.breaks.paid_break_minutes}
-                    max={480}
-                    onChange={(paid_break_minutes) =>
-                        onChange('breaks', { paid_break_minutes })
-                    }
-                    error={error('breaks', 'paid_break_minutes')}
-                />
-                <OptionalMinutes
-                    label="Longest break before it runs over"
-                    offLabel="Breaks can be as long as they are"
-                    hint="Time beyond it is owed like leaving early."
-                    value={s.breaks.max_break_minutes}
-                    fallback={60}
-                    max={480}
-                    onChange={(max_break_minutes) =>
-                        onChange('breaks', { max_break_minutes })
-                    }
-                    error={error('breaks', 'max_break_minutes')}
-                />
-            </Section>
+// ── Overtime & night work ────────────────────────────────────────────────────
 
-            <Section {...section('overtime', TrendingUp, 'Overtime')}>
-                <Choice
-                    label="Counted"
-                    value={s.overtime.basis}
-                    options={OVERTIME_BASIS_OPTIONS}
-                    onChange={(basis) => onChange('overtime', { basis })}
+function OvertimeRules({ s, onChange, error }: RulesProps) {
+    const ot = s.overtime;
+    const lastDaily = useRemembered(ot.daily_after_minutes, 480);
+    const lastBlock = useRemembered(
+        ot.min_block_minutes > 0 ? ot.min_block_minutes : null,
+        30,
+    );
+    const counting = ot.basis !== 'none';
+
+    return (
+        <>
+            <Options
+                question="Count overtime…"
+                value={ot.basis}
+                onChange={(basis) => onChange('overtime', { basis })}
+                options={[
+                    {
+                        value: 'daily',
+                        label: 'for the hours past each day’s limit',
+                    },
+                    {
+                        value: 'weekly',
+                        label: 'for the hours past the week’s limit',
+                        hint: 'A long Monday and a short Tuesday balance out.',
+                    },
+                    {
+                        value: 'daily_and_weekly',
+                        label: 'both: past each day’s limit, then anything else past the week’s',
+                    },
+                    { value: 'none', label: 'never — no overtime is counted' },
+                ]}
+            />
+
+            {counting && ot.basis !== 'weekly' && (
+                <Options<'required' | 'fixed'>
+                    question="A day’s overtime starts…"
+                    value={
+                        ot.daily_after_minutes === null ? 'required' : 'fixed'
+                    }
+                    onChange={(choice) =>
+                        onChange('overtime', {
+                            daily_after_minutes:
+                                choice === 'required' ? null : lastDaily,
+                        })
+                    }
+                    error={error('overtime', 'daily_after_minutes')}
+                    options={[
+                        {
+                            value: 'required',
+                            label: 'once the hours their shift asks for are done',
+                        },
+                        {
+                            value: 'fixed',
+                            label: (chosen) => (
+                                <>
+                                    after{' '}
+                                    <DurationBlank
+                                        label="Hours in a day before overtime"
+                                        max={1440}
+                                        value={
+                                            ot.daily_after_minutes ?? lastDaily
+                                        }
+                                        muted={!chosen}
+                                        onChange={(daily_after_minutes) =>
+                                            onChange('overtime', {
+                                                daily_after_minutes,
+                                            })
+                                        }
+                                    />{' '}
+                                    on the clock, whatever the shift
+                                </>
+                            ),
+                        },
+                    ]}
                 />
-                {s.overtime.basis !== 'none' && (
-                    <>
-                        {s.overtime.basis !== 'weekly' && (
-                            <OptionalMinutes
-                                label="After this much in a day"
-                                offLabel="After the day’s required hours"
-                                value={s.overtime.daily_after_minutes}
-                                fallback={480}
-                                max={1440}
-                                onChange={(daily_after_minutes) =>
-                                    onChange('overtime', {
-                                        daily_after_minutes,
-                                    })
-                                }
-                                error={error('overtime', 'daily_after_minutes')}
-                            />
-                        )}
-                        {s.overtime.basis !== 'daily' && (
-                            <Minutes
-                                label="After this much in a week (Mon–Sun)"
-                                value={s.overtime.weekly_after_minutes}
+            )}
+
+            {counting && ot.basis !== 'daily' && (
+                <Statement
+                    sentence={
+                        <>
+                            A week’s overtime starts after{' '}
+                            <DurationBlank
+                                label="Hours in a week before overtime"
+                                units={['h']}
                                 max={10080}
-                                step={60}
+                                value={ot.weekly_after_minutes}
                                 onChange={(weekly_after_minutes) =>
                                     onChange('overtime', {
                                         weekly_after_minutes,
                                     })
                                 }
-                                error={error(
-                                    'overtime',
-                                    'weekly_after_minutes',
-                                )}
-                            />
-                        )}
-                        <Minutes
-                            label="Smallest amount that counts"
-                            hint="Less than this in a day is not overtime at all."
-                            value={s.overtime.min_block_minutes}
-                            max={480}
-                            onChange={(min_block_minutes) =>
-                                onChange('overtime', { min_block_minutes })
-                            }
-                            error={error('overtime', 'min_block_minutes')}
-                        />
-                        <ToggleRow
-                            label="Needs approval"
-                            hint="Overtime is worked out but not approved until someone signs it off."
-                            checked={s.overtime.requires_approval}
-                            onChange={(requires_approval) =>
-                                onChange('overtime', { requires_approval })
-                            }
-                        />
-                        <ToggleRow
-                            label="Count time before the shift starts"
-                            hint="Off: clocking in early on a fixed shift earns nothing until the start."
-                            checked={s.overtime.count_early_clock_in}
-                            onChange={(count_early_clock_in) =>
-                                onChange('overtime', { count_early_clock_in })
-                            }
-                        />
-                        <ToggleRow
-                            label="All of a rest day is overtime"
-                            checked={s.overtime.rest_day_all_overtime}
-                            onChange={(rest_day_all_overtime) =>
-                                onChange('overtime', { rest_day_all_overtime })
-                            }
-                        />
-                        <ToggleRow
-                            label="All of a holiday is overtime"
-                            checked={s.overtime.holiday_all_overtime}
-                            onChange={(holiday_all_overtime) =>
-                                onChange('overtime', { holiday_all_overtime })
-                            }
-                        />
-                    </>
-                )}
-            </Section>
-
-            <Section {...section('night', Moon, 'Night differential')}>
-                <ToggleRow
-                    label="Set night work apart"
-                    hint="Minutes worked inside the window are bucketed for payroll."
-                    checked={s.night.enabled}
-                    onChange={(enabled) => onChange('night', { enabled })}
-                />
-                {s.night.enabled && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="w-full text-sm sm:w-56">Between</span>
-                        <Input
-                            type="time"
-                            value={s.night.start}
-                            onChange={(event) =>
-                                onChange('night', { start: event.target.value })
-                            }
-                            aria-label="Night window starts"
-                            className="w-28"
-                        />
-                        <span className="text-muted-foreground">and</span>
-                        <Input
-                            type="time"
-                            value={s.night.end}
-                            onChange={(event) =>
-                                onChange('night', { end: event.target.value })
-                            }
-                            aria-label="Night window ends"
-                            className="w-28"
-                        />
-                        <InputError
-                            message={error('night', 'end')}
-                            className="w-full"
-                        />
-                    </div>
-                )}
-            </Section>
-
-            <Section
-                {...section('punch_windows', Hourglass, 'When punches count')}
-            >
-                <Minutes
-                    label="Clock in this early and it counts for the shift"
-                    value={s.punch_windows.early_clock_in_minutes}
-                    max={720}
-                    step={15}
-                    onChange={(early_clock_in_minutes) =>
-                        onChange('punch_windows', { early_clock_in_minutes })
+                            />{' '}
+                            from Monday to Sunday.
+                        </>
                     }
-                    error={error('punch_windows', 'early_clock_in_minutes')}
+                    error={error('overtime', 'weekly_after_minutes')}
                 />
-                <Minutes
-                    label="Longest a shift runs before a new day starts"
-                    hint="Long enough for a double shift; short enough that a forgotten clock-out does not swallow tomorrow."
-                    value={s.punch_windows.max_shift_span_minutes}
-                    min={240}
-                    max={1440}
-                    step={30}
-                    onChange={(max_shift_span_minutes) =>
-                        onChange('punch_windows', { max_shift_span_minutes })
-                    }
-                    error={error('punch_windows', 'max_shift_span_minutes')}
-                />
-            </Section>
+            )}
 
-            <Section
-                {...section(
-                    'missing_clock_out',
-                    Timer,
-                    'A forgotten clock-out',
-                )}
-            >
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                    Decided the morning after, once the shift can no longer
-                    claim a punch. A clock-out the policy writes waits for
-                    sign-off.
-                </p>
-                <Choice
-                    label="When nobody clocks out"
-                    value={s.missing_clock_out.action}
-                    options={MISSING_CLOCK_OUT_OPTIONS}
-                    onChange={(action) =>
-                        onChange('missing_clock_out', { action })
-                    }
-                    stacked
-                />
-                {s.missing_clock_out.action === 'auto_close_after_minutes' && (
-                    <Minutes
-                        label="How long after the shift"
-                        value={s.missing_clock_out.after_minutes}
-                        max={1440}
-                        step={15}
-                        onChange={(after_minutes) =>
-                            onChange('missing_clock_out', { after_minutes })
+            {counting && (
+                <>
+                    <Rule
+                        checked={ot.min_block_minutes > 0}
+                        onCheckedChange={(on) =>
+                            onChange('overtime', {
+                                min_block_minutes: on ? lastBlock : 0,
+                            })
                         }
-                        error={error('missing_clock_out', 'after_minutes')}
-                    />
-                )}
-            </Section>
-
-            <Section {...section('reminders', BellRing, 'Reminders')}>
-                <OptionalMinutes
-                    label="Remind people who haven’t clocked in"
-                    offLabel="No reminders"
-                    hint="Minutes into the shift. Nobody on leave, a holiday or a rest day is reminded."
-                    value={s.reminders.clock_in_after_minutes}
-                    fallback={15}
-                    max={240}
-                    onChange={(clock_in_after_minutes) =>
-                        onChange('reminders', { clock_in_after_minutes })
-                    }
-                    error={error('reminders', 'clock_in_after_minutes')}
-                />
-            </Section>
-
-            <Section {...section('capture', ScanFace, 'How people punch')}>
-                <div className="space-y-2">
-                    <span className="text-sm">Ways to punch</span>
-                    <div className="flex flex-wrap gap-1.5">
-                        {sources.map((source) => {
-                            const on =
-                                s.capture.allowed_sources.includes(source);
-
-                            return (
-                                <button
-                                    key={source}
-                                    type="button"
-                                    aria-pressed={on}
-                                    onClick={() =>
-                                        onChange('capture', {
-                                            allowed_sources: on
-                                                ? s.capture.allowed_sources.filter(
-                                                      (item) => item !== source,
-                                                  )
-                                                : [
-                                                      ...s.capture
-                                                          .allowed_sources,
-                                                      source,
-                                                  ],
+                        sentence={
+                            <>
+                                Ignore overtime shorter than{' '}
+                                <DurationBlank
+                                    label="Least overtime that counts"
+                                    max={480}
+                                    value={
+                                        ot.min_block_minutes > 0
+                                            ? ot.min_block_minutes
+                                            : lastBlock
+                                    }
+                                    muted={ot.min_block_minutes === 0}
+                                    onChange={(min_block_minutes) =>
+                                        onChange('overtime', {
+                                            min_block_minutes,
                                         })
                                     }
-                                    className={cn(
-                                        'rounded-full border px-2.5 py-1 text-xs transition-colors',
-                                        on
-                                            ? 'border-[#0ABFBF] bg-[#0ABFBF]/10 font-medium text-[#0a8b91] dark:text-[#0ABFBF]'
-                                            : 'border-input text-muted-foreground hover:bg-muted',
-                                    )}
-                                >
-                                    {SOURCE_LABELS[source]}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <InputError message={error('capture', 'allowed_sources')} />
-                </div>
-                <ToggleRow
-                    label="A photo with every app and kiosk punch"
-                    checked={s.capture.selfie_required}
-                    onChange={(selfie_required) =>
-                        onChange('capture', { selfie_required })
-                    }
-                />
-                <Choice
-                    label="Where they punch from"
-                    value={s.capture.geofence}
-                    options={GEOFENCE_OPTIONS}
-                    onChange={(geofence) => onChange('capture', { geofence })}
-                    stacked
-                />
-                <IpAllowlist
-                    value={s.capture.web_ip_allowlist}
-                    onChange={(web_ip_allowlist) =>
-                        onChange('capture', { web_ip_allowlist })
-                    }
-                    errors={errors}
-                />
-                <Minutes
-                    label="Accept offline punches up to"
-                    hint="How old a punch the app saved without a connection may be when it arrives. Older ones are refused; HR enters them instead."
-                    unit="h"
-                    value={s.capture.offline_window_hours}
-                    min={1}
-                    max={720}
-                    step={12}
-                    onChange={(offline_window_hours) =>
-                        onChange('capture', { offline_window_hours })
-                    }
-                    error={error('capture', 'offline_window_hours')}
-                />
-                <Minutes
-                    label="Flag a device clock off by more than"
-                    hint="A phone or scanner whose clock is this far from ours still records the punch, but the day waits for sign-off."
-                    value={s.capture.max_clock_skew_minutes}
-                    min={1}
-                    max={1440}
-                    onChange={(max_clock_skew_minutes) =>
-                        onChange('capture', { max_clock_skew_minutes })
-                    }
-                    error={error('capture', 'max_clock_skew_minutes')}
-                />
-            </Section>
-        </div>
+                                />{' '}
+                                in a day.
+                            </>
+                        }
+                        offHint="Every minute past the limit counts."
+                        error={error('overtime', 'min_block_minutes')}
+                    />
+                    <Rule
+                        checked={ot.requires_approval}
+                        onCheckedChange={(requires_approval) =>
+                            onChange('overtime', { requires_approval })
+                        }
+                        sentence="Overtime must be approved before it counts."
+                        hint="It’s worked out right away, then waits on the attendance board for someone to approve it."
+                        offHint="Overtime counts as soon as it’s worked."
+                    />
+                    <Rule
+                        checked={ot.count_early_clock_in}
+                        onCheckedChange={(count_early_clock_in) =>
+                            onChange('overtime', { count_early_clock_in })
+                        }
+                        sentence="Count time before the shift starts."
+                        offHint="Clocking in early earns nothing until the shift starts."
+                    />
+                    <Rule
+                        checked={ot.rest_day_all_overtime}
+                        onCheckedChange={(rest_day_all_overtime) =>
+                            onChange('overtime', { rest_day_all_overtime })
+                        }
+                        sentence="Every hour worked on a rest day is overtime."
+                    />
+                    <Rule
+                        checked={ot.holiday_all_overtime}
+                        onCheckedChange={(holiday_all_overtime) =>
+                            onChange('overtime', { holiday_all_overtime })
+                        }
+                        sentence="Every hour worked on a holiday is overtime."
+                    />
+                </>
+            )}
+
+            <Rule
+                checked={s.night.enabled}
+                onCheckedChange={(enabled) => onChange('night', { enabled })}
+                sentence={
+                    <>
+                        Set apart the hours worked between{' '}
+                        <TimeBlank
+                            label="Night hours start"
+                            value={s.night.start}
+                            muted={!s.night.enabled}
+                            onChange={(start) => onChange('night', { start })}
+                        />{' '}
+                        and{' '}
+                        <TimeBlank
+                            label="Night hours end"
+                            value={s.night.end}
+                            muted={!s.night.enabled}
+                            onChange={(end) => onChange('night', { end })}
+                        />{' '}
+                        as night work.
+                    </>
+                }
+                hint="So payroll can add the night differential (10 PM to 6 AM under the Labor Code)."
+                error={error('night', 'end') ?? error('night', 'start')}
+            />
+        </>
     );
 }
 
-/** One collapsible group, its header saying what the group amounts to. */
-function Section({
-    icon: Icon,
-    title,
-    summary,
-    defaultOpen,
-    children,
-}: {
-    group: Group;
-    icon: LucideIcon;
-    title: string;
-    summary: string;
-    defaultOpen: boolean;
-    children: ReactNode;
-}) {
-    const [open, setOpen] = useState(defaultOpen);
+// ── Clocking in ──────────────────────────────────────────────────────────────
+
+function ClockingRules({
+    s,
+    onChange,
+    error,
+    errors,
+    sources,
+}: RulesProps & { errors: Record<string, string>; sources: PunchSource[] }) {
+    const capture = s.capture;
+    const allowed = capture.allowed_sources;
+    const toggle = (source: PunchSource, on: boolean) =>
+        onChange('capture', {
+            allowed_sources: on
+                ? [...allowed, source]
+                : allowed.filter((item) => item !== source),
+        });
+    const selfServe = (
+        ['mobile', 'web', 'qr', 'kiosk'] as PunchSource[]
+    ).filter((source) => allowed.includes(source));
+    const onlyStations =
+        allowed.includes('qr') &&
+        !allowed.includes('mobile') &&
+        !allowed.includes('web');
+    const [networks, setNetworks] = useState(
+        capture.web_ip_allowlist.length > 0,
+    );
 
     return (
-        <Collapsible open={open} onOpenChange={setOpen}>
-            <CollapsibleTrigger className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none">
-                <Icon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{title}</span>
-                    {!open && (
-                        <span className="block truncate text-xs text-muted-foreground">
-                            {summary}
-                        </span>
-                    )}
-                </span>
-                <span
-                    aria-hidden
-                    className={cn(
-                        'text-xs text-muted-foreground transition-transform',
-                        open && 'rotate-90',
-                    )}
+        <>
+            <fieldset className="py-3.5 first:pt-0">
+                <legend className="mb-2 text-[0.9375rem] font-medium">
+                    People may clock in…
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                    {sources.map((source) => (
+                        <SourceCard
+                            key={source}
+                            source={source}
+                            checked={allowed.includes(source)}
+                            onCheckedChange={(on) => toggle(source, on)}
+                        />
+                    ))}
+                </div>
+                {selfServe.length === 0 && (
+                    <p className="mt-2 text-[0.8125rem] text-amber-700 dark:text-amber-300">
+                        Nobody can clock in on their own: only HR can enter
+                        times.
+                    </p>
+                )}
+                {onlyStations && (
+                    <p className="mt-2 text-[0.8125rem] text-muted-foreground">
+                        With the app and web off, everyone clocks in at a QR
+                        station{allowed.includes('kiosk') ? ' or a kiosk' : ''}.
+                        The app’s clock button opens the scanner instead.
+                    </p>
+                )}
+                <InputError
+                    message={error('capture', 'allowed_sources')}
+                    className="mt-1.5"
+                />
+            </fieldset>
+
+            <Rule
+                checked={capture.selfie_required}
+                onCheckedChange={(selfie_required) =>
+                    onChange('capture', { selfie_required })
+                }
+                sentence="Take a photo of the person with every app, QR and kiosk punch."
+                hint="Kept with the punch, so HR can see who clocked in."
+            />
+
+            <Options
+                question="Where can they clock in from?"
+                value={capture.geofence}
+                onChange={(geofence) => onChange('capture', { geofence })}
+                options={[
+                    {
+                        value: 'off',
+                        label: 'Anywhere — location isn’t checked',
+                    },
+                    {
+                        value: 'flag',
+                        label: 'Anywhere, but flag punches made away from your sites',
+                        hint: 'A flagged day waits on the attendance board for someone to approve it.',
+                    },
+                    {
+                        value: 'block',
+                        label: 'Only at your sites — punches from elsewhere are refused',
+                        hint: 'Phones, QR stations and kiosks must be inside a site. Punches that share no location are refused too.',
+                    },
+                ]}
+            />
+            {capture.geofence !== 'off' && (
+                <p className="-mt-1 pb-3.5 pl-[1.8rem] text-[0.8125rem] text-muted-foreground">
+                    Sites and their boundaries are set in Company Setup →
+                    Locations.
+                </p>
+            )}
+
+            {allowed.includes('web') && (
+                <Rule
+                    checked={networks}
+                    onCheckedChange={(on) => {
+                        setNetworks(on);
+
+                        if (!on) {
+                            onChange('capture', { web_ip_allowlist: [] });
+                        }
+                    }}
+                    sentence="Accept web punches only from your office network."
+                    offHint="A browser on any network can clock in."
                 >
-                    ›
-                </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 px-4 pt-1 pb-4 sm:pl-11">
-                {children}
-            </CollapsibleContent>
-        </Collapsible>
+                    <NetworkList
+                        value={capture.web_ip_allowlist}
+                        onChange={(web_ip_allowlist) =>
+                            onChange('capture', { web_ip_allowlist })
+                        }
+                        errors={errors}
+                    />
+                </Rule>
+            )}
+
+            <ThresholdRule
+                value={s.reminders.clock_in_after_minutes}
+                fallback={15}
+                max={240}
+                onChange={(clock_in_after_minutes) =>
+                    onChange('reminders', { clock_in_after_minutes })
+                }
+                error={error('reminders', 'clock_in_after_minutes')}
+                sentence={(blank) => (
+                    <>
+                        Remind people who haven’t clocked in {blank} after their
+                        shift starts.
+                    </>
+                )}
+                hint="Nobody on leave, a holiday or a rest day is reminded."
+                label="Reminder after the shift starts"
+            />
+
+            <Options
+                question="When someone forgets to clock out…"
+                value={s.missing_clock_out.action}
+                onChange={(action) => onChange('missing_clock_out', { action })}
+                error={error('missing_clock_out', 'after_minutes')}
+                options={[
+                    {
+                        value: 'flag',
+                        label: 'leave the day open for HR to fix',
+                    },
+                    {
+                        value: 'auto_close_at_shift_end',
+                        label: 'clock them out when their shift ends',
+                        hint: 'The clock-out SYNAPSE adds waits for someone to approve it.',
+                    },
+                    {
+                        value: 'auto_close_after_minutes',
+                        label: (chosen) => (
+                            <>
+                                clock them out{' '}
+                                <DurationBlank
+                                    label="How long after the shift"
+                                    max={1440}
+                                    value={s.missing_clock_out.after_minutes}
+                                    muted={!chosen}
+                                    onChange={(after_minutes) =>
+                                        onChange('missing_clock_out', {
+                                            after_minutes,
+                                        })
+                                    }
+                                />{' '}
+                                after their shift ends
+                            </>
+                        ),
+                        hint: 'The clock-out SYNAPSE adds waits for someone to approve it.',
+                    },
+                ]}
+            />
+        </>
     );
 }
 
-/** A labelled switch. */
-function ToggleRow({
-    label,
-    hint,
+function SourceCard({
+    source,
     checked,
-    onChange,
+    onCheckedChange,
 }: {
-    label: string;
-    hint?: string;
+    source: PunchSource;
     checked: boolean;
-    onChange: (checked: boolean) => void;
+    onCheckedChange: (checked: boolean) => void;
 }) {
     const id = useId();
 
     return (
-        <div className="flex items-start justify-between gap-4">
-            <label htmlFor={id} className="min-w-0 cursor-pointer">
-                <span className="block text-sm">{label}</span>
-                {hint && (
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                        {hint}
-                    </span>
-                )}
-            </label>
-            <Switch id={id} checked={checked} onCheckedChange={onChange} />
-        </div>
-    );
-}
-
-/** A small set of mutually exclusive choices, laid out as a segmented row. */
-function Choice<T extends string>({
-    label,
-    value,
-    options,
-    onChange,
-    stacked = false,
-}: {
-    label: string;
-    value: T;
-    options: { value: T; label: string; hint?: string }[];
-    onChange: (value: T) => void;
-    stacked?: boolean;
-}) {
-    const hint = options.find((option) => option.value === value)?.hint;
-
-    return (
-        <div
-            role="radiogroup"
-            aria-label={label}
-            className="flex flex-col gap-2 sm:flex-row sm:items-start"
+        <label
+            htmlFor={id}
+            className={cn(
+                'flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                checked
+                    ? 'border-[#0ABFBF]/50 bg-[#0ABFBF]/[0.06]'
+                    : 'border-border hover:bg-muted/50',
+            )}
         >
-            <span className="text-sm sm:w-56 sm:shrink-0 sm:pt-1.5">
-                {label}
+            <Checkbox
+                id={id}
+                checked={checked}
+                onCheckedChange={(value) => onCheckedChange(value === true)}
+                className="mt-0.5 data-[state=checked]:border-[#0a8b91] data-[state=checked]:bg-[#0a8b91]"
+            />
+            <span className="min-w-0">
+                <span className="block text-sm font-medium">
+                    {SOURCE_LABELS[source]}
+                </span>
+                <span className="block text-[0.8125rem] leading-snug text-muted-foreground">
+                    {SOURCE_DESCRIPTIONS[source]}
+                </span>
             </span>
-            <div className="min-w-0 flex-1">
-                <div
-                    className={cn(
-                        'flex gap-1 rounded-lg bg-muted/60 p-1',
-                        stacked ? 'flex-col' : 'flex-wrap',
-                    )}
-                >
-                    {options.map((option) => {
-                        const active = option.value === value;
-
-                        return (
-                            <button
-                                key={option.value}
-                                type="button"
-                                role="radio"
-                                aria-checked={active}
-                                onClick={() => onChange(option.value)}
-                                className={cn(
-                                    'rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-                                    active
-                                        ? 'bg-background font-medium text-foreground shadow-xs'
-                                        : 'text-muted-foreground hover:text-foreground',
-                                )}
-                            >
-                                {option.label}
-                            </button>
-                        );
-                    })}
-                </div>
-                {hint && (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                        {hint}
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-}
-
-/** A minute count, with what it reads as in hours beside it. */
-function Minutes({
-    label,
-    hint,
-    value,
-    onChange,
-    min = 0,
-    max,
-    step = 5,
-    unit = 'min',
-    error,
-}: {
-    label: string;
-    hint?: string;
-    value: number;
-    onChange: (value: number) => void;
-    min?: number;
-    max: number;
-    step?: number;
-    /** The field is in minutes unless it says hours. */
-    unit?: 'min' | 'h';
-    error?: string;
-}) {
-    const id = useId();
-
-    return (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-            <label
-                htmlFor={id}
-                className="text-sm sm:w-56 sm:shrink-0 sm:pt-1.5"
-            >
-                {label}
-            </label>
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                    <Input
-                        id={id}
-                        type="number"
-                        inputMode="numeric"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={value}
-                        onChange={(event) =>
-                            onChange(Math.max(0, Number(event.target.value)))
-                        }
-                        className="h-8 w-24"
-                    />
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                        {unit === 'h'
-                            ? 'hours'
-                            : `min${value >= 60 ? ` · ${formatDuration(value)}` : ''}`}
-                    </span>
-                </div>
-                {hint && (
-                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                        {hint}
-                    </p>
-                )}
-                <InputError message={error} className="mt-1.5" />
-            </div>
-        </div>
-    );
-}
-
-/**
- * A threshold that can be switched off — null means "not set". Switching it on
- * starts from a sensible value rather than zero, which would mean "always".
- */
-function OptionalMinutes({
-    label,
-    offLabel,
-    hint,
-    value,
-    fallback,
-    max,
-    onChange,
-    error,
-}: {
-    label: string;
-    offLabel: string;
-    hint?: string;
-    value: number | null;
-    fallback: number;
-    max: number;
-    onChange: (value: number | null) => void;
-    error?: string;
-}) {
-    const id = useId();
-    const on = value !== null;
-
-    return (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-            <label
-                htmlFor={id}
-                className="text-sm sm:w-56 sm:shrink-0 sm:pt-1.5"
-            >
-                {label}
-            </label>
-            <div className="min-w-0 flex-1">
-                <div className="flex min-h-8 flex-wrap items-center gap-2">
-                    <Switch
-                        id={id}
-                        checked={on}
-                        onCheckedChange={(checked) =>
-                            onChange(checked ? fallback : null)
-                        }
-                        aria-label={`${label}: ${on ? 'on' : 'off'}`}
-                    />
-                    {on ? (
-                        <>
-                            <Input
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
-                                max={max}
-                                step={5}
-                                value={value}
-                                onChange={(event) =>
-                                    onChange(
-                                        Math.max(0, Number(event.target.value)),
-                                    )
-                                }
-                                aria-label={label}
-                                className="h-8 w-24"
-                            />
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                                min
-                                {value >= 60
-                                    ? ` · ${formatDuration(value)}`
-                                    : ''}
-                            </span>
-                        </>
-                    ) : (
-                        <span className="text-xs text-muted-foreground">
-                            {offLabel}
-                        </span>
-                    )}
-                </div>
-                {hint && (
-                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                        {hint}
-                    </p>
-                )}
-                <InputError message={error} className="mt-1.5" />
-            </div>
-        </div>
+        </label>
     );
 }
 
 /** Office networks a web punch may come from — one address or range per line. */
-function IpAllowlist({
+function NetworkList({
     value,
     onChange,
     errors,
@@ -888,38 +1031,350 @@ function IpAllowlist({
         .map(([, message]) => message);
 
     return (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-            <label
-                htmlFor={id}
-                className="text-sm sm:w-56 sm:shrink-0 sm:pt-1.5"
-            >
-                Web punches only from
+        <div>
+            <label htmlFor={id} className="mb-1.5 block text-sm">
+                Your office’s internet addresses
             </label>
-            <div className="min-w-0 flex-1">
-                <textarea
-                    id={id}
-                    rows={2}
-                    value={text}
-                    onChange={(event) => {
-                        setText(event.target.value);
-                        onChange(
-                            event.target.value
-                                .split(/[\n,]/)
-                                .map((line) => line.trim())
-                                .filter(Boolean),
-                        );
-                    }}
-                    placeholder="Any network"
-                    className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                    One address or range per line, such as 203.0.113.0/24. Empty
-                    allows any network.
-                </p>
-                {messages.slice(0, 1).map((message) => (
-                    <InputError key={message} message={message} />
-                ))}
-            </div>
+            <textarea
+                id={id}
+                rows={3}
+                value={text}
+                onChange={(event) => {
+                    setText(event.target.value);
+                    onChange(
+                        event.target.value
+                            .split(/[\n,]/)
+                            .map((line) => line.trim())
+                            .filter(Boolean),
+                    );
+                }}
+                placeholder={'203.0.113.10\n198.51.100.0/24'}
+                className="flex w-full max-w-sm rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            />
+            <p className="mt-1.5 text-[0.8125rem] text-muted-foreground">
+                One per line. Ask your IT team, or search “what is my IP” from
+                the office.{' '}
+                {value.length === 0 && 'Until you add one, any network works.'}
+            </p>
+            {messages.slice(0, 1).map((message) => (
+                <InputError key={message} message={message} />
+            ))}
         </div>
+    );
+}
+
+// ── Fine-tuning ──────────────────────────────────────────────────────────────
+
+function FineRules({ s, onChange, error }: RulesProps) {
+    const rounding = s.rounding;
+    const unit = (
+        <SelectBlank
+            label="Round to"
+            value={String(rounding.unit)}
+            options={ROUNDING_UNITS.map((value) => ({
+                value: String(value),
+                label: String(value),
+            }))}
+            onChange={(value) =>
+                onChange('rounding', {
+                    unit: Number(value) as PolicySettings['rounding']['unit'],
+                })
+            }
+        />
+    );
+    const roundingLabel = (words: string) =>
+        function RoundingLabel(chosen: boolean) {
+            return chosen ? (
+                <>
+                    {words} {unit} minutes
+                </>
+            ) : (
+                <>{words} few minutes</>
+            );
+        };
+
+    return (
+        <>
+            <Options<RoundingMode>
+                question="Clock times are judged…"
+                value={rounding.mode}
+                onChange={(mode) => onChange('rounding', { mode })}
+                options={[
+                    { value: 'none', label: 'exactly as punched' },
+                    {
+                        value: 'nearest',
+                        label: roundingLabel('to the nearest'),
+                    },
+                    {
+                        value: 'up',
+                        label: roundingLabel('rounded up to the next'),
+                    },
+                    {
+                        value: 'down',
+                        label: roundingLabel('rounded down to the last'),
+                    },
+                ]}
+            />
+            {rounding.mode !== 'none' && (
+                <Statement
+                    sentence={
+                        <>
+                            Round{' '}
+                            <SelectBlank
+                                label="Which punches are rounded"
+                                value={rounding.apply_to}
+                                options={ROUNDING_TARGET_OPTIONS}
+                                onChange={(apply_to) =>
+                                    onChange('rounding', { apply_to })
+                                }
+                            />
+                            .
+                        </>
+                    }
+                    hint="Only the judging is rounded: what people actually punched is always kept."
+                />
+            )}
+
+            <Statement
+                sentence={
+                    <>
+                        A clock-in counts toward a shift from{' '}
+                        <DurationBlank
+                            label="How early a clock-in counts"
+                            max={720}
+                            value={s.punch_windows.early_clock_in_minutes}
+                            onChange={(early_clock_in_minutes) =>
+                                onChange('punch_windows', {
+                                    early_clock_in_minutes,
+                                })
+                            }
+                        />{' '}
+                        before it starts.
+                    </>
+                }
+                hint="Earlier than that, it belongs to the day before."
+                error={error('punch_windows', 'early_clock_in_minutes')}
+            />
+            <Statement
+                sentence={
+                    <>
+                        A shift lasts at most{' '}
+                        <DurationBlank
+                            label="Longest shift"
+                            min={240}
+                            max={1440}
+                            value={s.punch_windows.max_shift_span_minutes}
+                            onChange={(max_shift_span_minutes) =>
+                                onChange('punch_windows', {
+                                    max_shift_span_minutes,
+                                })
+                            }
+                        />
+                        ; a punch after that starts a new day.
+                    </>
+                }
+                hint="Long enough for a double shift, short enough that a forgotten clock-out doesn’t swallow the next day."
+                error={error('punch_windows', 'max_shift_span_minutes')}
+            />
+            <Statement
+                sentence={
+                    <>
+                        Accept punches the app saved without a connection for up
+                        to{' '}
+                        <NumberBlank
+                            label="Oldest offline punch accepted, in hours"
+                            min={1}
+                            max={720}
+                            step={12}
+                            suffix="hours"
+                            value={s.capture.offline_window_hours}
+                            onChange={(offline_window_hours) =>
+                                onChange('capture', { offline_window_hours })
+                            }
+                        />
+                        .
+                    </>
+                }
+                hint="Older ones are refused, and HR enters them instead."
+                error={error('capture', 'offline_window_hours')}
+            />
+            <Statement
+                sentence={
+                    <>
+                        Flag punches from a device whose clock is more than{' '}
+                        <DurationBlank
+                            label="How far off a device clock may be"
+                            units={['min']}
+                            min={1}
+                            max={1440}
+                            value={s.capture.max_clock_skew_minutes}
+                            onChange={(max_clock_skew_minutes) =>
+                                onChange('capture', { max_clock_skew_minutes })
+                            }
+                        />{' '}
+                        off.
+                    </>
+                }
+                hint="The punch is kept, and the day waits for someone to approve it."
+                error={error('capture', 'max_clock_skew_minutes')}
+            />
+        </>
+    );
+}
+
+// ── Shared ───────────────────────────────────────────────────────────────────
+
+/**
+ * A rule around a threshold that can be off (null): on, it reads with the
+ * threshold filled in; off, the same sentence greyed with what it would be.
+ */
+function ThresholdRule({
+    value,
+    fallback,
+    max,
+    onChange,
+    sentence,
+    label,
+    hint,
+    offHint,
+    error,
+}: {
+    value: number | null;
+    fallback: number;
+    max: number;
+    onChange: (value: number | null) => void;
+    sentence: (blank: ReactNode) => ReactNode;
+    label: string;
+    hint?: string;
+    offHint?: string;
+    error?: string;
+}) {
+    const last = useRemembered(value, fallback);
+    const on = value !== null;
+
+    return (
+        <Rule
+            checked={on}
+            onCheckedChange={(checked) => onChange(checked ? last : null)}
+            sentence={sentence(
+                <DurationBlank
+                    label={label}
+                    max={max}
+                    value={value ?? last}
+                    muted={!on}
+                    onChange={onChange}
+                />,
+            )}
+            hint={hint}
+            offHint={offHint}
+            error={error}
+        />
+    );
+}
+
+/**
+ * The last value a nullable setting had while it was set — so switching a rule
+ * off and on again brings back what it was, not the starting value.
+ */
+function useRemembered(value: number | null, fallback: number): number {
+    const [remembered, setRemembered] = useState(value ?? fallback);
+    const previous = useRef(value);
+
+    useEffect(() => {
+        if (value !== null && value !== previous.current) {
+            setRemembered(value);
+        }
+
+        previous.current = value;
+    }, [value]);
+
+    return value ?? remembered;
+}
+
+/**
+ * The topics, as a rail beside the rules on a wide screen and a row of tabs
+ * above them on a narrow one. Each says what it amounts to in a line, and marks
+ * a problem waiting in it.
+ */
+function TopicRail({
+    items,
+    active,
+    onChoose,
+}: {
+    items: {
+        key: string;
+        title: string;
+        icon: LucideIcon;
+        summary: string;
+        hasError: boolean;
+    }[];
+    active: string;
+    onChoose: (key: string) => void;
+}) {
+    const activeRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        activeRef.current?.scrollIntoView({
+            block: 'nearest',
+            inline: 'nearest',
+        });
+    }, [active]);
+
+    return (
+        <nav aria-label="Policy topics" className="min-w-0">
+            <ol className="-mx-1 flex snap-x gap-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
+                {items.map((item) => {
+                    const Icon = item.icon;
+                    const current = item.key === active;
+
+                    return (
+                        <li key={item.key} className="snap-start">
+                            <button
+                                ref={current ? activeRef : undefined}
+                                type="button"
+                                aria-current={current ? 'step' : undefined}
+                                onClick={() => onChoose(item.key)}
+                                className={cn(
+                                    'group relative flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:whitespace-normal',
+                                    current
+                                        ? 'bg-[#0F2044] text-white dark:bg-[#0ABFBF]/15 dark:text-foreground'
+                                        : 'text-foreground hover:bg-muted/70',
+                                )}
+                            >
+                                <Icon
+                                    className={cn(
+                                        'mt-0.5 size-4 shrink-0',
+                                        current
+                                            ? 'text-[#0ABFBF]'
+                                            : 'text-muted-foreground',
+                                    )}
+                                />
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-medium">
+                                        {item.title}
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            'hidden text-xs leading-snug lg:line-clamp-2',
+                                            current
+                                                ? 'text-white/70 dark:text-muted-foreground'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        {item.summary}
+                                    </span>
+                                </span>
+                                {item.hasError && (
+                                    <span
+                                        className="ml-auto size-2 shrink-0 self-center rounded-full bg-destructive"
+                                        aria-label="Has a problem to fix"
+                                    />
+                                )}
+                            </button>
+                        </li>
+                    );
+                })}
+            </ol>
+        </nav>
     );
 }

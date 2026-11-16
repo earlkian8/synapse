@@ -69,8 +69,11 @@ test('somebody who may only see the roster lands on it from Attendance', functio
 });
 
 test('Attendance stays closed to somebody with neither section', function () {
+    // Somebody who only clocks themselves in is sent to their own record.
     actingAsUserWith(['attendance.clock']);
+    $this->get(route('attendance.index'))->assertRedirect(route('attendance.me'));
 
+    actingAsUserWith(['leave.request']);
     $this->get(route('attendance.index'))->assertForbidden();
 });
 

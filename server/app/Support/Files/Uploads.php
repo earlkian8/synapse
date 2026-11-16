@@ -40,6 +40,7 @@ final class Uploads
         'profile-photos',
         'attendance/punches',
         'problem-reports',
+        'discipline',
         self::LOGOS,
     ];
 

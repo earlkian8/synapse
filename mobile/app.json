@@ -58,9 +58,18 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "SYNAPSE uses the camera for selfie verification when you clock in and out.",
+          "cameraPermission": "SYNAPSE uses the camera to scan your workplace's attendance QR code, and for a selfie when you clock in and out.",
           "photosPermission": "SYNAPSE opens your photos when you attach a screenshot to a problem report.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SYNAPSE uses the camera to scan your workplace's attendance QR code, and for a selfie when you clock in and out.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
         }
       ],
       "@react-native-community/datetimepicker"

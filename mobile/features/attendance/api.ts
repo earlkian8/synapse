@@ -1,5 +1,14 @@
 import { api } from '@/lib/api';
-import type { AttendanceRecord, AttendanceSummary, Paginated, PunchType, TodayResponse } from '@/types/api';
+import { deviceId } from '@/lib/device-id';
+import type { Coords } from '@/lib/location';
+import type {
+  AttendanceRecord,
+  AttendanceSummary,
+  Paginated,
+  PunchType,
+  QrScanResponse,
+  TodayResponse,
+} from '@/types/api';
 
 export type PunchPayload = {
   type: PunchType;
@@ -17,9 +26,11 @@ export type PunchPayload = {
 export const attendanceApi = {
   today: () => api.get<TodayResponse>('/attendance/today'),
 
-  punch: ({ type, latitude, longitude, accuracy, note, photoUri, clientId, punchedAt }: PunchPayload) => {
+  punch: async ({ type, latitude, longitude, accuracy, note, photoUri, clientId, punchedAt }: PunchPayload) => {
     const form = new FormData();
     form.append('type', type);
+    // Which phone, so one phone clocking in two people shows (ADR 0103).
+    form.append('device_id', await deviceId());
     if (clientId) form.append('client_id', clientId);
     if (punchedAt) {
       // The phone's clock now, beside the time it gave the punch — how the
@@ -44,6 +55,38 @@ export const attendanceApi = {
     return api.post<TodayResponse & { duplicate?: boolean }>('/attendance/punch', form, {
       timeoutMs: photoUri ? 60_000 : 30_000,
     });
+  },
+
+  /**
+   * Scan a QR station's code (ADR 0103): proves the phone is at the screen, and
+   * buys a two-minute ticket for the punch. Never queued offline: a code is only
+   * good while the screen shows it.
+   */
+  qrScan: async (code: string, coords: Coords | null) =>
+    api.post<QrScanResponse>('/attendance/qr/scan', {
+      code,
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
+      accuracy: coords?.accuracy ?? null,
+      mocked: coords?.mocked ?? false,
+      device_id: await deviceId(),
+    }),
+
+  /** Spend a scan's ticket on a punch, with the selfie a policy may ask for. */
+  qrPunch: (ticket: string, type: PunchType, photoUri?: string | null) => {
+    const form = new FormData();
+    form.append('ticket', ticket);
+    form.append('type', type);
+
+    if (photoUri) {
+      form.append('photo', {
+        uri: photoUri,
+        name: 'selfie.jpg',
+        type: 'image/jpeg',
+      } as unknown as Blob);
+    }
+
+    return api.post<TodayResponse>('/attendance/qr/punch', form, { timeoutMs: photoUri ? 60_000 : 30_000 });
   },
 
   records: (from: string, to: string) =>

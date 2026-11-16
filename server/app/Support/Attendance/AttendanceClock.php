@@ -4,6 +4,7 @@ namespace App\Support\Attendance;
 
 use App\Models\AttendanceKiosk;
 use App\Models\AttendancePunch;
+use App\Models\AttendanceQrStation;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -65,6 +66,7 @@ class AttendanceClock
     private const SOURCE_WORDS = [
         'web' => 'the web',
         'mobile' => 'the mobile app',
+        'qr' => 'a QR station',
         'kiosk' => 'a kiosk',
         'manual' => 'entry by HR',
     ];
@@ -108,7 +110,9 @@ class AttendanceClock
      * `offline` (the time was stamped by a phone that was offline) and `sent_at`
      * (the phone's clock when it sent the punch, to measure its skew), and
      * `kiosk` (the {@see AttendanceKiosk} a `kiosk` punch was made at, which
-     * places it at the kiosk's site).
+     * places it at the kiosk's site), `qr_station` (the
+     * {@see AttendanceQrStation} a `qr` punch's code was scanned from, ADR 0103)
+     * and `device_hash` (the SHA-256 of the phone's install id).
      *
      * @param  array<string, mixed>  $context
      *
@@ -169,6 +173,8 @@ class AttendanceClock
                 'punched_at' => $at,
                 'source' => $source,
                 'attendance_kiosk_id' => $source === 'kiosk' ? $this->kioskOf($context)?->id : null,
+                'attendance_qr_station_id' => $source === 'qr' ? $this->qrStationOf($context)?->id : null,
+                'device_hash' => filled($context['device_hash'] ?? null) ? (string) $context['device_hash'] : null,
                 'latitude' => $context['latitude'] ?? null,
                 'longitude' => $context['longitude'] ?? null,
                 'accuracy' => $context['accuracy'] ?? null,
@@ -904,7 +910,7 @@ class AttendanceClock
             }
         }
 
-        if ($source === 'mobile' && $policy->selfieRequired && blank($context['photo'] ?? null)) {
+        if (in_array($source, ['mobile', 'qr'], true) && $policy->selfieRequired && blank($context['photo'] ?? null)) {
             throw new AttendancePunchException('Your attendance policy needs a selfie with every punch from the app. Take one and try again.');
         }
 
@@ -1033,6 +1039,18 @@ class AttendanceClock
         $kiosk = $context['kiosk'] ?? null;
 
         return $kiosk instanceof AttendanceKiosk ? $kiosk : null;
+    }
+
+    /**
+     * The QR station a punch's context names, if it names one (ADR 0103).
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function qrStationOf(array $context): ?AttendanceQrStation
+    {
+        $station = $context['qr_station'] ?? null;
+
+        return $station instanceof AttendanceQrStation ? $station : null;
     }
 
     /**

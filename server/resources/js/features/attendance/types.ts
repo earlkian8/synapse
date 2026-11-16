@@ -36,6 +36,8 @@ export type AttendanceFlag =
 export type PunchSource =
     | 'web'
     | 'mobile'
+    /** A phone scanning the code a QR station shows (ADR 0103). */
+    | 'qr'
     /** A shared device at a site, for people with no phone (ADR 0092). */
     | 'kiosk'
     | 'manual'
@@ -74,6 +76,8 @@ export type Punch = {
     within_geofence?: boolean | null;
     /** The kiosk it was made at (ADR 0092). */
     kiosk?: string | null;
+    /** The QR station whose code it was scanned from (ADR 0103). */
+    qr_station?: string | null;
     /** A phone queued it while offline and sent it later. */
     offline?: boolean;
     received_at?: string | null;

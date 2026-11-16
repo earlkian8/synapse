@@ -4,6 +4,7 @@
  */
 export const leaveRoutes = {
     index: '/leave',
+    me: '/leave/me',
     store: '/leave',
 
     balances: '/leave/balances',

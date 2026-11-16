@@ -9,7 +9,9 @@
 portal tables from `2026_10_13_000000_create_admin_portal_tables` on 2026-10-13; §6's
 > kiosk tables from `2026_10_15_020000_create_attendance_kiosks` on 2026-10-15; §14's
 > problem reports from `2026_10_21_000000_create_problem_reports_tables` on 2026-10-21;
-> §4's ESCO tables from `2026_11_03_000000_learn_skills_from_esco` on 2026-11-03). It
+> §4's ESCO tables from `2026_11_03_000000_learn_skills_from_esco` on 2026-11-03; §6's
+> QR stations and §3's discipline tables from the `2026_11_16_*`
+> migrations on 2026-11-16). It
 > replaces the draft that was proposed before the modules were built. The draft's
 > entities that were never built, or were built and later removed, are listed in
 > [What the draft proposed](#what-the-draft-proposed) at the end.
@@ -620,6 +622,57 @@ erDiagram
 > ([ADR 0037](../decisions/0037-schedules-are-templates-assignments-are-dated-a-resolver-decides-the-day.md)).
 > See §6.
 
+### Discipline
+
+See [discipline tables](./discipline-tables.md) and
+[ADR 0105](../decisions/0105-discipline-taken-through-the-twin-notice-rule.md). A case is
+one incident about one employee, charged under an offense of the code of conduct, with
+each step of the twin-notice rule dated on it.
+
+```mermaid
+erDiagram
+    EMPLOYEE ||--o{ DISCIPLINARY_CASE : "answers"
+    CONDUCT_OFFENSE |o--o{ DISCIPLINARY_CASE : "charged under"
+    DISCIPLINARY_CASE ||--o{ DISCIPLINARY_CASE_ATTACHMENT : "evidenced by"
+
+    CONDUCT_OFFENSE {
+        bigint id PK
+        string code
+        string title
+        string gravity "minor|less_serious|serious|grave"
+        string ground "Art. 297 cause|company_rule"
+        json penalties "the ladder"
+        smallint reckoning_months
+        datetime deleted_at
+    }
+    DISCIPLINARY_CASE {
+        bigint id PK
+        string reference "DC-year-n; unique"
+        bigint employee_id FK
+        bigint conduct_offense_id FK
+        string status "reported|notice_issued|explained|hearing|decided|closed|withdrawn"
+        date incident_date
+        text narrative
+        datetime notice_issued_at
+        date reply_due_on "at least 5 calendar days"
+        datetime notice_received_at
+        datetime explained_at
+        boolean hearing_requested
+        datetime hearing_held_at
+        string finding "upheld|cleared"
+        string penalty
+        smallint occurrence
+        datetime decided_at
+        datetime decision_received_at
+    }
+    DISCIPLINARY_CASE_ATTACHMENT {
+        bigint id PK
+        bigint disciplinary_case_id FK
+        string path "uploads disk, discipline/"
+        string name
+    }
+```
+
 ---
 
 ## 4. Recruitment
@@ -937,6 +990,11 @@ erDiagram
     WORK_LOCATION |o--o{ ATTENDANCE_KIOSK : "stands at"
     ATTENDANCE_KIOSK |o--o{ ATTENDANCE_PUNCH : "made at"
     EMPLOYEE ||--o| EMPLOYEE_KIOSK_PIN : "clocks in with"
+    WORK_LOCATION |o--o{ ATTENDANCE_QR_STATION : "stands at"
+    ATTENDANCE_QR_STATION |o--o{ ATTENDANCE_PUNCH : "scanned at"
+    ATTENDANCE_QR_STATION ||--o{ ATTENDANCE_QR_SCAN : "scanned"
+    EMPLOYEE |o--o{ ATTENDANCE_QR_SCAN : scans
+    ATTENDANCE_PUNCH |o--o| ATTENDANCE_QR_SCAN : "made by"
 
     EMPLOYEE_SCHEDULE_ASSIGNMENT {
         bigint id PK
@@ -998,8 +1056,10 @@ erDiagram
         bigint employee_id FK
         string type "clock_in|break_start|break_end|clock_out"
         datetime punched_at
-        string source "web|mobile|kiosk|manual|system"
+        string source "web|mobile|qr|kiosk|manual|system"
         bigint attendance_kiosk_id FK
+        bigint attendance_qr_station_id FK
+        string device_hash "sha256 of the app's install id"
         decimal latitude
         decimal longitude
         decimal accuracy
@@ -1040,7 +1100,46 @@ erDiagram
         datetime changed_at
         datetime last_used_at
     }
+    ATTENDANCE_QR_STATION {
+        bigint id PK
+        string name
+        bigint work_location_id FK
+        smallint rotate_seconds "10|15|30|60"
+        string scan_mode "app|any"
+        boolean same_network
+        text secret "encrypted; signs the codes"
+        boolean is_active
+        datetime last_shown_at
+        bigint last_shown_by FK "users"
+        string last_shown_ip "the screen's address"
+        bigint created_by FK "users"
+        datetime deleted_at
+    }
+    ATTENDANCE_QR_SCAN {
+        bigint id PK
+        bigint attendance_qr_station_id FK
+        bigint employee_id FK "null until identified"
+        string client "app|browser"
+        string outcome "accepted|refused"
+        string reason
+        string punch_type
+        bigint attendance_punch_id FK
+        decimal latitude
+        decimal longitude
+        decimal accuracy
+        int distance_meters
+        boolean mocked
+        string device_hash
+        string ip
+        datetime created_at
+    }
 ```
+
+QR stations ([ADR 0103](../decisions/0103-qr-stations-a-changing-code-scanned-at-the-site.md))
+show a code that changes every few seconds; a phone's scan of it (with the app, or with a
+browser and the kiosk PIN at a station whose `scan_mode` is `any`), judged against the
+station's site and, with `same_network`, the screen's address, buys the ticket a `qr`
+punch spends. Every scan of a real station is a row, refused ones included.
 
 ---
 

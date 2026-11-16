@@ -25,6 +25,11 @@ end-of-day job ([ADR 0041](../decisions/0041-attendance-days-close-themselves.md
 on its own terms with `…_create_attendance_kiosks`
 ([ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md)):
 `attendance_kiosks`, `employee_kiosk_pins` and the punch's `attendance_kiosk_id`, below.
+QR stations came with `2026_11_16_000000_create_attendance_qr_stations`
+([ADR 0103](../decisions/0103-qr-stations-a-changing-code-scanned-at-the-site.md)):
+`attendance_qr_stations`, `attendance_qr_scans`, and the punch's
+`attendance_qr_station_id` and `device_hash`. The migration also adds `qr` to every policy
+that allowed every way to punch, and grants `attendance.qr.manage|display` to HR Managers.
 
 ## `attendance_records`
 
@@ -110,6 +115,8 @@ mobile app's punches are fully auditable.
 | `clock_skew_seconds` | int, nullable | The sender's clock minus the server's when it sent the punch (from `sent_at`). Beyond the policy's `max_clock_skew_minutes`, the day is flagged `clock_skew`. |
 | `source` | string | `web \| mobile \| kiosk \| manual \| system` — `system` written by the end-of-day job's auto-close (ADR 0041). A punch recorded before ADR 0054 may keep `biometric`. |
 | `attendance_kiosk_id` | FK → attendance_kiosks, nullable | The kiosk a `kiosk` punch was made at (ADR 0092). Null on delete; kiosks are soft-deleted, so in practice it stays. |
+| `attendance_qr_station_id` | FK → attendance_qr_stations, nullable | The station whose code a `qr` punch was scanned from (ADR 0103). Null on delete; stations are soft-deleted. |
+| `device_hash` | string(64), nullable | SHA-256 of the app's install id (or a browser's cookie id, on a browser `qr` punch), on `mobile` and `qr` punches: how one phone clocking in two people is seen. `$hidden`; left out of Data Export. |
 | `external_id` | string(100), nullable | A phone's client id for a queued punch, so a resend is recognised (per employee). |
 | `latitude` / `longitude` | decimal(10,7), nullable | GPS fix. |
 | `accuracy` | decimal(8,2), nullable | Metres. |
@@ -164,6 +171,56 @@ The PIN a person clocks in with at a kiosk (ADR 0092). One per employee.
 | timestamps | | |
 
 **Indexes:** `organization_id`; `employee_id` unique.
+
+## `attendance_qr_stations`
+
+A screen at a site showing a code that changes every `rotate_seconds` (ADR 0103).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | Addressed by hashid; the hashid is in every code. |
+| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
+| `name` | string(80) | Where the screen is. |
+| `work_location_id` | FK → work_locations, nullable | The site scans are judged against. Required by the form; null on delete, which stops the station taking scans. |
+| `rotate_seconds` | smallint, default 15 | 10, 15, 30 or 60. |
+| `scan_mode` | string(10), default `app` | `app`: scanned with the SYNAPSE app only, shown as `synapse://qr/<code>`. `any`: any phone's camera too, shown as `<APP_URL>/q/<code>`, signing in in the browser with employee number and kiosk PIN. |
+| `same_network` | boolean, default false | Scans count only from the screen's own internet connection (`last_shown_ip`; an IPv6 /64). |
+| `secret` | text | 64 random characters, **encrypted** (`encrypted` cast) and `$hidden`. Codes are HMAC-signed with it; replaced by *Reset codes*. Never leaves the server; left out of Data Export. |
+| `is_active` | boolean, default true | Switched off takes no scans. |
+| `last_shown_at` | timestamp, nullable | The last time a screen asked for codes (every 2 minutes, a batch of the next 3); *showing* within 165 s. Written by query. |
+| `last_shown_by` | FK → users, nullable | Whose screen. Null on delete. |
+| `last_shown_ip` | string(45), nullable | The address the screen asked from, for `same_network`. `$hidden`; left out of Data Export. |
+| `created_by` | FK → users, nullable | Null on delete. |
+| timestamps, `deleted_at` | | Soft-deleted, so punches keep naming it. |
+
+**Indexes:** (`organization_id`, `deleted_at`).
+
+## `attendance_qr_scans`
+
+Every scan of a real station's code, accepted or refused (ADR 0103). Written once; an
+accepted scan is later linked to the punch it made.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | bigint (PK) | |
+| `organization_id` | FK → organizations | Tenant. Cascade on delete. |
+| `attendance_qr_station_id` | FK → attendance_qr_stations | Cascade on delete. |
+| `employee_id` | FK → employees, nullable | Who scanned. Null on delete, and on a browser scan refused before anybody was identified (`wrong_pin`, `invalid`, `not_showing`). |
+| `client` | string(10), default `app` | `app`, or `browser` (a phone's camera at a station whose `scan_mode` is `any`). |
+| `outcome` | string(12) | `accepted` or `refused`. |
+| `reason` | string(32), nullable | Why refused: `expired`, `invalid`, `not_showing`, `inactive`, `no_site`, `no_location`, `imprecise`, `mocked`, `away`, `other_network`, `shared_device`, `no_device`, `app_only`, `wrong_pin`, `punch_refused`. |
+| `punch_type` | string(20), nullable | What the accepted scan punched. |
+| `attendance_punch_id` | FK → attendance_punches, nullable | The punch it made. Null on delete. |
+| `latitude`, `longitude` | decimal(10,7), nullable | The phone's position. |
+| `accuracy` | decimal(8,2), nullable | Metres. |
+| `distance_meters` | int, nullable | How far from the station's site, for `away`. |
+| `mocked` | boolean, nullable | The phone said its position was simulated. |
+| `device_hash` | string(64), nullable | As on punches; for a browser, the SHA-256 of the random id in its `synapse_qr_device` cookie. `$hidden`; left out of Data Export. |
+| `ip` | string(45), nullable | `$hidden`; left out of Data Export. |
+| `created_at` | timestamp | No `updated_at`. |
+
+**Indexes:** (`organization_id`, `created_at`); (`attendance_qr_station_id`, `created_at`);
+(`device_hash`, `created_at`).
 
 ## `work_locations`
 

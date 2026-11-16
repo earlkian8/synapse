@@ -55,6 +55,7 @@ export type ServiceKey =
   | 'certificates'
   | 'checkIn'
   | 'record'
+  | 'notices'
   | 'resignation'
   | 'account'
   | 'password';
@@ -256,6 +257,16 @@ export const SERVICES: Service[] = [
     glyph: 'idCard',
     href: '/(tabs)/profile',
     keywords: 'profile record 201 details government ids sss tin philhealth pag-ibig',
+  },
+  {
+    key: 'notices',
+    title: 'My notices',
+    label: 'Notices',
+    group: 'work',
+    glyph: 'notice',
+    href: '/discipline',
+    keywords: 'notice to explain nte memo discipline disciplinary explanation hearing decision warning suspension',
+    available: (user) => !!user.can_see_notices && hasEmployee(user),
   },
   {
     key: 'resignation',

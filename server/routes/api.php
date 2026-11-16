@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AwardController;
 use App\Http\Controllers\Api\CalendarFeedController;
 use App\Http\Controllers\Api\CheckInController;
+use App\Http\Controllers\Api\DisciplineController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\InvitationController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\OffboardingController;
 use App\Http\Controllers\Api\ProblemReportController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\QrAttendanceController;
 use App\Http\Controllers\Api\RecognitionController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SearchController;
@@ -116,6 +118,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('attendance/punch', [AttendanceController::class, 'punch'])->middleware('can:attendance.clock')->name('api.attendance.punch');
     Route::get('attendance/records', [AttendanceController::class, 'records'])->name('api.attendance.records');
     Route::get('attendance/summary', [AttendanceController::class, 'summary'])->name('api.attendance.summary');
+
+    // Clocking in by scanning a QR station's code (ADR 0103): the scan proves
+    // the person is at the screen and buys a two-minute ticket; the punch
+    // spends it. Throttled per person: a code is read once, not walked.
+    Route::post('attendance/qr/scan', [QrAttendanceController::class, 'scan'])->middleware(['can:attendance.clock', 'throttle:20,1'])->name('api.attendance.qr.scan');
+    Route::post('attendance/qr/punch', [QrAttendanceController::class, 'punch'])->middleware(['can:attendance.clock', 'throttle:20,1'])->name('api.attendance.qr.punch');
+
+    // My notices (ADR 0105): the disciplinary cases served on oneself, by hashid.
+    Route::middleware('can:discipline.respond')->group(function () {
+        Route::get('discipline', [DisciplineController::class, 'index'])->name('api.discipline.index');
+        Route::get('discipline/{case}', [DisciplineController::class, 'show'])->name('api.discipline.show');
+        Route::patch('discipline/{case}/acknowledge', [DisciplineController::class, 'acknowledge'])->name('api.discipline.acknowledge');
+        Route::post('discipline/{case}/explanation', [DisciplineController::class, 'explain'])->middleware('throttle:20,1')->name('api.discipline.explain');
+    });
 
     // The holidays one keeps over the coming year, a local one included (ADR 0078).
     Route::get('holidays', [HolidayController::class, 'index'])->name('api.holidays.index');

@@ -10,6 +10,12 @@ tenant-scoped (ADR 0005).
 
 ## Surfaces
 
+- **`/leave/me`** — **My leave**, for `leave.request`: a card per leave type (left of
+  entitled this year, a meter, what waits for approval), and one's own requests with
+  their status and HR's note, **File leave** (the same dialog as HR's, with nobody else
+  to choose), *change* a pending one and *cancel* a pending or approved one. Somebody who
+  may only file their own lands here from `/leave`; the sidebar entry is for
+  `leave.view` or `leave.request`. `LeaveNav`: *My leave* ‖ *Requests · Balances*.
 - **`/leave`** — the **approvals inbox**: stat tiles and a table of requests (employee,
   leave type, dates, days, status, filed). A **status filter** (Pending by default, then
   Approved / Upcoming / Rejected / Cancelled / All statuses) sits beside search, type and

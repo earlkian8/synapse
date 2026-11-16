@@ -120,6 +120,10 @@ function RootNavigator() {
         <Stack.Screen name="select-workspace" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         {/* Leave is a service rather than a tab (ADR 0088). */}
+        <Stack.Screen name="attendance/scan" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="qr/[code]" options={{ animation: 'none' }} />
+        <Stack.Screen name="discipline/index" />
+        <Stack.Screen name="discipline/[id]" />
         <Stack.Screen name="leave/index" />
         <Stack.Screen name="leave/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="leave/[id]" />

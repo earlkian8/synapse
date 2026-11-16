@@ -94,10 +94,15 @@ records. `signIn()` checks the PIN against each with `Hash::check`, and:
 
 - a match that is not locked resets the count, records `last_used_at`, and wins;
 - otherwise every candidate's count goes up; the fifth in a row locks it for 15
-  minutes (logged once: *Kiosk PIN locked after 5 wrong tries at "Front gate"*);
+  minutes (logged once: *Kiosk PIN locked after 5 wrong tries at the kiosk "Front gate"*);
 - a locked PIN is refused even when the PIN is right;
 - a number nobody holds is hashed anyway, and every miss is the same sentence;
 - every miss counts against the kiosk: 20 in 10 minutes pause it.
+
+The same PIN signs people in at a **QR station that takes any phone** (ADR 0103): the
+browser scan goes through `KioskPins::check()`, which `signIn()` now wraps, with its own
+limiter per station (`qr-sign-in:{station}`) and the lock logged as *at the QR station
+"…"*. See [QR stations](./attendance-qr-stations.md).
 
 `issue()` makes a random 6-digit PIN that is never weak and sets `must_change`.
 `change()` refuses a PIN that is not 6 digits, is one digit repeated, is a straight

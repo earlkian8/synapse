@@ -61,6 +61,8 @@ class PermissionRegistry
             'attendance.roster.view' => 'View the shift roster',
             'attendance.roster.manage' => 'Assign schedules & set one-off shift overrides',
             'attendance.kiosks.manage' => 'Set up kiosks & issue the PINs people without a phone clock in with',
+            'attendance.qr.manage' => 'Set up QR stations & read who scanned them, refusals included',
+            'attendance.qr.display' => 'Show a QR station\'s code on a screen, for people to scan with their phone',
         ],
         'Performance Management' => [
             'performance.view' => 'View performance evaluations',
@@ -93,6 +95,12 @@ class PermissionRegistry
             'events.view' => 'View events & meetings',
             'events.manage' => 'Schedule events, book rooms, invite attendees & track responses',
             'events.respond' => 'Answer your own invitations & subscribe to them (self-service)',
+        ],
+        'Discipline' => [
+            'discipline.view' => 'View disciplinary cases & conduct records',
+            'discipline.manage' => 'Issue notices to explain, hold hearings, decide cases & keep the code of conduct',
+            'discipline.report' => 'Report an incident about an employee, and follow the reports you filed',
+            'discipline.respond' => 'Read the notices served on you, acknowledge them & answer in writing (self-service)',
         ],
         'Offboarding' => [
             'offboarding.view' => 'View offboarding & clearance',

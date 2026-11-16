@@ -51,14 +51,15 @@ export function WorkedExample({ settings, sample, onSampleChange }: Props) {
 
     return (
         <section
-            aria-label="Worked example"
+            aria-label="Sample day"
             className="rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border"
         >
             <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                    <h3 className="text-sm font-semibold">Worked example</h3>
+                    <h3 className="text-sm font-semibold">Sample day</h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                        A sample day under these rules, before you save them.
+                        Change the times to see how a day comes out under these
+                        rules.
                     </p>
                 </div>
                 {pending && <Spinner className="mt-0.5 size-3.5" />}

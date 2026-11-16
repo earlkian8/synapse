@@ -26,6 +26,14 @@ createInertiaApp({
             // nobody is signed in on it, and it brings its own screen.
             case name === 'kiosk':
                 return null;
+            // A QR station's screen (ADR 0103) is a device on a wall too: the
+            // code and the time, nothing to click into the app from.
+            case name === 'attendance/qr-display':
+                return null;
+            // Scanning a QR station with a phone's own camera (ADR 0103): a
+            // page for somebody who is not signed in, on their phone.
+            case name === 'qr-scan':
+                return null;
             // The Privacy Policy and the Terms of Service are public, and read
             // before anybody has an account (ADR 0063).
             case name.startsWith('legal/'):

@@ -45,6 +45,8 @@ const GLYPHS = {
   location: { ios: 'location.fill', android: 'location_on' },
   locationSlash: { ios: 'location.slash', android: 'location_off' },
   camera: { ios: 'camera.fill', android: 'photo_camera' },
+  /** Scanning a QR station's code (ADR 0103). */
+  qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
   offline: { ios: 'icloud.slash', android: 'cloud_off' },
 
   // Records and people

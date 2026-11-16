@@ -247,6 +247,22 @@ class AppServiceProvider extends ServiceProvider
             Limit::perDay(800)->by('skill-taxonomy-day:'.$request->user()?->id),
         ]);
 
+        // A QR station's screen asks for its code every few seconds (ADR 0103);
+        // the fastest rotation is 10 s. Generous per user and station, so two
+        // screens of one account never starve each other.
+        // A station's screen asks every two minutes (ADR 0103); a few more allow
+        // for reloads and a second screen on the same station.
+        RateLimiter::for('attendance-qr-code', fn (Request $request) => Limit::perMinute(10)
+            // The station is still its hashid here: throttling runs before bindings.
+            ->by('attendance-qr-code:'.($request->user()?->id ?? $request->ip()).':'.(string) ($request->route()?->originalParameter('attendanceQrStation') ?? '')));
+
+        // Scanning a QR station with a phone's browser (ADR 0103): per address,
+        // generous enough for a queue on the office Wi-Fi, which shares one.
+        RateLimiter::for('qr-scan-page', fn (Request $request) => Limit::perMinute(120)
+            ->by('qr-scan-page:'.$request->ip()));
+        RateLimiter::for('qr-scan', fn (Request $request) => Limit::perMinute(60)
+            ->by('qr-scan:'.$request->ip()));
+
         RateLimiter::for('kiosk-pairing', fn (Request $request) => Limit::perMinute(10)
             ->by('kiosk-pairing:'.$request->ip()));
     }

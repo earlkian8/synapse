@@ -36,11 +36,13 @@ class AttendancePunch extends Model
      * Where a punch can be captured — the sources an attendance policy chooses
      * among (ADR 0038). The kiosk is back for people with no phone (ADR 0092),
      * paired and PIN-protected; biometric scanners stay gone (ADR 0054), and a
-     * punch one recorded keeps its `source`, which is history.
+     * punch one recorded keeps its `source`, which is history. `qr` is a phone
+     * scanning the code a QR station shows (ADR 0103): the person is where the
+     * screen is, at the moment it showed that code.
      *
      * @var list<string>
      */
-    public const CAPTURE_SOURCES = ['web', 'mobile', 'kiosk', 'manual'];
+    public const CAPTURE_SOURCES = ['web', 'mobile', 'qr', 'kiosk', 'manual'];
 
     /**
      * Where a punch originated: a capture source, or the end-of-day job closing
@@ -52,12 +54,13 @@ class AttendancePunch extends Model
 
     /**
      * Sources whose punch is checked against a work location's fence: the ones
-     * that report where the person was. A kiosk is placed at its site instead;
-     * HR's entry reports nowhere.
+     * that report where the person was. A QR scan reports the phone's position
+     * at the scan. A kiosk is placed at its site instead; HR's entry reports
+     * nowhere.
      *
      * @var list<string>
      */
-    public const LOCATED_SOURCES = ['web', 'mobile'];
+    public const LOCATED_SOURCES = ['web', 'mobile', 'qr'];
 
     protected $fillable = [
         'organization_id',
@@ -67,6 +70,8 @@ class AttendancePunch extends Model
         'punched_at',
         'source',
         'attendance_kiosk_id',
+        'attendance_qr_station_id',
+        'device_hash',
         'latitude',
         'longitude',
         'accuracy',
@@ -81,6 +86,9 @@ class AttendancePunch extends Model
         'note',
         'recorded_by',
     ];
+
+    /** The phone's install id is kept to tell phones apart, never shown. */
+    protected $hidden = ['device_hash'];
 
     protected function casts(): array
     {
@@ -144,6 +152,17 @@ class AttendancePunch extends Model
     public function kiosk(): BelongsTo
     {
         return $this->belongsTo(AttendanceKiosk::class, 'attendance_kiosk_id')->withTrashed();
+    }
+
+    /**
+     * The QR station whose code the punch was scanned from (ADR 0103) — a
+     * removed one included.
+     *
+     * @return BelongsTo<AttendanceQrStation, $this>
+     */
+    public function qrStation(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceQrStation::class, 'attendance_qr_station_id')->withTrashed();
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

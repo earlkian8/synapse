@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Leave\LeaveBalanceController;
 use App\Http\Controllers\Leave\LeaveRequestController;
+use App\Http\Controllers\Leave\MyLeaveController;
+use App\Http\Middleware\SendSelfServiceToMyLeave;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,7 +17,9 @@ Route::middleware(['auth', 'verified'])
     ->prefix('leave')
     ->name('leave.')
     ->group(function () {
-        Route::get('/', [LeaveRequestController::class, 'index'])->middleware('can:leave.view')->name('index');
+        // HR's inbox; somebody who may only file their own is sent to My leave first.
+        Route::get('/', [LeaveRequestController::class, 'index'])->middleware([SendSelfServiceToMyLeave::class, 'can:leave.view'])->name('index');
+        Route::get('me', MyLeaveController::class)->middleware('can:leave.request')->name('me');
         Route::post('/', [LeaveRequestController::class, 'store'])->middleware('can:leave.request')->name('store');
 
         // Balances (literal — before the wildcard).

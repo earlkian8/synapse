@@ -5,6 +5,7 @@ namespace App\Support\Files;
 use App\Models\Applicant;
 use App\Models\ApplicantDocument;
 use App\Models\AttendancePunch;
+use App\Models\DisciplinaryCaseAttachment;
 use App\Models\Employee;
 use App\Models\EmployeeCertification;
 use App\Models\EmployeeDocument;
@@ -73,6 +74,9 @@ final class UploadAccess
             'employee-documents' => $this->employeeFile(EmployeeDocument::query(), $user, $path),
             'employee-certifications' => $this->employeeFile(EmployeeCertification::query(), $user, $path),
             'attendance/punches' => $this->punch($user, $path),
+            // A case's evidence is HR's (ADR 0105).
+            'discipline' => $user->can('discipline.view')
+                && DisciplinaryCaseAttachment::query()->where('path', $path)->exists(),
             'employee-photos' => $this->exists(Employee::query(), 'photo', $path),
             'profile-photos' => User::query()
                 ->where('profile_photo', $path)

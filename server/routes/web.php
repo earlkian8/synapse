@@ -97,6 +97,7 @@ require __DIR__.'/training.php';
 require __DIR__.'/awards.php';
 require __DIR__.'/events.php';
 require __DIR__.'/check-ins.php';
+require __DIR__.'/discipline.php';
 require __DIR__.'/offboarding.php';
 require __DIR__.'/reports.php';
 require __DIR__.'/setup.php';

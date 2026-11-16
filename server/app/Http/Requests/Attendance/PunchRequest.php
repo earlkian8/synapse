@@ -31,6 +31,7 @@ class PunchRequest extends FormRequest
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'photo' => ['nullable', 'image', 'max:5120'], // 5 MB selfie
+            'device_id' => ['nullable', 'string', 'min:16', 'max:100'],
             'note' => ['nullable', 'string', 'max:500'],
             'client_id' => ['nullable', 'string', 'max:100'],
             'punched_at' => ['nullable', 'date'],

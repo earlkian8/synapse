@@ -6,10 +6,11 @@ namespace App\Support\Attendance;
  * An attendance policy in words (ADR 0038) — what each group of settings
  * amounts to, in a line.
  *
- * The server's copy of the policy editor's `groupSummaries()` /
- * `policyHeadline()` (`features/attendance-policy-config/constants.ts`), so the
- * assistant describes a policy in the same words its screen does. Where the
- * editor says it one way, this says it the same way; keep the two in step.
+ * The server's counterpart of the policy editor's `topicSummaries()` /
+ * `policyHeadline()` (`features/attendance-policy-config/constants.ts`). The
+ * editor now groups its rules into six topics written as sentences; the
+ * assistant keeps the settings' own groups, which its edit tools name, in words
+ * that agree with the editor's. Keep the two in step.
  *
  * Capture is summarised without its network ranges: the count is what anybody
  * asking needs, and the addresses are network configuration.

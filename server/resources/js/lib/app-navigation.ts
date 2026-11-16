@@ -115,8 +115,8 @@ export const APP_NAVIGATION: AppNavGroup[] = [
             {
                 // One entry for the module (ADR 0090): the time records, the
                 // shift roster they are judged against, and the kiosks (ADR
-                // 0092). Somebody who may only see the roster, or only look after
-                // the kiosks, lands on theirs.
+                // 0092) and QR stations (ADR 0103). Somebody who may only see the
+                // roster, or only look after kiosks or QR stations, lands on theirs.
                 title: 'Attendance',
                 href: '/attendance',
                 icon: CalendarCheck,
@@ -124,8 +124,13 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                     'attendance.view',
                     'attendance.roster.view',
                     'attendance.kiosks.manage',
+                    'attendance.qr.manage',
+                    'attendance.qr.display',
+                    // One's own time record (self-service).
+                    'attendance.clock',
                 ],
-                summary: 'Time records, sign-offs, the shift roster and kiosks',
+                summary:
+                    'Time records, sign-offs, the shift roster, kiosks and QR stations',
             },
             // {
             //     title: 'My Attendance',
@@ -137,8 +142,9 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 title: 'Leave Management',
                 href: '/leave',
                 icon: CalendarDays,
-                permission: 'leave.view',
-                summary: 'Requests, approvals and balances',
+                // HR lands on the requests, everyone else on their own leave.
+                permissionAny: ['leave.view', 'leave.request'],
+                summary: 'Requests, approvals, balances and your own leave',
             },
             {
                 title: 'Performance Management',
@@ -173,6 +179,21 @@ export const APP_NAVIGATION: AppNavGroup[] = [
                 icon: CalendarClock,
                 permissionAny: ['events.view', 'events.respond'],
                 summary: 'Events, rooms and your invitations',
+            },
+            {
+                // One entry for everybody (ADR 0105): HR lands on the cases, a
+                // supervisor on the reports they filed, everyone else on the
+                // notices served on them.
+                title: 'Discipline',
+                href: '/discipline',
+                icon: Scale,
+                permissionAny: [
+                    'discipline.view',
+                    'discipline.report',
+                    'discipline.respond',
+                ],
+                summary:
+                    'Notices to explain, hearings, decisions and the code of conduct',
             },
             {
                 // One entry for everybody (ADR 0102): HR lands on the team

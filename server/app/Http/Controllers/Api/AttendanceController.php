@@ -11,6 +11,7 @@ use App\Models\WorkLocation;
 use App\Support\ActivityLogger;
 use App\Support\Attendance\AttendanceClock;
 use App\Support\Attendance\AttendancePunchException;
+use App\Support\Attendance\QrScans;
 use App\Support\Files\Uploads;
 use App\Support\OrganizationClock;
 use Illuminate\Http\JsonResponse;
@@ -35,10 +36,19 @@ class AttendanceController extends Controller
         $employee = $this->employee($request);
         $record = $this->clock->currentRecord($employee);
 
+        $policy = $this->clock->policyOf($record);
+
         return response()->json([
             'data' => (new AttendanceRecordResource($record))->resolve($request),
             'next_expected' => $this->clock->nextExpected($record),
             'allowed' => $this->clock->allowed($record),
+            // How today's policy lets them punch from the app (ADR 0040, 0103):
+            // with the clock button, by scanning a QR station, or both.
+            'capture' => [
+                'mobile' => in_array('mobile', $policy->allowedSources, true),
+                'qr' => in_array('qr', $policy->allowedSources, true),
+                'selfie_required' => $policy->selfieRequired,
+            ],
         ]);
     }
 
@@ -72,6 +82,8 @@ class AttendanceController extends Controller
                 'punched_at' => $offline ? $request->date('punched_at') : null,
                 'offline' => $offline,
                 'sent_at' => $request->input('sent_at'),
+                // Which phone, so one phone clocking in two people shows (ADR 0103).
+                'device_hash' => $request->filled('device_id') ? QrScans::deviceHash($request->string('device_id')->toString()) : null,
             ]);
         } catch (AttendancePunchException $e) {
             return response()->json(['message' => $e->getMessage()], 422);

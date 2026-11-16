@@ -3,16 +3,12 @@
 namespace App\Support\Offboarding;
 
 use App\Models\OffboardingCase;
-use App\Models\Organization;
 use App\Models\User;
 use App\Support\ActivityLogger;
-use App\Support\Files\Uploads;
+use App\Support\Documents\DocumentRenderer;
 use App\Support\OffboardingProvisioner;
 use App\Support\OrganizationClock;
-use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -30,12 +26,11 @@ use Symfony\Component\HttpFoundation\Response;
  * carries the same number — and that first issue is what the audit trail
  * records.
  *
- * Rendered by Dompdf from Blade, with remote fetching off: the company's logo
- * is read from storage and embedded, never fetched over the network.
+ * Rendered under the company's letterhead by {@see DocumentRenderer}.
  */
 class OffboardingDocuments
 {
-    public function __construct(private readonly Tenancy $tenancy) {}
+    public function __construct(private readonly DocumentRenderer $documents) {}
 
     /**
      * Whether the exit can have a Certificate of Employment yet.
@@ -162,71 +157,6 @@ class OffboardingDocuments
      */
     private function render(string $view, array $data): string
     {
-        $options = new Options;
-        $options->set('isRemoteEnabled', false);
-        $options->set('isPhpEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('chroot', [resource_path('views/documents')]);
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml(view($view, [...$data, 'company' => $this->letterhead()])->render(), 'UTF-8');
-        $dompdf->setPaper('A4');
-        $dompdf->render();
-
-        return (string) $dompdf->output();
-    }
-
-    /**
-     * Who the paper comes from: the company's name, address and contacts, its
-     * logo (embedded) and who signs.
-     *
-     * @return array{name: string, legal_name: string, address: ?string, phone: ?string, email: ?string, logo: ?string, signatory_name: ?string, signatory_title: ?string}
-     */
-    private function letterhead(): array
-    {
-        /** @var Organization|null $organization */
-        $organization = $this->tenancy->organization();
-
-        return [
-            'name' => (string) ($organization?->name ?? config('app.name')),
-            'legal_name' => (string) ($organization?->legal_name ?: $organization?->name ?: config('app.name')),
-            'address' => $organization?->address,
-            'phone' => $organization?->phone,
-            'email' => $organization?->email,
-            'logo' => $this->logo($organization),
-            'signatory_name' => $organization?->document_signatory_name,
-            'signatory_title' => $organization?->document_signatory_title,
-        ];
-    }
-
-    /**
-     * The logo as a data URI, or null — a raster image under 2 MB on the public
-     * disk. Anything else is left out rather than fetched.
-     */
-    private function logo(?Organization $organization): ?string
-    {
-        $path = $organization?->logo;
-
-        if (! is_string($path) || $path === '') {
-            return null;
-        }
-
-        try {
-            $disk = Uploads::disk();
-
-            if (! $disk->exists($path) || $disk->size($path) > 2 * 1024 * 1024) {
-                return null;
-            }
-
-            $mime = $disk->mimeType($path);
-
-            if (! in_array($mime, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true)) {
-                return null;
-            }
-
-            return 'data:'.$mime.';base64,'.base64_encode((string) $disk->get($path));
-        } catch (\Throwable) {
-            return null;
-        }
+        return $this->documents->render($view, $data);
     }
 }

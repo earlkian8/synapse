@@ -19,7 +19,10 @@ the token API for mobile), [ADR 0036](../decisions/0036-attendance-judged-in-loc
 [ADR 0054](../decisions/0054-no-kiosks-or-biometric-scanners.md), and the kiosk came
 back paired and PIN-protected, per
 [ADR 0092](../decisions/0092-kiosks-for-people-without-a-phone-a-paired-device-and-a-pin-of-their-own.md),
-detailed in [Attendance kiosks](./attendance-kiosks.md))
+detailed in [Attendance kiosks](./attendance-kiosks.md); and the QR station, a changing
+code scanned with one's own phone at the site, per
+[ADR 0103](../decisions/0103-qr-stations-a-changing-code-scanned-at-the-site.md),
+detailed in [QR stations](./attendance-qr-stations.md))
 and [ADR 0041](../decisions/0041-attendance-days-close-themselves.md) (the end-of-day
 job, recompute when inputs change, reminders) and
 [ADR 0042](../decisions/0042-no-attendance-requests-or-periods-the-roster-is-setup.md)
@@ -29,11 +32,13 @@ job, recompute when inputs change, reminders) and
 Everything is tenant-scoped (ADR 0005).
 
 > Status: **Active** · Route prefix: `/attendance` · API prefix: `/api` (Sanctum)
-> Sidebar: Workforce → Attendance, for `attendance.view`, `attendance.roster.view` or
-> `attendance.kiosks.manage` (a roster-only viewer lands on the roster, a kiosk-only
-> manager on the kiosks). Sections (`AttendanceNav`, in the page header): **My
-> attendance** ‖ **Time records** · **Shift roster** · **Kiosks**, each shown only to
-> whoever may open it.
+> Sidebar: Workforce → Attendance, for `attendance.view`, `attendance.roster.view`,
+> `attendance.kiosks.manage`, `attendance.qr.manage`, `attendance.qr.display` or
+> `attendance.clock` (a roster-only viewer lands on the roster, a kiosk-only manager on
+> the kiosks, a QR-only one on the QR stations, and somebody who only clocks themselves
+> in on **My attendance**). Sections (`AttendanceNav`, in the page header): **My
+> attendance** ‖ **Time records** · **Shift roster** · **Kiosks** · **QR stations**, each
+> shown only to whoever may open it.
 
 ## Surfaces
 
@@ -394,7 +399,9 @@ roles: **HR Manager** gets all of them; **Department Head** and **Staff** get
 `attendance.clock` (the Department Head also `attendance.view`). The roster is
 `attendance.roster.view` / `attendance.roster.manage` (overrides and assigning schedules —
 including naming an attendance policy on the assignment). Kiosks and their PINs are
-`attendance.kiosks.manage` (HR Manager; [Attendance kiosks](./attendance-kiosks.md)). The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
+`attendance.kiosks.manage` (HR Manager; [Attendance kiosks](./attendance-kiosks.md)). QR
+stations are `attendance.qr.manage` and `attendance.qr.display` (HR Manager;
+[QR stations](./attendance-qr-stations.md)); scanning one with the app needs `attendance.clock`, and with a phone's browser (a station set to take any phone) the employee number and kiosk PIN. The policies themselves are `setup.attendance-policies.view` / `.manage`; sites are
 `setup.locations.view` / `.manage`. Assigning a schedule from the **employee profile**
 reuses `employees.update` instead — it is an edit to that person's record.
 

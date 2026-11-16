@@ -39,6 +39,7 @@ export type GlyphName =
   | 'books'
   | 'certificate'
   | 'mood'
+  | 'notice'
   | 'all';
 
 type Ink = { fill: string; deep: string; paper: string; wash: string };
@@ -196,6 +197,17 @@ function Drawing({ name, ink }: { name: GlyphName; ink: Ink }) {
           <Path d="M6.9 21.9 a4.3 4.3 0 0 1 8.6 0 Z" fill={paper} />
           <Rect x={18} y={13.2} width={7} height={2.1} rx={1.05} fill={paper} />
           <Rect x={18} y={17.6} width={5} height={2.1} rx={1.05} fill={paper} />
+        </>
+      );
+
+    // A served notice: a letter folded in its envelope, sealed.
+    case 'notice':
+      return (
+        <>
+          <Rect x={4} y={8} width={24} height={17} rx={3} fill={fill} />
+          <Path d="M5.6 9.6 L16 17.4 L26.4 9.6" stroke={paper} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill="none" />
+          <Circle cx={16} cy={19.8} r={3.6} fill={deep} stroke={paper} strokeWidth={1.4} />
+          <Path d="M14.6 19.8 L15.6 20.9 L17.5 18.8" stroke={paper} strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </>
       );
 

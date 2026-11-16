@@ -232,6 +232,7 @@ type PunchMeta = {
 export const SOURCE_LABELS: Record<PunchSource, string> = {
     web: 'Web',
     mobile: 'Mobile app',
+    qr: 'QR station',
     kiosk: 'Kiosk',
     manual: 'Entered by hand',
     system: 'Closed automatically',

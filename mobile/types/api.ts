@@ -60,6 +60,9 @@ export type AuthUser = {
   can_resign?: boolean;
   /** Training: their programs, sessions and certificates, and joining (ADR 0094). */
   can_train?: boolean;
+  /** Notices served on them (ADR 0105), and how many still wait for their answer. */
+  can_see_notices?: boolean;
+  notices_to_answer?: number;
   /** Mood check-ins (ADR 0102): may answer their own, and whether this month's waits. */
   can_check_in?: boolean;
   check_in_due?: boolean;
@@ -141,6 +144,24 @@ export type TodayResponse = {
   data: AttendanceRecord;
   next_expected: PunchType | null;
   allowed: PunchType[];
+  /**
+   * How today's policy lets them punch from the app (ADR 0040, 0103): with the
+   * clock button, by scanning a QR station, or both. Absent on a punch's answer.
+   */
+  capture?: { mobile: boolean; qr: boolean; selfie_required: boolean };
+};
+
+/** A QR station's code, scanned and accepted (ADR 0103). */
+export type QrScanResponse = {
+  ticket: string;
+  expires_in: number;
+  station: { name: string; site: string | null };
+  day: {
+    next_expected: PunchType | null;
+    allowed: PunchType[];
+    selfie_required: boolean;
+    qr_allowed: boolean;
+  };
 };
 
 export type AttendanceSummary = {

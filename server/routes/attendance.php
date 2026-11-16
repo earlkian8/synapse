@@ -5,6 +5,7 @@ use App\Http\Controllers\Attendance\AttendanceExportController;
 use App\Http\Controllers\Attendance\KioskController;
 use App\Http\Controllers\Attendance\KioskPinController;
 use App\Http\Controllers\Attendance\MyAttendanceController;
+use App\Http\Controllers\Attendance\QrStationController;
 use App\Http\Controllers\Attendance\ShiftRosterController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,7 +24,8 @@ Route::middleware(['auth', 'verified'])
     ->prefix('attendance')
     ->name('attendance.')
     ->group(function () {
-        // HR daily board. Somebody who may only see the roster is sent to it.
+        // HR daily board. Somebody who may only see the roster, the kiosks or the
+        // QR stations is sent to theirs.
         Route::get('/', [AttendanceController::class, 'index'])->name('index');
         Route::post('/', [AttendanceController::class, 'store'])->middleware('can:attendance.manage')->name('store');
 
@@ -50,6 +52,21 @@ Route::middleware(['auth', 'verified'])
         Route::post('kiosks/{attendanceKiosk}/pairing-code', [KioskController::class, 'pairingCode'])->middleware(['can:attendance.kiosks.manage', 'throttle:30,1'])->name('kiosks.pairing-code');
         Route::delete('kiosks/{attendanceKiosk}/device', [KioskController::class, 'unpair'])->middleware('can:attendance.kiosks.manage')->name('kiosks.unpair');
         Route::delete('kiosks/{attendanceKiosk}', [KioskController::class, 'destroy'])->middleware('can:attendance.kiosks.manage')->name('kiosks.destroy');
+
+        // QR stations (ADR 0103) — a screen at a site showing a code that changes
+        // every few seconds, scanned with one's own phone. Setting them up needs
+        // `attendance.qr.manage`; showing one needs only `attendance.qr.display`,
+        // and its codes are asked for one at a time, as JSON. By hashid.
+        // The list is for either: whoever may only show a code sees the stations
+        // to show, and none of the scans.
+        Route::get('qr', [QrStationController::class, 'index'])->name('qr.index');
+        Route::post('qr', [QrStationController::class, 'store'])->middleware('can:attendance.qr.manage')->name('qr.store');
+        Route::get('qr/{attendanceQrStation}/display', [QrStationController::class, 'display'])->middleware('can:attendance.qr.display')->name('qr.display');
+        Route::get('qr/{attendanceQrStation}/code', [QrStationController::class, 'code'])->middleware(['can:attendance.qr.display', 'throttle:attendance-qr-code'])->name('qr.code');
+        Route::post('qr/{attendanceQrStation}', [QrStationController::class, 'update'])->middleware('can:attendance.qr.manage')->name('qr.update');
+        Route::patch('qr/{attendanceQrStation}/toggle', [QrStationController::class, 'toggle'])->middleware('can:attendance.qr.manage')->name('qr.toggle');
+        Route::patch('qr/{attendanceQrStation}/reset', [QrStationController::class, 'reset'])->middleware('can:attendance.qr.manage')->name('qr.reset');
+        Route::delete('qr/{attendanceQrStation}', [QrStationController::class, 'destroy'])->middleware('can:attendance.qr.manage')->name('qr.destroy');
 
         // Self-service (any authenticated user linked to an employee).
         Route::get('me', [MyAttendanceController::class, 'index'])->name('me');

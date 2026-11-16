@@ -83,7 +83,7 @@ final class DataExportCatalogue
             'description' => 'Daily time records with their minute buckets and the rules they were judged by, and every punch with where and how it was captured.',
             'tables' => [
                 ['table' => 'attendance_records'],
-                ['table' => 'attendance_punches', 'files' => ['photo']],
+                ['table' => 'attendance_punches', 'files' => ['photo'], 'exclude' => ['device_hash']],
             ],
         ],
         'roster' => [
@@ -100,6 +100,23 @@ final class DataExportCatalogue
             'tables' => [
                 ['table' => 'attendance_kiosks', 'exclude' => ['device_token_hash', 'pairing_code_hash']],
                 ['table' => 'employee_kiosk_pins', 'exclude' => ['pin_hash']],
+            ],
+        ],
+        'qr-stations' => [
+            'label' => 'QR stations', 'section' => 'Workforce', 'permission' => 'attendance.qr.manage',
+            'description' => 'The QR stations people scan to clock in and the site each stands at, and every scan of them, refusals and why included. The secrets codes are signed with, phones\' ids and addresses are never included.',
+            'tables' => [
+                ['table' => 'attendance_qr_stations', 'exclude' => ['secret', 'last_shown_ip']],
+                ['table' => 'attendance_qr_scans', 'exclude' => ['device_hash', 'ip']],
+            ],
+        ],
+        'discipline' => [
+            'label' => 'Discipline', 'section' => 'Workforce', 'permission' => 'discipline.view',
+            'description' => 'The code of conduct, every disciplinary case from its report to its decision, and the evidence attached to them.',
+            'tables' => [
+                ['table' => 'conduct_offenses'],
+                ['table' => 'disciplinary_cases'],
+                ['table' => 'disciplinary_case_attachments', 'files' => ['path']],
             ],
         ],
         'leave' => [

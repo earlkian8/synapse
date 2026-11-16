@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
@@ -50,6 +50,20 @@ export default function ClockScreen() {
   const today = useQuery<TodayResponse>(() => attendanceApi.today(), []);
   const [now, setNow] = useState(new Date());
 
+  // Back from the QR scanner (ADR 0103), the day has moved on: read it again.
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+
+      void today.reload();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
+
   // Punch flow state.
   const [pendingType, setPendingType] = useState<PunchType | null>(null);
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -81,6 +95,13 @@ export default function ClockScreen() {
   const primary = day.next;
   const secondary = day.allowed.filter((t) => t !== primary);
 
+  // How today's policy takes punches from the app (ADR 0103): a policy that
+  // turns the plain button away sends every punch through a QR station.
+  const capture = today.data?.capture;
+  const qrOnly = !!capture && capture.qr && !capture.mobile;
+  const qrToo = !!capture && capture.qr && capture.mobile;
+  const scan = (type: PunchType) => router.push({ pathname: '/attendance/scan', params: { type } });
+
   // Once everything queued has gone, show the day as the server now has it.
   const queuedBefore = useRef(queued.length);
   useEffect(() => {
@@ -93,6 +114,11 @@ export default function ClockScreen() {
   }, [queued.length]);
 
   const beginPunch = useCallback(async (type: PunchType) => {
+    if (qrOnly) {
+      scan(type);
+      return;
+    }
+
     setPendingType(type);
     setPhotoUri(null);
     setCoords(null);
@@ -100,7 +126,8 @@ export default function ClockScreen() {
     const fix = await getCurrentCoords();
     setCoords(fix);
     setLocating(false);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrOnly]);
 
   const addSelfie = useCallback(async () => {
     const uri = await captureSelfie();
@@ -296,11 +323,12 @@ export default function ClockScreen() {
                 <View style={styles.actions}>
                   {primary && (
                     <Button
-                      label={PUNCH_META[primary].label}
-                      icon={PUNCH_META[primary].icon}
+                      label={qrOnly ? `Scan to ${PUNCH_META[primary].label}` : PUNCH_META[primary].label}
+                      icon={qrOnly ? 'qr' : PUNCH_META[primary].icon}
                       onPress={() => beginPunch(primary)}
                       variant="tint"
                       size="lg"
+                      accessibilityHint={qrOnly ? 'Opens the camera to scan the QR station at your site.' : undefined}
                     />
                   )}
                   {secondary.length > 0 && (
@@ -316,6 +344,19 @@ export default function ClockScreen() {
                         />
                       ))}
                     </View>
+                  )}
+                  {qrToo && primary && (
+                    <Button
+                      label="Scan a QR station instead"
+                      icon="qr"
+                      variant="plain"
+                      onPress={() => scan(primary)}
+                    />
+                  )}
+                  {qrOnly && (
+                    <AppText variant="footnote" tone="secondary" center>
+                      Your company takes punches at its QR stations. Scan the code on the screen at your site.
+                    </AppText>
                   )}
                 </View>
               )}

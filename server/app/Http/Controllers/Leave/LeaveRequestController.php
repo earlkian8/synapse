@@ -31,6 +31,8 @@ class LeaveRequestController extends Controller
      */
     public function index(Request $request, LeaveRequestsIndexQuery $query, LeaveStatistics $statistics): Response
     {
+        // Somebody who may only file their own leave never reaches here: the
+        // route sends them to My leave first (SendSelfServiceToMyLeave).
         return Inertia::render('leave/index', [
             'requests' => LeaveRequestResource::collection($query->get($request))->resolve($request),
             'stats' => $statistics->toArray(),

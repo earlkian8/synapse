@@ -1,5 +1,13 @@
 import { useForm } from '@inertiajs/react';
-import { RotateCcw, Scale } from 'lucide-react';
+import {
+    ArrowLeft,
+    ArrowRight,
+    Check,
+    ChevronDown,
+    FileText,
+    RotateCcw,
+    Scale,
+} from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import {
@@ -11,10 +19,14 @@ import {
     ModalIcon,
 } from '@/components/modal';
 import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { DEFAULT_SAMPLE } from '../constants';
 import { attendancePolicyRoutes } from '../routes';
@@ -25,7 +37,13 @@ import type {
     PunchSource,
     SampleDay,
 } from '../types';
-import { PolicySections } from './policy-sections';
+import {
+    firstTopicWithError,
+    PolicySections,
+    RULE_TOPICS,
+} from './policy-sections';
+import type { ExtraTopic } from './policy-sections';
+import { Rule } from './rule-kit';
 import { WorkedExample } from './worked-example';
 
 type Props = {
@@ -38,12 +56,12 @@ type Props = {
 };
 
 /**
- * The attendance-policy editor (ADR 0038): a name, where it started from, and
- * its settings in groups — beside a worked example that judges a sample day by
- * whatever is on screen, so a change is seen before it is saved.
- *
- * A new policy starts from a preset or from the built-in rules; one made from a
- * preset can be put back to it.
+ * The attendance-policy editor (ADR 0038). The policy is read as what it is — a
+ * short rulebook: what it's called and where it started, then a few topics of
+ * plain rules (late arrivals, short days, breaks, overtime, clocking in, fine
+ * tuning), each a sentence with its numbers filled in. A sample day beside them
+ * is judged by the server's own evaluator as the rules change, so a change is
+ * seen before it is saved.
  */
 export function PolicyFormModal({
     policy,
@@ -55,7 +73,7 @@ export function PolicyFormModal({
 }: Props) {
     return (
         <Modal open={open} onOpenChange={onOpenChange}>
-            <ModalContent size="2xl" className="lg:max-w-6xl">
+            <ModalContent size="2xl" className="lg:max-w-[76rem]">
                 <ModalHeader
                     icon={
                         <ModalIcon>
@@ -63,7 +81,7 @@ export function PolicyFormModal({
                         </ModalIcon>
                     }
                     title={policy ? policy.name : 'New attendance policy'}
-                    description="How a day is judged: lateness, short days, rounding, breaks, overtime and night work."
+                    description="The rules a working day is judged by. Go through the topics one at a time; the sample day shows what your rules do."
                 />
 
                 {open && (
@@ -80,6 +98,8 @@ export function PolicyFormModal({
         </Modal>
     );
 }
+
+const BASICS = 'basics';
 
 function FormBody({
     policy,
@@ -105,6 +125,8 @@ function FormBody({
     });
 
     const [sample, setSample] = useState<SampleDay>(DEFAULT_SAMPLE);
+    const [topic, setTopic] = useState<string>(BASICS);
+    const [sampleOpen, setSampleOpen] = useState(false);
     const messages = errors as Record<string, string>;
     const preset = presets.find((item) => item.key === data.preset_key);
 
@@ -130,6 +152,120 @@ function FormBody({
         }));
     };
 
+    const basics: ExtraTopic = {
+        key: BASICS,
+        title: 'About this policy',
+        icon: FileText,
+        summary: [
+            data.name.trim() || 'Not named yet',
+            data.is_default && 'company default',
+        ]
+            .filter(Boolean)
+            .join(', '),
+        intro: policy
+            ? 'Its name, who it is for, and whether it is the company default.'
+            : 'Pick the rules closest to how your company works, then name the policy. You can change any rule afterwards.',
+        hasError: Boolean(errors.name || errors.description),
+        content: (
+            <div className="space-y-7">
+                <div className="grid max-w-xl gap-4">
+                    <div>
+                        <Label htmlFor="policy-name" className="mb-1.5 block">
+                            Name
+                            <span className="ml-0.5 text-destructive">*</span>
+                        </Label>
+                        <Input
+                            id="policy-name"
+                            value={data.name}
+                            onChange={(event) =>
+                                setData('name', event.target.value)
+                            }
+                            placeholder={preset?.name ?? 'e.g. Head office'}
+                            required
+                        />
+                        <InputError message={errors.name} className="mt-1.5" />
+                    </div>
+                    <div>
+                        <Label
+                            htmlFor="policy-description"
+                            className="mb-1.5 block"
+                        >
+                            Who it is for{' '}
+                            <span className="font-normal text-muted-foreground">
+                                (optional)
+                            </span>
+                        </Label>
+                        <Input
+                            id="policy-description"
+                            value={data.description}
+                            onChange={(event) =>
+                                setData('description', event.target.value)
+                            }
+                            placeholder="e.g. Warehouse crews on rotating shifts"
+                        />
+                        <InputError
+                            message={errors.description}
+                            className="mt-1.5"
+                        />
+                    </div>
+                </div>
+
+                {!policy && (
+                    <StartingPoints
+                        presets={presets}
+                        chosen={data.preset_key}
+                        onChoose={startFrom}
+                    />
+                )}
+
+                <div className="max-w-xl">
+                    <Rule
+                        checked={data.is_default}
+                        onCheckedChange={(checked) =>
+                            setData('is_default', checked)
+                        }
+                        sentence="Make this the company default."
+                        hint="It applies to everyone who isn’t given another policy through their schedule, department or work location."
+                    />
+                </div>
+
+                {policy && preset && (
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm">
+                        <span className="text-muted-foreground">
+                            Started from <strong>{preset.name}</strong>.
+                        </span>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => startFrom(preset)}
+                        >
+                            <RotateCcw className="size-3.5" />
+                            Put its rules back
+                        </Button>
+                    </div>
+                )}
+
+                {policy && (
+                    <p className="max-w-xl text-[0.8125rem] leading-relaxed text-muted-foreground">
+                        Saving changes how days are judged from now on. Days
+                        already recorded keep the rules they were judged by
+                        until you re-apply them from the attendance board.
+                    </p>
+                )}
+            </div>
+        ),
+    };
+
+    const order = [BASICS, ...RULE_TOPICS.map((item) => item.key)];
+    const index = Math.max(0, order.indexOf(topic));
+    const previous = index > 0 ? order[index - 1] : null;
+    const next = index < order.length - 1 ? order[index + 1] : null;
+    const titleOf = (key: string) =>
+        key === BASICS
+            ? basics.title
+            : (RULE_TOPICS.find((item) => item.key === key)?.title ?? key);
+
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
 
@@ -137,192 +273,217 @@ function FormBody({
             policy
                 ? attendancePolicyRoutes.update(policy.hashid)
                 : attendancePolicyRoutes.store,
-            { preserveScroll: true, onSuccess: () => onDone() },
+            {
+                preserveScroll: true,
+                onSuccess: () => onDone(),
+                onError: (bag) => {
+                    // The bag just returned, not the form's: the topics read
+                    // the form's errors only on the next render.
+                    const first =
+                        bag.name || bag.description
+                            ? BASICS
+                            : firstTopicWithError(
+                                  bag as Record<string, string>,
+                              );
+
+                    if (first) {
+                        setTopic(first);
+                    }
+                },
+            },
         );
     };
 
+    const example = (
+        <WorkedExample
+            settings={data.settings}
+            sample={sample}
+            onSampleChange={setSample}
+        />
+    );
+
     return (
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-            <ModalBody className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-                <div className="min-w-0 space-y-6">
-                    {!policy && (
-                        <div className="space-y-2">
-                            <Label className="block">Start from</Label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {presets.map((item) => (
-                                    <StartChip
-                                        key={item.key}
-                                        active={data.preset_key === item.key}
-                                        onClick={() => startFrom(item)}
-                                        title={item.description}
-                                    >
-                                        {item.name}
-                                    </StartChip>
-                                ))}
-                                <StartChip
-                                    active={data.preset_key === null}
-                                    onClick={() => startFrom(null)}
-                                    title="Exact times, overtime after each day’s hours, breaks as punched."
-                                >
-                                    The built-in rules
-                                </StartChip>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                {preset?.description ??
-                                    'What attendance does when no policy applies — a plain start to adjust.'}
-                            </p>
-                        </div>
-                    )}
+            <ModalBody className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-7">
+                <PolicySections
+                    settings={data.settings}
+                    onChange={changeSettings}
+                    errors={messages}
+                    sources={sources}
+                    before={[basics]}
+                    topic={topic}
+                    onTopicChange={setTopic}
+                />
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="sm:col-span-2">
-                            <Label
-                                htmlFor="policy-name"
-                                className="mb-1.5 block"
-                            >
-                                Name
-                                <span className="ml-0.5 text-destructive">
-                                    *
-                                </span>
-                            </Label>
-                            <Input
-                                id="policy-name"
-                                value={data.name}
-                                onChange={(event) =>
-                                    setData('name', event.target.value)
-                                }
-                                placeholder={preset?.name ?? 'e.g. Head office'}
-                                required
-                            />
-                            <InputError
-                                message={errors.name}
-                                className="mt-1.5"
-                            />
-                        </div>
-                        <div className="sm:col-span-2">
-                            <Label
-                                htmlFor="policy-description"
-                                className="mb-1.5 block"
-                            >
-                                Who it is for{' '}
-                                <span className="text-muted-foreground">
-                                    (optional)
-                                </span>
-                            </Label>
-                            <Input
-                                id="policy-description"
-                                value={data.description}
-                                onChange={(event) =>
-                                    setData('description', event.target.value)
-                                }
-                                placeholder="e.g. Warehouse crews on rotating shifts"
-                            />
-                        </div>
-                        <label className="flex items-start justify-between gap-4 rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
-                            <span>
-                                <span className="block text-sm font-medium">
-                                    The company default
-                                </span>
-                                <span className="mt-0.5 block text-xs text-muted-foreground">
-                                    Applies to anyone whose assignment, schedule
-                                    and department name no policy.
-                                </span>
-                            </span>
-                            <Switch
-                                checked={data.is_default}
-                                onCheckedChange={(checked) =>
-                                    setData('is_default', checked)
-                                }
-                            />
-                        </label>
-                    </div>
+                <div className="hidden lg:sticky lg:top-0 lg:block">
+                    {example}
+                </div>
 
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-sm font-semibold">The rules</h3>
-                            {policy && preset && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 text-xs text-muted-foreground"
-                                    onClick={() => startFrom(preset)}
-                                >
-                                    <RotateCcw className="size-3.5" />
-                                    Reset to {preset.name}
-                                </Button>
+                <Collapsible
+                    open={sampleOpen}
+                    onOpenChange={setSampleOpen}
+                    className="rounded-xl border border-border lg:hidden"
+                >
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium">
+                        Try these rules on a sample day
+                        <ChevronDown
+                            className={cn(
+                                'size-4 text-muted-foreground transition-transform',
+                                sampleOpen && 'rotate-180',
                             )}
-                        </div>
-                        <PolicySections
-                            key={data.preset_key ?? 'built-in'}
-                            settings={data.settings}
-                            onChange={changeSettings}
-                            errors={messages}
-                            sources={sources}
                         />
-                    </div>
-
-                    {policy && (
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                            Saving changes how days are judged from now on. Days
-                            already recorded keep the rules they were judged by
-                            until you re-apply them from the attendance board.
-                        </p>
-                    )}
-                </div>
-
-                <div className="lg:sticky lg:top-0">
-                    <WorkedExample
-                        settings={data.settings}
-                        sample={sample}
-                        onSampleChange={setSample}
-                    />
-                </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-border [&>section]:rounded-none [&>section]:border-0">
+                        {example}
+                    </CollapsibleContent>
+                </Collapsible>
             </ModalBody>
 
-            <ModalFooter>
-                <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onDone}
-                    disabled={processing}
-                >
-                    Cancel
-                </Button>
-                <Button type="submit" disabled={processing}>
-                    {processing && <Spinner />}
-                    {policy ? 'Save changes' : 'Create policy'}
-                </Button>
+            <ModalFooter className="justify-between">
+                <div className="flex items-center gap-1">
+                    {previous && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTopic(previous)}
+                            aria-label={`Back to ${titleOf(previous)}`}
+                        >
+                            <ArrowLeft className="size-4" />
+                            <span className="hidden sm:inline">Back</span>
+                        </Button>
+                    )}
+                    {next && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTopic(next)}
+                        >
+                            <span className="hidden sm:inline">
+                                Next: {titleOf(next)}
+                            </span>
+                            <span className="sm:hidden">Next</span>
+                            <ArrowRight className="size-4" />
+                        </Button>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onDone}
+                        disabled={processing}
+                    >
+                        Cancel
+                    </Button>
+                    <Button type="submit" disabled={processing}>
+                        {processing && <Spinner />}
+                        {policy ? 'Save changes' : 'Create policy'}
+                    </Button>
+                </div>
             </ModalFooter>
         </form>
     );
 }
 
-function StartChip({
-    active,
-    onClick,
-    title,
-    children,
+/**
+ * Where a new policy's rules start: each preset as a card leading with the
+ * rules that make it different, and the built-in rules as the plain start.
+ */
+function StartingPoints({
+    presets,
+    chosen,
+    onChoose,
 }: {
-    active: boolean;
-    onClick: () => void;
-    title: string;
-    children: React.ReactNode;
+    presets: PolicyPreset[];
+    chosen: string | null;
+    onChoose: (preset: PolicyPreset | null) => void;
 }) {
+    const cards = [
+        ...presets.map((preset) => ({
+            key: preset.key,
+            name: preset.name,
+            description: preset.description,
+            highlights: preset.highlights,
+            preset,
+        })),
+        {
+            key: null,
+            name: 'A plain start',
+            description:
+                'Exact times, each schedule’s grace, overtime after the shift’s hours, breaks as punched.',
+            highlights: [],
+            preset: null,
+        },
+    ];
+
     return (
-        <button
-            type="button"
-            aria-pressed={active}
-            onClick={onClick}
-            title={title}
-            className={cn(
-                'rounded-full border px-3 py-1 text-xs transition-colors',
-                active
-                    ? 'border-[#0ABFBF] bg-[#0ABFBF]/10 font-medium text-[#0a8b91] dark:text-[#0ABFBF]'
-                    : 'border-input text-muted-foreground hover:bg-muted',
-            )}
-        >
-            {children}
-        </button>
+        <fieldset>
+            <legend className="mb-1 text-[0.9375rem] font-medium">
+                Start from
+            </legend>
+            <p className="mb-3 text-[0.8125rem] text-muted-foreground">
+                Choosing another start replaces the rules with its own.
+            </p>
+            <div
+                role="radiogroup"
+                aria-label="Start from"
+                className="grid gap-2.5 sm:grid-cols-2"
+            >
+                {cards.map((card) => {
+                    const active = card.key === chosen;
+
+                    return (
+                        <button
+                            key={card.key ?? 'plain'}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => onChoose(card.preset)}
+                            className={cn(
+                                'relative flex flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none',
+                                active
+                                    ? 'border-[#0a8b91] bg-[#0ABFBF]/[0.06] ring-1 ring-[#0a8b91]'
+                                    : 'border-border hover:border-foreground/25 hover:bg-muted/40',
+                            )}
+                        >
+                            <span className="flex w-full items-start justify-between gap-2">
+                                <span className="text-sm font-semibold">
+                                    {card.name}
+                                </span>
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'flex size-5 shrink-0 items-center justify-center rounded-full border',
+                                        active
+                                            ? 'border-[#0a8b91] bg-[#0a8b91] text-white'
+                                            : 'border-border',
+                                    )}
+                                >
+                                    {active && <Check className="size-3" />}
+                                </span>
+                            </span>
+                            <span className="text-[0.8125rem] leading-snug text-muted-foreground">
+                                {card.description}
+                            </span>
+                            {card.highlights.length > 0 && (
+                                <ul className="mt-1 space-y-0.5 text-xs text-foreground/80">
+                                    {card.highlights.slice(0, 3).map((line) => (
+                                        <li key={line} className="flex gap-1.5">
+                                            <span
+                                                aria-hidden
+                                                className="mt-[0.4rem] size-1 shrink-0 rounded-full bg-[#0ABFBF]"
+                                            />
+                                            {line}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+        </fieldset>
     );
 }

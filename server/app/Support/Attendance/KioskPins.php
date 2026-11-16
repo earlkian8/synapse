@@ -76,12 +76,26 @@ final class KioskPins
      */
     public static function signIn(AttendanceKiosk $kiosk, string $number, string $pin): EmployeeKioskPin
     {
-        $key = 'kiosk-sign-in:'.$kiosk->id;
+        return self::check('kiosk-sign-in:'.$kiosk->id, 'this kiosk', "the kiosk “{$kiosk->name}”", $number, $pin);
+    }
+
+    /**
+     * Who a number and PIN belong to, wherever they were typed — a kiosk, or a
+     * phone's browser at a QR station that takes any phone (ADR 0103). Wrong
+     * tries are counted against each PIN and against the place (`$limiterKey`),
+     * which `$here` names to the person ("this kiosk") and `$where` to the
+     * activity log ("the kiosk “Lobby”").
+     *
+     * @throws KioskException when they don't match, the PIN is locked, or the place is paused
+     */
+    public static function check(string $limiterKey, string $here, string $where, string $number, string $pin): EmployeeKioskPin
+    {
+        $key = $limiterKey;
 
         if (RateLimiter::tooManyAttempts($key, self::KIOSK_FAILURES)) {
             $minutes = max(1, (int) ceil(RateLimiter::availableIn($key) / 60));
 
-            throw new KioskException("Too many wrong tries at this kiosk. Try again in {$minutes} ".($minutes === 1 ? 'minute' : 'minutes').'.');
+            throw new KioskException("Too many wrong tries at {$here}. Try again in {$minutes} ".($minutes === 1 ? 'minute' : 'minutes').'.');
         }
 
         $holders = self::holdersOf($number);
@@ -112,7 +126,7 @@ final class KioskPins
         }
 
         foreach ($holders as $holder) {
-            self::countWrongTry($holder, $kiosk);
+            self::countWrongTry($holder, $where);
         }
 
         $now = $holders->first(fn (EmployeeKioskPin $holder): bool => $holder->isLocked());
@@ -223,9 +237,9 @@ final class KioskPins
      * One more wrong try against a PIN. The last one allowed locks it, and the
      * lock is logged: somebody may be guessing at a colleague's PIN.
      */
-    private static function countWrongTry(EmployeeKioskPin $holder, AttendanceKiosk $kiosk): void
+    private static function countWrongTry(EmployeeKioskPin $holder, string $where): void
     {
-        DB::transaction(function () use ($holder, $kiosk): void {
+        DB::transaction(function () use ($holder, $where): void {
             $holder->refresh();
             $tries = $holder->failed_attempts + 1;
 
@@ -242,9 +256,9 @@ final class KioskPins
 
             ActivityLogger::log(
                 event: 'updated',
-                description: 'Kiosk PIN locked after '.EmployeeKioskPin::MAX_ATTEMPTS.' wrong tries at “'.$kiosk->name.'”',
+                description: 'Kiosk PIN locked after '.EmployeeKioskPin::MAX_ATTEMPTS.' wrong tries at '.$where,
                 subject: $holder->employee,
-                properties: ['kiosk' => $kiosk->name, 'locked_until' => $holder->locked_until?->toIso8601String()],
+                properties: ['where' => $where, 'locked_until' => $holder->locked_until?->toIso8601String()],
                 logName: 'attendance',
                 subjectLabel: $holder->employee?->full_name,
             );

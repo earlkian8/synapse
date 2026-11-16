@@ -67,7 +67,9 @@ export function FileLeaveDialog({
                     description={
                         isEditing
                             ? 'Change this request while it is still pending.'
-                            : 'Record time off for an employee.'
+                            : employees.length === 1
+                              ? 'Ask for time off. Whoever approves leave is told at once.'
+                              : 'Record time off for an employee.'
                     }
                 />
 
@@ -99,7 +101,12 @@ function FormBody({
     const isEditing = Boolean(request);
 
     const { data, setData, post, processing, errors, transform } = useForm({
-        employee_id: request?.employee ? String(request.employee.id) : '',
+        // Filing for oneself (My leave): there is nobody else to choose.
+        employee_id: request?.employee
+            ? String(request.employee.id)
+            : employees.length === 1
+              ? String(employees[0].id)
+              : '',
         leave_type_id: request?.type ? String(request.type.id) : '',
         start_date: request?.start_date ?? today(),
         end_date: request?.end_date ?? today(),
@@ -153,31 +160,36 @@ function FormBody({
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
             <ModalBody className="space-y-4 py-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                        label="Employee"
-                        required
-                        error={errors.employee_id}
-                    >
-                        <Select
-                            value={data.employee_id}
-                            onValueChange={(v) => setData('employee_id', v)}
+                    {employees.length > 1 && (
+                        <FormField
+                            label="Employee"
+                            required
+                            error={errors.employee_id}
                         >
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select an employee…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {employees.map((e) => (
-                                    <SelectItem key={e.id} value={String(e.id)}>
-                                        {e.full_name}
-                                        <span className="text-muted-foreground">
-                                            {' '}
-                                            · {e.employee_no}
-                                        </span>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </FormField>
+                            <Select
+                                value={data.employee_id}
+                                onValueChange={(v) => setData('employee_id', v)}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select an employee…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {employees.map((e) => (
+                                        <SelectItem
+                                            key={e.id}
+                                            value={String(e.id)}
+                                        >
+                                            {e.full_name}
+                                            <span className="text-muted-foreground">
+                                                {' '}
+                                                · {e.employee_no}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+                    )}
 
                     <FormField
                         label="Leave type"

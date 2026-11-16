@@ -90,6 +90,13 @@ final class SystemGuide
             'assistant' => 'List kiosks and who holds a PIN, sign a kiosk\'s device out, and withdraw a PIN. Pairing codes and PINs are only ever shown on this screen.',
             'keywords' => ['kiosk', 'bundy', 'time clock', 'tablet', 'pin', 'no phone', 'shared device', 'pairing code'],
         ],
+        'qr-stations' => [
+            'title' => 'QR stations', 'menu' => 'Attendance → QR stations', 'path' => '/attendance/qr', 'any' => ['attendance.qr.manage', 'attendance.qr.display'],
+            'about' => 'Screens at a site showing a code that changes every few seconds, which people scan to clock in: with the SYNAPSE app, or — where a station allows it — with any phone\'s camera, typing their employee number and kiosk PIN in the browser. A scan is accepted only from a phone inside the station\'s site, with a precise location that isn\'t faked, that hasn\'t clocked in somebody else that day, and on the office network when the station asks for it; every scan, refused ones included, is listed with why.',
+            'tasks' => ['Add a station at a site', 'Show its code on a screen', 'Read who scanned, and the refused scans', 'Reset a station\'s codes or switch it off'],
+            'assistant' => 'Nothing: QR stations are set up and shown on this screen.',
+            'keywords' => ['qr', 'qr code', 'scan', 'station', 'buddy punching', 'fake gps', 'clock in with qr', 'dtr qr', 'without the app', 'employee number', 'office wifi'],
+        ],
         'my-attendance' => [
             'title' => 'My attendance', 'menu' => 'Attendance (also the mobile app)', 'path' => '/attendance/me', 'any' => ['attendance.clock'],
             'about' => 'Your own time record, and clocking in and out.',
@@ -229,6 +236,34 @@ final class SystemGuide
             'tasks' => ['Answer this month\'s check-in', 'Change this month\'s answers', 'Look back at your months'],
             'assistant' => 'Not in chat: answer your check-in on this screen or in the app.',
             'keywords' => ['my check-in', 'mood', 'how am i doing', 'pulse', 'wellbeing', 'feelings', 'monthly survey'],
+        ],
+        'discipline' => [
+            'title' => 'Discipline', 'menu' => 'Workforce › Discipline', 'path' => '/discipline/cases', 'any' => ['discipline.view'],
+            'about' => 'Incidents taken through due process (DOLE D.O. 147-15): a notice to explain with at least five calendar days to answer, the employee\'s written answer, a hearing when they ask for one, and a written notice of decision, charged under the company\'s code of conduct with penalties that climb with each repeat. Each employee\'s conduct record says where they stand.',
+            'tasks' => ['Read a reported incident', 'Serve a notice to explain', 'Set and record a hearing', 'Decide a case and serve the decision', 'Open an employee\'s conduct record'],
+            'assistant' => 'Nothing: disciplinary cases stay on these screens.',
+            'keywords' => ['discipline', 'disciplinary', 'notice to explain', 'nte', 'memo', 'incident report', 'suspension', 'written warning', 'twin notice', 'due process', 'hearing', 'dismissal', 'conduct record'],
+        ],
+        'conduct-code' => [
+            'title' => 'Code of conduct', 'menu' => 'Workforce › Discipline › Code of conduct', 'path' => '/discipline/code', 'any' => ['discipline.manage'],
+            'about' => 'The offenses a case is charged under: how grave each is, the Labor Code ground it rests on, and the penalty for each repeat.',
+            'tasks' => ['Add the standard offenses', 'Add or edit an offense and its penalties'],
+            'assistant' => 'Nothing: the code is kept on this screen.',
+            'keywords' => ['code of conduct', 'offense', 'penalty', 'handbook', 'company rules'],
+        ],
+        'report-incident' => [
+            'title' => 'Report an incident', 'menu' => 'Workforce › Discipline', 'path' => '/discipline/reported', 'any' => ['discipline.report'],
+            'about' => 'Report somebody breaking a rule, with the facts, for HR to read; and follow how far each report you filed got.',
+            'tasks' => ['Report an incident', 'Follow your reports'],
+            'assistant' => 'Nothing: incidents are reported on this screen.',
+            'keywords' => ['report an incident', 'incident report', 'report employee', 'misconduct'],
+        ],
+        'my-notices' => [
+            'title' => 'My notices', 'menu' => 'Workforce › Discipline', 'path' => '/discipline/me', 'any' => ['discipline.respond'],
+            'about' => 'Notices HR has served on you: read the charge, say you received it, answer in writing, ask for a hearing, and read the decision.',
+            'tasks' => ['Read a notice to explain', 'Answer it in writing', 'Ask for a hearing', 'Read a decision'],
+            'assistant' => 'Nothing: your notices stay on this screen.',
+            'keywords' => ['notice to explain', 'nte', 'memo', 'my notices', 'explanation', 'disciplinary'],
         ],
         'offboarding' => [
             'title' => 'Offboarding', 'menu' => 'Offboarding', 'path' => '/offboarding', 'any' => ['offboarding.view'],

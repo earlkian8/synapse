@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\DisciplinaryCase;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\User;
@@ -139,6 +140,11 @@ class MobileSession
             'can_resign' => $organization !== null && $user->can('offboarding.resign'),
             // Training (ADR 0094): their programs, sessions and certificates, and joining.
             'can_train' => $organization !== null && $user->can('training.participate'),
+            // Notices served on them (ADR 0105).
+            'can_see_notices' => $organization !== null && $user->can('discipline.respond'),
+            'notices_to_answer' => $organization !== null && $employee !== null && $user->can('discipline.respond')
+                ? DisciplinaryCase::query()->where('employee_id', $employee->id)->served()->open()->whereNull('explained_at')->count()
+                : 0,
             // The app's own tour (ADR 0080): owed until answered once.
             'tour' => ['owed' => ProductTour::owesMobile($user), 'version' => ProductTour::MOBILE_VERSION],
         ];

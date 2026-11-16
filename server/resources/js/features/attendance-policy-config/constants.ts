@@ -1,84 +1,39 @@
 import { formatDuration } from '@/features/attendance/constants';
 import type {
-    GeofenceMode,
-    MissingClockOutAction,
-    OvertimeBasis,
     PolicySettings,
     PunchSource,
-    RoundingMode,
     RoundingTarget,
     RoundingUnit,
     SampleDay,
 } from './types';
 
-export const ROUNDING_MODE_OPTIONS: { value: RoundingMode; label: string }[] = [
-    { value: 'none', label: 'Exact' },
-    { value: 'nearest', label: 'Nearest' },
-    { value: 'up', label: 'Up' },
-    { value: 'down', label: 'Down' },
-];
-
 export const ROUNDING_UNITS: RoundingUnit[] = [5, 10, 15, 30];
 
+/** Read into "Round [clock-ins and clock-outs]." */
 export const ROUNDING_TARGET_OPTIONS: {
     value: RoundingTarget;
     label: string;
 }[] = [
-    { value: 'in', label: 'Clock-in' },
-    { value: 'out', label: 'Clock-out' },
-    { value: 'both', label: 'Both' },
-];
-
-export const OVERTIME_BASIS_OPTIONS: {
-    value: OvertimeBasis;
-    label: string;
-    hint: string;
-}[] = [
-    { value: 'daily', label: 'Daily', hint: 'Beyond the hours of each day.' },
-    { value: 'weekly', label: 'Weekly', hint: 'Beyond the hours of the week.' },
-    {
-        value: 'daily_and_weekly',
-        label: 'Both',
-        hint: 'Daily first; the week counts only what was not.',
-    },
-    { value: 'none', label: 'None', hint: 'Nothing is overtime.' },
-];
-
-export const MISSING_CLOCK_OUT_OPTIONS: {
-    value: MissingClockOutAction;
-    label: string;
-}[] = [
-    { value: 'flag', label: 'Leave it open for HR' },
-    { value: 'auto_close_at_shift_end', label: 'Close it at the shift’s end' },
-    {
-        value: 'auto_close_after_minutes',
-        label: 'Close it a while after the shift',
-    },
-];
-
-export const GEOFENCE_OPTIONS: {
-    value: GeofenceMode;
-    label: string;
-    hint?: string;
-}[] = [
-    { value: 'off', label: 'Don’t check where' },
-    {
-        value: 'flag',
-        label: 'Accept, but flag outside the site',
-        hint: 'Checked against the sites in Company Setup → Locations; a kiosk counts as where it stands. A day with a punch away from every site waits for sign-off.',
-    },
-    {
-        value: 'block',
-        label: 'Refuse outside the site',
-        hint: 'Web, app and kiosk punches away from every site are refused, and so are ones that share no location.',
-    },
+    { value: 'both', label: 'clock-ins and clock-outs' },
+    { value: 'in', label: 'clock-ins only' },
+    { value: 'out', label: 'clock-outs only' },
 ];
 
 export const SOURCE_LABELS: Record<PunchSource, string> = {
-    web: 'Web',
-    mobile: 'Mobile app',
-    kiosk: 'Kiosk',
+    mobile: 'With the mobile app',
+    qr: 'At a QR station',
+    kiosk: 'At a kiosk',
+    web: 'On the web',
     manual: 'Entered by HR',
+};
+
+/** What each way of clocking in is, for someone who has never set one up. */
+export const SOURCE_DESCRIPTIONS: Record<PunchSource, string> = {
+    mobile: 'On their own phone, with the SYNAPSE app.',
+    qr: 'By scanning the changing code on a screen at the site.',
+    kiosk: 'With their employee number and PIN, on a shared tablet.',
+    web: 'From a browser, usually on a work computer.',
+    manual: 'HR types the time in for them, with a reason.',
 };
 
 /** Every way a punch can arrive, in the order they are offered. */
@@ -104,56 +59,63 @@ export function minutesLabel(minutes: number | null | undefined): string {
         : formatDuration(minutes);
 }
 
+/** "2 hours", "45 minutes", "1h 30m" — a length of time as a sentence reads it. */
+function spoken(minutes: number): string {
+    if (minutes > 0 && minutes % 60 === 0) {
+        const hours = minutes / 60;
+
+        return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+    }
+
+    return minutes < 60 ? `${minutes} min` : formatDuration(minutes);
+}
+
 /**
- * What each group of settings amounts to, in a line — shown in a collapsed
- * section's header so a closed group still says what it does.
+ * What each topic of the editor amounts to, in a line — shown in its rail so the
+ * whole policy reads without opening anything.
  */
-export function groupSummaries(
+export function topicSummaries(
     s: PolicySettings,
-): Record<keyof PolicySettings, string> {
-    const lateness = !s.lateness.enabled
+): Record<
+    'late' | 'short' | 'breaks' | 'overtime' | 'clocking' | 'fine',
+    string
+> {
+    const late = !s.lateness.enabled
         ? 'Nobody is marked late'
         : [
               s.lateness.grace_mode === 'monthly_allowance'
-                  ? `${formatDuration(s.lateness.monthly_grace_minutes)} of grace a month`
+                  ? `${spoken(s.lateness.monthly_grace_minutes)} let go a month`
                   : s.lateness.grace_minutes === null
                     ? 'Each schedule’s grace'
-                    : `${formatDuration(s.lateness.grace_minutes)} grace a day`,
+                    : s.lateness.grace_minutes === 0
+                      ? 'Late from the first minute'
+                      : `First ${spoken(s.lateness.grace_minutes)} let go`,
               s.lateness.half_day_after_minutes !== null &&
-                  `half day past ${formatDuration(s.lateness.half_day_after_minutes)}`,
+                  `half day past ${spoken(s.lateness.half_day_after_minutes)}`,
               s.lateness.absent_after_minutes !== null &&
-                  `absent past ${formatDuration(s.lateness.absent_after_minutes)}`,
+                  `absent past ${spoken(s.lateness.absent_after_minutes)}`,
           ]
               .filter(Boolean)
               .join(', ');
 
-    const undertime = [
+    const short = [
         s.undertime.basis === 'hours'
-            ? 'Short by the hours worked'
-            : 'Short by leaving before the shift ends',
+            ? 'Short on hours worked'
+            : 'Short when leaving early',
         s.undertime.half_day_below_minutes !== null &&
-            `half day under ${formatDuration(s.undertime.half_day_below_minutes)}`,
+            `half day under ${spoken(s.undertime.half_day_below_minutes)}`,
+        s.undertime.minimum_minutes_for_present !== null &&
+            `absent under ${spoken(s.undertime.minimum_minutes_for_present)}`,
     ]
         .filter(Boolean)
         .join(', ');
 
-    const rounding =
-        s.rounding.mode === 'none'
-            ? 'Exact times'
-            : `${s.rounding.mode === 'nearest' ? 'Nearest' : s.rounding.mode === 'up' ? 'Up to the' : 'Down to the'} ${s.rounding.unit} minutes, ${
-                  s.rounding.apply_to === 'both'
-                      ? 'in and out'
-                      : s.rounding.apply_to === 'in'
-                        ? 'clock-in only'
-                        : 'clock-out only'
-              }`;
-
     const breaks =
         s.breaks.auto_deduct_minutes > 0
-            ? `${formatDuration(s.breaks.auto_deduct_minutes)} unpaid after ${formatDuration(s.breaks.auto_deduct_after_worked_minutes)} if none is punched`
+            ? `${spoken(s.breaks.auto_deduct_minutes)} off when no break is punched`
             : s.breaks.paid_break_minutes > 0
-              ? `${formatDuration(s.breaks.paid_break_minutes)} of a break is paid`
-              : 'Breaks count as punched';
+              ? `First ${spoken(s.breaks.paid_break_minutes)} of a break paid`
+              : 'Breaks as punched, unpaid';
 
     const overtime =
         s.overtime.basis === 'none'
@@ -161,53 +123,63 @@ export function groupSummaries(
             : [
                   s.overtime.basis !== 'weekly' &&
                       (s.overtime.daily_after_minutes === null
-                          ? 'After the day’s hours'
-                          : `After ${formatDuration(s.overtime.daily_after_minutes)} a day`),
+                          ? 'After the shift’s hours'
+                          : `After ${spoken(s.overtime.daily_after_minutes)} a day`),
                   s.overtime.basis !== 'daily' &&
-                      `after ${formatDuration(s.overtime.weekly_after_minutes)} a week`,
-                  s.overtime.requires_approval && 'needs approval',
+                      `after ${spoken(s.overtime.weekly_after_minutes)} a week`,
+                  s.overtime.requires_approval && 'approved first',
+                  s.night.enabled && 'night hours apart',
               ]
                   .filter(Boolean)
                   .join(', ');
 
+    const ways = s.capture.allowed_sources.filter(
+        (source) => source !== 'manual',
+    );
+    const clocking = [
+        ways.length === 0
+            ? 'Only HR enters times'
+            : ways
+                  .map(
+                      (source) =>
+                          ({
+                              mobile: 'App',
+                              qr: 'QR',
+                              kiosk: 'Kiosk',
+                              web: 'Web',
+                          })[source as 'mobile'],
+                  )
+                  .join(', '),
+        s.capture.selfie_required && 'photo',
+        s.capture.geofence === 'flag' && 'flagged off site',
+        s.capture.geofence === 'block' && 'on site only',
+    ]
+        .filter(Boolean)
+        .join(', ');
+
+    const fine =
+        s.rounding.mode === 'none'
+            ? 'Exact times'
+            : `Rounded ${s.rounding.mode === 'nearest' ? 'to the nearest' : s.rounding.mode} ${s.rounding.unit} min`;
+
     return {
-        lateness,
-        undertime,
-        rounding,
+        late,
+        short,
         breaks,
         overtime,
-        night: s.night.enabled
-            ? `${s.night.start}–${s.night.end}`
-            : 'No night differential',
-        punch_windows: `Clock in up to ${formatDuration(s.punch_windows.early_clock_in_minutes)} early; shifts up to ${formatDuration(s.punch_windows.max_shift_span_minutes)}`,
-        missing_clock_out:
-            MISSING_CLOCK_OUT_OPTIONS.find(
-                (option) => option.value === s.missing_clock_out.action,
-            )?.label ?? '',
-        reminders:
-            s.reminders.clock_in_after_minutes === null
-                ? 'No reminders'
-                : `Remind ${formatDuration(s.reminders.clock_in_after_minutes)} into the shift`,
-        capture: [
-            `${s.capture.allowed_sources.length} ways to punch`,
-            s.capture.selfie_required && 'selfie required',
-            s.capture.geofence === 'flag' && 'flagged off site',
-            s.capture.geofence === 'block' && 'on site only',
-        ]
-            .filter(Boolean)
-            .join(', '),
+        clocking,
+        fine,
     };
 }
 
 /** The handful of rules a policy row leads with. */
 export function policyHeadline(s: PolicySettings): string[] {
-    const summaries = groupSummaries(s);
+    const topics = topicSummaries(s);
 
     return [
-        summaries.overtime,
-        s.breaks.auto_deduct_minutes > 0 ? summaries.breaks : null,
-        s.night.enabled ? `Night ${summaries.night}` : null,
-        s.rounding.mode !== 'none' ? summaries.rounding : null,
-        !s.lateness.enabled ? summaries.lateness : null,
+        topics.overtime,
+        s.breaks.auto_deduct_minutes > 0 ? topics.breaks : null,
+        s.rounding.mode !== 'none' ? topics.fine : null,
+        !s.lateness.enabled ? topics.late : null,
     ].filter((line): line is string => line !== null);
 }

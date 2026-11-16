@@ -198,6 +198,9 @@ class OrganizationProvisioner
                     'events.respond', 'awards.participate',
                     'training.participate', 'offboarding.resign',
                     'check-ins.respond',
+                    'discipline.respond',
+                    // Reporting an incident about somebody on their team (ADR 0105)
+                    'discipline.report',
                     // Interviewing the candidates they are assigned (ADR 0091)
                     'recruitment.interview',
                     // Team visibility
@@ -237,6 +240,7 @@ class OrganizationProvisioner
                     'offboarding.resign',
                     'recruitment.interview',
                     'check-ins.respond',
+                    'discipline.respond',
                 ],
             ],
         ];

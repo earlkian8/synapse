@@ -94,7 +94,9 @@ function PunchRow({
                     <span className="rounded bg-muted px-1.5 py-0.5">
                         {punch.kiosk
                             ? `${punch.kiosk} kiosk`
-                            : sourceLabel(punch.source)}
+                            : punch.qr_station
+                              ? `QR at ${punch.qr_station}`
+                              : sourceLabel(punch.source)}
                     </span>
                     {hasGeo && (
                         <a
@@ -243,6 +245,7 @@ function formatMeters(meters: number): string {
 const NO_PHOTO: Record<string, string> = {
     web: 'Web punch',
     mobile: 'Not taken',
+    qr: 'Not taken',
     kiosk: 'No camera',
     manual: 'By hand',
     system: 'Automatic',
