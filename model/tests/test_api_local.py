@@ -7,11 +7,14 @@ with a pointer on a fresh checkout. Local models are written to a temporary stor
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app, registry
 from synapse_ml.local import store
+from synapse_ml.local import training
 from synapse_ml.paths import ARTIFACTS_DIR
 
 from test_local_training import promotion_rows
@@ -55,7 +58,26 @@ def test_a_model_trained_on_an_organisations_records_serves_only_that_organisati
     assert other.status_code == 404
 
 
-def test_a_failed_check_stores_nothing(client, tmp_path):
+def test_a_failed_check_is_stored_with_its_verdict_for_the_organisation_to_choose(client, tmp_path, monkeypatch):
+    rows = promotion_rows()
+    ex = training.examples("promotion", rows)
+    fitted = training.fit("promotion", ex.X, ex.y, ex.groups)
+    monkeypatch.setattr(training, "train", lambda model, rows, reference: training.Outcome(
+        "failed", ["It did not reliably beat the general model."], {"metric": "brier"}, fitted, counts={"people": 250}))
+
+    body = client.post("/train/promotion", json={"tenant": "org-7", "rows": rows}).json()
+    assert body["verdict"] == "failed" and body["version"]
+    [saved] = tmp_path.rglob("metrics.json")
+    assert json.loads(saved.read_text(encoding="utf-8"))["verdict"] == "failed"
+
+    # It serves like any other organisation's model, once named.
+    own = client.post("/predict/promotion", json={"instances": [{"ref": "1", "features": {"rating_latest": 80}}],
+                                                  "variant": {"tenant": "org-7", "version": body["version"]}})
+    assert own.status_code == 200, own.text
+    assert own.json()["model_version"] == f"local:{body['version']}"
+
+
+def test_a_model_that_cannot_be_fitted_stores_nothing(client, tmp_path):
     body = client.post("/train/promotion", json={"tenant": "org-7", "rows": promotion_rows(signal=False)}).json()
     assert body["verdict"] == "failed" and body["version"] is None
     assert not any(tmp_path.rglob("model.joblib"))

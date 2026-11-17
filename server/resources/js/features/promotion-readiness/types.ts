@@ -1,5 +1,6 @@
 import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
 import type { Graduation } from '@/features/model-graduation/types';
+import type { Interpretation } from '@/features/prediction-insights/types';
 
 export type ReadinessTier = 'low' | 'medium' | 'high';
 
@@ -78,6 +79,8 @@ export type ReadinessScore = {
     history: ReadinessAppraisal[];
     /** Notes about any input held at the model's trained range. */
     warnings: string[];
+    /** The plain-language reading an AI wrote of it (ADR 0106), if one was asked for. */
+    interpretation: Interpretation | null;
     employee: ReadinessEmployee | null;
 };
 

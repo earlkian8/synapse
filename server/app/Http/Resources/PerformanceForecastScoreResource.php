@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\PerformanceForecast;
+use App\Support\Ml\Interpretation\PredictionInterpreter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,6 +31,10 @@ class PerformanceForecastScoreResource extends JsonResource
             'warnings' => $this->warnings ?? [],
             // Why (ADR 0098): the chance the next rating lands in each band.
             'explanation' => $this->explanation,
+
+            // The plain-language reading an LLM wrote (ADR 0106), when this viewer may
+            // see everything it was written from.
+            'interpretation' => PredictionInterpreter::visible($this->interpretation, $request->user()),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

@@ -30,6 +30,9 @@ Click someone to open their breakdown. It has four tabs:
 - **What would lower it** — the score the model would give with a promotion now, regular employment or a raise into the next pay band. Some changes don't lower it, and the page says so. These show what the model weighs, not what will happen.
 - **Record** — their risk in every assessment, attendance by month, appraisals, leave, training and awards. You only see the parts your role lets you open elsewhere.
 
+> [!NOTE]
+> **In plain words.** Under the read on the **Summary** tab, **Explain this score** asks AI to read the breakdown and the parts of their record you can see, and explain why the system scored them this way: the main reasons with the points each adds or takes away, how the rest of their record reads beside it, what to confirm before acting, and what to do. It never sees their name, their pay or what kind of leave they took. It is saved, so the next look is instant, and **Write again** refreshes it. AI can make mistakes, so check important details before acting.
+
 ## What it looks at
 
 Eight things, taken from your records: employment type, length of service, salary, whether and how long ago they were last promoted, and — over the last 90 days — absences, late arrivals and overtime hours. Nothing about who the person is (age, gender and the like) is ever used.

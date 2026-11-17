@@ -21,7 +21,7 @@ out of fold, and keeps them only when the model with them ranks better in at lea
 because its own records showed it helps, never because a theory said it should.
 
 **The check is the point.** A model fitted on a few hundred examples still returns
-confident-looking numbers, so it is only offered as a replacement when, on the
+confident-looking numbers, so it is *recommended* as a replacement only when, on the
 organisation's *own* people, it is
 
 1. more accurate than the model in use today (``reference``), and
@@ -32,6 +32,11 @@ each measured out of fold — every example scored by a model fitted without tha
 employee — and each holding in at least ``MUST_WIN`` of ``BOOTSTRAP`` resamples of the
 organisation's people, so a lucky split cannot carry it. A forecast must also keep its
 own promise: its ranges hold about four in five of the ratings that followed.
+
+**The choice stays with the organisation.** A model that does not pass is still
+fitted on every example and stored with its verdict (``failed``), so the people who
+manage the surface can weigh the findings and choose it anyway — or keep the model
+they use today. The verdict travels with it; nothing is switched here either way.
 
 The minimum volumes (``MINIMUMS``) are the ones the ERP's graduation panel shows; the
 service enforces them too, rather than trusting the caller.
@@ -118,6 +123,8 @@ class Outcome:
     verdict: str  # "passed" | "failed"
     findings: list[str]  # plain-language sentences, one per check, for the HR reader
     comparison: dict[str, Any]
+    # The model fitted on every example — whatever the verdict, whenever it could be
+    # fitted at all, so a model that did not pass can still be chosen knowingly.
     fitted: Any = None
     counts: dict[str, int] = field(default_factory=dict)
     # Attrition: leave rates by band in the organisation's own records — what the
@@ -296,7 +303,8 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
 
     Raises :class:`TrainingRefused` when the examples are malformed or below the
     minimums. A model that cannot be fitted on part of the records, or does not pass
-    the check, comes back ``failed`` with the reason — it is never offered.
+    the check, comes back ``failed`` with the reason — and, when it can be fitted on
+    every example, with that model, for the organisation to choose knowingly.
     """
     ex = examples(model, rows)
     short = shortfalls(ex)
@@ -313,7 +321,7 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
         signals, local = _choose_signals(ex, local, comparison) if model == "attrition" else ([], local)
     except (ValueError, np.linalg.LinAlgError) as exc:
         log.warning("'%s' local model could not be fitted out of fold: %s", model, exc)
-        return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
+        return _outcome("failed", [UNSTABLE[model]], comparison, ex, rows, [], have)
 
     today = np.asarray(reference(ex.records), dtype=float)
     naive = baseline(ex)
@@ -353,16 +361,20 @@ def train(model: str, rows: Sequence[Mapping[str, Any]], reference: Reference) -
     if "signals" in comparison:
         findings.append(_signals_finding(comparison["signals"]))
 
-    if not passed:
-        return Outcome("failed", findings, comparison, counts=have)
+    return _outcome("passed" if passed else "failed", findings, comparison, ex, rows, signals, have)
 
+
+def _outcome(verdict: str, findings: list[str], comparison: dict[str, Any], ex: Examples,
+             rows: Sequence[Mapping[str, Any]], signals: list[str], have: dict[str, int]) -> Outcome:
+    """The verdict, with the model fitted on every example. A model that cannot be
+    fitted on all of them is not stored at all, whatever the check said."""
     try:
-        fitted = fit(model, ex.X, ex.y, ex.groups, signals)
+        fitted = fit(ex.model, ex.X, ex.y, ex.groups, signals)
     except (ValueError, np.linalg.LinAlgError) as exc:
-        log.warning("'%s' local model could not be fitted on every example: %s", model, exc)
-        return Outcome("failed", [UNSTABLE[model]], comparison, counts=have)
-    evidence = attrition_evidence.profile(_recorded(rows), ex.y, source="own_records") if model == "attrition" else None
-    return Outcome("passed", findings, comparison, fitted, counts=have, evidence=evidence)
+        log.warning("'%s' local model could not be fitted on every example: %s", ex.model, exc)
+        return Outcome("failed", [UNSTABLE[ex.model]] if verdict == "passed" else findings, comparison, counts=have)
+    evidence = attrition_evidence.profile(_recorded(rows), ex.y, source="own_records") if ex.model == "attrition" else None
+    return Outcome(verdict, findings, comparison, fitted, counts=have, evidence=evidence)
 
 
 def _choose_signals(ex: Examples, without: dict[str, np.ndarray], comparison: dict[str, Any]) -> tuple[list[str], dict[str, np.ndarray]]:

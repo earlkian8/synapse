@@ -5,6 +5,7 @@ import {
     Lock,
     RotateCcw,
     Sparkles,
+    TriangleAlert,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { DataTable, TableCard } from '@/components/data-table';
@@ -16,30 +17,45 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { AiInterpretation } from '@/features/prediction-insights/components/ai-interpretation';
 import { cn } from '@/lib/utils';
 import { COMPARISON_COPY, formatDate, MODEL_COPY } from '../constants';
-import type { Comparison, Graduation, LocalModelSummary } from '../types';
+import { graduationRoutes } from '../routes';
+import type {
+    Comparison,
+    Graduation,
+    LocalModelSummary,
+    ModelKey,
+} from '../types';
 
 /**
  * What can be done with the surface's own model, and what came of it: the model in
- * use (with the way back), a model that passed its check and awaits a decision, a
- * check that did not pass and why, and whether training is unlocked. The button
- * that starts training sits in the modal's footer, so it is in view on every tab.
+ * use (with the way back), a model waiting for a decision — recommended when it
+ * passed its check, still the organisation's to choose when it did not (ADR 0107) —
+ * a check that kept no model and why, and whether training is unlocked. Each result
+ * can be explained in plain words by AI (ADR 0106) before deciding. The button that
+ * starts training sits in the modal's footer, so it is in view on every tab.
  */
 export function TrainingPanel({
     graduation,
     canManage,
     onActivate,
+    onDismiss,
     onRevert,
 }: {
     graduation: Graduation;
     canManage: boolean;
-    onActivate: (hashid: string) => void;
+    onActivate: (hashid: string, passed: boolean) => void;
+    onDismiss: (hashid: string) => void;
     onRevert: () => void;
 }) {
     const { active, latest, gate_open, met_count, total_count } = graduation;
     const remaining = total_count - met_count;
     const scores = MODEL_COPY[graduation.model].scores;
+    const current = active ? 'your model in use' : 'the general model';
+    const Current = active ? 'Your model in use' : 'The general model';
+    const by = (model: LocalModelSummary) =>
+        `Trained on ${formatDate(model.trained_at)}${model.trained_by ? ` by ${model.trained_by}` : ''} · ${model.examples.toLocaleString()} examples.`;
 
     return (
         <div className="flex flex-col gap-3">
@@ -53,10 +69,15 @@ export function TrainingPanel({
 
             {active && (
                 <ResultCard
-                    tone="active"
+                    surface={graduation.model}
+                    tone={active.passed ? 'active' : 'chosen'}
                     icon={BadgeCheck}
-                    title="Your own model is in use"
-                    meta={`Switched on ${formatDate(active.activated_at)}${active.activated_by ? ` by ${active.activated_by}` : ''} · trained on ${active.examples.toLocaleString()} examples from your records`}
+                    title={
+                        active.passed
+                            ? 'Your own model is in use'
+                            : 'Your own model is in use — it didn’t pass its check'
+                    }
+                    meta={`Switched on ${formatDate(active.activated_at)}${active.activated_by ? ` by ${active.activated_by}` : ''} · trained on ${active.examples.toLocaleString()} examples from your records${active.passed ? '' : '. It was chosen knowing it wasn’t reliably more accurate than the general model'}`}
                     model={active}
                 >
                     {canManage && (
@@ -68,32 +89,73 @@ export function TrainingPanel({
                 </ResultCard>
             )}
 
-            {latest?.status === 'ready' && (
+            {latest?.status === 'ready' && latest.passed && (
                 <ResultCard
+                    surface={graduation.model}
                     tone="ready"
                     icon={Sparkles}
                     title="A model trained on your records passed its check"
-                    meta={`Trained on ${formatDate(latest.trained_at)}${latest.trained_by ? ` by ${latest.trained_by}` : ''} · ${latest.examples.toLocaleString()} examples. Nothing changes until someone switches to it.`}
+                    meta={`${by(latest)} Nothing changes until someone switches to it.`}
                     model={latest}
                 >
                     {canManage && (
-                        <Button
-                            size="sm"
-                            onClick={() => onActivate(latest.hashid)}
-                        >
-                            <BadgeCheck className="size-3.5" />
-                            Switch to this model
-                        </Button>
+                        <>
+                            <Button
+                                size="sm"
+                                onClick={() => onActivate(latest.hashid, true)}
+                            >
+                                <BadgeCheck className="size-3.5" />
+                                Switch to this model
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onDismiss(latest.hashid)}
+                            >
+                                Keep {current}
+                            </Button>
+                        </>
+                    )}
+                </ResultCard>
+            )}
+
+            {latest?.status === 'ready' && !latest.passed && (
+                <ResultCard
+                    surface={graduation.model}
+                    tone="failed"
+                    icon={CircleAlert}
+                    title="Your new model didn’t pass its check — you can still choose it"
+                    meta={`${by(latest)} ${Current} stays in use unless you switch. Read why it fell short before deciding.`}
+                    model={latest}
+                >
+                    {canManage && (
+                        <>
+                            <Button
+                                size="sm"
+                                onClick={() => onDismiss(latest.hashid)}
+                            >
+                                Keep {current}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onActivate(latest.hashid, false)}
+                            >
+                                <TriangleAlert className="size-3.5" />
+                                Use this model anyway
+                            </Button>
+                        </>
                     )}
                 </ResultCard>
             )}
 
             {latest?.status === 'failed' && (
                 <ResultCard
+                    surface={graduation.model}
                     tone="failed"
                     icon={CircleAlert}
                     title="The last model trained on your records didn’t pass its check"
-                    meta={`Trained on ${formatDate(latest.trained_at)}${latest.trained_by ? ` by ${latest.trained_by}` : ''} · ${latest.examples.toLocaleString()} examples. ${active ? 'Your model in use' : 'The general model'} stays in use — try again once more history is recorded.`}
+                    meta={`${by(latest)} No model could be kept from it, so there is nothing to switch to — ${current} stays in use. Try again once more history is recorded.`}
                     model={latest}
                 />
             )}
@@ -130,7 +192,7 @@ export function TrainingPanel({
                     </p>
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                         {gate_open
-                            ? `The system builds a model from your records, then tests it against the general model on your own people. It is offered only if it is clearly more accurate — and even then, your ${scores} don’t change until someone switches to it.`
+                            ? `The system builds a model from your records, then tests it against the general model on your own people. It is recommended only if it is clearly more accurate — but the choice is yours either way, and your ${scores} don’t change until someone switches to it.`
                             : 'Until then the general model keeps scoring, and a model trained on too little history would only look confident.'}
                         {canManage
                             ? gate_open
@@ -157,9 +219,15 @@ const TONES = {
         box: 'border-amber-500/30 bg-amber-500/6',
         icon: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
     },
+    /** In use, though it did not pass its check. */
+    chosen: {
+        box: 'border-emerald-500/30 bg-emerald-500/6',
+        icon: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+    },
 } as const;
 
 function ResultCard({
+    surface,
     tone,
     icon: Icon,
     title,
@@ -167,6 +235,7 @@ function ResultCard({
     model,
     children,
 }: {
+    surface: ModelKey;
     tone: keyof typeof TONES;
     icon: typeof Sparkles;
     title: string;
@@ -209,6 +278,26 @@ function ResultCard({
                         </li>
                     ))}
                 </ul>
+            )}
+
+            {model.comparison && (
+                <div className="mt-4">
+                    <AiInterpretation
+                        key={model.hashid}
+                        url={graduationRoutes.interpretation(
+                            surface,
+                            model.hashid,
+                        )}
+                        saved={model.interpretation}
+                        title="What this check means"
+                        intro="Have AI explain this check in plain words: what each part showed, and what switching or keeping the current model would mean. Only the check’s figures are sent — no one’s record."
+                        action="Explain this result"
+                        pending="Reading the check…"
+                        contextLabel="What deciding means"
+                        checksLabel="Before you decide"
+                        upIsGood
+                    />
+                </div>
             )}
 
             {children && (

@@ -20,7 +20,7 @@ Endpoints:
                                    organisation's own
     POST /train/{model_name}     — fit a model on an organisation's own examples, judge it
                                    against the reference on those records, and store it
-                                   when it passes (``synapse_ml.local``)
+                                   with its verdict (``synapse_ml.local``)
 """
 
 from __future__ import annotations
@@ -138,7 +138,8 @@ def predict(model_name: str, request: PredictRequest) -> PredictResponse:
 @app.post("/train/{model_name}", response_model=TrainResponse)
 def train(model_name: str, request: TrainRequest) -> TrainResponse:
     """Fit ``model_name`` on one organisation's examples and judge it against the
-    reference model on those same records. Stored only when it passes."""
+    reference model on those same records. Stored with its verdict whenever it could
+    be fitted — a model that did not pass is the organisation's to choose, knowingly."""
     try:
         reference = registry.get(model_name)
     except KeyError:
@@ -158,13 +159,14 @@ def train(model_name: str, request: TrainRequest) -> TrainResponse:
         raise HTTPException(status_code=422, detail=f"Cannot train: {exc}.") from None
 
     version = None
-    if outcome.verdict == "passed":
+    if outcome.fitted is not None:
         version = local_store.save(
             request.tenant,
             model_name,
             outcome.fitted,
-            {"algorithm": reference.metrics.get("algorithm"), "comparison": outcome.comparison,
-             "counts": outcome.counts, "findings": outcome.findings, "evidence": outcome.evidence},
+            {"algorithm": reference.metrics.get("algorithm"), "verdict": outcome.verdict,
+             "comparison": outcome.comparison, "counts": outcome.counts, "findings": outcome.findings,
+             "evidence": outcome.evidence},
         )
     log.info("trained '%s' for %s: %s (%s)", model_name, request.tenant, outcome.verdict, outcome.comparison)
     return TrainResponse(

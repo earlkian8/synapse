@@ -2,6 +2,7 @@ import {
     ArrowRight,
     BadgeCheck,
     BookOpen,
+    CircleAlert,
     FlaskConical,
     GraduationCap,
     Lock,
@@ -58,7 +59,8 @@ export function landingTab(graduation: Graduation): GraduationTab {
  *
  *  - Overview      — what graduation is, where this page is, and the next step;
  *  - Requirements  — every requirement as a table, each opening in full;
- *  - Your model    — the model in use, one ready to switch to, a failed check;
+ *  - Your model    — the model in use, one waiting for a decision (passed its
+ *                    check or not — ADR 0107), a check that kept no model;
  *  - Data used     — the fields the scores read, and how complete they are.
  *
  * Training starts from the footer, so it is in view whichever tab is open.
@@ -72,6 +74,7 @@ export function GraduationDialog({
     training,
     onTrain,
     onActivate,
+    onDismiss,
     onRevert,
 }: {
     graduation: Graduation;
@@ -81,7 +84,8 @@ export function GraduationDialog({
     onClose: () => void;
     training: boolean;
     onTrain: () => void;
-    onActivate: (hashid: string) => void;
+    onActivate: (hashid: string, passed: boolean) => void;
+    onDismiss: (hashid: string) => void;
     onRevert: () => void;
 }) {
     const copy = MODEL_COPY[graduation.model];
@@ -177,6 +181,7 @@ export function GraduationDialog({
                             graduation={graduation}
                             canManage={canManage}
                             onActivate={onActivate}
+                            onDismiss={onDismiss}
                             onRevert={onRevert}
                         />
                     )}
@@ -378,7 +383,16 @@ function NextStep({
         emphasis: boolean;
     };
 
-    if (graduation.latest?.status === 'ready') {
+    if (graduation.latest?.status === 'ready' && !graduation.latest.passed) {
+        step = {
+            icon: CircleAlert,
+            title: 'Your new model didn’t pass its check — the choice is yours',
+            body: `It wasn’t reliably more accurate than ${graduation.active ? 'your model in use' : 'the general model'} on your own people. See why, then keep the current model or use yours anyway.`,
+            action: 'Review and decide',
+            tab: 'model',
+            emphasis: true,
+        };
+    } else if (graduation.latest?.status === 'ready') {
         step = {
             icon: Sparkles,
             title: 'A model trained on your records is ready',
@@ -400,7 +414,7 @@ function NextStep({
         step = {
             icon: FlaskConical,
             title: 'Every requirement is met',
-            body: 'Your records can now train a model of your own. It is checked against the general model and offered only if it is clearly more accurate.',
+            body: 'Your records can now train a model of your own. It is checked against the general model on your people, and you decide whether to use it.',
             action: 'Train your own model',
             tab: 'model',
             emphasis: true,
@@ -493,8 +507,8 @@ function Explainer({
         },
         {
             icon: Scale,
-            title: 'It only replaces the general model if it proves better',
-            body: 'The new model is tested on your own people against the general one. It is offered only if it is clearly more accurate.',
+            title: 'It is tested before you decide',
+            body: 'The new model is tested on your own people against the general one. It is recommended only if it is clearly more accurate — if not, you can still choose it, knowingly.',
         },
         {
             icon: ShieldCheck,

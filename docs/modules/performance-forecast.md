@@ -39,6 +39,13 @@ schema. The model and the way records reach it are specified by
     forecast pulls toward the middle; **next steps** for the cycle (goals, coaching on the
     weakest appraisal section, a mid-cycle check-in, stretch work); their other
     predictions; and how they compare with the run, their department and position.
+  - Under the verdict, **In plain words**: on request (*Explain this forecast*) an LLM reads
+    the breakdown and the record the viewer may see and explains why the system scored
+    them this way — a headline, the main reasons (the latest appraisal, the history and how sure it is), how the record reads beside
+    it, what to confirm before acting, and what to do ([ADR 0106](../decisions/0106-ai-explains-each-prediction-in-plain-words.md)).
+    It never sees the person's name or leave types; it is saved on the result and shown
+    again only to viewers who may see everything it read. The dialog's header names the
+    person but no longer links to their profile.
   - *Reasons*: the latest appraisal placed on the model's own curve of expected next
     ratings ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)), that appraisal by section, and what the forecast was read from.
   - *Track record*: this person's earlier forecasts with their ranges against what each

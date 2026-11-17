@@ -53,8 +53,14 @@ export function nextRequirement(
 export function stripLine(graduation: Graduation): string {
     const scores = MODEL_COPY[graduation.model].scores;
 
+    if (graduation.latest?.status === 'ready' && !graduation.latest.passed) {
+        return 'A new model trained on your records didn’t pass its check. Keep the current model, or use yours anyway — the choice is yours.';
+    }
+
     if (graduation.stage === 'graduated') {
-        return `These ${scores} come from a model trained on your own records, which proved more accurate for your people.`;
+        return graduation.active?.passed === false
+            ? `These ${scores} come from a model trained on your own records. It didn’t pass its check against the general model, and was chosen anyway.`
+            : `These ${scores} come from a model trained on your own records, which proved more accurate for your people.`;
     }
 
     if (graduation.latest?.status === 'ready') {
@@ -83,8 +89,24 @@ export function stripLine(graduation: Graduation): string {
 export function Headline({ graduation }: { graduation: Graduation }) {
     const copy = MODEL_COPY[graduation.model];
 
-    if (graduation.stage === 'graduated') {
+    if (graduation.latest?.status === 'ready' && !graduation.latest.passed) {
         return (
+            <>
+                A new model trained on your records didn’t pass its check
+                against the general model. You can still choose it — or keep{' '}
+                {graduation.active ? 'your model in use' : 'the general model'}.
+            </>
+        );
+    }
+
+    if (graduation.stage === 'graduated') {
+        return graduation.active?.passed === false ? (
+            <>
+                These {copy.scores} come from a model trained on your
+                organisation’s own records. It didn’t pass its check against the
+                general model, and was chosen anyway.
+            </>
+        ) : (
             <>
                 These {copy.scores} come from a model trained on your
                 organisation’s own records, which proved more accurate for your

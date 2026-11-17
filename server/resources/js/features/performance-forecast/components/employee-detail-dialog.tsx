@@ -1,5 +1,7 @@
 import { CircleAlert, Target } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { scoreInterpretationUrl } from '@/features/prediction-insights/api';
+import { AiInterpretation } from '@/features/prediction-insights/components/ai-interpretation';
 import {
     BreakdownDialog,
     BreakdownSection,
@@ -66,13 +68,11 @@ export function EmployeeDetailDialog({
 }) {
     const employee = score?.employee ?? null;
     const state = usePredictionContext('performance', employee?.id ?? null);
-    const context = state.status === 'ready' ? state.context : null;
 
     return (
         <BreakdownDialog
             person={employee}
             description={`Performance forecast for ${employee?.full_name ?? 'this employee'}`}
-            profileUrl={context?.employment.profile_url}
             onOpenChange={onOpenChange}
             tabs={
                 score && employee
@@ -214,6 +214,16 @@ function Summary({
             ) : (
                 <Skeleton className="h-28 w-full rounded-xl" />
             )}
+
+            <AiInterpretation
+                key={score.id}
+                url={scoreInterpretationUrl('performance', score.id)}
+                saved={score.interpretation}
+                intro="Have AI read this forecast and the record you can see, and explain in plain words why the system expects this rating. It never sees their name or pay."
+                action="Explain this forecast"
+                pending="Reading the forecast and the record…"
+                upIsGood
+            />
 
             {(!settled || steps.length > 0) && (
                 <BreakdownSection title="Suggested next steps">

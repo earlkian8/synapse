@@ -30,7 +30,7 @@ export const STAGE_COPY: Record<Stage, { label: string; description: string }> =
         graduated: {
             label: 'Your own model',
             description:
-                'Scores come from a model trained on your records, which proved more accurate for your people.',
+                'Scores come from a model trained on your own records, chosen by your organisation.',
         },
     };
 

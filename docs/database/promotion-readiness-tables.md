@@ -45,6 +45,7 @@ One employee's result within a run.
 | `basis` | string, nullable | `two_appraisals \| latest_appraisal` — how much history the score rests on. |
 | `factors` | json, nullable | `[{feature, label, impact, direction, value, typical}]` — readiness points each recorded input moves the score against a typical record (exact Shapley values from [ADR 0098](../decisions/0098-the-predictive-screens-say-why.md) on), with the employee's and the typical value. |
 | `explanation` | json, nullable | `{baseline, outlook}` — a typical record's score with the same history (the factors add up from it), and readiness after the next appraisal: `{points: [{rating, score}], medium_from, high_from, same_again}`. Null on older runs. |
+| `interpretation` | json, nullable | The plain-language reading an LLM wrote of this result on request (ADR 0106): `{available, headline, summary, reasons: [{key, label, effect, points, text}], context, checks, actions, generated_at, needs}`. The reasons' labels, effects and points come from this row; only `text` was written. `needs` lists the permissions behind the record it read — it is shown only to viewers who hold all of them. Added by `2026_11_17_000000_add_interpretations_and_model_choice`. |
 | `features` | json, nullable | Snapshot of the inputs sent to the model (`rating_latest`, `rating_change`), for audit. |
 | `history` | json, nullable | The completed appraisals behind them `[{label, rating}]` (attainment, oldest first). |
 | `warnings` | json, nullable | Notes about any input held at the model's trained range. |

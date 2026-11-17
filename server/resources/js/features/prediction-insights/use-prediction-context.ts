@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { PredictionContext, Surface } from './types';
 
 /** Each surface's URL prefix. */
-const PREFIX: Record<Surface, string> = {
+export const PREFIX: Record<Surface, string> = {
     attrition: '/analytics/attrition',
     promotion: '/analytics/promotion-readiness',
     performance: '/analytics/performance-forecast',

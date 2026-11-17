@@ -30,6 +30,9 @@ Click someone to open their breakdown. It has four tabs:
 - **Track record** — their earlier forecasts against what each cycle actually gave, and a **trajectory chart** of their completed appraisals leading to the forecast.
 - **Record** — attendance, employment, leave, training and awards, as far as your role lets you see them.
 
+> [!NOTE]
+> **In plain words.** Under the read on the **Summary** tab, **Explain this forecast** asks AI to read the breakdown and the parts of their record you can see, and explain why the system scored them this way: the main reasons, how the rest of their record reads beside it, what to confirm before acting, and what to do. It never sees their name or what kind of leave they took. It is saved, so the next look is instant, and **Write again** refreshes it. AI can make mistakes, so check important details before acting.
+
 ## How it did
 
 Once the forecast cycle has completed appraisals, **How this forecast did** compares the forecast with what happened: the average miss, how many results landed inside their range (it promises about four in five), and how often the band was right. It waits for at least 20 completed appraisals before giving a verdict.

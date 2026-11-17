@@ -1,4 +1,3 @@
-import { ExternalLink } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { PersonAvatar } from '@/components/person-avatar';
@@ -28,22 +27,20 @@ export type BreakdownTab = {
 };
 
 /**
- * The frame every predictive breakdown sits in (ADR 0099): the person, a link to
- * their profile, and the breakdown as underline tabs — Summary first, so the
+ * The frame every predictive breakdown sits in (ADR 0099): the person, and the
+ * breakdown as underline tabs — Summary first, so the
  * decision is the first thing read and the evidence is one tab away. The tabs reset
  * to Summary whenever another person opens.
  */
 export function BreakdownDialog({
     person,
     description,
-    profileUrl,
     tabs,
     onOpenChange,
 }: {
     person: BreakdownPerson | null;
     /** What the dialog holds, for screen readers. */
     description: string;
-    profileUrl?: string | null;
     tabs: BreakdownTab[];
     onOpenChange: (open: boolean) => void;
 }) {
@@ -58,7 +55,6 @@ export function BreakdownDialog({
                         key={person.id}
                         person={person}
                         description={description}
-                        profileUrl={profileUrl ?? null}
                         tabs={tabs}
                     />
                 )}
@@ -70,12 +66,10 @@ export function BreakdownDialog({
 function Frame({
     person,
     description,
-    profileUrl,
     tabs,
 }: {
     person: BreakdownPerson;
     description: string;
-    profileUrl: string | null;
     tabs: BreakdownTab[];
 }) {
     const [active, setActive] = useState(tabs[0]?.key ?? '');
@@ -124,15 +118,6 @@ function Frame({
                             {person.department ? ` · ${person.department}` : ''}
                         </p>
                     </div>
-                    {profileUrl && (
-                        <a
-                            href={profileUrl}
-                            className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:inline-flex"
-                        >
-                            Profile
-                            <ExternalLink className="size-3" />
-                        </a>
-                    )}
                 </div>
                 <DialogDescription className="sr-only">
                     {description}

@@ -38,6 +38,13 @@ The model and the way records reach it are specified by
     quickly when flight risk is high, a goal for the next appraisal, the weakest
     appraisal section to develop, revisit after a second appraisal); their other
     predictions; and how they compare with the run, their department and position.
+  - Under the verdict, **In plain words**: on request (*Explain this score*) an LLM reads
+    the breakdown and the record the viewer may see and explains why the system scored
+    them this way — a headline, the main reasons (each with its readiness points, from the stored result), how the record reads beside
+    it, what to confirm before acting, and what to do ([ADR 0106](../decisions/0106-ai-explains-each-prediction-in-plain-words.md)).
+    It never sees the person's name, pay or leave types; it is saved on the result and shown
+    again only to viewers who may see everything it read. The dialog's header names the
+    person but no longer links to their profile.
   - *Reasons*: the **basis** (one appraisal or two), the ledger from a typical record's
     score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)), the **appraisal map** with this person picked out (a dot opens
     another person), and the appraisals it was built from, with any note about a value

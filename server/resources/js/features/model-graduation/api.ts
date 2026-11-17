@@ -20,13 +20,30 @@ export function trainModel(model: ModelKey, h: Handlers = {}): void {
     router.post(graduationRoutes.train(model), {}, options(h));
 }
 
-/** Switch the surface to a model that passed its check. */
+/**
+ * Switch the surface to the model on offer. One that did not pass its check needs
+ * `despiteCheck` — the acknowledgement that it is wanted anyway (ADR 0107).
+ */
 export function activateModel(
+    model: ModelKey,
+    hashid: string,
+    despiteCheck: boolean,
+    h: Handlers = {},
+): void {
+    router.post(
+        graduationRoutes.activate(model, hashid),
+        { despite_check: despiteCheck },
+        options(h),
+    );
+}
+
+/** Keep the model in use, and set the one on offer aside. */
+export function dismissModel(
     model: ModelKey,
     hashid: string,
     h: Handlers = {},
 ): void {
-    router.post(graduationRoutes.activate(model, hashid), {}, options(h));
+    router.post(graduationRoutes.dismiss(model, hashid), {}, options(h));
 }
 
 /** Switch the surface back to the general model. */

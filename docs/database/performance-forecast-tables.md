@@ -52,6 +52,7 @@ One employee's result within a run.
 | `history` | json, nullable | The completed appraisals the forecast could read `[{label, rating}]` (attainment 0–100, oldest→newest), powering the trajectory chart. |
 | `warnings` | json, nullable | Notes about any input held at the model's trained range. |
 | `explanation` | json, nullable | `{chances: {below, on_track, exceeds}}` — the chance the next rating lands in each band. Null on older runs. |
+| `interpretation` | json, nullable | The plain-language reading an LLM wrote of this result on request (ADR 0106): `{available, headline, summary, reasons: [{key, label, effect, points, text}], context, checks, actions, generated_at, needs}`. The reasons' labels, effects and points come from this row; only `text` was written. `needs` lists the permissions behind the record it read — it is shown only to viewers who hold all of them. Added by `2026_11_17_000000_add_interpretations_and_model_choice`. |
 | timestamps | | |
 
 **Indexes:** unique `(performance_forecast_run_id, employee_id)` — one forecast per

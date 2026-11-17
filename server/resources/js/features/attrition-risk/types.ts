@@ -1,4 +1,5 @@
 import type { Graduation } from '@/features/model-graduation/types';
+import type { Interpretation } from '@/features/prediction-insights/types';
 export type RiskTier = 'low' | 'medium' | 'high';
 
 /** What the data the model learned from shows for one answer (ADR 0098). */
@@ -164,6 +165,8 @@ export type RiskScore = {
     explanation: RiskExplanation | null;
     /** Snapshot of the recorded values sent to the model. */
     features: Record<string, number | string>;
+    /** The plain-language reading an AI wrote of it (ADR 0106), if one was asked for. */
+    interpretation: Interpretation | null;
     employee: RiskEmployee | null;
 };
 

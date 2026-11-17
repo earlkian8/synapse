@@ -32,11 +32,12 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 /**
  * Fake the inference service: `/health` lists `$models`; `/train/*` answers with
- * `$verdict`; `/predict/promotion` scores everyone 0.12.
+ * `$verdict`, storing a model unless `$kept` is false (one that could not be fitted
+ * at all); `/predict/promotion` scores everyone 0.12.
  *
  * @param  list<string>  $models
  */
-function fakeGraduationService(array $models = ['promotion', 'performance', 'attrition'], string $verdict = 'passed', int $predictStatus = 200): void
+function fakeGraduationService(array $models = ['promotion', 'performance', 'attrition'], string $verdict = 'passed', int $predictStatus = 200, bool $kept = true): void
 {
     Http::fake([
         '*/health' => Http::response([
@@ -48,7 +49,7 @@ function fakeGraduationService(array $models = ['promotion', 'performance', 'att
             'model' => 'promotion',
             'tenant' => 'org-1',
             'verdict' => $verdict,
-            'version' => $verdict === 'passed' ? '20260927120000-abcdef' : null,
+            'version' => $kept ? '20260927120000-abcdef' : null,
             'findings' => $verdict === 'passed'
                 ? ['On your own records, your model’s predicted chances of promotion were closer to what happened than the general model’s.']
                 : ['On your own records, your model was not reliably more accurate than the general model.'],
@@ -162,6 +163,7 @@ function localPromotionModel(string $status = 'ready', array $attributes = []): 
     return LocalModel::create([
         'model' => 'promotion',
         'status' => $status,
+        'passed' => $status !== 'failed',
         'version' => $status === 'failed' ? null : '20260927120000-'.substr(md5((string) microtime(true)), 0, 6),
         'examples' => 240,
         'findings' => [],
@@ -341,7 +343,7 @@ test('a model that passes its check is offered, not switched to', function () {
             ->where('graduation.latest.hashid', $model->hashid));
 });
 
-test('a model that fails its check is recorded with the reason, and nothing changes', function () {
+test('a model that fails its check is kept for the organisation to choose, and nothing changes', function () {
     actingAsSuperAdmin();
     fakeGraduationService(verdict: 'failed');
     promotionReadyToTrain();
@@ -349,11 +351,33 @@ test('a model that fails its check is recorded with the reason, and nothing chan
 
     $this->post(route('analytics.promotion-readiness.graduation.train'));
 
-    assertToast('info', 'didn’t pass its check');
+    assertToast('info', 'use yours anyway');
+    $kept = LocalModel::query()->latest('id')->first();
+    expect($kept)->status->toBe('ready')->passed->toBeFalse()->version->toBe('20260927120000-abcdef')
+        ->and($kept->findings)->toBe(['On your own records, your model was not reliably more accurate than the general model.'])
+        // The newest attempt is the one on offer.
+        ->and($earlier->fresh()->status)->toBe('retired')
+        ->and(ActivityLog::query()->where('event', 'trained')->where('description', 'like', '%kept should the organisation choose it%')->exists())->toBeTrue();
+
+    $this->get(route('analytics.promotion-readiness.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('graduation.stage', 'collecting')
+            ->where('graduation.latest.status', 'ready')
+            ->where('graduation.latest.passed', false));
+});
+
+test('a check that kept no model is recorded with the reason, and the earlier offer stands', function () {
+    actingAsSuperAdmin();
+    fakeGraduationService(verdict: 'failed', kept: false);
+    promotionReadyToTrain();
+    $earlier = localPromotionModel('ready');
+
+    $this->post(route('analytics.promotion-readiness.graduation.train'));
+
+    assertToast('info', 'couldn’t be kept');
     $failed = LocalModel::query()->where('status', 'failed')->sole();
     expect($failed->version)->toBeNull()
-        ->and($failed->findings)->toBe(['On your own records, your model was not reliably more accurate than the general model.'])
-        // The model that passed earlier is still the one on offer.
+        ->and($failed->passed)->toBeFalse()
         ->and($earlier->fresh()->status)->toBe('ready');
 });
 
@@ -418,16 +442,57 @@ test('switching back returns the surface to the general model', function () {
     assertToast('warning', 'already uses the general model');
 });
 
-test('only a model that passed its check can be switched to, on its own surface', function () {
+test('a model that did not pass is switched to only when that is acknowledged, and the log says so', function () {
+    $user = actingAsSuperAdmin();
+    fakeGraduationService();
+    $unchecked = localPromotionModel('ready', ['passed' => false]);
+
+    $this->post(route('analytics.promotion-readiness.graduation.activate', $unchecked));
+    assertToast('warning', 'didn’t pass its check');
+    expect($unchecked->fresh()->status)->toBe('ready');
+
+    $this->post(route('analytics.promotion-readiness.graduation.activate', $unchecked), ['despite_check' => true]);
+    assertToast('success', 'now uses your organisation’s own model');
+    expect($unchecked->fresh())->status->toBe('active')->activated_by->toBe($user->id)
+        ->and(ActivityLog::query()->where('event', 'activated')->where('description', 'like', '%though it did not pass its check%')->exists())->toBeTrue();
+
+    $this->get(route('analytics.promotion-readiness.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('graduation.stage', 'graduated')->where('graduation.active.passed', false));
+});
+
+test('only the model on offer can be switched to, on its own surface', function () {
     actingAsSuperAdmin();
     fakeGraduationService();
     $failed = localPromotionModel('failed');
 
-    $this->post(route('analytics.promotion-readiness.graduation.activate', $failed));
-    assertToast('warning', 'Only a model that passed its check');
+    $this->post(route('analytics.promotion-readiness.graduation.activate', $failed), ['despite_check' => true]);
+    assertToast('warning', 'Only the newest model');
     expect($failed->fresh()->status)->toBe('failed');
 
+    $this->post(route('analytics.promotion-readiness.graduation.activate', localPromotionModel('ready')), ['despite_check' => 'perhaps'])
+        ->assertSessionHasErrors('despite_check');
+
     $this->post(route('analytics.attrition.graduation.activate', localPromotionModel('ready')))->assertNotFound();
+});
+
+test('keeping the model in use sets the new one aside, and is recorded', function () {
+    actingAsSuperAdmin();
+    fakeGraduationService();
+    $offered = localPromotionModel('ready', ['passed' => false]);
+
+    $this->post(route('analytics.promotion-readiness.graduation.dismiss', $offered));
+
+    assertToast('success', 'keeps the general model');
+    expect($offered->fresh()->status)->toBe('retired')
+        ->and(ActivityLog::query()->where('event', 'dismissed')->where('log_name', 'promotion-readiness')
+            ->where('description', 'like', 'Kept the general model%')->exists())->toBeTrue();
+
+    $this->get(route('analytics.promotion-readiness.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('graduation.latest', null));
+
+    $this->post(route('analytics.promotion-readiness.graduation.dismiss', $offered));
+    assertToast('warning', 'Only the model waiting for a decision');
+    $this->post(route('analytics.attrition.graduation.dismiss', localPromotionModel('ready')))->assertNotFound();
 });
 
 test('a missing own model is reported, never quietly replaced by the general one', function () {
@@ -451,6 +516,7 @@ test('graduating a surface needs its manage permission', function () {
 
     $this->post(route('analytics.promotion-readiness.graduation.train'))->assertForbidden();
     $this->post(route('analytics.promotion-readiness.graduation.activate', $model))->assertForbidden();
+    $this->post(route('analytics.promotion-readiness.graduation.dismiss', $model))->assertForbidden();
     $this->delete(route('analytics.promotion-readiness.graduation.revert'))->assertForbidden();
 
     $this->get(route('analytics.promotion-readiness.index'))->assertOk()

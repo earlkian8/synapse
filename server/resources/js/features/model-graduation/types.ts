@@ -1,3 +1,5 @@
+import type { Interpretation } from '@/features/prediction-insights/types';
+
 /**
  * Model graduation (ADR 0046) — how each predictive surface moves from a general
  * model, learned from other workplaces' data, to one trained on the organisation's
@@ -76,12 +78,23 @@ export type Comparison = {
 /** One attempt at training on the organisation's records. */
 export type LocalModelSummary = {
     hashid: string;
+    /**
+     * `failed`: no model could be kept. `ready`: kept, waiting for a decision.
+     * `active`: scoring the page. `retired`: switched away from or set aside.
+     */
     status: 'failed' | 'ready' | 'active' | 'retired';
+    /**
+     * Whether it passed its check. One that did not can still be chosen, knowingly
+     * (ADR 0107).
+     */
+    passed: boolean;
     examples: number;
     counts: Record<string, number>;
     comparison: Comparison | null;
     /** Plain-language sentences, one per check. */
     findings: string[];
+    /** The plain-language reading of the check an AI wrote (ADR 0106), if asked for. */
+    interpretation: Interpretation | null;
     trained_at: string | null;
     trained_by: string | null;
     activated_at: string | null;

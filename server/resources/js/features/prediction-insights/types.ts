@@ -65,7 +65,6 @@ export type PredictionContext = {
         position: string | null;
         department: string | null;
         manager: string | null;
-        profile_url: string | null;
     };
     history: HistoryPoint[];
     signals: Partial<Record<Surface, Signal | null>>;
@@ -110,3 +109,45 @@ export type Verdict = {
     headline: string;
     notes: string[];
 };
+
+/**
+ * One reason in a plain-language reading (ADR 0106). The label, effect, points and
+ * whether a check was met come from the stored result; only `text` was written by
+ * the AI.
+ */
+export type InterpretationReason = {
+    key: string;
+    label: string;
+    /** Which way it moves the score; null when it has no direction (a forecast's facts, a check). */
+    effect: 'raises' | 'lowers' | null;
+    points: number | null;
+    text: string;
+    /** For a model check: whether this part of it was met (null: no bar to meet). */
+    met?: boolean | null;
+};
+
+/** What an LLM wrote about one prediction or one model check, for HR. */
+export type Interpretation = {
+    available: true;
+    headline: string;
+    summary: string;
+    reasons: InterpretationReason[];
+    /** How the rest of the record reads beside it / what switching would mean. */
+    context: string;
+    /**
+     * What HR should confirm before acting (deciding, for a model check). Absent on
+     * readings written before this replaced the AI's notes on its own limits.
+     */
+    checks?: string[];
+    actions: string[];
+    generated_at: string;
+};
+
+/** Why no reading could be written (not configured, busy, unreadable answer). */
+export type InterpretationUnavailable = {
+    available: false;
+    reason: string;
+    retryable: boolean;
+};
+
+export type InterpretationResult = Interpretation | InterpretationUnavailable;

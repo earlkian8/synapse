@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\PromotionReadinessScore;
+use App\Support\Ml\Interpretation\PredictionInterpreter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,6 +31,10 @@ class PromotionReadinessScoreResource extends JsonResource
             'features' => $this->features ?? [],
             'history' => $this->history ?? [],
             'warnings' => $this->warnings ?? [],
+
+            // The plain-language reading an LLM wrote (ADR 0106), when this viewer may
+            // see everything it was written from.
+            'interpretation' => PredictionInterpreter::visible($this->interpretation, $request->user()),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

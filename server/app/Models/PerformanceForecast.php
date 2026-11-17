@@ -42,6 +42,7 @@ class PerformanceForecast extends Model
         'history',
         'warnings',
         'explanation',
+        'interpretation',
     ];
 
     protected function casts(): array
@@ -55,6 +56,7 @@ class PerformanceForecast extends Model
             'history' => 'array',
             'warnings' => 'array',
             'explanation' => 'array',
+            'interpretation' => 'array',
         ];
     }
 

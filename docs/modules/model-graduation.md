@@ -16,7 +16,7 @@ to go: promotions on record — 86 more promotions."). When only a requirement t
 its own is left, such as the prediction service being down, it says "Still needed" and
 names that one instead. The strip is tinted, and its button
 turns primary, only when a decision is waiting (the gate is open, or a trained model
-awaits a switch). The button opens the modal on the tab that decision needs, and the
+awaits a decision — passed or not). The button opens the modal on the tab that decision needs, and the
 requirement count opens it on *Requirements*.
 
 **The modal** is the whole story, one question per tab. The header names the page and
@@ -27,14 +27,16 @@ is waiting to be switched to.
 
 1. **Overview**:
    - **Next step**: the one thing to do now, with a button to the tab that does it. That
-     is reviewing a model that passed, training once the gate opens, or the requirement
+     is reviewing a model that passed, deciding on one that did not (*Review and
+     decide*), training once the gate opens, or the requirement
      furthest to go, with its shortfall, what to do and the projection at the
      organisation's recent pace.
    - **Where this page is**: *General model* → *Collecting your history* → *Your own
      model*, with "You are here". The step into the last carries a lock until graduation.
    - **What is model graduation?**, in four short points: every score comes from a model;
-     graduating means learning from your own records; it only replaces the general model
-     if it proves better; nothing changes until someone switches.
+     graduating means learning from your own records; it is tested before you decide
+     (recommended only if it proves better, but still yours to choose); nothing changes
+     until someone switches.
 2. **Requirements**: one table.
    - A header row per group (*Enough history*, *History that can be trusted*, *The
      system*), then a row per requirement.
@@ -46,10 +48,16 @@ is waiting to be switched to.
      do** (or *This fills on its own* for counts that follow from others), when it might
      be met, **Why this number**, **What is counted**, and records that exist but can't
      count yet.
-3. **Your own model**: the model in use (with *Switch back*), a model that passed its
-   check (with *Switch to this model*), or the last check that failed and why. Each check
-   is shown as a small table of your model, the general model and knowing nothing, with
-   the findings in plain words. Below that is whether training is unlocked.
+3. **Your own model**: the model in use (with *Switch back*); a model that passed its
+   check (with *Switch to this model* and *Keep the general model*); a model that did
+   not pass (with *Keep the general model* and *Use this model anyway* —
+   [ADR 0107](../decisions/0107-a-model-that-did-not-pass-can-still-be-chosen.md)); or a
+   check that kept no model, and why. Each check is shown as a small table of your model,
+   the general model and knowing nothing, with the findings in plain words, and can be
+   explained by AI (*Explain this result*, [ADR 0106](../decisions/0106-ai-explains-each-prediction-in-plain-words.md)):
+   what each part of the check showed — met or not, from the stored comparison — and
+   what switching or keeping the current model would mean. Below that is whether
+   training is unlocked.
 4. **Data used**: one table of every field a score draws on or could, with how many
    active employees' records carry it. It is grouped into *Used in every score*,
    *Kept for your own model* (attrition: signals the general model can't read, stored
@@ -57,7 +65,9 @@ is waiting to be switched to.
    help — [ADR 0102](../decisions/0102-confidential-mood-check-ins-and-what-only-your-records-hold.md)),
    *Recorded, but not used* (each says why) and *Not recorded anywhere*.
 
-Switching either way asks for a confirmation first.
+Every decision asks for a confirmation first. Using a model that did not pass also asks
+the reader to tick "I understand it didn’t pass its check, and I want … to use it
+anyway"; the button stays disabled until they do.
 
 Every number is counted from the organisation's records each time the page loads.
 
@@ -67,7 +77,7 @@ Every number is counted from the organisation's records each time the page loads
 |---|---|---|
 | `provisional` | General model | Nothing the surface's own model would learn from is recorded yet (no completed appraisals; for attrition, no stored risk scores). |
 | `collecting` | Collecting your history | That history has started; the general model still scores. |
-| `graduated` | Your own model | A model trained on the organisation's records passed its check and someone switched to it. |
+| `graduated` | Your own model | Someone switched the surface to a model trained on the organisation's records — one that passed its check, or (knowingly) one that did not. |
 
 ## The lifecycle
 
@@ -77,20 +87,36 @@ Every number is counted from the organisation's records each time the page loads
    out of fold against the general model and against knowing nothing, across 1,000
    resamples of the organisation's people. It must come out ahead in 90 % of them (and a
    forecast's ranges must hold 70–90 % of the ratings that followed).
-   - passed → stored by the service, recorded as `ready` (superseding an older `ready`);
-   - failed → recorded as `failed`, with each finding in plain words; nothing stored.
+   - the service fits the model on every example **whatever the verdict** and stores it
+     with the verdict in its `metrics.json` (ADR 0107); Laravel records it as `ready`
+     with `passed` true or false, superseding an older `ready`;
+   - if no model can be fitted at all (a promotion model whose calibration would run
+     backwards, say), nothing is stored and the attempt is `failed`, with each finding
+     in plain words.
 2. **Switch** (`POST analytics/<surface>/graduation/{localModel}/activate`, after a
-   confirmation) — the `ready` model becomes `active` (the previous one `retired`).
+   confirmation) — the `ready` model becomes `active` (the previous one `retired`). A
+   model that did not pass needs `despite_check: true` (`ActivateLocalModelRequest`);
+   without it the switch is refused with a warning, and the activity log of a switch
+   with it ends "though it did not pass its check".
    From the next run the assessor asks the service for that model, and the run records
    `local_model_id`; the run line reads "scored by your own model".
+   **Keep the current model** (`POST analytics/<surface>/graduation/{localModel}/dismiss`,
+   after a confirmation) — the `ready` model is `retired`: the decision is recorded and
+   the page stops asking. Training again offers a fresh one.
 3. **Switch back** (`DELETE analytics/<surface>/graduation`, after a confirmation) — the
    active model is `retired`; the next run uses the general model. A retired model is
    kept on record (runs it scored still say so) but cannot be switched to again — train
    a new one.
 
-All three routes need the surface's `analytics.<surface>.manage` permission; everyone
-who can view the page sees the strip and the modal. Training, switching and switching back are
+These routes need the surface's `analytics.<surface>.manage` permission; everyone
+who can view the page sees the strip and the modal, and may ask AI to explain a check
+(`POST analytics/<surface>/graduation/{localModel}/interpretation`, view permission and
+the `interpretations` rate limit). Training, switching, keeping and switching back are
 activity-logged under the surface's log name.
+
+The assistant's switch tool offers the newest `ready` model too. It is always held for
+confirmation, and for a model that did not pass the consequence it shows begins "This
+model did NOT pass its check…" — confirming it is choosing it anyway.
 
 If the organisation's model is missing from the inference service, a run fails with a
 message saying so and suggesting switching back — it is never scored by the general

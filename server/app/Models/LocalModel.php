@@ -14,10 +14,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * records ("model graduation", ADR 0046), and — when it passed its check — the
  * model the inference service stored for it.
  *
- * `failed`: the check did not pass and nothing was stored. `ready`: it passed and can
- * be switched to. `active`: it scores the surface (at most one per surface).
- * `retired`: switched away from, kept so historical runs still say whose model
- * scored them. Transitions go through {@see ModelGraduation}.
+ * `status` is the lifecycle. `failed`: no model could be stored. `ready`: a model is
+ * stored and can be switched to. `active`: it scores the surface (at most one per
+ * surface). `retired`: switched away from or set aside, kept so historical runs still
+ * say whose model scored them. Transitions go through {@see ModelGraduation}.
+ *
+ * `passed` is the check's verdict, kept apart from the lifecycle (ADR 0107): a model
+ * that did not pass is stored too, and may be switched to knowingly by someone who
+ * manages the surface. `interpretation` is the plain-language reading of the check
+ * an LLM wrote for HR (ADR 0106).
  */
 class LocalModel extends Model
 {
@@ -32,11 +37,13 @@ class LocalModel extends Model
         'organization_id',
         'model',
         'status',
+        'passed',
         'version',
         'examples',
         'counts',
         'comparison',
         'findings',
+        'interpretation',
         'trained_by',
         'activated_by',
         'activated_at',
@@ -46,10 +53,12 @@ class LocalModel extends Model
     protected function casts(): array
     {
         return [
+            'passed' => 'boolean',
             'examples' => 'integer',
             'counts' => 'array',
             'comparison' => 'array',
             'findings' => 'array',
+            'interpretation' => 'array',
             'activated_at' => 'datetime',
             'retired_at' => 'datetime',
         ];

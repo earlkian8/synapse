@@ -203,7 +203,7 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
             ['name' => $names['run'], 'description' => "Run a new {$noun} for every active employee.", 'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass]],
             ['name' => $names['delete'], 'description' => "Delete a past {$noun}.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['run' => ['type' => 'STRING', 'description' => '"latest", "previous", or the date it ran (YYYY-MM-DD).']], 'required' => ['run']]],
             ['name' => $names['train'], 'description' => "Train the organisation's own model on its records, once every requirement is met. It is checked, not switched to.", 'parameters' => ['type' => 'OBJECT', 'properties' => new \stdClass]],
-            ['name' => $names['switch'], 'description' => "Switch to the organisation's own model (the newest that passed its check) or back to the general one.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['to' => ['type' => 'STRING', 'enum' => ['own', 'general']]], 'required' => ['to']]],
+            ['name' => $names['switch'], 'description' => "Switch to the organisation's own model (the newest trained; one that did not pass its check needs the user to confirm they want it anyway) or back to the general one.", 'parameters' => ['type' => 'OBJECT', 'properties' => ['to' => ['type' => 'STRING', 'enum' => ['own', 'general']]], 'required' => ['to']]],
         ]);
     }
 
@@ -248,7 +248,8 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
                 $candidate = $this->candidate();
 
                 return $candidate === null ? null
-                    : "From the next {$this->noun()}, scores would come from your organisation's own model, trained on {$candidate->examples} of your records on {$this->date($candidate)}. Past {$this->noun()}s keep the model that scored them.";
+                    : ($candidate->passed ? '' : 'This model did NOT pass its check: on your own people it was not reliably more accurate than the general model. Confirming means you want it anyway. ')
+                    ."From the next {$this->noun()}, scores would come from your organisation's own model, trained on {$candidate->examples} of your records on {$this->date($candidate)}. Past {$this->noun()}s keep the model that scored them.";
             }
 
             return "From the next {$this->noun()}, scores would come from the general model again. Your own model is kept, and can be switched back to only by training again.";
@@ -417,7 +418,11 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
             meta: [
                 $check['active'] !== null ? 'In use since '.OrganizationClock::local(Carbon::parse((string) $check['active']['activated_at']))->format('M j, Y').", trained on {$check['active']['examples']} of your records" : null,
                 ...$unmet->take(5)->map(fn (array $r): string => 'Still needed — '.UntrustedText::clean($r['label'], 120).': '.$this->progress($r))->all(),
-                $check['latest'] !== null ? 'Latest training: '.($check['latest']['status'] === 'ready' ? 'passed its check — ready to switch to' : 'did not pass its check').' ('.$check['latest']['examples'].' records)' : null,
+                $check['latest'] !== null ? 'Latest training: '.match (true) {
+                    $check['latest']['status'] === 'ready' && $check['latest']['passed'] => 'passed its check — ready to switch to',
+                    $check['latest']['status'] === 'ready' => 'did not pass its check — kept, and can still be switched to if you want it anyway',
+                    default => 'did not pass its check',
+                }.' ('.$check['latest']['examples'].' records)' : null,
                 $ready ? null : 'The prediction service is not reachable right now: no new run or training can start.',
             ],
         );
@@ -476,9 +481,11 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
             return ToolResult::error('Trained your own model', $e->getMessage());
         }
 
-        return $attempt->status === 'ready'
-            ? ToolResult::ok('Trained your own model', "It passed its check on {$attempt->examples} of your records. Nothing has switched yet — review it on the page, or ask to switch to it.")
-            : ToolResult::ok('Trained your own model', "It did not pass its check, so nothing has changed. The {$this->subject()} page says why.");
+        return match (true) {
+            $attempt->passed => ToolResult::ok('Trained your own model', "It passed its check on {$attempt->examples} of your records. Nothing has switched yet — review it on the page, or ask to switch to it."),
+            $attempt->status === 'ready' => ToolResult::ok('Trained your own model', "It did not pass its check, so nothing has changed. It is kept: the {$this->subject()} page says why it fell short, and you can still switch to it if you want it anyway."),
+            default => ToolResult::ok('Trained your own model', "It did not pass its check, so nothing has changed. The {$this->subject()} page says why."),
+        };
     }
 
     /**
@@ -491,10 +498,12 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
                 $candidate = $this->candidate();
 
                 if ($candidate === null) {
-                    return ToolResult::error('Switched the model', 'There is no trained model that passed its check to switch to. Train one first.');
+                    return ToolResult::error('Switched the model', 'There is no trained model waiting to be switched to. Train one first.');
                 }
 
-                $this->graduation->activate($candidate, $user, self::CHANNEL);
+                // A switch is held for the user's confirmation, and its consequence says
+                // plainly when the model did not pass: confirming it is choosing it anyway.
+                $this->graduation->activate($candidate, $user, self::CHANNEL, despiteCheck: true);
 
                 return ToolResult::ok("Switched to your organisation's own model", "Run a new {$this->noun()} to score everyone with it.");
             }
@@ -653,7 +662,7 @@ abstract class PredictiveModule extends Module implements ContributesTopicContex
         };
     }
 
-    /** The newest trained model that passed its check and is not in use. */
+    /** The newest trained model on offer (passed or not) and not in use. */
     private function candidate(): ?LocalModel
     {
         return LocalModel::query()->forModel($this->surface())->where('status', 'ready')->latest('id')->first();

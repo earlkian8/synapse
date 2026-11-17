@@ -38,6 +38,9 @@ Click someone to open their breakdown. It has four tabs:
 - **Next appraisal** — their readiness for every result the next appraisal could give, with the range their performance forecast expects.
 - **Record** — their readiness in every assessment, appraisals by section, and the rest of their record your role lets you see.
 
+> [!NOTE]
+> **In plain words.** Under the read on the **Summary** tab, **Explain this score** asks AI to read the breakdown and the parts of their record you can see, and explain why the system scored them this way: the main reasons with the points each adds or takes away, how the rest of their record reads beside it, what to confirm before acting, and what to do. It never sees their name, their pay or what kind of leave they took. It is saved, so the next look is instant, and **Write again** refreshes it. AI can make mistakes, so check important details before acting.
+
 ## How much to trust it
 
 Until your company has enough history of its own, the model compares your people with a large reference workforce. Your company's own model learns who actually gets promoted here — see [Training a model on your own records](/help/analytics/model-graduation).

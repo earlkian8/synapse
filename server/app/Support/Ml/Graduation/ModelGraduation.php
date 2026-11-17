@@ -22,13 +22,15 @@ use Illuminate\Support\Facades\DB;
  *  - **collecting** — still the general model, while the organisation's own history
  *    accumulates towards the requirements;
  *  - **graduated** — scored by a model trained on the organisation's own records,
- *    which passed its check and was switched to by someone allowed to manage the
- *    surface.
+ *    switched to by someone allowed to manage the surface.
  *
  * Training is allowed only when every requirement is met, and what the requirements
  * count is exactly what is sent ({@see TrainingSet}). The inference service fits the
  * model, checks it against the general model on the organisation's own people and
- * stores it only when it passes; nothing changes for anyone until someone switches.
+ * stores it with the verdict. A model that passed is recommended; one that did not is
+ * still the organisation's to choose (ADR 0107) — knowingly, with the findings in
+ * front of them, or set aside to keep the model in use. Nothing changes for anyone
+ * until someone decides.
  */
 class ModelGraduation
 {
@@ -91,8 +93,9 @@ class ModelGraduation
 
     /**
      * Train `$model` on the organisation's own records and record the attempt. A
-     * model that passes its check is stored as `ready` (superseding any earlier one
-     * not in use); one that fails is recorded with the reason.
+     * stored model is `ready` whether or not it passed its check (`passed` says
+     * which), superseding any earlier one not in use; an attempt the service could
+     * store no model for is `failed`, with the reason.
      *
      * @throws GraduationException when a requirement is unmet.
      * @throws MlException when the inference service cannot train.
@@ -108,19 +111,21 @@ class ModelGraduation
         }
 
         $response = $this->ml->train($model, LocalModel::tenantKey($this->tenancy->id()), $set->rows);
-        $passed = ($response['verdict'] ?? null) === 'passed' && ! empty($response['version']);
+        $passed = ($response['verdict'] ?? null) === 'passed';
+        $stored = filled($response['version'] ?? null);
 
-        $attempt = DB::transaction(function () use ($model, $response, $passed, $set, $actor): LocalModel {
-            if ($passed) {
-                // One model is offered at a time: the newest that passed.
+        $attempt = DB::transaction(function () use ($model, $response, $passed, $stored, $set, $actor): LocalModel {
+            if ($stored) {
+                // One model is offered at a time: the newest the service stored.
                 LocalModel::query()->forModel($model)->where('status', 'ready')
                     ->update(['status' => 'retired', 'retired_at' => now()]);
             }
 
             return LocalModel::create([
                 'model' => $model,
-                'status' => $passed ? 'ready' : 'failed',
-                'version' => $passed ? $response['version'] : null,
+                'status' => $stored ? 'ready' : 'failed',
+                'passed' => $passed && $stored,
+                'version' => $stored ? $response['version'] : null,
                 'examples' => count($set->rows),
                 'counts' => $response['counts'] ?? null,
                 'comparison' => $response['comparison'] ?? null,
@@ -134,7 +139,11 @@ class ModelGraduation
         ActivityLogger::log(
             event: 'trained',
             description: "Trained a {$title} model on the organisation's own records ({$attempt->examples} examples) — "
-                .($passed ? 'it passed its check' : 'it did not pass its check').$channel,
+                .match (true) {
+                    $attempt->passed => 'it passed its check',
+                    $stored => 'it did not pass its check, and is kept should the organisation choose it',
+                    default => 'it did not pass its check',
+                }.$channel,
             subject: $attempt,
             logName: self::SURFACES[$model]['log'],
         );
@@ -146,14 +155,22 @@ class ModelGraduation
      * Switch the surface to `$candidate`, retiring whichever of the organisation's
      * models it replaces. From the next run on, the surface is scored by it.
      *
-     * @throws GraduationException when it did not pass its check or is already in use.
+     * A model that did not pass its check is switched to only when `$despiteCheck`
+     * says the person deciding saw that and chose it anyway (ADR 0107).
+     *
+     * @throws GraduationException when it is not the model on offer, is already in
+     *                             use, or did not pass and that was not acknowledged.
      */
-    public function activate(LocalModel $candidate, ?User $actor, string $channel = ''): void
+    public function activate(LocalModel $candidate, ?User $actor, string $channel = '', bool $despiteCheck = false): void
     {
         if ($candidate->status !== 'ready') {
             throw new GraduationException($candidate->status === 'active'
                 ? 'This model is already in use.'
-                : 'Only a model that passed its check, and is the newest to have done so, can be switched to.');
+                : 'Only the newest model trained on your records can be switched to.');
+        }
+
+        if (! $candidate->passed && ! $despiteCheck) {
+            throw new GraduationException('This model didn’t pass its check. Switch to it only after confirming you want it anyway.');
         }
 
         DB::transaction(function () use ($candidate, $actor): void {
@@ -165,7 +182,34 @@ class ModelGraduation
 
         ActivityLogger::log(
             event: 'activated',
-            description: 'Switched '.self::SURFACES[$candidate->model]['title']." to the organisation's own model{$channel}",
+            description: 'Switched '.self::SURFACES[$candidate->model]['title']." to the organisation's own model".$channel
+                .($candidate->passed ? '' : ', though it did not pass its check'),
+            subject: $candidate,
+            logName: self::SURFACES[$candidate->model]['log'],
+        );
+    }
+
+    /**
+     * Keep the model in use and set `$candidate` aside: the decision on a model that
+     * is on offer, recorded, so the page stops asking. It is retired, not deleted —
+     * training again offers a fresh one.
+     *
+     * @throws GraduationException when it is not the model on offer.
+     */
+    public function dismiss(LocalModel $candidate, ?User $actor, string $channel = ''): void
+    {
+        if ($candidate->status !== 'ready') {
+            throw new GraduationException('Only the model waiting for a decision can be set aside.');
+        }
+
+        $candidate->update(['status' => 'retired', 'retired_at' => now()]);
+
+        $kept = LocalModel::activeFor($candidate->model) ? "the organisation's own model in use" : 'the general model';
+
+        ActivityLogger::log(
+            event: 'dismissed',
+            description: 'Kept '.$kept.' for '.self::SURFACES[$candidate->model]['title']
+                .' and set aside the newly trained model'.$channel.($candidate->passed ? '' : ', which did not pass its check'),
             subject: $candidate,
             logName: self::SURFACES[$candidate->model]['log'],
         );
@@ -242,10 +286,14 @@ class ModelGraduation
         return [
             'hashid' => $model->hashid,
             'status' => $model->status,
+            // Whether it passed its check: a model that did not can still be chosen.
+            'passed' => (bool) $model->passed,
             'examples' => $model->examples,
             'counts' => $model->counts ?? [],
             'comparison' => $model->comparison,
             'findings' => $model->findings ?? [],
+            // The plain-language reading of the check (ADR 0106), when one was asked for.
+            'interpretation' => $model->interpretation,
             'trained_at' => $model->created_at?->toIso8601String(),
             'trained_by' => $model->trainer?->full_name,
             'activated_at' => $model->activated_at?->toIso8601String(),

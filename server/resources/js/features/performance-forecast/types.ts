@@ -1,5 +1,6 @@
 import type { UnassessedEmployee } from '@/features/model-graduation/components/unassessed-list';
 import type { Graduation } from '@/features/model-graduation/types';
+import type { Interpretation } from '@/features/prediction-insights/types';
 
 export type ForecastBand = 'below' | 'on_track' | 'exceeds';
 
@@ -36,6 +37,8 @@ export type ForecastScore = {
     warnings: string[];
     /** The chance the next rating lands in each band (null on runs before ADR 0098). */
     explanation: { chances: Record<ForecastBand, number> } | null;
+    /** The plain-language reading an AI wrote of it (ADR 0106), if one was asked for. */
+    interpretation: Interpretation | null;
     employee: ForecastEmployee | null;
 };
 

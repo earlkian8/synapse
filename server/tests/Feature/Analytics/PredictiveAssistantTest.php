@@ -236,15 +236,16 @@ test('a run is deleted by which one it is, and the card says what the page would
         ->and(ActivityLog::query()->where('description', 'Deleted an attrition-risk assessment run via assistant')->exists())->toBeTrue();
 });
 
-test('the model is switched only to one that passed its check, and back', function () {
+test('the model is switched to the one on offer, and back', function () {
     $user = actingAsSuperAdmin();
     $module = app(PromotionReadinessModule::class);
 
     $none = readinessAgent($user, 'switch_promotion_model', ['to' => 'own']);
-    $candidate = LocalModel::create(['model' => 'promotion', 'status' => 'ready', 'version' => 'v1', 'examples' => 240, 'counts' => ['promoted' => 30, 'not_promoted' => 210]]);
+    $candidate = LocalModel::create(['model' => 'promotion', 'status' => 'ready', 'passed' => true, 'version' => 'v1', 'examples' => 240, 'counts' => ['promoted' => 30, 'not_promoted' => 210]]);
 
-    expect($none->detail)->toContain('no trained model that passed its check')
-        ->and($module->consequence($user, 'switch_promotion_model', ['to' => 'own']))->toContain("your organisation's own model, trained on 240 of your records");
+    expect($none->detail)->toContain('no trained model waiting to be switched to')
+        ->and($module->consequence($user, 'switch_promotion_model', ['to' => 'own']))->toContain("your organisation's own model, trained on 240 of your records")
+        ->not->toContain('did NOT pass');
 
     $switched = readinessAgent($user, 'switch_promotion_model', ['to' => 'own']);
     $back = readinessAgent($user, 'switch_promotion_model', ['to' => 'general']);
@@ -255,6 +256,22 @@ test('the model is switched only to one that passed its check, and back', functi
         ->and($back->label)->toBe('Switched back to the general model')
         ->and($again->detail)->toBe('This page already uses the general model.')
         ->and(ActivityLog::query()->where('description', "Switched Promotion Readiness to the organisation's own model via assistant")->exists())->toBeTrue();
+});
+
+test('a model that did not pass is switched to only through a confirmation that says so', function () {
+    $user = actingAsSuperAdmin();
+    $module = app(PromotionReadinessModule::class);
+    $candidate = LocalModel::create(['model' => 'promotion', 'status' => 'ready', 'passed' => false, 'version' => 'v2', 'examples' => 240]);
+
+    // The switch is held for confirmation, and what is confirmed says it plainly.
+    expect($module->requiresConfirmation('switch_promotion_model'))->toBeTrue()
+        ->and($module->consequence($user, 'switch_promotion_model', ['to' => 'own']))->toStartWith('This model did NOT pass its check');
+
+    $switched = readinessAgent($user, 'switch_promotion_model', ['to' => 'own']);
+
+    expect($switched->failed())->toBeFalse()
+        ->and($candidate->fresh()->status)->toBe('active')
+        ->and(ActivityLog::query()->where('description', "Switched Promotion Readiness to the organisation's own model via assistant, though it did not pass its check")->exists())->toBeTrue();
 });
 
 test('the model status says what training still needs, and when the service is down', function () {

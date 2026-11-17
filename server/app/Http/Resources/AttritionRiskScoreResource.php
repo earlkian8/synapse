@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\AttritionRiskScore;
+use App\Support\Ml\Interpretation\PredictionInterpreter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,6 +27,10 @@ class AttritionRiskScoreResource extends JsonResource
             // Why (ADR 0098): the typical record's score the factors add up from.
             'explanation' => $this->explanation,
             'features' => $this->features ?? [],
+
+            // The plain-language reading an LLM wrote (ADR 0106), when this viewer may
+            // see everything it was written from.
+            'interpretation' => PredictionInterpreter::visible($this->interpretation, $request->user()),
 
             'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,

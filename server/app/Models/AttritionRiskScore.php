@@ -30,6 +30,7 @@ class AttritionRiskScore extends Model
         'confidence',
         'factors',
         'explanation',
+        'interpretation',
         'features',
     ];
 
@@ -41,6 +42,7 @@ class AttritionRiskScore extends Model
             'confidence' => 'decimal:3',
             'factors' => 'array',
             'explanation' => 'array',
+            'interpretation' => 'array',
             'features' => 'array',
         ];
     }

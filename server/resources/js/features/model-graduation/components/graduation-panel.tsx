@@ -1,11 +1,14 @@
 import { ArrowRight, GraduationCap } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { MODEL_COPY } from '../constants';
-import type { Graduation } from '../types';
+import type { Graduation, ModelKey } from '../types';
 import { useGraduation } from '../use-graduation';
+import type { PendingSwitch } from '../use-graduation';
 import { GraduationDialog, landingTab } from './graduation-dialog';
 import type { GraduationTab, GraduationView } from './graduation-dialog';
 import {
@@ -99,38 +102,124 @@ export function GraduationPanel({
                 training={actions.training}
                 onTrain={actions.train}
                 onActivate={actions.askToActivate}
+                onDismiss={actions.askToDismiss}
                 onRevert={actions.askToRevert}
             />
 
             <ConfirmDialog
                 open={actions.confirming}
                 onOpenChange={(isOpen) => !isOpen && actions.cancel()}
-                title={
-                    actions.pending?.kind === 'revert'
-                        ? 'Switch back to the general model?'
-                        : 'Switch to your own model?'
-                }
-                description={
-                    actions.pending?.kind === 'revert'
-                        ? `From the next run, the ${copy.scores} on this page come from the general model again. Your model stays on record, but using your own history again means training a new one.`
-                        : `From the next run, the ${copy.scores} on this page come from the model trained on your records. Earlier runs keep saying which model scored them, and you can switch back at any time.`
-                }
-                confirmLabel={
-                    actions.pending?.kind === 'revert'
-                        ? 'Switch back'
-                        : 'Switch to our model'
-                }
+                {...confirmation(
+                    actions.pending,
+                    graduation,
+                    copy.scores,
+                    <Acknowledgement
+                        model={graduation.model}
+                        checked={actions.acknowledged}
+                        onChange={actions.setAcknowledged}
+                    />,
+                )}
                 processing={actions.switching}
+                confirmDisabled={!actions.canConfirm}
                 onConfirm={actions.confirm}
             />
         </>
     );
 }
 
+/**
+ * The confirmation for each decision, in the reader's terms. Using a model that did
+ * not pass its check says so plainly and asks for an acknowledgement (ADR 0107).
+ */
+function confirmation(
+    pending: PendingSwitch,
+    graduation: Graduation,
+    scores: string,
+    acknowledgement: ReactNode,
+): { title: string; description: ReactNode; confirmLabel: string } {
+    const current = graduation.active
+        ? 'your model in use'
+        : 'the general model';
+
+    if (pending?.kind === 'revert') {
+        return {
+            title: 'Switch back to the general model?',
+            description: `From the next run, the ${scores} on this page come from the general model again. Your model stays on record, but using your own history again means training a new one.`,
+            confirmLabel: 'Switch back',
+        };
+    }
+
+    if (pending?.kind === 'dismiss') {
+        return {
+            title: `Keep ${current}?`,
+            description: `Nothing changes: the ${scores} on this page keep coming from ${current}. The new model is set aside; to try again, train a new one once more history is recorded.`,
+            confirmLabel: `Keep ${current}`,
+        };
+    }
+
+    if (pending?.kind === 'activate' && !pending.passed) {
+        return {
+            title: 'Use a model that didn’t pass its check?',
+            description: (
+                <div className="flex flex-col gap-3">
+                    <p>
+                        On your own people, this model wasn’t reliably more
+                        accurate than {current}. Its {scores} can look just as
+                        confident while being less reliable. From the next run,
+                        they would come from it. Earlier runs keep saying which
+                        model scored them, and you can switch back at any time.
+                    </p>
+                    {acknowledgement}
+                </div>
+            ),
+            confirmLabel: 'Use it anyway',
+        };
+    }
+
+    return {
+        title: 'Switch to your own model?',
+        description: `From the next run, the ${scores} on this page come from the model trained on your records. Earlier runs keep saying which model scored them, and you can switch back at any time.`,
+        confirmLabel: 'Switch to our model',
+    };
+}
+
+/** The tick that switching to a model that did not pass its check needs. */
+function Acknowledgement({
+    model,
+    checked,
+    onChange,
+}: {
+    model: ModelKey;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}) {
+    const id = useId();
+
+    return (
+        <label
+            htmlFor={id}
+            className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/6 px-3 py-2.5 text-sm text-foreground"
+        >
+            <Checkbox
+                id={id}
+                checked={checked}
+                onCheckedChange={(value) => onChange(value === true)}
+                className="mt-0.5"
+            />
+            <span>
+                I understand it didn’t pass its check, and I want{' '}
+                {MODEL_COPY[model].page} to use it anyway.
+            </span>
+        </label>
+    );
+}
+
 /** What the strip's button offers, in the reader's terms. */
 function stripAction(graduation: Graduation, canManage: boolean): string {
     if (graduation.latest?.status === 'ready') {
-        return 'Review the new model';
+        return graduation.latest.passed
+            ? 'Review the new model'
+            : 'Review and decide';
     }
 
     if (graduation.stage === 'graduated') {

@@ -17,6 +17,8 @@ type Props = {
     confirmLabel: string;
     destructive?: boolean;
     processing?: boolean;
+    /** Holds the confirm button back until something in the description is done. */
+    confirmDisabled?: boolean;
     onConfirm: () => void;
 };
 
@@ -28,6 +30,7 @@ export function ConfirmDialog({
     confirmLabel,
     destructive = false,
     processing = false,
+    confirmDisabled = false,
     onConfirm,
 }: Props) {
     return (
@@ -52,7 +55,7 @@ export function ConfirmDialog({
                     <Button
                         variant={destructive ? 'destructive' : 'default'}
                         onClick={onConfirm}
-                        disabled={processing}
+                        disabled={processing || confirmDisabled}
                     >
                         {processing && <Spinner />}
                         {confirmLabel}

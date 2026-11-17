@@ -194,7 +194,9 @@ class TrainRequest(BaseModel):
 class TrainResponse(BaseModel):
     model: str
     tenant: str
-    # "passed": a model was fitted and stored under ``version``; "failed": nothing stored.
+    # Whether it passed its check. Either way a model that could be fitted is stored
+    # under ``version`` (null when none could be): one that "failed" is offered with
+    # its findings, for the organisation to choose or not.
     verdict: str
     version: str | None = None
     # Plain-language sentences, one per check, written for the HR reader.

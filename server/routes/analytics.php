@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Analytics\AttritionRiskController;
 use App\Http\Controllers\Analytics\AttritionRiskRunController;
+use App\Http\Controllers\Analytics\InterpretationController;
 use App\Http\Controllers\Analytics\ModelGraduationController;
 use App\Http\Controllers\Analytics\PerformanceForecastController;
 use App\Http\Controllers\Analytics\PerformanceForecastRunController;
@@ -21,13 +22,20 @@ use Illuminate\Support\Facades\Route;
 | All three surfaces embed their own model-graduation panel (ADR 0046): once the
 | organisation's records meet a surface's requirements, `graduation` trains that
 | surface's model on them and checks it, `graduation/{localModel}/activate`
-| switches the surface to a model that passed, and `DELETE graduation` switches it
-| back to the general model. Each needs the surface's `*.manage` permission. See
+| switches the surface to the model on offer (one that did not pass its check only
+| when that is acknowledged — ADR 0107), `graduation/{localModel}/dismiss` keeps the
+| model in use and sets the new one aside, and `DELETE graduation` switches back to
+| the general model. Each needs the surface's `*.manage` permission. See
 | docs/decisions/0046-model-graduation-trains-on-the-organisations-own-records.md.
 |
 | `people/{employee}` answers each surface's breakdown dialog with what to weigh
 | beside one person's prediction — their trend, their other predictions and their
 | record (ADR 0099). It needs the surface's `*.view` permission.
+|
+| `scores/{score}/interpretation` and `graduation/{localModel}/interpretation` ask
+| an LLM to explain, in plain words, why the system scored one person as it did and
+| what a model check means (ADR 0106). They need the surface's `*.view` permission
+| and the `interpretations` rate limit, since each one spends AI quota.
 */
 Route::middleware(['auth', 'verified'])
     ->prefix('analytics')
@@ -43,10 +51,13 @@ Route::middleware(['auth', 'verified'])
                 Route::prefix('graduation')->name('graduation.')->middleware('can:analytics.attrition.manage')->group(function () {
                     Route::post('/', [ModelGraduationController::class, 'train'])->defaults('surface', 'attrition')->name('train');
                     Route::post('{localModel}/activate', [ModelGraduationController::class, 'activate'])->defaults('surface', 'attrition')->name('activate');
+                    Route::post('{localModel}/dismiss', [ModelGraduationController::class, 'dismiss'])->defaults('surface', 'attrition')->name('dismiss');
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'attrition')->name('revert');
                 });
 
                 Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.attrition.view')->defaults('surface', 'attrition')->name('people.show');
+                Route::post('scores/{score}/interpretation', [InterpretationController::class, 'score'])->whereNumber('score')->middleware(['can:analytics.attrition.view', 'throttle:interpretations'])->defaults('surface', 'attrition')->name('scores.interpretation');
+                Route::post('graduation/{localModel}/interpretation', [InterpretationController::class, 'model'])->middleware(['can:analytics.attrition.view', 'throttle:interpretations'])->defaults('surface', 'attrition')->name('graduation.interpretation');
                 Route::delete('{run}', [AttritionRiskRunController::class, 'destroy'])->middleware('can:analytics.attrition.manage')->name('destroy');
             });
 
@@ -60,10 +71,13 @@ Route::middleware(['auth', 'verified'])
                 Route::prefix('graduation')->name('graduation.')->middleware('can:analytics.promotion.manage')->group(function () {
                     Route::post('/', [ModelGraduationController::class, 'train'])->defaults('surface', 'promotion')->name('train');
                     Route::post('{localModel}/activate', [ModelGraduationController::class, 'activate'])->defaults('surface', 'promotion')->name('activate');
+                    Route::post('{localModel}/dismiss', [ModelGraduationController::class, 'dismiss'])->defaults('surface', 'promotion')->name('dismiss');
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'promotion')->name('revert');
                 });
 
                 Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.promotion.view')->defaults('surface', 'promotion')->name('people.show');
+                Route::post('scores/{score}/interpretation', [InterpretationController::class, 'score'])->whereNumber('score')->middleware(['can:analytics.promotion.view', 'throttle:interpretations'])->defaults('surface', 'promotion')->name('scores.interpretation');
+                Route::post('graduation/{localModel}/interpretation', [InterpretationController::class, 'model'])->middleware(['can:analytics.promotion.view', 'throttle:interpretations'])->defaults('surface', 'promotion')->name('graduation.interpretation');
                 Route::delete('{run}', [PromotionReadinessRunController::class, 'destroy'])->middleware('can:analytics.promotion.manage')->name('destroy');
             });
 
@@ -77,10 +91,13 @@ Route::middleware(['auth', 'verified'])
                 Route::prefix('graduation')->name('graduation.')->middleware('can:analytics.performance.manage')->group(function () {
                     Route::post('/', [ModelGraduationController::class, 'train'])->defaults('surface', 'performance')->name('train');
                     Route::post('{localModel}/activate', [ModelGraduationController::class, 'activate'])->defaults('surface', 'performance')->name('activate');
+                    Route::post('{localModel}/dismiss', [ModelGraduationController::class, 'dismiss'])->defaults('surface', 'performance')->name('dismiss');
                     Route::delete('/', [ModelGraduationController::class, 'revert'])->defaults('surface', 'performance')->name('revert');
                 });
 
                 Route::get('people/{employee}', PredictionContextController::class)->middleware('can:analytics.performance.view')->defaults('surface', 'performance')->name('people.show');
+                Route::post('scores/{score}/interpretation', [InterpretationController::class, 'score'])->whereNumber('score')->middleware(['can:analytics.performance.view', 'throttle:interpretations'])->defaults('surface', 'performance')->name('scores.interpretation');
+                Route::post('graduation/{localModel}/interpretation', [InterpretationController::class, 'model'])->middleware(['can:analytics.performance.view', 'throttle:interpretations'])->defaults('surface', 'performance')->name('graduation.interpretation');
                 Route::delete('{run}', [PerformanceForecastRunController::class, 'destroy'])->middleware('can:analytics.performance.manage')->name('destroy');
             });
     });

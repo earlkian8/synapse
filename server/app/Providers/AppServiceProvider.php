@@ -218,6 +218,14 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('assistant-actions', fn (Request $request) => Limit::perMinute(30)
             ->by('assistant-actions:'.$request->user()?->id));
 
+        // A plain-language reading of a prediction or a model check (ADR 0106) is
+        // one model call each: enough to read a whole team's breakdowns, too few for
+        // a retry loop to burn the organisation's quota.
+        RateLimiter::for('interpretations', fn (Request $request) => [
+            Limit::perMinute(10)->by('interpretations-min:'.$request->user()?->id),
+            Limit::perDay(150)->by('interpretations-day:'.$request->user()?->id),
+        ]);
+
         // Global search (ADR 0069): each keystroke fans out into a dozen small
         // queries. The palette debounces, so a person typing stays far below this.
         RateLimiter::for('search', fn (Request $request) => Limit::perMinute(90)

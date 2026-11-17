@@ -1530,6 +1530,7 @@ erDiagram
         string basis "two_appraisals|latest_appraisal"
         json factors
         json explanation "baseline, next-appraisal outlook"
+        json interpretation "AI reading, on request"
         json features
         json history
         json warnings
@@ -1564,6 +1565,7 @@ erDiagram
         json history
         json warnings
         json explanation "chance of each band"
+        json interpretation "AI reading, on request"
     }
     ATTRITION_RISK_RUN {
         bigint id PK
@@ -1590,17 +1592,20 @@ erDiagram
         decimal confidence "how much of the record was real"
         json factors
         json explanation "typical employee's score, what-if scenarios"
+        json interpretation "AI reading, on request"
         json features
     }
     LOCAL_MODEL {
         bigint id PK
         string model "promotion|performance|attrition"
         string status "failed|ready|active|retired"
+        boolean passed "the check's verdict"
         string version
         int examples
         json counts
         json comparison "against the general model"
         json findings
+        json interpretation "AI reading, on request"
         bigint trained_by FK "users"
         bigint activated_by FK "users"
         datetime activated_at

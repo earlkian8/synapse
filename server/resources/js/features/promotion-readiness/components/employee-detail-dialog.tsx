@@ -1,5 +1,7 @@
 import { CircleAlert, Layers } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { scoreInterpretationUrl } from '@/features/prediction-insights/api';
+import { AiInterpretation } from '@/features/prediction-insights/components/ai-interpretation';
 import {
     BreakdownDialog,
     BreakdownSection,
@@ -89,7 +91,6 @@ export function EmployeeDetailDialog({
         <BreakdownDialog
             person={employee}
             description={`Promotion-readiness breakdown for ${employee?.full_name ?? 'this employee'}`}
-            profileUrl={context?.employment.profile_url}
             onOpenChange={onOpenChange}
             tabs={
                 score && employee
@@ -196,6 +197,16 @@ function Summary({
             ) : (
                 <Skeleton className="h-28 w-full rounded-xl" />
             )}
+
+            <AiInterpretation
+                key={score.id}
+                url={scoreInterpretationUrl('promotion', score.id)}
+                saved={score.interpretation}
+                intro="Have AI read this score’s breakdown and the record you can see, and explain in plain words why the system scored them this way. It never sees their name or pay."
+                action="Explain this score"
+                pending="Reading the breakdown and the record…"
+                upIsGood={true}
+            />
 
             {(!settled ||
                 promotionSteps(score, run, context, employee.id).length >

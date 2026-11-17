@@ -45,6 +45,20 @@ final class PredictionContext
         'performance' => 'analytics.performance.view',
     ];
 
+    /**
+     * The record blocks, each with the permission of the module it comes from. A
+     * viewer without one gets null for that block.
+     */
+    public const RECORD_GATES = [
+        'offboarding' => 'offboarding.view',
+        'attendance' => 'attendance.view',
+        'leave' => 'leave.view',
+        'appraisals' => 'performance.view',
+        'promotions' => 'employees.view',
+        'training' => 'training.view',
+        'awards' => 'awards.view',
+    ];
+
     /** How many past runs the trend shows. */
     private const HISTORY_RUNS = 12;
 
@@ -64,27 +78,48 @@ final class PredictionContext
         $today = CarbonImmutable::today();
 
         return [
-            'employment' => $this->employment($employee, $viewer, $today),
+            'employment' => $this->employment($employee, $today),
             'history' => $this->history($employee, $surface),
             'signals' => collect(self::SURFACES)
                 ->except($surface)
                 ->filter(fn (string $permission): bool => $viewer->can($permission))
                 ->map(fn (string $permission, string $other): ?array => $this->signal($employee, $other))
                 ->all(),
-            'offboarding' => $viewer->can('offboarding.view') ? $this->offboarding($employee) : null,
-            'attendance' => $viewer->can('attendance.view') ? $this->attendance($employee, $today) : null,
-            'leave' => $viewer->can('leave.view') ? $this->leave($employee, $today) : null,
-            'appraisals' => $viewer->can('performance.view') ? $this->appraisals($employee) : null,
-            'promotions' => $viewer->can('employees.view') ? $this->promotions($employee) : null,
-            'training' => $viewer->can('training.view') ? $this->training($employee, $today) : null,
-            'awards' => $viewer->can('awards.view') ? $this->awards($employee, $today) : null,
+            ...collect(self::RECORD_GATES)->map(fn (string $permission, string $block): mixed => $viewer->can($permission)
+                ? match ($block) {
+                    'offboarding' => $this->offboarding($employee),
+                    'attendance' => $this->attendance($employee, $today),
+                    'leave' => $this->leave($employee, $today),
+                    'appraisals' => $this->appraisals($employee),
+                    'promotions' => $this->promotions($employee),
+                    'training' => $this->training($employee, $today),
+                    'awards' => $this->awards($employee, $today),
+                }
+                : null)->all(),
         ];
+    }
+
+    /**
+     * The permissions behind what `for()` gives `$viewer` on `$surface` beyond the
+     * surface itself: the record blocks and the other surfaces they may see. Whatever
+     * was built from that context is for viewers who hold every one of them.
+     *
+     * @return list<string>
+     */
+    public static function permissionsFor(string $surface, User $viewer): array
+    {
+        return collect(self::RECORD_GATES)
+            ->merge(collect(self::SURFACES)->except($surface))
+            ->filter(fn (string $permission): bool => $viewer->can($permission))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function employment(Employee $employee, User $viewer, CarbonImmutable $today): array
+    private function employment(Employee $employee, CarbonImmutable $today): array
     {
         return [
             'hired_on' => $employee->date_hired?->toDateString(),
@@ -93,7 +128,6 @@ final class PredictionContext
             'position' => $employee->position?->title,
             'department' => $employee->department?->name,
             'manager' => $employee->manager?->full_name,
-            'profile_url' => $viewer->can('employees.view') ? route('employees.show', $employee) : null,
         ];
     }
 

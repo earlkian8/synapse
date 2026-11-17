@@ -35,6 +35,13 @@ design and [attrition-risk tables](../database/attrition-risk-tables.md) for the
     from the person's own reasons; **their other predictions** (readiness and forecast,
     each opening the person there); and how they **compare with** everyone in the run,
     their department and their position.
+  - Under the verdict, **In plain words**: on request (*Explain this score*) an LLM reads
+    the breakdown and the record the viewer may see and explains why the system scored
+    them this way — a headline, the main reasons (each with the points it adds or takes, from the stored result; pay is listed with its points but never explained or sent), how the record reads beside
+    it, what to confirm before acting, and what to do ([ADR 0106](../decisions/0106-ai-explains-each-prediction-in-plain-words.md)).
+    It never sees the person's name, pay or leave types; it is saved on the result and shown
+    again only to viewers who may see everything it read. The dialog's header names the
+    person but no longer links to their profile.
   - *Reasons*: a sentence, then a ledger that walks from a typical employee's score
     through each reason's points to this score ([ADR 0098](../decisions/0098-the-predictive-screens-say-why.md)); withdrawal is one reason,
     tagged *Emotional indicator*, with the two counts it was read from; *emotional

@@ -145,8 +145,9 @@ test('the record around the model’s inputs is gathered for a viewer who may se
 
     expect($json['employment'])->toMatchArray([
         'employment_type' => 'probationary', 'position' => 'Senior Analyst', 'manager' => 'Lina Cruz',
-        'profile_url' => route('employees.show', $employee),
     ]);
+    // The dialog no longer links out to the profile.
+    expect($json['employment'])->not->toHaveKey('profile_url');
     expect($json['attendance']['months'])->toHaveCount(6)
         ->and($json['attendance']['months'][4])->toMatchArray([
             'label' => $day->format('M'), 'tracked' => 3, 'worked' => 2, 'absences' => 1, 'lates' => 1, 'late_minutes' => 25, 'overtime_hours' => 1.5,
@@ -177,7 +178,6 @@ test('a viewer who may only see the screen gets the trend, but none of the other
         ->assertOk()
         ->assertJsonCount(1, 'history')
         ->assertJsonPath('signals', [])
-        ->assertJsonPath('employment.profile_url', null)
         ->assertJsonPath('offboarding', null)
         ->assertJsonPath('attendance', null)
         ->assertJsonPath('leave', null)

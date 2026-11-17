@@ -14,7 +14,7 @@ The strip turns into a call to action only when a decision is waiting. Its butto
 
 1. **Overview** — the next step to take, where this page is on the path (_General model_ → _Collecting your history_ → _Your own model_), and what graduation means in four short points.
 2. **Requirements** — each requirement with its progress (for example "14 of 100") and what is still needed. Open one to see what you can do about it, when it might be met at your recent pace, why the number is what it is, and exactly what counts.
-3. **Your own model** — the model in use, a model that passed its check and is waiting for you, or the last check that failed and why.
+3. **Your own model** — the model in use, a model waiting for your decision (whether it passed its check or not), or a check that kept no model and why. **Explain this result** asks AI to say in plain words what each part of the check showed and what switching — or keeping the current model — would mean. Only the check's figures are sent, never anyone's record.
 4. **Data used** — every piece of information a score draws on or could, with how many of your active employees' records carry it.
 
 ## What each prediction needs
@@ -32,9 +32,10 @@ The numbers aren't arbitrary: they are the amounts of evidence needed to check a
 
 ## Training and switching
 
-Once every requirement is met, **Train on our records** (people who can run the prediction) fits a model on your company's records and checks it against the general model and against simply guessing, across a thousand re-samplings of your people. It is offered only if it wins in at least 90% of them.
+Once every requirement is met, **Train on our records** (people who can run the prediction) fits a model on your company's records and checks it against the general model and against simply guessing, across a thousand re-samplings of your people. It **passes** if it wins in at least 90% of them.
 
-- **If it passes**, it waits for you: nothing changes until someone chooses **Switch to this model**.
-- **If it fails**, nothing is stored, and the findings say why in plain words.
+- **If it passes**, it waits for you: nothing changes until someone chooses **Switch to this model** — or **Keep the general model**.
+- **If it doesn't pass**, it is still kept, and the choice is still yours. The findings say why it fell short. Choose **Keep the general model**, or **Use this model anyway** — you'll be asked to tick that you understand it wasn't reliably more accurate for your people. Its scores can look just as confident while being less reliable, so read why first.
+- **If no model could be built at all** from your records, nothing is kept, and the findings say why.
 
-You can **Switch back** to the general model at any time. Both switches ask you to confirm, and both are recorded in the activity logs.
+You can **Switch back** to the general model at any time. Every choice asks you to confirm, and each is recorded in the activity logs — including when a model was used despite not passing its check.

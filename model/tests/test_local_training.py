@@ -111,6 +111,8 @@ def test_a_promotion_model_that_reads_the_organisation_better_passes():
 def test_noise_is_never_offered_as_a_model():
     outcome = training.train("promotion", promotion_rows(signal=False), constant(0.23))
     assert outcome.verdict == "failed"
+    # No model can be fitted on it at all (its calibration would run backwards), so
+    # there is nothing to choose.
     assert outcome.fitted is None
     assert outcome.findings
 
@@ -146,6 +148,11 @@ def test_a_forecast_no_better_than_repeating_the_last_rating_fails():
     outcome = training.train("performance", rows, lambda records: np.array([r["rating_latest"] + 6 for r in records]))
     assert outcome.verdict == "failed"
     assert any("last rating" in f for f in outcome.findings)
+    # It did not pass, but it was fitted on every example all the same: the
+    # organisation may still weigh the findings and choose it.
+    assert outcome.fitted is not None
+    [forecast] = outcome.fitted.assess([{"rating_latest": 70}])
+    assert forecast["interval"]["low"] <= forecast["score"] <= forecast["interval"]["high"]
 
 
 def test_an_attrition_model_passes_even_with_no_attendance_tracked():
